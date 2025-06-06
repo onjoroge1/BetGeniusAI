@@ -1,0 +1,798 @@
+# 🚀 BetGenius AI Python Backend - Complete Implementation Flow
+
+## **📋 High-Level Architecture**
+
+```python
+┌─────────────────┬─────────────────┬─────────────────┐
+│   Data Layer    │   ML Layer      │   API Layer     │
+├─────────────────┼─────────────────┼─────────────────┤
+│ • Sports APIs   │ • Team Model    │ • FastAPI       │
+│ • Data Storage  │ • Player Model  │ • Authentication│
+│ • Feature Eng   │ • Ensemble ML   │ • JSON Response │
+│ • Caching       │ • Confidence    │ • OpenAI LLM    │
+└─────────────────┴─────────────────┴─────────────────┘
+```
+
+## **🛠️ Weekend Implementation Plan**
+
+### **Day 1 (Saturday): Data & Core Setup**
+### **Day 2 (Sunday): ML Models & API Integration**
+
+---
+
+## **📁 Project Structure**
+
+```
+betgenius-ai-engine/
+├── src/
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── auth.py              # API key authentication
+│   │   ├── routes.py            # FastAPI endpoints
+│   │   └── schemas.py           # Pydantic models
+│   ├── data/
+│   │   ├── __init__.py
+│   │   ├── collectors.py        # Sports API data collection
+│   │   ├── processors.py        # Data cleaning & feature engineering
+│   │   └── storage.py           # Database/cache operations
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── team_model.py        # Team performance ML
+│   │   ├── player_model.py      # Player impact ML
+│   │   ├── ensemble.py          # Parent ML aggregator
+│   │   └── trainer.py           # Model training pipeline
+│   ├── llm/
+│   │   ├── __init__.py
+│   │   ├── openai_client.py     # OpenAI integration
+│   │   └── prompts.py           # Prompt templates
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── config.py            # Configuration management
+│   │   └── logger.py            # Logging setup
+│   └── main.py                  # FastAPI application
+├── data/
+│   ├── raw/                     # Raw API data
+│   ├── processed/               # Cleaned data
+│   └── models/                  # Trained ML models
+├── tests/
+├── requirements.txt
+├── .env.example
+└── README.md
+```
+
+---
+
+## **⚙️ Core Implementation Flow**
+
+### **1. Configuration & Environment Setup**
+
+```python
+# src/utils/config.py
+import os
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    # API Keys
+    RAPIDAPI_KEY: str
+    OPENAI_API_KEY: str
+    BETGENIUS_API_KEY: str  # For securing our endpoints
+    
+    # Database
+    DATABASE_URL: str = "postgresql://user:pass@localhost/betgenius"
+    REDIS_URL: str = "redis://localhost:6379"
+    
+    # External APIs
+    RAPIDAPI_FOOTBALL_URL: str = "https://api-football-v1.p.rapidapi.com/v3"
+    ODDS_API_URL: str = "https://api.the-odds-api.com/v4"
+    
+    # ML Settings
+    MODEL_CONFIDENCE_THRESHOLD: float = 0.7
+    ENSEMBLE_WEIGHTS: dict = {
+        "team_model": 0.4,
+        "player_model": 0.3,
+        "form_model": 0.2,
+        "context_model": 0.1
+    }
+    
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+```
+
+### **2. Data Collection Layer**
+
+```python
+# src/data/collectors.py
+import aiohttp
+import asyncio
+from typing import Dict, List, Optional
+from datetime import datetime, timedelta
+import json
+
+class SportsDataCollector:
+    def __init__(self):
+        self.rapidapi_key = settings.RAPIDAPI_KEY
+        self.headers = {
+            "X-RapidAPI-Key": self.rapidapi_key,
+            "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+        }
+    
+    async def get_upcoming_matches(self, league_id: int = 39) -> List[Dict]:
+        """Get upcoming Premier League matches"""
+        url = f"{settings.RAPIDAPI_FOOTBALL_URL}/fixtures"
+        params = {
+            "league": league_id,
+            "season": 2024,
+            "next": 10,  # Next 10 matches
+            "status": "NS"  # Not Started
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=self.headers, params=params) as response:
+                data = await response.json()
+                return data.get('response', [])
+    
+    async def get_team_statistics(self, team_id: int, season: int = 2024) -> Dict:
+        """Get comprehensive team statistics"""
+        url = f"{settings.RAPIDAPI_FOOTBALL_URL}/teams/statistics"
+        params = {
+            "league": 39,  # Premier League
+            "season": season,
+            "team": team_id
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=self.headers, params=params) as response:
+                data = await response.json()
+                return data.get('response', {})
+    
+    async def get_team_form(self, team_id: int, last_games: int = 10) -> List[Dict]:
+        """Get team's recent form"""
+        url = f"{settings.RAPIDAPI_FOOTBALL_URL}/fixtures"
+        params = {
+            "team": team_id,
+            "last": last_games,
+            "status": "FT"  # Full Time
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=self.headers, params=params) as response:
+                data = await response.json()
+                return data.get('response', [])
+    
+    async def get_head_to_head(self, team1_id: int, team2_id: int) -> List[Dict]:
+        """Get head-to-head history"""
+        url = f"{settings.RAPIDAPI_FOOTBALL_URL}/fixtures/headtohead"
+        params = {
+            "h2h": f"{team1_id}-{team2_id}",
+            "last": 10
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=self.headers, params=params) as response:
+                data = await response.json()
+                return data.get('response', [])
+    
+    async def get_team_lineup_prediction(self, match_id: int) -> Dict:
+        """Get probable lineup for match"""
+        url = f"{settings.RAPIDAPI_FOOTBALL_URL}/fixtures/lineups"
+        params = {"fixture": match_id}
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=self.headers, params=params) as response:
+                data = await response.json()
+                return data.get('response', {})
+```
+
+### **3. Data Processing & Feature Engineering**
+
+```python
+# src/data/processors.py
+import pandas as pd
+import numpy as np
+from typing import Dict, List, Tuple
+from datetime import datetime
+
+class MatchDataProcessor:
+    def __init__(self):
+        self.collector = SportsDataCollector()
+    
+    async def process_match_data(self, match_id: int) -> Dict:
+        """Process all data for a specific match"""
+        
+        # Get match details
+        match_data = await self.collector.get_match_details(match_id)
+        home_team_id = match_data['teams']['home']['id']
+        away_team_id = match_data['teams']['away']['id']
+        
+        # Collect all required data
+        tasks = [
+            self.collector.get_team_statistics(home_team_id),
+            self.collector.get_team_statistics(away_team_id),
+            self.collector.get_team_form(home_team_id),
+            self.collector.get_team_form(away_team_id),
+            self.collector.get_head_to_head(home_team_id, away_team_id),
+        ]
+        
+        results = await asyncio.gather(*tasks)
+        home_stats, away_stats, home_form, away_form, h2h_data = results
+        
+        # Process into ML features
+        processed_data = {
+            'match_info': {
+                'match_id': match_id,
+                'home_team': match_data['teams']['home']['name'],
+                'away_team': match_data['teams']['away']['name'],
+                'venue': match_data['fixture']['venue']['name'],
+                'date': match_data['fixture']['date']
+            },
+            'features': self.extract_features(
+                home_stats, away_stats, home_form, away_form, h2h_data
+            ),
+            'raw_data': {
+                'home_stats': home_stats,
+                'away_stats': away_stats,
+                'home_form': home_form,
+                'away_form': away_form,
+                'h2h_data': h2h_data
+            }
+        }
+        
+        return processed_data
+    
+    def extract_features(self, home_stats: Dict, away_stats: Dict, 
+                        home_form: List, away_form: List, h2h_data: List) -> Dict:
+        """Extract ML features from raw data"""
+        
+        features = {}
+        
+        # Team strength features
+        features['home_goals_per_game'] = home_stats.get('goals', {}).get('for', {}).get('average', {}).get('home', 0)
+        features['away_goals_per_game'] = away_stats.get('goals', {}).get('for', {}).get('average', {}).get('away', 0)
+        features['home_goals_against_per_game'] = home_stats.get('goals', {}).get('against', {}).get('average', {}).get('home', 0)
+        features['away_goals_against_per_game'] = away_stats.get('goals', {}).get('against', {}).get('average', {}).get('away', 0)
+        
+        # Form features (last 5 games)
+        features['home_form_points'] = self.calculate_form_points(home_form[:5])
+        features['away_form_points'] = self.calculate_form_points(away_form[:5])
+        features['home_goals_last_5'] = self.calculate_recent_goals(home_form[:5], 'home')
+        features['away_goals_last_5'] = self.calculate_recent_goals(away_form[:5], 'away')
+        
+        # Head-to-head features
+        features['h2h_home_wins'] = self.count_h2h_wins(h2h_data, home_stats['team']['id'])
+        features['h2h_avg_goals'] = self.calculate_h2h_avg_goals(h2h_data)
+        
+        # Derived features
+        features['goal_difference_home'] = features['home_goals_per_game'] - features['home_goals_against_per_game']
+        features['goal_difference_away'] = features['away_goals_per_game'] - features['away_goals_against_per_game']
+        features['form_difference'] = features['home_form_points'] - features['away_form_points']
+        
+        return features
+    
+    def calculate_form_points(self, recent_matches: List) -> int:
+        """Calculate points from recent form"""
+        points = 0
+        for match in recent_matches:
+            # Logic to determine if win/draw/loss and add points
+            # This depends on your specific data structure
+            pass
+        return points
+    
+    def calculate_recent_goals(self, recent_matches: List, venue: str) -> float:
+        """Calculate average goals in recent matches"""
+        total_goals = 0
+        for match in recent_matches:
+            # Extract goals scored based on venue (home/away)
+            pass
+        return total_goals / len(recent_matches) if recent_matches else 0
+    
+    def count_h2h_wins(self, h2h_data: List, team_id: int) -> int:
+        """Count wins in head-to-head"""
+        wins = 0
+        for match in h2h_data:
+            # Count wins for specific team
+            pass
+        return wins
+    
+    def calculate_h2h_avg_goals(self, h2h_data: List) -> float:
+        """Calculate average total goals in H2H matches"""
+        total_goals = sum([
+            match['goals']['home'] + match['goals']['away'] 
+            for match in h2h_data 
+            if match.get('goals')
+        ])
+        return total_goals / len(h2h_data) if h2h_data else 0
+```
+
+### **4. Machine Learning Models**
+
+```python
+# src/models/team_model.py
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+import joblib
+from typing import Dict, Tuple
+
+class TeamPerformanceModel:
+    def __init__(self):
+        self.model = RandomForestRegressor(n_estimators=100, random_state=42)
+        self.scaler = StandardScaler()
+        self.feature_names = [
+            'home_goals_per_game', 'away_goals_per_game',
+            'home_goals_against_per_game', 'away_goals_against_per_game',
+            'goal_difference_home', 'goal_difference_away',
+            'home_form_points', 'away_form_points',
+            'form_difference', 'h2h_home_wins', 'h2h_avg_goals'
+        ]
+    
+    def train(self, training_data: pd.DataFrame) -> Dict:
+        """Train the team performance model"""
+        
+        # Prepare features and targets
+        X = training_data[self.feature_names]
+        y = training_data['match_result']  # 0=away_win, 1=draw, 2=home_win
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+        
+        # Scale features
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
+        
+        # Train model
+        self.model.fit(X_train_scaled, y_train)
+        
+        # Calculate accuracy
+        train_accuracy = self.model.score(X_train_scaled, y_train)
+        test_accuracy = self.model.score(X_test_scaled, y_test)
+        
+        return {
+            'train_accuracy': train_accuracy,
+            'test_accuracy': test_accuracy,
+            'feature_importance': dict(zip(
+                self.feature_names, 
+                self.model.feature_importances_
+            ))
+        }
+    
+    def predict(self, features: Dict) -> Dict:
+        """Make prediction on new data"""
+        
+        # Convert to array
+        feature_array = np.array([[features[name] for name in self.feature_names]])
+        
+        # Scale features
+        feature_scaled = self.scaler.transform(feature_array)
+        
+        # Get probabilities
+        probabilities = self.model.predict_proba(feature_scaled)[0]
+        
+        return {
+            'home_win_prob': float(probabilities[2]),
+            'draw_prob': float(probabilities[1]),
+            'away_win_prob': float(probabilities[0]),
+            'confidence': float(np.max(probabilities))
+        }
+    
+    def save_model(self, filepath: str):
+        """Save trained model"""
+        joblib.dump({
+            'model': self.model,
+            'scaler': self.scaler,
+            'feature_names': self.feature_names
+        }, filepath)
+    
+    def load_model(self, filepath: str):
+        """Load trained model"""
+        loaded = joblib.load(filepath)
+        self.model = loaded['model']
+        self.scaler = loaded['scaler']
+        self.feature_names = loaded['feature_names']
+```
+
+```python
+# src/models/ensemble.py
+import numpy as np
+from typing import Dict, List
+from .team_model import TeamPerformanceModel
+
+class EnsemblePredictor:
+    def __init__(self):
+        self.team_model = TeamPerformanceModel()
+        self.weights = settings.ENSEMBLE_WEIGHTS
+        
+        # Load pre-trained models
+        self.team_model.load_model('data/models/team_model.pkl')
+    
+    def make_prediction(self, features: Dict) -> Dict:
+        """Make ensemble prediction combining all models"""
+        
+        # Get individual model predictions
+        team_prediction = self.team_model.predict(features)
+        
+        # For now, just use team model (expand later with player/context models)
+        predictions = {
+            'team_model': team_prediction
+        }
+        
+        # Calculate weighted ensemble
+        ensemble_probs = {
+            'home_win': team_prediction['home_win_prob'],
+            'draw': team_prediction['draw_prob'],
+            'away_win': team_prediction['away_win_prob']
+        }
+        
+        # Calculate confidence based on maximum probability
+        max_prob = max(ensemble_probs.values())
+        confidence = min(max_prob * 1.2, 1.0)  # Boost confidence slightly
+        
+        # Determine recommended bet
+        recommended_bet = max(ensemble_probs, key=ensemble_probs.get)
+        
+        return {
+            'predictions': ensemble_probs,
+            'confidence': confidence,
+            'recommended_bet': recommended_bet,
+            'component_predictions': predictions,
+            'value_assessment': self.assess_value(ensemble_probs)
+        }
+    
+    def assess_value(self, probabilities: Dict) -> Dict:
+        """Assess betting value (placeholder - would compare vs bookmaker odds)"""
+        return {
+            'home_win_value': 'medium',
+            'draw_value': 'low',
+            'away_win_value': 'low'
+        }
+```
+
+### **5. OpenAI LLM Integration**
+
+```python
+# src/llm/openai_client.py
+import openai
+from typing import Dict
+import json
+
+class OpenAIAnalyzer:
+    def __init__(self):
+        openai.api_key = settings.OPENAI_API_KEY
+        self.client = openai.OpenAI()
+    
+    async def generate_analysis(self, match_data: Dict, ml_prediction: Dict) -> Dict:
+        """Generate comprehensive match analysis using GPT-4"""
+        
+        # Prepare context for LLM
+        context = self.prepare_context(match_data, ml_prediction)
+        
+        # Create prompt
+        prompt = self.create_analysis_prompt(context)
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert football analyst and betting advisor."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=800
+            )
+            
+            analysis_text = response.choices[0].message.content
+            
+            # Also get structured predictions
+            structured_response = await self.get_structured_predictions(context)
+            
+            return {
+                'analysis_text': analysis_text,
+                'structured_data': structured_response,
+                'confidence_factors': self.extract_confidence_factors(context),
+                'betting_recommendations': self.get_betting_recommendations(ml_prediction)
+            }
+            
+        except Exception as e:
+            return {
+                'analysis_text': f"Analysis unavailable due to error: {str(e)}",
+                'structured_data': {},
+                'confidence_factors': [],
+                'betting_recommendations': {}
+            }
+    
+    def prepare_context(self, match_data: Dict, ml_prediction: Dict) -> Dict:
+        """Prepare structured context for LLM"""
+        return {
+            'match_info': match_data['match_info'],
+            'key_stats': {
+                'home_goals_avg': match_data['features']['home_goals_per_game'],
+                'away_goals_avg': match_data['features']['away_goals_per_game'],
+                'home_form_points': match_data['features']['home_form_points'],
+                'away_form_points': match_data['features']['away_form_points'],
+                'h2h_home_wins': match_data['features']['h2h_home_wins']
+            },
+            'ml_prediction': ml_prediction,
+            'derived_insights': {
+                'attacking_advantage': 'home' if match_data['features']['home_goals_per_game'] > match_data['features']['away_goals_per_game'] else 'away',
+                'defensive_advantage': 'home' if match_data['features']['home_goals_against_per_game'] < match_data['features']['away_goals_against_per_game'] else 'away',
+                'form_advantage': 'home' if match_data['features']['home_form_points'] > match_data['features']['away_form_points'] else 'away'
+            }
+        }
+    
+    def create_analysis_prompt(self, context: Dict) -> str:
+        """Create detailed analysis prompt"""
+        return f"""
+        Analyze this football match and provide expert insights:
+        
+        Match: {context['match_info']['home_team']} vs {context['match_info']['away_team']}
+        Venue: {context['match_info']['venue']}
+        
+        Key Statistics:
+        - {context['match_info']['home_team']} Goals/Game: {context['key_stats']['home_goals_avg']:.1f}
+        - {context['match_info']['away_team']} Goals/Game: {context['key_stats']['away_goals_avg']:.1f}
+        - Recent Form Points: {context['key_stats']['home_form_points']} vs {context['key_stats']['away_form_points']}
+        - H2H Record: {context['match_info']['home_team']} won {context['key_stats']['h2h_home_wins']} of recent meetings
+        
+        AI Model Prediction:
+        - {context['match_info']['home_team']} Win: {context['ml_prediction']['predictions']['home_win']:.1%}
+        - Draw: {context['ml_prediction']['predictions']['draw']:.1%}
+        - {context['match_info']['away_team']} Win: {context['ml_prediction']['predictions']['away_win']:.1%}
+        - Confidence: {context['ml_prediction']['confidence']:.1%}
+        
+        Provide a clear, engaging analysis explaining:
+        1. Why the AI favors this outcome
+        2. Key factors influencing the prediction
+        3. Potential risks or surprises
+        4. Best betting opportunities
+        
+        Keep it conversational and accessible for regular football fans.
+        """
+    
+    async def get_structured_predictions(self, context: Dict) -> Dict:
+        """Get structured predictions for specific markets"""
+        
+        prompt = f"""
+        Based on this match data, provide structured predictions in JSON format:
+        
+        {json.dumps(context, indent=2)}
+        
+        Return ONLY a JSON object with these predictions:
+        {{
+            "total_goals": {{"over_2_5": 0.0, "under_2_5": 0.0}},
+            "both_teams_score": {{"yes": 0.0, "no": 0.0}},
+            "correct_score_top3": ["2-1", "1-0", "1-1"],
+            "first_goalscorer": "Unknown",
+            "match_events": {{
+                "yellow_cards_total": 0,
+                "corners_total": 0,
+                "shots_on_target": 0
+            }}
+        }}
+        """
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a football statistics expert. Return only valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3
+            )
+            
+            return json.loads(response.choices[0].message.content)
+        except:
+            return {
+                "total_goals": {"over_2_5": 0.6, "under_2_5": 0.4},
+                "both_teams_score": {"yes": 0.7, "no": 0.3},
+                "correct_score_top3": ["2-1", "1-0", "1-1"],
+                "first_goalscorer": "Unknown"
+            }
+```
+
+### **6. FastAPI Application**
+
+```python
+# src/api/routes.py
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from typing import Dict, Optional
+import asyncio
+
+from ..data.processors import MatchDataProcessor
+from ..models.ensemble import EnsemblePredictor
+from ..llm.openai_client import OpenAIAnalyzer
+
+app = FastAPI(title="BetGenius AI Engine", version="1.0.0")
+security = HTTPBearer()
+
+# Initialize components
+processor = MatchDataProcessor()
+predictor = EnsemblePredictor()
+analyzer = OpenAIAnalyzer()
+
+# Pydantic models
+class PredictionRequest(BaseModel):
+    match_id: int
+    include_analysis: bool = True
+    language: str = "en"
+
+class PredictionResponse(BaseModel):
+    match_info: Dict
+    predictions: Dict
+    confidence: float
+    analysis: Optional[Dict] = None
+    timestamp: str
+
+# Authentication
+async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if credentials.credentials != settings.BETGENIUS_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return credentials.credentials
+
+@app.post("/api/v1/predict", response_model=PredictionResponse)
+async def predict_match(
+    request: PredictionRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """Generate AI prediction for a specific match"""
+    
+    try:
+        # Process match data
+        match_data = await processor.process_match_data(request.match_id)
+        
+        # Generate ML prediction
+        ml_prediction = predictor.make_prediction(match_data['features'])
+        
+        # Generate LLM analysis if requested
+        analysis = None
+        if request.include_analysis:
+            analysis = await analyzer.generate_analysis(match_data, ml_prediction)
+        
+        # Combine everything into final JSON
+        final_prediction = {
+            'match_info': match_data['match_info'],
+            'predictions': {
+                'match_result': ml_prediction['predictions'],
+                'confidence': ml_prediction['confidence'],
+                'recommended_bet': ml_prediction['recommended_bet'],
+                **analysis['structured_data'] if analysis else {}
+            },
+            'analysis': {
+                'explanation': analysis['analysis_text'] if analysis else None,
+                'confidence_factors': analysis['confidence_factors'] if analysis else [],
+                'betting_recommendations': analysis['betting_recommendations'] if analysis else {},
+                'component_models': ml_prediction['component_predictions']
+            },
+            'metadata': {
+                'model_version': '1.0.0',
+                'language': request.language,
+                'generated_at': datetime.utcnow().isoformat()
+            }
+        }
+        
+        return PredictionResponse(
+            match_info=final_prediction['match_info'],
+            predictions=final_prediction['predictions'],
+            confidence=final_prediction['predictions']['confidence'],
+            analysis=final_prediction['analysis'],
+            timestamp=final_prediction['metadata']['generated_at']
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+@app.get("/api/v1/matches/upcoming")
+async def get_upcoming_matches(
+    league: int = 39,  # Premier League default
+    limit: int = 10,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get upcoming matches for prediction"""
+    
+    collector = SportsDataCollector()
+    matches = await collector.get_upcoming_matches(league)
+    
+    return {
+        'matches': matches[:limit],
+        'total': len(matches)
+    }
+
+@app.get("/api/v1/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "version": "1.0.0"}
+
+# src/main.py
+import uvicorn
+from src.api.routes import app
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "src.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )
+```
+
+### **7. Example JSON Output**
+
+```python
+# Example final JSON response
+{
+    "match_info": {
+        "match_id": 12345,
+        "home_team": "Arsenal",
+        "away_team": "Manchester United",
+        "venue": "Emirates Stadium",
+        "date": "2025-01-15T17:30:00Z"
+    },
+    "predictions": {
+        "match_result": {
+            "home_win": 0.52,
+            "draw": 0.28,
+            "away_win": 0.20
+        },
+        "confidence": 0.84,
+        "recommended_bet": "home_win",
+        "total_goals": {
+            "over_2_5": 0.73,
+            "under_2_5": 0.27
+        },
+        "both_teams_score": {
+            "yes": 0.78,
+            "no": 0.22
+        },
+        "correct_score_top3": ["2-1", "2-0", "1-1"]
+    },
+    "analysis": {
+        "explanation": "Arsenal are strong favorites for this Emirates clash. Their home form (8 wins from 12 games) gives them a clear advantage, while United's away struggles continue...",
+        "confidence_factors": [
+            "Arsenal home advantage (73% win rate)",
+            "Superior recent form (8 vs 6 points)",
+            "Head-to-head dominance (4/5 recent wins)"
+        ],
+        "betting_recommendations": {
+            "best_value": "Arsenal Win",
+            "safest_bet": "Over 2.5 Goals",
+            "avoid": "Draw"
+        },
+        "component_models": {
+            "team_model": {
+                "home_win_prob": 0.54,
+                "confidence": 0.78
+            }
+        }
+    },
+    "metadata": {
+        "model_version": "1.0.0",
+        "language": "en",
+        "generated_at": "2025-01-12T10:30:00Z"
+    }
+}
+```
+
+### **8. Requirements.txt**
+
+```txt
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+aiohttp==3.9.0
+pandas==2.1.4
+numpy==1.25.2
+scikit-learn==1.3.2
+openai==1.6.0
+redis==5.0.1
+psycopg2-binary==2.9.9
+python-jose==3.3.0
+python-multipart==0.0.6
+joblib==1
