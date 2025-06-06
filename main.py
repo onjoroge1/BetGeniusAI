@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 import asyncio
 import logging
 from datetime import datetime
@@ -390,13 +390,30 @@ async def get_upcoming_matches(
     limit: int = 10,
     api_key: str = Depends(verify_api_key)
 ):
-    """Get list of upcoming matches"""
+    """Get list of upcoming matches with prediction-ready format"""
     try:
         matches = await data_collector.get_upcoming_matches(league_id, limit)
+        
+        # Format matches for easy prediction use
+        formatted_matches = []
+        for match in matches:
+            formatted_match = {
+                "match_id": match.get("fixture", {}).get("id"),
+                "home_team": match.get("teams", {}).get("home", {}).get("name"),
+                "away_team": match.get("teams", {}).get("away", {}).get("name"),
+                "date": match.get("fixture", {}).get("date"),
+                "venue": match.get("fixture", {}).get("venue", {}).get("name"),
+                "league": match.get("league", {}).get("name"),
+                "status": match.get("fixture", {}).get("status", {}).get("long"),
+                "prediction_ready": True if match.get("fixture", {}).get("id") else False
+            }
+            formatted_matches.append(formatted_match)
+        
         return {
-            "matches": matches,
-            "total": len(matches),
+            "matches": formatted_matches,
+            "total": len(formatted_matches),
             "league_id": league_id,
+            "usage_note": "Use match_id from any match to get predictions via POST /predict",
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
@@ -405,6 +422,191 @@ async def get_upcoming_matches(
             status_code=500,
             detail=f"Failed to fetch matches: {str(e)}"
         )
+
+@app.get("/matches/search")
+async def search_matches(
+    team: Optional[str] = None,
+    league_id: int = 39,
+    api_key: str = Depends(verify_api_key)
+):
+    """Search for specific team matches"""
+    try:
+        matches = await data_collector.get_upcoming_matches(league_id, 50)
+        
+        if team:
+            # Filter matches by team name (case insensitive)
+            filtered_matches = []
+            team_lower = team.lower()
+            
+            for match in matches:
+                home_team = match.get("teams", {}).get("home", {}).get("name", "").lower()
+                away_team = match.get("teams", {}).get("away", {}).get("name", "").lower()
+                
+                if team_lower in home_team or team_lower in away_team:
+                    formatted_match = {
+                        "match_id": match.get("fixture", {}).get("id"),
+                        "home_team": match.get("teams", {}).get("home", {}).get("name"),
+                        "away_team": match.get("teams", {}).get("away", {}).get("name"),
+                        "date": match.get("fixture", {}).get("date"),
+                        "venue": match.get("fixture", {}).get("venue", {}).get("name"),
+                        "league": match.get("league", {}).get("name"),
+                        "prediction_command": f'curl -X POST "/predict" -d {{"match_id": {match.get("fixture", {}).get("id")}}}'
+                    }
+                    filtered_matches.append(formatted_match)
+            
+            return {
+                "matches": filtered_matches,
+                "search_term": team,
+                "total_found": len(filtered_matches),
+                "league_id": league_id,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            return {
+                "error": "Please provide team parameter",
+                "example": "GET /matches/search?team=arsenal&league_id=39",
+                "available_leagues": {
+                    "39": "Premier League (England)",
+                    "140": "La Liga (Spain)", 
+                    "78": "Bundesliga (Germany)",
+                    "135": "Serie A (Italy)",
+                    "61": "Ligue 1 (France)",
+                    "2": "UEFA Champions League",
+                    "3": "UEFA Europa League"
+                },
+                "usage": "Find specific team matches and get match_id for predictions"
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to search matches: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to search matches: {str(e)}"
+        )
+
+@app.get("/leagues")
+async def get_available_leagues(api_key: str = Depends(verify_api_key)):
+    """Get all available leagues with their IDs"""
+    return {
+        "leagues": {
+            "39": {
+                "name": "Premier League",
+                "country": "England",
+                "example_url": "https://your-app-domain.com/matches/upcoming?league_id=39",
+                "teams": ["Arsenal", "Chelsea", "Liverpool", "Manchester United", "Manchester City", "Tottenham"]
+            },
+            "140": {
+                "name": "La Liga",
+                "country": "Spain", 
+                "example_url": "https://your-app-domain.com/matches/upcoming?league_id=140",
+                "teams": ["Real Madrid", "Barcelona", "Atletico Madrid", "Sevilla", "Valencia"]
+            },
+            "78": {
+                "name": "Bundesliga",
+                "country": "Germany",
+                "example_url": "https://your-app-domain.com/matches/upcoming?league_id=78",
+                "teams": ["Bayern Munich", "Borussia Dortmund", "RB Leipzig", "Bayer Leverkusen"]
+            },
+            "135": {
+                "name": "Serie A",
+                "country": "Italy",
+                "example_url": "https://your-app-domain.com/matches/upcoming?league_id=135",
+                "teams": ["Juventus", "AC Milan", "Inter Milan", "AS Roma", "Napoli"]
+            },
+            "61": {
+                "name": "Ligue 1",
+                "country": "France",
+                "example_url": "https://your-app-domain.com/matches/upcoming?league_id=61",
+                "teams": ["Paris Saint-Germain", "Marseille", "Lyon", "Monaco"]
+            },
+            "2": {
+                "name": "UEFA Champions League",
+                "country": "Europe",
+                "example_url": "https://your-app-domain.com/matches/upcoming?league_id=2",
+                "teams": ["Top European clubs"]
+            }
+        },
+        "usage": {
+            "step_1": "Choose a league_id from above",
+            "step_2": "GET /matches/upcoming?league_id=39 to find matches",
+            "step_3": "POST /predict with match_id to get predictions"
+        },
+        "note": "Replace 'your-app-domain.com' with your actual domain when deployed"
+    }
+
+@app.get("/examples")
+async def get_prediction_examples():
+    """Show example predictions and how to use the API (no auth required)"""
+    return {
+        "api_overview": "BetGenius AI - Football Match Predictions with AI Explanations",
+        "complete_workflow": {
+            "step_1": {
+                "description": "Get available leagues",
+                "method": "GET",
+                "url": "/leagues",
+                "auth_required": True
+            },
+            "step_2": {
+                "description": "Find upcoming matches",
+                "method": "GET", 
+                "url": "/matches/upcoming?league_id=39&limit=5",
+                "auth_required": True,
+                "example_response": {
+                    "matches": [
+                        {
+                            "match_id": 867946,
+                            "home_team": "Arsenal",
+                            "away_team": "Manchester United",
+                            "date": "2024-12-15T15:00:00Z",
+                            "venue": "Emirates Stadium"
+                        }
+                    ]
+                }
+            },
+            "step_3": {
+                "description": "Get match prediction with AI analysis",
+                "method": "POST",
+                "url": "/predict",
+                "auth_required": True,
+                "payload": {
+                    "match_id": 867946,
+                    "include_analysis": True,
+                    "include_additional_markets": True
+                },
+                "example_response": {
+                    "predictions": {
+                        "home_win": 0.652,
+                        "draw": 0.248,
+                        "away_win": 0.100,
+                        "confidence": 0.847,
+                        "recommended_bet": "Arsenal Win"
+                    },
+                    "analysis": {
+                        "explanation": "Arsenal are strong favorites due to excellent home form and recent performance improvements..."
+                    }
+                }
+            }
+        },
+        "authentication": {
+            "header": "Authorization: Bearer betgenius_secure_key_2024",
+            "note": "Required for all endpoints except /examples and /demo"
+        },
+        "league_ids": {
+            "39": "Premier League (England)",
+            "140": "La Liga (Spain)",
+            "78": "Bundesliga (Germany)", 
+            "135": "Serie A (Italy)",
+            "61": "Ligue 1 (France)",
+            "2": "Champions League"
+        },
+        "sample_curl_commands": {
+            "get_leagues": "curl -H 'Authorization: Bearer betgenius_secure_key_2024' https://your-domain/leagues",
+            "find_matches": "curl -H 'Authorization: Bearer betgenius_secure_key_2024' https://your-domain/matches/upcoming?league_id=39",
+            "search_team": "curl -H 'Authorization: Bearer betgenius_secure_key_2024' https://your-domain/matches/search?team=arsenal",
+            "get_prediction": "curl -X POST -H 'Authorization: Bearer betgenius_secure_key_2024' -H 'Content-Type: application/json' -d '{\"match_id\": 867946, \"include_analysis\": true}' https://your-domain/predict"
+        },
+        "demo_page": "/demo - Interactive testing interface (no auth required)"
+    }
 
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
