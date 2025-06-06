@@ -175,6 +175,13 @@ async def demo_page():
                 <p>Uses OpenAI GPT-4o to explain WHY predictions make sense in simple, human language.</p>
             </div>
             
+            <div class="feature" style="background: #f39c12; color: white;">
+                <h3>🔑 Authentication Required</h3>
+                <p><strong>API Key:</strong> betgenius_secure_key_2024</p>
+                <p>All prediction endpoints require: <code>Authorization: Bearer betgenius_secure_key_2024</code></p>
+                <p><strong>No Auth Required:</strong> /, /health, /demo, /examples</p>
+            </div>
+            
             <h3>Complete Workflow - How to Get Match Predictions:</h3>
             <div class="feature">
                 <strong>Step 1:</strong> Get available leagues → <button onclick="testEndpoint('/leagues', true)">Test /leagues</button><br><br>
