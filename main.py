@@ -175,6 +175,14 @@ async def demo_page():
                 <p>Uses OpenAI GPT-4o to explain WHY predictions make sense in simple, human language.</p>
             </div>
             
+            <h3>Complete Workflow - How to Get Match Predictions:</h3>
+            <div class="feature">
+                <strong>Step 1:</strong> Get available leagues → <button onclick="testEndpoint('/leagues', true)">Test /leagues</button><br><br>
+                <strong>Step 2:</strong> Find matches in Premier League (ID: 39) → <button onclick="testEndpoint('/matches/upcoming?league_id=39&limit=5', true)">Find Premier League Matches</button><br><br>
+                <strong>Step 3:</strong> Search for specific teams → <button onclick="testEndpoint('/matches/search?team=arsenal&league_id=39', true)">Search Arsenal Matches</button><br><br>
+                <strong>Step 4:</strong> Get prediction using match_id from Step 2/3 → <button onclick="testPrediction()">Get AI Prediction</button>
+            </div>
+            
             <h3>API Endpoints:</h3>
             
             <div class="endpoint">
@@ -188,13 +196,30 @@ async def demo_page():
             </div>
             
             <div class="endpoint">
-                <strong>POST /predict</strong> - Generate match predictions with AI analysis
-                <button onclick="testPrediction()">Test Prediction</button>
+                <strong>GET /leagues</strong> - Get all available leagues with teams
+                <button onclick="testEndpoint('/leagues', true)">Test</button>
             </div>
             
             <div class="endpoint">
-                <strong>GET /matches/upcoming</strong> - Get upcoming matches
-                <button onclick="testEndpoint('/matches/upcoming?league_id=39&limit=5', true)">Test</button>
+                <strong>GET /examples</strong> - Complete API usage guide (no auth)
+                <button onclick="testEndpoint('/examples')">Test</button>
+            </div>
+            
+            <div class="endpoint">
+                <strong>GET /matches/upcoming?league_id=39&limit=5</strong> - Get upcoming matches
+                <button onclick="testEndpoint('/matches/upcoming?league_id=39&limit=5', true)">Test Premier League</button>
+                <button onclick="testEndpoint('/matches/upcoming?league_id=140&limit=5', true)">Test La Liga</button>
+            </div>
+            
+            <div class="endpoint">
+                <strong>GET /matches/search?team=arsenal&league_id=39</strong> - Search team matches
+                <button onclick="testEndpoint('/matches/search?team=arsenal&league_id=39', true)">Search Arsenal</button>
+                <button onclick="testEndpoint('/matches/search?team=barcelona&league_id=140', true)">Search Barcelona</button>
+            </div>
+            
+            <div class="endpoint">
+                <strong>POST /predict</strong> - Generate match predictions with AI analysis
+                <button onclick="testPrediction()">Test Prediction</button>
             </div>
             
             <div id="result" class="result" style="display:none;">
@@ -202,20 +227,54 @@ async def demo_page():
                 <pre id="response-content"></pre>
             </div>
             
+            <h3>League ID Reference:</h3>
+            <div class="feature">
+                <strong>Major European Leagues:</strong><br>
+                39 = Premier League (England) - Arsenal, Chelsea, Liverpool, Man United<br>
+                140 = La Liga (Spain) - Real Madrid, Barcelona, Atletico Madrid<br>
+                78 = Bundesliga (Germany) - Bayern Munich, Borussia Dortmund<br>
+                135 = Serie A (Italy) - Juventus, AC Milan, Inter Milan<br>
+                61 = Ligue 1 (France) - PSG, Marseille, Lyon<br>
+                2 = UEFA Champions League<br>
+                3 = UEFA Europa League
+            </div>
+            
+            <h3>Complete URL Examples (Replace with your domain):</h3>
+            <pre>
+# When deployed on Replit:
+https://your-app-name.replit.app/leagues
+https://your-app-name.replit.app/matches/upcoming?league_id=39&limit=10
+https://your-app-name.replit.app/matches/search?team=arsenal&league_id=39
+https://your-app-name.replit.app/predict
+
+# Local development:
+http://localhost:5000/leagues
+http://localhost:5000/matches/upcoming?league_id=39&limit=10
+            </pre>
+            
             <h3>Sample cURL Commands:</h3>
             <pre>
-# Health Check
-curl -X GET "http://localhost:5000/health"
+# Get available leagues and teams
+curl -H "Authorization: Bearer betgenius_secure_key_2024" \\
+  https://your-domain/leagues
 
-# Match Prediction (requires API key)
-curl -X POST "http://localhost:5000/predict" \\
+# Find Premier League matches
+curl -H "Authorization: Bearer betgenius_secure_key_2024" \\
+  "https://your-domain/matches/upcoming?league_id=39&limit=10"
+
+# Search for specific team
+curl -H "Authorization: Bearer betgenius_secure_key_2024" \\
+  "https://your-domain/matches/search?team=arsenal&league_id=39"
+
+# Get match prediction with AI analysis
+curl -X POST \\
   -H "Authorization: Bearer betgenius_secure_key_2024" \\
   -H "Content-Type: application/json" \\
-  -d '{"match_id": 867946, "include_analysis": true}'
+  -d '{"match_id": 867946, "include_analysis": true, "include_additional_markets": true}' \\
+  https://your-domain/predict
 
-# Upcoming Matches (requires API key)
-curl -X GET "http://localhost:5000/matches/upcoming?league_id=39" \\
-  -H "Authorization: Bearer betgenius_secure_key_2024"
+# Health check (no auth required)
+curl https://your-domain/health
             </pre>
         </div>
         
