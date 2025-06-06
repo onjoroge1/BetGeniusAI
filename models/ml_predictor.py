@@ -89,9 +89,13 @@ class MLPredictor:
                 try:
                     model.fit(X_scaled, y)
                     
-                    # Validate with cross-validation
-                    cv_scores = cross_val_score(model, X_scaled, y, cv=5, scoring='accuracy')
-                    logger.info(f"{name} - CV Accuracy: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})")
+                    # Validate with cross-validation (adjust cv based on data size)
+                    cv_folds = min(5, len(np.unique(y)), len(X) // 2)
+                    if cv_folds >= 2:
+                        cv_scores = cross_val_score(model, X_scaled, y, cv=cv_folds, scoring='accuracy')
+                        logger.info(f"{name} - CV Accuracy: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})")
+                    else:
+                        logger.info(f"{name} - Trained successfully (insufficient data for CV)")
                     
                 except Exception as e:
                     logger.error(f"Failed to train {name}: {e}")
@@ -276,7 +280,7 @@ class MLPredictor:
             # Combined confidence
             confidence = (model_agreement * 0.7 + data_quality * 0.3)
             
-            return min(0.99, max(0.30, confidence))
+            return min(0.99, max(0.30, float(confidence)))
             
         except Exception as e:
             logger.error(f"Confidence calculation failed: {e}")
@@ -290,7 +294,7 @@ class MLPredictor:
                 return "Low confidence - consider avoiding"
             
             # Find highest probability outcome
-            max_outcome = max(probabilities, key=probabilities.get)
+            max_outcome = max(probabilities.keys(), key=lambda k: probabilities[k])
             max_prob = probabilities[max_outcome]
             
             # Convert to readable format
