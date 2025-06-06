@@ -1,0 +1,33 @@
+modules = ["python-3.11"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["glibcLocales", "libxcrypt"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "BetGenius AI Server"
+
+[[workflows.workflow]]
+name = "BetGenius AI Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "uv add fastapi uvicorn aiohttp pandas numpy scikit-learn python-jose requests pydantic-settings && python main.py"
+waitForPort = 5000
+
+[deployment]
+run = ["sh", "-c", "uv add fastapi uvicorn aiohttp pandas numpy scikit-learn python-jose requests pydantic-settings && python main.py"]
+
+[[ports]]
+localPort = 8000
+externalPort = 80
