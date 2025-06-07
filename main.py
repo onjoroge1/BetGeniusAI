@@ -281,6 +281,12 @@ async def demo_page():
             <div class="endpoint">
                 <strong>POST /predict</strong> - Generate match predictions with AI analysis
                 <button onclick="testPrediction()">Test Prediction</button>
+                <div style="margin-top: 10px; padding: 8px; background: #e8f4fd; border-left: 3px solid #0066cc; font-size: 12px;">
+                    <strong>📋 Standard Workflow:</strong><br>
+                    1. Use /matches/search or /matches/upcoming to get match_id<br>
+                    2. Send match_id to /predict for AI-powered analysis<br>
+                    3. Receive ML predictions + human-readable explanations
+                </div>
                 <div class="response-codes" style="font-size: 12px; margin-top: 5px;">
                     ✅ 200 OK - Prediction successful<br>
                     ❌ 401 Unauthorized - Invalid API key<br>
