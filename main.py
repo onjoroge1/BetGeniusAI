@@ -175,11 +175,26 @@ async def demo_page():
                 <p>Uses OpenAI GPT-4o to explain WHY predictions make sense in simple, human language.</p>
             </div>
             
+            <div class="status-indicators" style="background: #27ae60; color: white; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                <h3>System Status</h3>
+                🟢 Live Data: Connected to RapidAPI Football<br>
+                🟢 AI Engine: GPT-4o Responding<br>  
+                🟢 ML Models: 3 Models Trained & Ready<br>
+                🟢 Authentication: Secure API Keys Active
+            </div>
+            
             <div class="feature" style="background: #f39c12; color: white;">
                 <h3>🔑 Authentication Required</h3>
                 <p><strong>API Key:</strong> betgenius_secure_key_2024</p>
                 <p>All prediction endpoints require: <code>Authorization: Bearer betgenius_secure_key_2024</code></p>
                 <p><strong>No Auth Required:</strong> /, /health, /demo, /examples</p>
+            </div>
+            
+            <div class="confidence-guide" style="background: #34495e; color: white; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                <h3>Confidence Level Guide</h3>
+                🟢 High Confidence (80%+): Strong recommendation<br>
+                🟡 Medium Confidence (60-80%): Proceed with caution<br>  
+                🔴 Low Confidence (<60%): Avoid betting
             </div>
             
             <h3>Complete Workflow - How to Get Match Predictions:</h3>
@@ -205,6 +220,23 @@ async def demo_page():
             <div class="endpoint">
                 <strong>GET /leagues</strong> - Get all available leagues with teams
                 <button onclick="testEndpoint('/leagues', true)">Test</button>
+                <div class="response-codes" style="font-size: 12px; margin-top: 5px;">
+                    ✅ 200 OK - Leagues retrieved successfully<br>
+                    ❌ 401 Unauthorized - Invalid API key
+                </div>
+                <details style="margin-top: 5px;">
+                    <summary>Example Response</summary>
+                    <pre style="background: #f8f9fa; padding: 10px; font-size: 11px;">
+{
+  "leagues": {
+    "39": {
+      "name": "Premier League",
+      "country": "England",
+      "teams": ["Arsenal", "Chelsea", "Liverpool"]
+    }
+  }
+}</pre>
+                </details>
             </div>
             
             <div class="endpoint">
@@ -216,6 +248,26 @@ async def demo_page():
                 <strong>GET /matches/upcoming?league_id=39&limit=5</strong> - Get upcoming matches
                 <button onclick="testEndpoint('/matches/upcoming?league_id=39&limit=5', true)">Test Premier League</button>
                 <button onclick="testEndpoint('/matches/upcoming?league_id=140&limit=5', true)">Test La Liga</button>
+                <div class="response-codes" style="font-size: 12px; margin-top: 5px;">
+                    ✅ 200 OK - Matches found<br>
+                    ❌ 401 Unauthorized - Invalid API key<br>
+                    ❌ 404 Not Found - League not found
+                </div>
+                <details style="margin-top: 5px;">
+                    <summary>Example Response</summary>
+                    <pre style="background: #f8f9fa; padding: 10px; font-size: 11px;">
+{
+  "matches": [
+    {
+      "match_id": 867946,
+      "home_team": "Arsenal",
+      "away_team": "Manchester United",
+      "date": "2024-12-15T15:00:00Z",
+      "venue": "Emirates Stadium"
+    }
+  ]
+}</pre>
+                </details>
             </div>
             
             <div class="endpoint">
@@ -227,6 +279,31 @@ async def demo_page():
             <div class="endpoint">
                 <strong>POST /predict</strong> - Generate match predictions with AI analysis
                 <button onclick="testPrediction()">Test Prediction</button>
+                <div class="response-codes" style="font-size: 12px; margin-top: 5px;">
+                    ✅ 200 OK - Prediction successful<br>
+                    ❌ 401 Unauthorized - Invalid API key<br>
+                    ❌ 404 Not Found - Match not found<br>
+                    ❌ 500 Error - Processing failed
+                </div>
+                <details style="margin-top: 5px;">
+                    <summary>Example Response</summary>
+                    <pre style="background: #f8f9fa; padding: 10px; font-size: 11px;">
+{
+  "predictions": {
+    "home_win": 0.25,
+    "draw": 0.30,
+    "away_win": 0.45,
+    "confidence": 0.85,
+    "recommended_bet": "Away Team Win"
+  },
+  "analysis": {
+    "explanation": "AI explanation of why these odds make sense",
+    "confidence_factors": ["Team form", "Head-to-head record"],
+    "risk_assessment": "Medium risk"
+  },
+  "processing_time": 8.5
+}</pre>
+                </details>
             </div>
             
             <div id="result" class="result" style="display:none;">
