@@ -16,6 +16,7 @@ from utils.config import settings
 from models.data_collector import SportsDataCollector
 from models.ml_predictor import MLPredictor
 from models.ai_analyzer import AIAnalyzer
+from models.training_data_collector import TrainingDataCollector
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +44,7 @@ app.add_middleware(
 data_collector = SportsDataCollector()
 ml_predictor = MLPredictor()
 ai_analyzer = AIAnalyzer()
+training_collector = TrainingDataCollector()
 
 # Pydantic models for request/response
 class PredictionRequest(BaseModel):
@@ -304,6 +306,25 @@ async def demo_page():
   "processing_time": 8.5
 }</pre>
                 </details>
+            </div>
+            
+            <h3>🔧 Admin Endpoints (Authentic Data Training):</h3>
+            
+            <div class="endpoint">
+                <strong>GET /admin/training-stats</strong> - Check current training data status
+                <button onclick="testEndpoint('/admin/training-stats', true)">Check Training Status</button>
+            </div>
+            
+            <div class="endpoint">
+                <strong>POST /admin/collect-training-data</strong> - Collect real historical match data
+                <button onclick="collectTrainingData()">Collect Authentic Data</button>
+                <p style="font-size: 12px; margin: 5px 0;">Collects 200+ matches per league from Premier League, La Liga, Bundesliga, Serie A (2021-2023)</p>
+            </div>
+            
+            <div class="endpoint">
+                <strong>POST /admin/retrain-models</strong> - Retrain models with authentic data
+                <button onclick="retrainModels()">Retrain with Real Data</button>
+                <p style="font-size: 12px; margin: 5px 0;">Use after collecting training data to replace sample data with authentic match results</p>
             </div>
             
             <div id="result" class="result" style="display:none;">
@@ -676,6 +697,94 @@ async def get_available_leagues(api_key: str = Depends(verify_api_key)):
         },
         "note": "Replace 'your-app-domain.com' with your actual domain when deployed"
     }
+
+@app.post("/admin/collect-training-data")
+async def collect_training_data(
+    leagues: list = [39, 140, 78, 135],
+    seasons: list = [2023, 2022, 2021],
+    max_matches_per_league: int = 200,
+    api_key: str = Depends(verify_api_key)
+):
+    """Collect authentic historical match data for model training"""
+    try:
+        logger.info(f"Starting training data collection for leagues: {leagues}")
+        
+        training_data = await training_collector.collect_training_data(
+            leagues=leagues,
+            seasons=seasons,
+            max_matches_per_league=max_matches_per_league
+        )
+        
+        stats = training_collector.get_training_stats()
+        
+        return {
+            "status": "success",
+            "message": f"Collected {len(training_data)} training samples",
+            "training_stats": stats,
+            "next_step": "Use /admin/retrain-models to train with this data"
+        }
+        
+    except Exception as e:
+        logger.error(f"Training data collection failed: {e}")
+        return {
+            "status": "error", 
+            "message": f"Failed to collect training data: {e}"
+        }
+
+@app.post("/admin/retrain-models")
+async def retrain_models(api_key: str = Depends(verify_api_key)):
+    """Retrain ML models with collected authentic data"""
+    try:
+        # Get current stats before retraining
+        old_stats = training_collector.get_training_stats()
+        
+        # Reinitialize the ML predictor to load new training data
+        global ml_predictor
+        ml_predictor = MLPredictor()
+        
+        # Get new stats after retraining
+        new_stats = training_collector.get_training_stats()
+        
+        return {
+            "status": "success",
+            "message": "Models retrained with authentic data",
+            "training_data_used": new_stats.get("total_samples", 0),
+            "model_performance": {
+                "data_source": "authentic_historical_matches",
+                "is_trained": ml_predictor.is_trained,
+                "feature_count": len(ml_predictor.feature_names)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Model retraining failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to retrain models: {e}"
+        }
+
+@app.get("/admin/training-stats")
+async def get_training_stats(api_key: str = Depends(verify_api_key)):
+    """Get statistics about current training data"""
+    try:
+        stats = training_collector.get_training_stats()
+        
+        return {
+            "training_data": stats,
+            "model_status": {
+                "is_trained": ml_predictor.is_trained,
+                "feature_count": len(ml_predictor.feature_names),
+                "using_authentic_data": stats.get("total_samples", 0) > 0
+            },
+            "recommendations": {
+                "collect_data": stats.get("total_samples", 0) < 100,
+                "retrain_models": not ml_predictor.is_trained or stats.get("total_samples", 0) > 0
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get training stats: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/examples")
 async def get_prediction_examples():

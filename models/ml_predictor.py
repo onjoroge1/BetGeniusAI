@@ -110,13 +110,27 @@ class MLPredictor:
             self.is_trained = False
     
     def _load_training_data(self) -> List[Dict]:
-        """Load training data from sample file"""
+        """Load training data from authentic historical matches"""
         try:
-            data_file = "data/sample_data.json"
+            # Try to load real training data first
+            data_file = "data/training_data.json"
             if os.path.exists(data_file):
                 with open(data_file, 'r') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                logger.info(f"Loaded {len(data)} authentic training samples")
+                return data
+            
+            # Fallback to sample data if no real data available
+            sample_file = "data/sample_data.json"
+            if os.path.exists(sample_file):
+                with open(sample_file, 'r') as f:
+                    data = json.load(f)
+                logger.warning(f"Using sample data: {len(data)} samples. Collect real data for better accuracy.")
+                return data
+            
+            logger.error("No training data available. Use /admin/collect-training-data endpoint.")
             return []
+            
         except Exception as e:
             logger.error(f"Failed to load training data: {e}")
             return []
