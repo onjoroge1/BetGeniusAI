@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 
 from utils.config import settings, get_rapidapi_headers
+from models.player_analyzer import PlayerPerformanceAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class SportsDataCollector:
         self.base_url = settings.RAPIDAPI_FOOTBALL_URL
         self.headers = get_rapidapi_headers()
         self.cache = {}  # Simple in-memory cache
+        self.player_analyzer = PlayerPerformanceAnalyzer()
         
     async def get_match_data(self, match_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -60,6 +62,18 @@ class SportsDataCollector:
                 if isinstance(result, Exception):
                     logger.warning(f"Task {i} failed: {result}")
                     results[i] = {} if i < 2 else []
+                    
+            # Unpack results with proper typing
+            home_stats, away_stats, home_form, away_form, h2h_data, home_injuries, away_injuries = results
+            
+            # Get player performance analysis (hybrid approach)
+            try:
+                player_analysis = await self.player_analyzer.analyze_key_players_impact(
+                    home_team_id, away_team_id
+                )
+            except Exception as e:
+                logger.warning(f"Player analysis failed: {e}")
+                player_analysis = self.player_analyzer._fallback_player_analysis()
             
             # Process into structured format
             processed_data = {
@@ -73,8 +87,14 @@ class SportsDataCollector:
                     'round': match_details.get('league', {}).get('round', 'Regular Season')
                 },
                 'features': self._extract_ml_features(
-                    home_stats, away_stats, home_form, away_form, 
-                    h2h_data, home_injuries, away_injuries
+                    home_stats if not isinstance(home_stats, Exception) else {},
+                    away_stats if not isinstance(away_stats, Exception) else {},
+                    home_form if not isinstance(home_form, Exception) else [],
+                    away_form if not isinstance(away_form, Exception) else [],
+                    h2h_data if not isinstance(h2h_data, Exception) else [],
+                    home_injuries if not isinstance(home_injuries, Exception) else [],
+                    away_injuries if not isinstance(away_injuries, Exception) else [],
+                    player_analysis
                 ),
                 'raw_data': {
                     'match_details': match_details,
@@ -84,7 +104,8 @@ class SportsDataCollector:
                     'away_form': away_form,
                     'h2h_data': h2h_data,
                     'home_injuries': home_injuries,
-                    'away_injuries': away_injuries
+                    'away_injuries': away_injuries,
+                    'player_analysis': player_analysis
                 }
             }
             
@@ -220,7 +241,8 @@ class SportsDataCollector:
     
     def _extract_ml_features(self, home_stats: Dict, away_stats: Dict, 
                            home_form: List, away_form: List, h2h_data: List,
-                           home_injuries: List, away_injuries: List) -> Dict:
+                           home_injuries: List, away_injuries: List, 
+                           player_analysis: Dict = None) -> Dict:
         """Extract ML features from raw data"""
         
         features = {}
