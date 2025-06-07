@@ -429,6 +429,44 @@ curl https://your-domain/health
                     document.getElementById('response-content').textContent = 'Error: ' + error.message;
                 });
             }
+            
+            function collectTrainingData() {
+                fetch('/admin/collect-training-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer betgenius_secure_key_2024'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('response-content').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('response-content').textContent = 'Error: ' + error.message;
+                });
+            }
+            
+            function retrainModels() {
+                fetch('/admin/retrain-models', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer betgenius_secure_key_2024'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('response-content').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('response-content').textContent = 'Error: ' + error.message;
+                });
+            }
         </script>
     </body>
     </html>
