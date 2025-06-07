@@ -699,14 +699,13 @@ async def get_available_leagues(api_key: str = Depends(verify_api_key)):
     }
 
 @app.post("/admin/collect-training-data")
-async def collect_training_data(
-    leagues: list = [39, 140, 78, 135],
-    seasons: list = [2023, 2022, 2021],
-    max_matches_per_league: int = 200,
-    api_key: str = Depends(verify_api_key)
-):
+async def collect_training_data(api_key: str = Depends(verify_api_key)):
     """Collect authentic historical match data for model training"""
     try:
+        leagues = [39, 140, 78, 135]  # Premier League, La Liga, Bundesliga, Serie A
+        seasons = [2023, 2022, 2021]
+        max_matches_per_league = 200
+        
         logger.info(f"Starting training data collection for leagues: {leagues}")
         
         training_data = await training_collector.collect_training_data(
