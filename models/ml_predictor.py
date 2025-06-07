@@ -34,7 +34,9 @@ class MLPredictor:
             'h2h_home_wins', 'h2h_away_wins', 'h2h_avg_goals',
             'home_key_injuries', 'away_key_injuries',
             'goal_difference_home', 'goal_difference_away',
-            'form_difference', 'strength_difference', 'total_goals_tendency'
+            'form_difference', 'strength_difference', 'total_goals_tendency',
+            'home_player_performance', 'away_player_performance', 
+            'player_performance_diff', 'key_player_advantage'
         ]
         self.is_trained = False
         self._initialize_models()
