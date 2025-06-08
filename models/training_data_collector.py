@@ -31,11 +31,12 @@ class TrainingDataCollector:
         """Lazy-load database manager"""
         if self.db_manager is None:
             try:
+                from .database import DatabaseManager
                 self.db_manager = DatabaseManager()
                 logger.info("Database manager initialized successfully")
             except Exception as e:
                 logger.warning(f"Database not available, using file storage: {e}")
-                self.db_manager = False
+                self.db_manager = None
         return self.db_manager
         
     async def collect_training_data(self, leagues: List[int] = [39, 140, 78, 135], 
@@ -62,11 +63,16 @@ class TrainingDataCollector:
                     processed_matches = await self._process_matches_for_training(matches)
                     
                     # Save to database immediately instead of waiting for completion
-                    if db_manager and hasattr(db_manager, 'save_training_matches_batch'):
-                        saved_count = db_manager.save_training_matches_batch(processed_matches)
-                        logger.info(f"Saved {saved_count} matches to database for league {league_id}, season {season}")
+                    logger.info(f"Processing complete for league {league_id}, season {season}: {len(processed_matches)} matches")
+                    
+                    if db_manager:
+                        try:
+                            saved_count = db_manager.save_training_matches_batch(processed_matches)
+                            logger.info(f"Successfully saved {saved_count} matches to database for league {league_id}, season {season}")
+                        except Exception as e:
+                            logger.error(f"Database save failed for league {league_id}, season {season}: {e}")
                     else:
-                        logger.info(f"Database unavailable, collecting {len(processed_matches)} matches in memory")
+                        logger.warning(f"Database unavailable, collecting {len(processed_matches)} matches in memory")
                     
                     all_training_data.extend(processed_matches)
                     
