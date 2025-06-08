@@ -49,7 +49,8 @@ class MLPredictor:
         ]
         self.is_trained = False
         self._initialize_models()
-        self._train_models()
+        # Defer training to avoid blocking server startup
+        # Training will happen on first prediction request or manual trigger
     
     def _initialize_models(self):
         """Initialize the ensemble of ML models"""
@@ -185,11 +186,16 @@ class MLPredictor:
         Returns probabilities and recommendations
         """
         try:
+            # Train models if not already trained
+            if not self.is_trained:
+                logger.info("Training models on first prediction request...")
+                self._train_models()
+            
             # Prepare feature vector
             feature_vector = self._prepare_features(features)
             
             if not self.is_trained:
-                # Fallback to heuristic prediction if models aren't trained
+                # Fallback to heuristic prediction if training failed
                 return self._heuristic_prediction(features)
             
             # Get predictions from all models

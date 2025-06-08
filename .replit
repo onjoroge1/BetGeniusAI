@@ -22,11 +22,11 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "uv add fastapi uvicorn aiohttp pandas numpy scikit-learn python-jose requests pydantic-settings && python main.py"
+args = "python main.py"
 waitForPort = 5000
 
 [deployment]
-run = ["sh", "-c", "uv add fastapi uvicorn aiohttp pandas numpy scikit-learn python-jose requests pydantic-settings && python main.py"]
+run = ["sh", "-c", "python main.py"]
 
 [[ports]]
 localPort = 5000
