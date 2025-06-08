@@ -810,18 +810,29 @@ async def retrain_models(api_key: str = Depends(verify_api_key)):
 async def get_training_stats(api_key: str = Depends(verify_api_key)):
     """Get statistics about current training data"""
     try:
-        stats = training_collector.get_training_stats()
+        # Try database first, fallback to file-based stats
+        try:
+            from models.database import DatabaseManager
+            db_manager = DatabaseManager()
+            stats = db_manager.get_training_stats()
+            storage_type = "database"
+            logger.info("Retrieved training stats from PostgreSQL database")
+        except Exception as db_error:
+            logger.warning(f"Database unavailable, using file system: {db_error}")
+            stats = training_collector.get_training_stats()
+            storage_type = "file"
         
         return {
             "training_data": stats,
             "model_status": {
                 "is_trained": ml_predictor.is_trained,
                 "feature_count": len(ml_predictor.feature_names),
-                "using_authentic_data": stats.get("total_samples", 0) > 0
+                "using_authentic_data": stats.get("total_samples", 0) > 50,
+                "storage_type": storage_type
             },
             "recommendations": {
                 "collect_data": stats.get("total_samples", 0) < 100,
-                "retrain_models": not ml_predictor.is_trained or stats.get("total_samples", 0) > 0
+                "retrain_models": not ml_predictor.is_trained and stats.get("total_samples", 0) > 50
             }
         }
         
