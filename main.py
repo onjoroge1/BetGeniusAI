@@ -45,6 +45,8 @@ data_collector = SportsDataCollector()
 ml_predictor = MLPredictor()
 ai_analyzer = AIAnalyzer()
 training_collector = TrainingDataCollector()
+from models.automated_collector import AutomatedCollector
+automated_collector = AutomatedCollector()
 
 # Pydantic models for request/response
 class PredictionRequest(BaseModel):
@@ -839,6 +841,73 @@ async def get_training_stats(api_key: str = Depends(verify_api_key)):
     except Exception as e:
         logger.error(f"Failed to get training stats: {e}")
         return {"status": "error", "message": str(e)}
+
+@app.post("/admin/collect-recent-matches")
+async def collect_recent_matches(days_back: int = 3, api_key: str = Depends(verify_api_key)):
+    """Collect matches completed in the last N days for continuous training data updates"""
+    try:
+        logger.info(f"Starting collection of matches from last {days_back} days")
+        
+        results = await automated_collector.collect_recent_matches(days_back=days_back)
+        
+        return {
+            "status": "success",
+            "message": f"Collected {results['new_matches_collected']} new matches",
+            "collection_summary": results,
+            "next_step": "Models will auto-retrain if enough new data collected"
+        }
+        
+    except Exception as e:
+        logger.error(f"Recent match collection failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to collect recent matches: {e}"
+        }
+
+@app.post("/admin/daily-collection-cycle")
+async def daily_collection_cycle(api_key: str = Depends(verify_api_key)):
+    """Run complete daily collection cycle: collect recent matches + auto-retrain if needed"""
+    try:
+        logger.info("Starting daily automated collection cycle")
+        
+        results = await automated_collector.daily_collection_cycle()
+        
+        return {
+            "status": "success",
+            "message": "Daily collection cycle completed",
+            "results": results,
+            "auto_retrained": results.get("auto_retrained", False)
+        }
+        
+    except Exception as e:
+        logger.error(f"Daily collection cycle failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Daily cycle failed: {e}"
+        }
+
+@app.get("/admin/collection-history")
+async def get_collection_history(days: int = 7, api_key: str = Depends(verify_api_key)):
+    """Get automated collection history for monitoring"""
+    try:
+        history = automated_collector.get_collection_history(days=days)
+        
+        return {
+            "status": "success",
+            "history": history,
+            "summary": {
+                "entries": len(history),
+                "days_covered": days,
+                "total_matches_collected": sum(entry.get("new_matches_collected", 0) for entry in history)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get collection history: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to retrieve collection history: {e}"
+        }
 
 @app.get("/examples")
 async def get_prediction_examples():
