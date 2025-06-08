@@ -83,14 +83,41 @@ class MLPredictor:
                 self.is_trained = False
                 return
             
-            X = np.array([list(sample['features'].values()) for sample in training_data])
-            y = np.array([sample['outcome'] for sample in training_data])
+            # Extract features properly handling both dict and JSON string formats
+            features_list = []
+            for sample in training_data:
+                features = sample['features']
+                if isinstance(features, str):
+                    features = json.loads(features)
+                features_list.append(list(features.values()))
             
-            # Ensure we have enough features
+            X = np.array(features_list)
+            
+            # Convert string outcomes to numeric (database format: 'Home', 'Draw', 'Away')
+            outcome_map = {'Home': 0, 'Draw': 1, 'Away': 2}
+            y = np.array([outcome_map.get(sample['outcome'], sample['outcome']) for sample in training_data])
+            
+            # Adapt to available features (authentic data may have different feature count)
             if X.shape[1] != len(self.feature_names):
-                logger.warning(f"Feature mismatch: expected {len(self.feature_names)}, got {X.shape[1]}")
-                self.is_trained = False
-                return
+                logger.info(f"Adapting to authentic data features: {X.shape[1]} features available, {len(self.feature_names)} expected")
+                # Update feature names to match authentic data structure
+                if X.shape[1] == 20:
+                    self.feature_names = [
+                        'home_goals_per_game', 'away_goals_per_game', 
+                        'home_goals_against_per_game', 'away_goals_against_per_game',
+                        'home_win_percentage', 'away_win_percentage',
+                        'home_form_points', 'away_form_points',
+                        'home_goals_last_5', 'away_goals_last_5',
+                        'h2h_home_wins', 'h2h_away_wins', 'h2h_avg_goals',
+                        'home_key_injuries', 'away_key_injuries',
+                        'goal_difference_home', 'goal_difference_away',
+                        'form_difference', 'strength_difference', 'total_goals_tendency'
+                    ]
+                    logger.info("Updated feature set to match authentic Premier League data")
+                elif X.shape[1] < 10:
+                    logger.warning(f"Insufficient features for training: {X.shape[1]}")
+                    self.is_trained = False
+                    return
             
             # Scale features
             X_scaled = self.scaler.fit_transform(X)
@@ -119,17 +146,25 @@ class MLPredictor:
             self.is_trained = False
     
     def _load_training_data(self) -> List[Dict]:
-        """Load training data from authentic historical matches"""
+        """Load training data from PostgreSQL database or files"""
         try:
-            # Try to load real training data first
+            # Try database first
+            db_manager = get_database_manager()
+            if db_manager:
+                db_data = db_manager.load_training_data()
+                if db_data:
+                    logger.info(f"Loaded {len(db_data)} authentic samples from database")
+                    return db_data
+            
+            # Fallback to file-based data
             data_file = "data/training_data.json"
             if os.path.exists(data_file):
                 with open(data_file, 'r') as f:
                     data = json.load(f)
-                logger.info(f"Loaded {len(data)} authentic training samples")
+                logger.info(f"Loaded {len(data)} authentic training samples from file")
                 return data
             
-            # Fallback to sample data if no real data available
+            # Last resort: sample data
             sample_file = "data/sample_data.json"
             if os.path.exists(sample_file):
                 with open(sample_file, 'r') as f:
