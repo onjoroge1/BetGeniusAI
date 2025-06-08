@@ -96,7 +96,14 @@ class MLPredictor:
             
             # Convert string outcomes to numeric (database format: 'Home', 'Draw', 'Away')
             outcome_map = {'Home': 0, 'Draw': 1, 'Away': 2}
-            y = np.array([outcome_map.get(sample['outcome'], sample['outcome']) for sample in training_data])
+            y_list = []
+            for sample in training_data:
+                outcome = sample.get('outcome', 'Home')
+                if isinstance(outcome, str):
+                    y_list.append(outcome_map.get(outcome, 0))
+                else:
+                    y_list.append(outcome)
+            y = np.array(y_list)
             
             # Adapt to available features (authentic data may have different feature count)
             if X.shape[1] != len(self.feature_names):
