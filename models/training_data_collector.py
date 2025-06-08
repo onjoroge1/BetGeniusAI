@@ -13,6 +13,7 @@ import os
 
 from utils.config import settings, get_rapidapi_headers
 from models.data_collector import SportsDataCollector
+from models.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,17 @@ class TrainingDataCollector:
         self.headers = get_rapidapi_headers()
         self.data_collector = SportsDataCollector()
         self.training_data_file = "data/training_data.json"
+        self.db_manager = None
+    
+    def _get_db_manager(self):
+        """Lazy-load database manager"""
+        if self.db_manager is None:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                logger.warning(f"Database not available, using file storage: {e}")
+                self.db_manager = False
+        return self.db_manager
         
     async def collect_training_data(self, leagues: List[int] = [39, 140, 78, 135], 
                                   seasons: List[int] = [2023, 2022, 2021],
@@ -36,6 +48,9 @@ class TrainingDataCollector:
         
         logger.info(f"Starting training data collection for {len(leagues)} leagues, {len(seasons)} seasons")
         
+        # Initialize database manager
+        db_manager = self._get_db_manager()
+        
         for league_id in leagues:
             for season in seasons:
                 try:
@@ -44,6 +59,14 @@ class TrainingDataCollector:
                     
                     # Process matches to extract features and outcomes
                     processed_matches = await self._process_matches_for_training(matches)
+                    
+                    # Save to database immediately instead of waiting for completion
+                    if db_manager and hasattr(db_manager, 'save_training_matches_batch'):
+                        saved_count = db_manager.save_training_matches_batch(processed_matches)
+                        logger.info(f"Saved {saved_count} matches to database for league {league_id}, season {season}")
+                    else:
+                        logger.info(f"Database unavailable, collecting {len(processed_matches)} matches in memory")
+                    
                     all_training_data.extend(processed_matches)
                     
                     # Rate limiting
