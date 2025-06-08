@@ -32,6 +32,7 @@ class TrainingDataCollector:
         if self.db_manager is None:
             try:
                 self.db_manager = DatabaseManager()
+                logger.info("Database manager initialized successfully")
             except Exception as e:
                 logger.warning(f"Database not available, using file storage: {e}")
                 self.db_manager = False
@@ -142,14 +143,25 @@ class TrainingDataCollector:
                 match_data = await self.data_collector.get_match_data(match_id)
                 
                 if match_data and 'features' in match_data:
+                    # Map outcome to string for database
+                    outcome_map = {0: 'Home', 1: 'Draw', 2: 'Away'}
+                    
                     training_sample = {
                         'match_id': match_id,
+                        'league_id': match.get('league', {}).get('id', 0),
+                        'season': match.get('league', {}).get('season', 2023),
+                        'home_team': match_data.get('match_info', {}).get('home_team', 'Unknown'),
+                        'away_team': match_data.get('match_info', {}).get('away_team', 'Unknown'),
+                        'home_team_id': match.get('teams', {}).get('home', {}).get('id'),
+                        'away_team_id': match.get('teams', {}).get('away', {}).get('id'),
+                        'venue': match_data.get('match_info', {}).get('venue', ''),
+                        'outcome': outcome_map[outcome],
+                        'home_goals': home_goals,
+                        'away_goals': away_goals,
                         'features': match_data['features'],
-                        'outcome': outcome,
                         'actual_score': f"{home_goals}-{away_goals}",
                         'match_info': match_data.get('match_info', {}),
-                        'league': match.get('league', {}).get('name', 'Unknown'),
-                        'season': match.get('league', {}).get('season', 2023)
+                        'league': match.get('league', {}).get('name', 'Unknown')
                     }
                     training_samples.append(training_sample)
                 

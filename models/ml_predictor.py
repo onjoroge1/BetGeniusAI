@@ -19,6 +19,15 @@ from utils.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Lazy import to avoid initialization issues
+def get_database_manager():
+    try:
+        from .database import DatabaseManager
+        return DatabaseManager()
+    except Exception as e:
+        logger.warning(f"Database not available: {e}")
+        return None
+
 class MLPredictor:
     """Ensemble ML prediction engine for football matches"""
     
