@@ -776,6 +776,58 @@ async def collect_training_data(api_key: str = Depends(verify_api_key)):
             "message": f"Failed to collect training data: {e}"
         }
 
+@app.post("/admin/targeted-collection")
+async def targeted_collection(
+    target_matches: int = 500,
+    api_key: str = Depends(verify_api_key)
+):
+    """Targeted data collection: expand dataset incrementally with progress tracking"""
+    try:
+        from models.targeted_collector import TargetedCollector
+        
+        collector = TargetedCollector()
+        results = await collector.expand_dataset_incrementally(target_matches)
+        
+        return {
+            "status": "success",
+            "collection_results": results,
+            "summary": f"Added {results.get('total_new_matches', 0)} new matches to reach {results.get('final_total', 0)} total"
+        }
+        
+    except Exception as e:
+        logger.error(f"Targeted collection failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Targeted collection failed: {e}"
+        }
+
+@app.post("/admin/collect-single-league")
+async def collect_single_league(
+    league_id: int = 39,
+    season: int = 2023,
+    max_matches: int = 50,
+    api_key: str = Depends(verify_api_key)
+):
+    """Collect matches from a single league/season with detailed progress tracking"""
+    try:
+        from models.targeted_collector import TargetedCollector
+        
+        collector = TargetedCollector()
+        results = await collector.collect_single_league_season(league_id, season, max_matches)
+        
+        return {
+            "status": "success",
+            "collection_details": results,
+            "summary": f"Processed {results.get('matches_processed', 0)} matches, saved {results.get('matches_saved', 0)} to database"
+        }
+        
+    except Exception as e:
+        logger.error(f"Single league collection failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Single league collection failed: {e}"
+        }
+
 @app.post("/admin/retrain-models")
 async def retrain_models(api_key: str = Depends(verify_api_key)):
     """Retrain ML models with collected authentic data"""
