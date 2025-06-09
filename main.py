@@ -600,7 +600,7 @@ async def get_upcoming_matches(
     limit: int = 10,
     api_key: str = Depends(verify_api_key)
 ):
-    """Get list of upcoming matches with prediction-ready format"""
+    """Get available matches for prediction (upcoming matches or recent completed matches for testing)"""
     try:
         matches = await data_collector.get_upcoming_matches(league_id, limit)
         

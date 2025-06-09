@@ -116,27 +116,78 @@ class SportsDataCollector:
             return None
     
     async def get_upcoming_matches(self, league_id: int = 39, limit: int = 10) -> List[Dict]:
-        """Get upcoming matches for a league"""
+        """Get available matches for prediction (upcoming + recent completed matches)"""
+        try:
+            all_matches = []
+            
+            # Try multiple approaches to find predictable matches
+            seasons_to_try = [2025, 2024, 2023]
+            
+            for season in seasons_to_try:
+                if len(all_matches) >= limit:
+                    break
+                    
+                # Try upcoming matches first
+                upcoming = await self._get_matches_by_status(league_id, season, "NS", limit)
+                all_matches.extend(upcoming)
+                
+                # If no upcoming, get recent completed matches for demonstration
+                if not upcoming:
+                    recent = await self._get_matches_by_status(league_id, season, "FT", limit)
+                    all_matches.extend(recent[:limit])
+                
+                if all_matches:
+                    break
+            
+            # Deduplicate and limit results
+            seen_ids = set()
+            unique_matches = []
+            for match in all_matches:
+                match_id = match.get('fixture', {}).get('id')
+                if match_id and match_id not in seen_ids:
+                    seen_ids.add(match_id)
+                    unique_matches.append(match)
+                    if len(unique_matches) >= limit:
+                        break
+            
+            return unique_matches
+                        
+        except Exception as e:
+            logger.error(f"Failed to get matches: {e}")
+            return []
+    
+    async def _get_matches_by_status(self, league_id: int, season: int, status: str, limit: int) -> List[Dict]:
+        """Get matches by specific status"""
         try:
             url = f"{self.base_url}/fixtures"
-            params = {
-                "league": league_id,
-                "season": 2024,
-                "next": limit,
-                "status": "NS"  # Not Started
-            }
+            
+            if status == "NS":  # Not Started (upcoming)
+                params = {
+                    "league": league_id,
+                    "season": season,
+                    "next": limit
+                }
+            else:  # Completed matches
+                params = {
+                    "league": league_id,
+                    "season": season,
+                    "last": limit,
+                    "status": status
+                }
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=self.headers, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return data.get('response', [])
+                        matches = data.get('response', [])
+                        logger.info(f"Found {len(matches)} {status} matches for league {league_id}, season {season}")
+                        return matches
                     else:
-                        logger.error(f"API request failed: {response.status}")
+                        logger.warning(f"API request failed for league {league_id}, season {season}: {response.status}")
                         return []
                         
         except Exception as e:
-            logger.error(f"Failed to get upcoming matches: {e}")
+            logger.error(f"Failed to get {status} matches: {e}")
             return []
     
     async def _get_match_details(self, match_id: int) -> Optional[Dict]:
