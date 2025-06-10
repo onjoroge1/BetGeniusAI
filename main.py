@@ -832,24 +832,28 @@ async def collect_single_league(
 async def retrain_models(api_key: str = Depends(verify_api_key)):
     """Retrain ML models with collected authentic data"""
     try:
-        # Get current stats before retraining
-        old_stats = training_collector.get_training_stats()
+        # Get database stats
+        from models.database import DatabaseManager
+        db_manager = DatabaseManager()
+        db_stats = db_manager.get_training_stats()
         
         # Reinitialize the ML predictor to load new training data
         global ml_predictor
         ml_predictor = MLPredictor()
         
-        # Get new stats after retraining
-        new_stats = training_collector.get_training_stats()
+        # Force training with database data
+        ml_predictor._train_models()
         
         return {
             "status": "success",
             "message": "Models retrained with authentic data",
-            "training_data_used": new_stats.get("total_samples", 0),
+            "training_data_used": db_stats.get("total_samples", 0),
             "model_performance": {
                 "data_source": "authentic_historical_matches",
                 "is_trained": ml_predictor.is_trained,
-                "feature_count": len(ml_predictor.feature_names)
+                "feature_count": len(ml_predictor.feature_names),
+                "total_matches": db_stats.get("total_samples", 0),
+                "premier_league_matches": db_stats.get("total_samples", 0)
             }
         }
         

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # Lazy import to avoid initialization issues
 def get_database_manager():
     try:
-        from .database import DatabaseManager
+        from models.database import DatabaseManager
         return DatabaseManager()
     except Exception as e:
         logger.warning(f"Database not available: {e}")
@@ -86,13 +86,22 @@ class MLPredictor:
             
             # Extract features properly handling both dict and JSON string formats
             features_list = []
+            feature_keys = None
+            
             for sample in training_data:
                 features = sample['features']
                 if isinstance(features, str):
                     features = json.loads(features)
-                features_list.append(list(features.values()))
+                
+                # Establish consistent feature ordering
+                if feature_keys is None:
+                    feature_keys = sorted(features.keys())
+                
+                # Extract features in consistent order
+                feature_values = [features.get(key, 0.0) for key in feature_keys]
+                features_list.append(feature_values)
             
-            X = np.array(features_list)
+            X = np.array(features_list, dtype=np.float32)
             
             # Convert string outcomes to numeric (database format: 'Home', 'Draw', 'Away')
             outcome_map = {'Home': 0, 'Draw': 1, 'Away': 2}
@@ -105,27 +114,15 @@ class MLPredictor:
                     y_list.append(outcome)
             y = np.array(y_list)
             
-            # Adapt to available features (authentic data may have different feature count)
-            if X.shape[1] != len(self.feature_names):
-                logger.info(f"Adapting to authentic data features: {X.shape[1]} features available, {len(self.feature_names)} expected")
-                # Update feature names to match authentic data structure
-                if X.shape[1] == 20:
-                    self.feature_names = [
-                        'home_goals_per_game', 'away_goals_per_game', 
-                        'home_goals_against_per_game', 'away_goals_against_per_game',
-                        'home_win_percentage', 'away_win_percentage',
-                        'home_form_points', 'away_form_points',
-                        'home_goals_last_5', 'away_goals_last_5',
-                        'h2h_home_wins', 'h2h_away_wins', 'h2h_avg_goals',
-                        'home_key_injuries', 'away_key_injuries',
-                        'goal_difference_home', 'goal_difference_away',
-                        'form_difference', 'strength_difference', 'total_goals_tendency'
-                    ]
-                    logger.info("Updated feature set to match authentic Premier League data")
-                elif X.shape[1] < 10:
-                    logger.warning(f"Insufficient features for training: {X.shape[1]}")
-                    self.is_trained = False
-                    return
+            # Update feature names to match authentic data
+            if feature_keys:
+                self.feature_names = feature_keys
+                logger.info(f"Using authentic data features: {len(self.feature_names)} features from database")
+            
+            if X.shape[1] < 5:
+                logger.warning(f"Insufficient features for training: {X.shape[1]}")
+                self.is_trained = False
+                return
             
             # Scale features
             X_scaled = self.scaler.fit_transform(X)
