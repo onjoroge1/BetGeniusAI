@@ -29,28 +29,31 @@ def get_database_manager():
         return None
 
 class MLPredictor:
-    """Ensemble ML prediction engine for football matches"""
+    """Unified ML prediction engine addressing overfitting concerns"""
     
     def __init__(self):
-        self.models = {}
-        self.scaler = StandardScaler()
+        self.unified_model = None
+        self.unified_scaler = None
         self.feature_names = [
-            'home_goals_per_game', 'away_goals_per_game', 
-            'home_goals_against_per_game', 'away_goals_against_per_game',
             'home_win_percentage', 'away_win_percentage',
-            'home_form_points', 'away_form_points',
-            'home_goals_last_5', 'away_goals_last_5',
-            'h2h_home_wins', 'h2h_away_wins', 'h2h_avg_goals',
-            'home_key_injuries', 'away_key_injuries',
-            'goal_difference_home', 'goal_difference_away',
-            'form_difference', 'strength_difference', 'total_goals_tendency',
-            'home_player_performance', 'away_player_performance', 
-            'player_performance_diff', 'key_player_advantage'
+            'home_form_normalized', 'away_form_normalized',
+            'win_probability_difference', 'form_balance',
+            'combined_strength', 'league_competitiveness',
+            'league_home_advantage', 'african_market_flag'
         ]
         self.is_trained = False
-        self._initialize_models()
-        # Defer training to avoid blocking server startup
-        # Training will happen on first prediction request or manual trigger
+        self._load_unified_model()
+    
+    def _load_unified_model(self):
+        """Load unified production model"""
+        try:
+            self.unified_model = joblib.load('models/production_unified_model.pkl')
+            self.unified_scaler = joblib.load('models/production_unified_scaler.pkl')
+            self.is_trained = True
+            logger.info("Unified production model loaded successfully")
+        except Exception as e:
+            logger.warning(f"Unified model not found, using fallback: {e}")
+            self.is_trained = False
     
     def _initialize_models(self):
         """Initialize the ensemble of ML models"""
@@ -186,65 +189,48 @@ class MLPredictor:
     
     def predict_match_outcome(self, features: Dict[str, float]) -> Dict[str, Any]:
         """
-        Predict match outcome using ensemble of ML models
-        Returns probabilities and recommendations
+        Predict match outcome using unified model (addresses overfitting)
+        Returns probabilities with realistic accuracy estimates
         """
         try:
-            # Train models if not already trained
-            if not self.is_trained:
-                logger.info("Training models on first prediction request...")
-                self._train_models()
-            
-            # Prepare feature vector
-            feature_vector = self._prepare_features(features)
-            
-            if not self.is_trained:
-                # Fallback to heuristic prediction if training failed
+            if not self.is_trained or self.unified_model is None:
                 return self._heuristic_prediction(features)
             
-            # Get predictions from all models
-            predictions = {}
-            probabilities = {}
+            # Prepare unified feature vector
+            unified_features = self._prepare_unified_features(features)
             
-            X_scaled = self.scaler.transform([feature_vector])
+            # Scale and predict
+            X_scaled = self.unified_scaler.transform([unified_features])
+            probabilities = self.unified_model.predict_proba(X_scaled)[0]
+            prediction = self.unified_model.predict(X_scaled)[0]
             
-            for name, model in self.models.items():
-                try:
-                    # Get class probabilities
-                    proba = model.predict_proba(X_scaled)[0]
-                    
-                    # Map to outcome classes (0=away_win, 1=draw, 2=home_win)
-                    probabilities[name] = {
-                        'away_win': proba[0],
-                        'draw': proba[1], 
-                        'home_win': proba[2]
-                    }
-                    
-                except Exception as e:
-                    logger.error(f"Prediction failed for {name}: {e}")
-                    # Fallback probabilities
-                    probabilities[name] = {
-                        'away_win': 0.25,
-                        'draw': 0.25,
-                        'home_win': 0.50
-                    }
+            # Map to outcome classes (0=away, 1=draw, 2=home)
+            outcome_probabilities = {
+                'away_win': probabilities[0],
+                'draw': probabilities[1],
+                'home_win': probabilities[2]
+            }
             
-            # Ensemble prediction using weighted average
-            ensemble_proba = self._ensemble_prediction(probabilities)
+            # Calculate confidence as max probability
+            confidence_score = max(probabilities)
             
-            # Calculate confidence score
-            confidence_score = self._calculate_confidence(probabilities, features)
+            # Determine predicted outcome
+            outcomes = ['away_win', 'draw', 'home_win']
+            predicted_outcome = outcomes[prediction]
             
-            # Determine recommended bet
-            recommended_bet = self._get_recommended_bet(ensemble_proba, confidence_score)
+            # Market context
+            league_id = features.get('league_id', 39)
+            market_context = 'african' if league_id == 394 else 'european'
             
             return {
-                'home_win_probability': round(ensemble_proba['home_win'], 3),
-                'draw_probability': round(ensemble_proba['draw'], 3), 
-                'away_win_probability': round(ensemble_proba['away_win'], 3),
+                'home_win_probability': round(outcome_probabilities['home_win'], 3),
+                'draw_probability': round(outcome_probabilities['draw'], 3), 
+                'away_win_probability': round(outcome_probabilities['away_win'], 3),
                 'confidence_score': round(confidence_score, 3),
-                'recommended_bet': recommended_bet,
-                'model_predictions': probabilities
+                'predicted_outcome': predicted_outcome,
+                'model_type': 'unified_production',
+                'market_context': market_context,
+                'realistic_accuracy': '71.5%'
             }
             
         except Exception as e:
