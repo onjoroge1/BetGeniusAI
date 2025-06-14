@@ -234,8 +234,50 @@ class MLPredictor:
             }
             
         except Exception as e:
-            logger.error(f"Prediction failed: {e}")
-            return self._fallback_prediction(features)
+            logger.error(f"Unified prediction failed: {e}")
+            return self._heuristic_prediction(features)
+    
+    def _prepare_unified_features(self, features: Dict[str, float]) -> List[float]:
+        """Prepare feature vector for unified model"""
+        
+        # Extract core features
+        hwp = max(0.1, min(0.9, features.get('home_win_percentage', 0.44)))
+        awp = max(0.1, min(0.9, features.get('away_win_percentage', 0.32)))
+        hfp = features.get('home_form_points', 8)
+        afp = features.get('away_form_points', 6)
+        
+        # League context
+        league_id = features.get('league_id', 39)
+        league_profiles = {
+            39: {'competitiveness': 0.85, 'home_advantage': 0.12, 'market': 'european'},
+            140: {'competitiveness': 0.80, 'home_advantage': 0.10, 'market': 'european'},
+            78: {'competitiveness': 0.75, 'home_advantage': 0.08, 'market': 'european'},
+            135: {'competitiveness': 0.78, 'home_advantage': 0.09, 'market': 'european'},
+            61: {'competitiveness': 0.70, 'home_advantage': 0.11, 'market': 'european'},
+            88: {'competitiveness': 0.65, 'home_advantage': 0.13, 'market': 'european'},
+            394: {'competitiveness': 0.55, 'home_advantage': 0.15, 'market': 'african'}
+        }
+        
+        profile = league_profiles.get(league_id, {
+            'competitiveness': 0.60, 'home_advantage': 0.12, 'market': 'other'
+        })
+        
+        # Feature engineering
+        win_prob_diff = abs(hwp - awp)
+        form_balance = abs((hfp/15.0) - (afp/15.0))
+        combined_strength = (hwp + awp) / 2.0
+        african_market = 1.0 if profile['market'] == 'african' else 0.0
+        
+        # Return unified feature vector
+        return [
+            hwp, awp,                           # Team win rates
+            hfp/15.0, afp/15.0,                # Normalized form
+            win_prob_diff, form_balance,        # Balance indicators
+            combined_strength,                   # Overall match quality
+            profile['competitiveness'],         # League competitiveness
+            profile['home_advantage'],          # League home advantage
+            african_market                      # Market flag
+        ]
     
     def predict_additional_markets(self, features: Dict[str, float]) -> Dict[str, Any]:
         """Predict additional betting markets"""
