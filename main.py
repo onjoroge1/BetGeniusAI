@@ -17,6 +17,8 @@ from models.data_collector import SportsDataCollector
 from models.ml_predictor import MLPredictor
 from models.ai_analyzer import AIAnalyzer
 from models.training_data_collector import TrainingDataCollector
+from models.comprehensive_analyzer import ComprehensiveAnalyzer
+from models.response_schemas import FinalPredictionResponse, MatchContext, ComprehensiveAnalysisResponse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +47,7 @@ data_collector = SportsDataCollector()
 ml_predictor = MLPredictor()
 ai_analyzer = AIAnalyzer()
 training_collector = TrainingDataCollector()
+comprehensive_analyzer = ComprehensiveAnalyzer()
 from models.automated_collector import AutomatedCollector
 automated_collector = AutomatedCollector()
 
@@ -541,14 +544,14 @@ async def predict_match(
         logger.info("Generating ML predictions...")
         ml_predictions = ml_predictor.predict_match_outcome(match_data['features'])
         
-        # Step 3: Generate AI analysis (if requested)
-        analysis = None
+        # Step 3: Generate comprehensive AI analysis (NEW - aggregates everything)
+        comprehensive_analysis = None
         if request.include_analysis:
-            logger.info("Generating AI analysis...")
-            analysis_data = await ai_analyzer.analyze_prediction(
+            logger.info("Generating comprehensive AI analysis...")
+            comprehensive_data = await comprehensive_analyzer.generate_comprehensive_analysis(
                 match_data, ml_predictions
             )
-            analysis = Analysis(**analysis_data)
+            comprehensive_analysis = comprehensive_data
         
         # Step 4: Generate additional markets (if requested)
         additional_markets = None
@@ -557,30 +560,51 @@ async def predict_match(
             additional_data = ml_predictor.predict_additional_markets(match_data['features'])
             additional_markets = AdditionalMarkets(**additional_data)
         
-        # Step 5: Build response
+        # Step 5: Build comprehensive response
         processing_time = asyncio.get_event_loop().time() - start_time
         
-        response = PredictionResponse(
-            match_info=MatchInfo(
-                match_id=request.match_id,
-                home_team=match_data['match_info']['home_team'],
-                away_team=match_data['match_info']['away_team'],
-                venue=match_data['match_info']['venue'],
-                date=match_data['match_info']['date'],
-                league=match_data['match_info'].get('league', 'Premier League')
-            ),
-            predictions=Predictions(
-                home_win=ml_predictions['home_win_probability'],
-                draw=ml_predictions['draw_probability'],
-                away_win=ml_predictions['away_win_probability'],
-                confidence=ml_predictions['confidence_score'],
-                recommended_bet=ml_predictions['recommended_bet']
-            ),
-            analysis=analysis,
-            additional_markets=additional_markets,
-            processing_time=round(processing_time, 3),
-            timestamp=datetime.utcnow().isoformat()
-        )
+        if comprehensive_analysis:
+            # Return new comprehensive analysis format
+            response = {
+                "match_info": {
+                    "match_id": request.match_id,
+                    "home_team": match_data['match_info']['home_team'],
+                    "away_team": match_data['match_info']['away_team'],
+                    "venue": match_data['match_info']['venue'],
+                    "date": match_data['match_info']['date'],
+                    "league": match_data['match_info'].get('league', 'Premier League'),
+                    "match_importance": "regular_season"
+                },
+                "comprehensive_analysis": comprehensive_analysis.get('comprehensive_analysis', {}),
+                "additional_markets": additional_markets.dict() if additional_markets else None,
+                "analysis_metadata": {
+                    **comprehensive_analysis.get('analysis_metadata', {}),
+                    "processing_time": round(processing_time, 3)
+                }
+            }
+        else:
+            # Fallback to basic ML prediction only
+            response = {
+                "match_info": {
+                    "match_id": request.match_id,
+                    "home_team": match_data['match_info']['home_team'],
+                    "away_team": match_data['match_info']['away_team'],
+                    "venue": match_data['match_info']['venue'],
+                    "date": match_data['match_info']['date'],
+                    "league": match_data['match_info'].get('league', 'Premier League')
+                },
+                "ml_prediction_only": {
+                    "home_win": ml_predictions['home_win_probability'],
+                    "draw": ml_predictions['draw_probability'],
+                    "away_win": ml_predictions['away_win_probability'],
+                    "confidence": ml_predictions['confidence_score'],
+                    "model_type": ml_predictions.get('model_type', 'unified_production'),
+                    "note": "Basic ML prediction only - comprehensive analysis not requested"
+                },
+                "additional_markets": additional_markets.dict() if additional_markets else None,
+                "processing_time": round(processing_time, 3),
+                "timestamp": datetime.utcnow().isoformat()
+            }
         
         logger.info(f"Prediction completed for match {request.match_id} in {processing_time:.3f}s")
         return response
