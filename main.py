@@ -517,7 +517,7 @@ async def health_check():
             }
         )
 
-@app.post("/predict", response_model=PredictionResponse)
+@app.post("/predict")
 async def predict_match(
     request: PredictionRequest,
     api_key: str = Depends(verify_api_key)
