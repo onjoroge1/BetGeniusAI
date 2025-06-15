@@ -580,7 +580,9 @@ async def predict_match(
                 "analysis_metadata": {
                     **comprehensive_analysis.get('analysis_metadata', {}),
                     "processing_time": round(processing_time, 3)
-                }
+                },
+                "processing_time": round(processing_time, 3),
+                "timestamp": datetime.utcnow().isoformat()
             }
         else:
             # Fallback to basic ML prediction only

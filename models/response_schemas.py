@@ -95,6 +95,7 @@ class EnhancedPredictionResponse(BaseModel):
     comprehensive_analysis: ComprehensiveAnalysisResponse
     additional_markets: Optional[AdditionalMarkets] = None
     analysis_metadata: AnalysisMetadata
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 # Static JSON Templates for Frontend Integration
 FRONTEND_RESPONSE_TEMPLATE = {
