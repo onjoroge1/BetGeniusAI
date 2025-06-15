@@ -9,7 +9,7 @@ https://your-replit-app-name.replit.app/endpoint
 
 For local development:
 ```
-http://localhost:5000/endpoint
+http://localhost:8000/endpoint
 ```
 
 ## Understanding League IDs
