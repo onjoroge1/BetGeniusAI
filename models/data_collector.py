@@ -115,8 +115,11 @@ class SportsDataCollector:
             logger.error(f"Failed to collect match data for {match_id}: {e}")
             return None
     
-    async def get_upcoming_matches(self, league_id: int = 39, limit: int = 10) -> List[Dict]:
-        """Get available matches for prediction (upcoming + recent completed matches)"""
+    async def get_upcoming_matches(self, league_id: int = 39, limit: int = 10, 
+                                  from_date: Optional[str] = None, 
+                                  to_date: Optional[str] = None,
+                                  exclude_finished: bool = False) -> List[Dict]:
+        """Get available matches for prediction with date filtering and status options"""
         try:
             all_matches = []
             
@@ -128,16 +131,25 @@ class SportsDataCollector:
                     break
                     
                 # Try upcoming matches first
-                upcoming = await self._get_matches_by_status(league_id, season, "NS", limit)
+                upcoming = await self._get_matches_by_status(league_id, season, "NS", limit, from_date, to_date)
                 all_matches.extend(upcoming)
                 
-                # If no upcoming, get recent completed matches for demonstration
-                if not upcoming:
-                    recent = await self._get_matches_by_status(league_id, season, "FT", limit)
+                # If no upcoming and not excluding finished, get recent completed matches
+                if not upcoming and not exclude_finished:
+                    recent = await self._get_matches_by_status(league_id, season, "FT", limit, from_date, to_date)
                     all_matches.extend(recent[:limit])
                 
                 if all_matches:
                     break
+            
+            # Filter by date if specified
+            if from_date or to_date:
+                all_matches = self._filter_matches_by_date(all_matches, from_date, to_date)
+            
+            # Filter out finished matches if requested
+            if exclude_finished:
+                all_matches = [match for match in all_matches 
+                             if match.get('fixture', {}).get('status', {}).get('short') not in ['FT', 'AET', 'PEN']]
             
             # Deduplicate and limit results
             seen_ids = set()
@@ -156,8 +168,9 @@ class SportsDataCollector:
             logger.error(f"Failed to get matches: {e}")
             return []
     
-    async def _get_matches_by_status(self, league_id: int, season: int, status: str, limit: int) -> List[Dict]:
-        """Get matches by specific status"""
+    async def _get_matches_by_status(self, league_id: int, season: int, status: str, limit: int,
+                                   from_date: Optional[str] = None, to_date: Optional[str] = None) -> List[Dict]:
+        """Get matches by specific status with optional date filtering"""
         try:
             url = f"{self.base_url}/fixtures"
             
@@ -174,6 +187,12 @@ class SportsDataCollector:
                     "last": limit,
                     "status": status
                 }
+                
+            # Add date filtering if specified
+            if from_date:
+                params["from"] = from_date
+            if to_date:
+                params["to"] = to_date
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=self.headers, params=params) as response:
@@ -189,6 +208,32 @@ class SportsDataCollector:
         except Exception as e:
             logger.error(f"Failed to get {status} matches: {e}")
             return []
+    
+    def _filter_matches_by_date(self, matches: List[Dict], from_date: Optional[str], to_date: Optional[str]) -> List[Dict]:
+        """Filter matches by date range"""
+        if not from_date and not to_date:
+            return matches
+            
+        filtered = []
+        for match in matches:
+            match_date = match.get('fixture', {}).get('date')
+            if not match_date:
+                continue
+                
+            # Extract date part for comparison (YYYY-MM-DD)
+            match_date_str = match_date.split('T')[0]
+            
+            # Check date range
+            include_match = True
+            if from_date and match_date_str < from_date:
+                include_match = False
+            if to_date and match_date_str > to_date:
+                include_match = False
+                
+            if include_match:
+                filtered.append(match)
+                
+        return filtered
     
     async def _get_match_details(self, match_id: int) -> Optional[Dict]:
         """Get specific match details"""

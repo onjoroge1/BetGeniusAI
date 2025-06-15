@@ -622,15 +622,33 @@ async def predict_match(
 async def get_upcoming_matches(
     league_id: int = 39,  # Premier League by default
     limit: int = 10,
+    from_date: Optional[str] = None,  # YYYY-MM-DD format
+    to_date: Optional[str] = None,    # YYYY-MM-DD format
+    exclude_finished: bool = False,   # Filter out finished matches
     api_key: str = Depends(verify_api_key)
 ):
-    """Get available matches for prediction (upcoming matches or recent completed matches for testing)"""
+    """Get available matches for prediction with date filtering and status options
+    
+    Parameters:
+    - league_id: League identifier (39=Premier League, 140=La Liga, etc.)
+    - limit: Maximum number of matches to return (default: 10)
+    - from_date: Start date filter in YYYY-MM-DD format (optional)
+    - to_date: End date filter in YYYY-MM-DD format (optional)
+    - exclude_finished: If true, only return upcoming matches (default: false)
+    """
     try:
-        matches = await data_collector.get_upcoming_matches(league_id, limit)
+        matches = await data_collector.get_upcoming_matches(
+            league_id=league_id, 
+            limit=limit,
+            from_date=from_date,
+            to_date=to_date,
+            exclude_finished=exclude_finished
+        )
         
         # Format matches for easy prediction use
         formatted_matches = []
         for match in matches:
+            status = match.get("fixture", {}).get("status", {})
             formatted_match = {
                 "match_id": match.get("fixture", {}).get("id"),
                 "home_team": match.get("teams", {}).get("home", {}).get("name"),
@@ -638,15 +656,29 @@ async def get_upcoming_matches(
                 "date": match.get("fixture", {}).get("date"),
                 "venue": match.get("fixture", {}).get("venue", {}).get("name"),
                 "league": match.get("league", {}).get("name"),
-                "status": match.get("fixture", {}).get("status", {}).get("long"),
+                "status": status.get("long"),
+                "status_short": status.get("short"),
+                "is_upcoming": status.get("short") in ["NS", "TBD"],
+                "is_finished": status.get("short") in ["FT", "AET", "PEN"],
                 "prediction_ready": True if match.get("fixture", {}).get("id") else False
             }
             formatted_matches.append(formatted_match)
         
+        # Count upcoming vs finished matches
+        upcoming_count = len([m for m in formatted_matches if m["is_upcoming"]])
+        finished_count = len([m for m in formatted_matches if m["is_finished"]])
+        
         return {
             "matches": formatted_matches,
             "total": len(formatted_matches),
+            "upcoming_count": upcoming_count,
+            "finished_count": finished_count,
             "league_id": league_id,
+            "filters": {
+                "from_date": from_date,
+                "to_date": to_date,
+                "exclude_finished": exclude_finished
+            },
             "usage_note": "Use match_id from any match to get predictions via POST /predict",
             "timestamp": datetime.utcnow().isoformat()
         }
