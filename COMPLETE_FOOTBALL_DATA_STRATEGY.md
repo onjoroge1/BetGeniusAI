@@ -154,25 +154,124 @@
 - **Asia/North America/Others**: 16% (global diversity)
 - **Tactical Laboratories**: 7% (emerging patterns)
 
-## Expected Model Performance Improvements
+## Model Architecture Evolution
 
-### Current vs Target Accuracy Projections
+### Phase 1: Enhanced Unified Model (Months 1-6)
+**Target**: 15,000 balanced matches → 78% global accuracy
 
-**European Leagues**:
-- Current: 75% (Premier League bias)
-- Target: 82% (balanced tactical understanding)
+**Unified Model Improvements**:
+- **Balanced Training**: Equal representation across tactical styles
+- **Enhanced Features**: Team/player statistics integration
+- **Global Understanding**: Cross-continental pattern recognition
+- **Conservative Validation**: Prevent overfitting with massive dataset
 
-**South American Leagues**:
-- Current: 60% (limited data)
-- Target: 78% (comprehensive coverage)
+### Phase 2: League-Specific Hybrid System (Months 6-12)
+**Target**: Unified foundation + League specialists → 85%+ accuracy
 
-**African Leagues**:
-- Current: 55% (no training data)
-- Target: 75% (direct market training)
+**Hybrid Architecture**:
+```python
+class HybridFootballSystem:
+    def __init__(self):
+        self.unified_model = EnhancedUnifiedModel()  # 78% baseline
+        self.league_specialists = {
+            'premier_league': LeagueSpecialist(tactical_style='physical'),
+            'la_liga': LeagueSpecialist(tactical_style='technical'),
+            'serie_a': LeagueSpecialist(tactical_style='defensive'),
+            'bundesliga': LeagueSpecialist(tactical_style='attacking'),
+            'brazilian_serie_a': LeagueSpecialist(tactical_style='flair'),
+            'african_leagues': LeagueSpecialist(tactical_style='physical_technical')
+        }
+    
+    def predict(self, match_features, league_id):
+        unified_prediction = self.unified_model.predict(match_features)
+        league_adjustment = self.league_specialists[league_id].adjust(unified_prediction)
+        return weighted_ensemble(unified_prediction, league_adjustment)
+```
 
-**Global Average**:
-- Current: 71.5% (European-biased)
-- Target: 78% (globally balanced)
+**League Specialist Training**:
+- **Minimum Data Requirement**: 800+ matches per specialist
+- **Tactical Focus**: League-specific patterns and styles
+- **Overfitting Prevention**: Mandatory train/validation/test splits
+- **Conservative Parameters**: Limited complexity to prevent memorization
+
+### Phase 3: Team/Player Intelligence Layer (Months 12+)
+**Target**: Individual team/player modeling → 88%+ accuracy
+
+## Enhanced Feature Engineering
+
+### Current Features (10 dimensions)
+- Basic team statistics and form indicators
+- Limited contextual information
+- No individual player impact
+
+### Phase 1: Team-Level Enhancement (25+ dimensions)
+**Team Performance Metrics**:
+- **Squad Value**: Total market value of starting XI
+- **Key Player Availability**: Impact of missing star players
+- **Tactical Formation**: 4-3-3 vs 3-5-2 effectiveness
+- **Playing Style**: Possession%, pressing intensity, counter-attack frequency
+- **Squad Depth**: Bench quality and rotation capability
+
+**Contextual Factors**:
+- **Travel Distance**: Away team fatigue from long journeys
+- **Rest Days**: Time between matches affecting performance
+- **Weather Conditions**: Temperature, precipitation, wind impact
+- **Referee Tendencies**: Card frequency, penalty rates
+- **Motivational Factors**: League position pressure, relegation battles
+
+### Phase 2: Player-Level Intelligence (50+ dimensions)
+**Individual Impact Modeling**:
+- **Star Player Effect**: Messi/Mbappé presence impact quantification
+- **Goalkeeper Quality**: Save percentage, distribution accuracy
+- **Striker Form**: Goals per game, conversion rates
+- **Midfielder Control**: Pass completion, defensive actions
+- **Defender Solidity**: Tackles, interceptions, aerial duels
+
+**Dynamic Squad Analysis**:
+- **Injury Impact**: Severity and position-specific effects
+- **Suspension Cascades**: Multiple key player absences
+- **Transfer Window Effects**: New player integration time
+- **Age Profiles**: Young vs experienced squad dynamics
+
+## Expected Performance Progression
+
+### Phase 1: Enhanced Unified Model
+**European Leagues**: 75% → **82%**
+- Balanced tactical understanding
+- Enhanced team-level features
+- Global pattern recognition
+
+**South American Leagues**: 60% → **80%**
+- Direct training data from major leagues
+- Technical style comprehension
+- Continental competition insights
+
+**African Leagues**: 55% → **78%**
+- Target market direct training
+- Regional tactical understanding
+- Local competition dynamics
+
+### Phase 2: League-Specific Hybrid
+**European Big 5**: 82% → **87%**
+- Tactical style specialists
+- League-specific pattern recognition
+- Historical context understanding
+
+**Global Leagues**: 78% → **85%**
+- Hybrid approach benefits
+- Specialist knowledge application
+- Cross-league learning transfer
+
+### Phase 3: Team/Player Intelligence
+**Elite Leagues**: 87% → **90%**
+- Individual player impact modeling
+- Dynamic squad analysis
+- Real-time form integration
+
+**Overall System**: 85% → **88%**
+- Comprehensive football understanding
+- Multi-layer prediction architecture
+- Human-level tactical analysis
 
 ## Implementation Phases
 
