@@ -124,8 +124,49 @@ conservative_estimate = min(val_acc, test_acc)
 - **Training Code**: `unified_production_system.py`
 - **Prediction Engine**: `models/ml_predictor.py`
 
+## Historical Data Collection Strategy
+
+### Current Data Imbalance
+- **Premier League Dominance**: 960/1893 matches (50.7%)
+- **European Big 5**: 1,520/1893 matches (80.3%)
+- **Missing Markets**: Zero African leagues, minimal South American representation
+
+### Phase 1A: European Balance (Immediate Priority)
+**Target**: Balance European representation for unified model improvement
+
+**Collection Targets**:
+- **La Liga**: 220 → 500+ matches (+280 historical)
+- **Serie A**: 120 → 400+ matches (+280 historical)
+- **Bundesliga**: 120 → 400+ matches (+280 historical)
+- **Ligue 1**: 100 → 400+ matches (+300 historical)
+
+**Expected Impact**: 71.5% → 75-78% unified accuracy
+
+### Phase 1B: Global Foundation
+**South American Integration**:
+- **Brazilian Serie A**: 380+ matches (critical for global confidence)
+- **Argentine Primera**: 250+ matches (tactical diversity)
+- **Chilean Primera**: 150+ matches (regional variety)
+
+**African Market Preparation**:
+- **Kenyan Premier League**: 180+ matches (primary target market)
+- **Nigerian NPFL**: 200+ matches (large market opportunity)
+- **South African PSL**: 150+ matches (regional powerhouse)
+
+### Dataset Growth Projection
+**Current**: 1,893 matches → **Target**: 4,650+ matches
+- **Balanced European**: 2,970 matches (no Premier League dominance)
+- **South American**: 780 matches (global confidence boost)
+- **African**: 530 matches (direct market relevance)
+
+### Implementation Strategy
+1. **Historical Seasons**: Target 2020-2024 completed seasons
+2. **Bulk Collection**: Use existing collection systems for rapid ingestion
+3. **Quality Assurance**: Verified outcomes and complete match statistics
+4. **Immediate Retraining**: Unified model improvement within weeks
+
 ## Future Improvements
-See DEVELOPMENT_ROADMAP.md for detailed expansion plans.
+See DEVELOPMENT_ROADMAP.md for detailed expansion plans including league-specific models and American sports integration.
 
 ## Training Process
 
