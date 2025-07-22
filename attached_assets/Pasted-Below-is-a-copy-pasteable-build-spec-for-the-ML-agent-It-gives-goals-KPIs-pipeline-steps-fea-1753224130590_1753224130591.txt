@@ -1,0 +1,392 @@
+Below is a **copy‑pasteable build spec** for the ML agent. It gives goals, KPIs, pipeline steps, feature code hints, model training flow, deployment, and monitoring. Hand this to the coder and tell them “implement exactly this, flag anything unclear.”
+
+---
+
+## 0. Objectives & KPIs
+
+**Primary business goal:** Positive Expected Value (EV) on bets we publish.
+
+**Model targets (3-way H/D/A):**
+
+* **Top‑2 accuracy ≥ 80%** (true class in top 2 probs)
+* **LogLoss/Brier score** improved vs baseline odds-only model
+* **Bet decision hit rate ≥ 60–65%** on filtered recommendations
+* **Stable profit vs market odds over rolling windows**
+
+---
+
+## 1. Data & Storage Plan
+
+### 1.1 Existing table (`training_matches`)
+
+You already have:
+
+```sql
+id SERIAL PK
+match_id INT UNIQUE NOT NULL
+league_id INT NOT NULL
+season INT NOT NULL
+home_team VARCHAR
+away_team VARCHAR
+home_team_id INT
+away_team_id INT
+match_date TIMESTAMP
+venue VARCHAR
+outcome VARCHAR(10) NOT NULL          -- 'H','D','A'
+home_goals INT
+away_goals INT
+features JSONB NOT NULL               -- current basic features
+collected_at TIMESTAMP
+is_processed BOOLEAN
+collection_phase VARCHAR(50)
+region VARCHAR(50)
+tactical_style VARCHAR(50)
+fixture_id INT
+```
+
+### 1.2 Add/Populate Feature Store Tables (no leakage!)
+
+Create (or materialize via views) **strictly pre-match** feature tables:
+
+1. **team\_form\_features**
+
+```sql
+team_id INT
+match_id INT
+form_pts_last5 INT
+gf_avg_last5 FLOAT
+ga_avg_last5 FLOAT
+win_rate_last5 FLOAT
+draw_rate_last5 FLOAT
+loss_rate_last5 FLOAT
+goal_diff_last5 FLOAT
+streak_type VARCHAR(10)      -- 'W','D','L','None'
+streak_len INT
+days_since_last_match INT
+```
+
+2. **elo\_features**
+
+```sql
+team_id INT
+match_id INT
+elo_pre FLOAT
+elo_trend_5 FLOAT
+```
+
+3. **h2h\_features**
+
+```sql
+home_team_id INT
+away_team_id INT
+match_id INT
+h2h_home_wins_last5 INT
+h2h_away_wins_last5 INT
+h2h_draws_last5 INT
+h2h_avg_goals FLOAT
+h2h_goal_diff FLOAT            -- home minus away
+```
+
+4. **market\_features** (if odds available)
+
+```sql
+match_id INT
+home_odds_open FLOAT
+draw_odds_open FLOAT
+away_odds_open FLOAT
+imp_prob_home_open FLOAT
+imp_prob_draw_open FLOAT
+imp_prob_away_open FLOAT
+book_margin_open FLOAT
+```
+
+> **All these must be created using only matches with `match_date < current_match_date`.** Enforce with SQL where clauses and unit tests.
+
+### 1.3 JSONB Option (if you don’t want more tables)
+
+Still acceptable, but **namespace keys**:
+
+```json
+{
+  "form": {...},
+  "elo": {...},
+  "h2h": {...},
+  "market": {...}
+}
+```
+
+---
+
+## 2. Feature Engineering Logic
+
+> Implement as reusable Python funcs or SQL views. Use rolling windows and ensure time-ordering.
+
+### 2.1 Team Form (per team, pre-match)
+
+* Rolling last 5 (and maybe 10) matches:
+
+  * Points (Win=3, Draw=1, Loss=0)
+  * Goals For/Against averages
+  * Goal diff avg
+  * Win/Draw/Loss rates
+  * Current streak (type + length)
+* Home/Away split versions (e.g., `home_form_pts_last5`, `away_form_pts_last5`)
+
+**SQL sketch for last 5 points:**
+
+```sql
+WITH ordered AS (
+  SELECT m.match_id, m.match_date, t.team_id, 
+         CASE 
+           WHEN (t.is_home AND m.outcome='H') OR 
+                (NOT t.is_home AND m.outcome='A') THEN 3
+           WHEN m.outcome='D' THEN 1
+           ELSE 0
+         END AS pts,
+         ROW_NUMBER() OVER (PARTITION BY t.team_id ORDER BY m.match_date) rn
+  FROM matches m
+  JOIN (
+    SELECT match_id, home_team_id AS team_id, TRUE AS is_home FROM matches
+    UNION ALL
+    SELECT match_id, away_team_id AS team_id, FALSE AS is_home FROM matches
+  ) t USING (match_id)
+)
+SELECT cur.match_id, cur.team_id,
+       SUM(prev.pts) AS form_pts_last5
+FROM ordered cur
+JOIN ordered prev
+  ON prev.team_id = cur.team_id
+ AND prev.rn     < cur.rn
+ AND prev.rn     >= cur.rn - 5
+GROUP BY cur.match_id, cur.team_id;
+```
+
+### 2.2 Elo Rating
+
+* Initialize each team Elo (e.g., 1500).
+* After each match, update using goal difference & outcome.
+* Store **elo before match** as feature; compute diff: `elo_home_pre−elo_away_pre`.
+
+### 2.3 Head-to-Head
+
+* Use last N meetings between these two specific clubs.
+* Wins/losses, avg goals, etc.
+  Only prior to current match.
+
+### 2.4 Market/Odds Features (if captured)
+
+* Convert decimals to implied probs: `imp = 1 / odds`.
+* Remove margin: normalize `imp / sum(imp)`.
+* Features: differences between model prob and implied prob.
+
+### 2.5 Derived Interaction Features
+
+* `strength_diff = elo_home_pre - elo_away_pre`
+* `form_diff = form_pts_last5_home - form_pts_last5_away`
+* `draw_tendency = (abs(strength_diff) < small_threshold) AND (low_total_goals_last5_home AND low_total_goals_last5_away)`
+* `must_win_flag` late season (table position + points to safety/title)
+
+---
+
+## 3. Modeling Strategy
+
+### 3.1 Two-Stage Classification (to fix “all draws”)
+
+1. **Model A (Binary):** Predict `Draw` vs `Not-Draw`.
+2. **Model B (Binary):** On `Not-Draw` subset, predict `Home` vs `Away`.
+3. Combine:
+
+   ```
+   P(Draw) = p_draw
+   P(Home) = (1 - p_draw) * p_home_given_notdraw
+   P(Away) = (1 - p_draw) * (1 - p_home_given_notdraw)
+   ```
+
+### 3.2 Algorithms
+
+* Try **CatBoost** (handles categorical + class imbalance well).
+* Also try **LightGBM/XGBoost** and compare.
+* Keep a **LogisticRegression** baseline.
+
+### 3.3 Class Imbalance Fixes
+
+* Use class weights or focal loss.
+* Oversample minority classes WITHIN time folds if needed.
+
+### 3.4 Alternative Target (optional)
+
+* Regress **goal difference** (HomeGoals − AwayGoals).
+  Then map to H/D/A using thresholds. Sometimes better.
+
+### 3.5 Calibration
+
+* Apply isotonic or Platt scaling on validation folds for well-calibrated probabilities.
+
+---
+
+## 4. Validation Protocol (No leakage)
+
+* **Time-based CV (rolling origin):** Train on seasons up to 2019, test 2020, etc.
+* **GroupKFold** by season or by match week to avoid overlap.
+* Metrics to compute each fold: LogLoss, Brier, Accuracy, Top‑2, Macro-F1, EV.
+
+**Unit tests:**
+
+* Assert no row in training has `match_date >= min(test_match_date)` in that fold.
+* Assert no post-match fields leak (goals, outcome, after-the-fact odds).
+
+---
+
+## 5. Betting Layer & EV Calc
+
+### 5.1 Convert probs to value bets
+
+For each outcome `o`:
+
+* `imp_prob_book = 1 / odds_open_o`
+* `edge = model_prob_o - imp_prob_book_adjusted` (remove margin)
+* Place bet if `edge >= EDGE_THRESHOLD` (e.g., 3–5%).
+
+### 5.2 Track KPI
+
+* Hit rate of recommended bets
+* Average EV per bet
+* Overall ROI over rolling windows
+
+---
+
+## 6. Batch Prediction Workflow (Pre-Match)
+
+**Run daily (e.g., 03:00 UTC):**
+
+1. Pull fixtures for next 72h.
+2. Generate features (form, elo, h2h, odds).
+3. Load latest model from `models/clean_production_model.joblib`.
+4. Predict probabilities.
+5. Derive EV vs odds, filter bets, rank by EV/confidence.
+6. Save to `predictions` table + push to API/WhatsApp/etc.
+
+---
+
+## 7. Code/Repo Structure
+
+```
+/models
+  clean_production_model.joblib
+  calibration.pkl
+  feature_list.json
+  train_metadata.json
+/data
+  raw/ ...
+  processed/ ...
+/src
+  /features
+    form_features.py
+    elo.py
+    h2h.py
+    odds.py
+  /training
+    dataset_builder.py
+    train_two_stage.py
+    eval_metrics.py
+    leakage_tests.py
+  /predict
+    batch_predict.py
+    ml_predictor.py   # UPDATE to load clean_production_model.joblib
+/tests
+  test_leakage.py
+  test_feature_windows.py
+  test_calibration.py
+notebooks/ (optional, analysis)
+```
+
+**Update `ml_predictor.py`:**
+
+```python
+# models/ml_predictor.py
+import joblib
+class MLPredictor:
+    def __init__(self):
+        data = joblib.load('models/clean_production_model.joblib')
+        self.model_stage1 = data['model_draw_vs_not']
+        self.model_stage2 = data['model_home_vs_away']
+        self.scaler = data.get('scaler')     # if used
+        self.feature_order = data['feature_order']
+
+    def predict(self, feature_df):
+        X = feature_df[self.feature_order]
+        if self.scaler: X = self.scaler.transform(X)
+        p_draw = self.model_stage1.predict_proba(X)[:,1]
+        p_home_given_not = self.model_stage2.predict_proba(X)[:,1]
+        p_home = (1 - p_draw) * p_home_given_not
+        p_away = 1 - p_draw - p_home
+        return {'home': p_home, 'draw': p_draw, 'away': p_away}
+```
+
+---
+
+## 8. Monitoring & Retraining
+
+* **Daily:** Log predictions + actuals once result known.
+* **Weekly:** Compute rolling metrics (LogLoss, EV, hit rate).
+* **Drift detection:** Class distribution, calibration drift.
+* **Retrain cadence:** Every X weeks or when drift > threshold.
+
+---
+
+## 9. Deliverables Checklist (Agent To-Do)
+
+### Data & Features
+
+* [ ] Build SQL/Python pipelines for form, elo, h2h, odds features.
+* [ ] Guarantee time correctness (no leakage tests).
+* [ ] Write unit tests for feature windows & leakage.
+
+### Modeling
+
+* [ ] Implement two-stage classifier (Draw vs Not, then Home vs Away).
+* [ ] Try CatBoost, tune via time-split CV.
+* [ ] Calibrate probs.
+* [ ] Persist artifacts (joblib, feature list, metadata).
+
+### Betting Layer
+
+* [ ] Implement EV calc vs opening odds.
+* [ ] Set thresholds for bet/no-bet.
+* [ ] Store predicted bets and outcomes for performance tracking.
+
+### Production
+
+* [ ] Update `ml_predictor.py` to new clean model.
+* [ ] Build `batch_predict.py` to score upcoming matches daily.
+* [ ] Write monitoring script/report.
+
+### Docs
+
+* [ ] README: how to run training, prediction, monitoring.
+* [ ] EVALUATION.md: metrics definitions, latest scores.
+* [ ] FEATURE\_DOC.md: definition of every feature & its time window.
+
+---
+
+## 10. Open Questions / Clarifications (Agent ping us if unclear)
+
+1. Odds source & availability time? (API creds, endpoints)
+2. Windows: use last 5 only, or also last 10 / season-to-date?
+3. EV threshold for publishing bets? (e.g., edge > 3%)
+4. Which leagues to include in Phase 1?
+5. Deployment environment (Docker? Airflow? Cron?)
+
+---
+
+### Done. Hand this doc to the coder.
+
+When they’re ready, have them commit the first PR with:
+
+* Feature store scripts
+* Two-stage training + eval
+* New model artifact + loader update
+
+Then we iterate on metrics/thresholds. Let’s get that edge. 💰🧠
+
+---
