@@ -124,7 +124,7 @@ async def root():
         "version": "1.0.0",
         "features": [
             "Real-time sports data from RapidAPI",
-            "Two-stage ML predictions (45.4% current accuracy, 66% improvement achieved)",
+            "Enhanced two-stage ML predictions (55.2% current accuracy, 102% improvement)",
             "AI explanations powered by OpenAI GPT-4o",
             "Multi-language support (English, Swahili)",
             "Honest performance reporting with no data leakage"

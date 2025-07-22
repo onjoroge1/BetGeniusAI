@@ -162,9 +162,9 @@ class TeamFormFeatures:
         
         return {
             'points': total_points,
-            'goals_for_avg': avg_gf,
-            'goals_against_avg': avg_ga,
-            'goal_diff_avg': avg_gf - avg_ga,
+            'goals_for_avg': float(avg_gf),
+            'goals_against_avg': float(avg_ga),
+            'goal_diff_avg': float(avg_gf) - float(avg_ga),
             'win_rate': wins / matches_played if matches_played > 0 else 0,
             'draw_rate': draws / matches_played if matches_played > 0 else 0,
             'loss_rate': losses / matches_played if matches_played > 0 else 0,
