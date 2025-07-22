@@ -45,14 +45,17 @@ class MLPredictor:
         self._load_unified_model()
     
     def _load_unified_model(self):
-        """Load unified production model"""
+        """Load clean two-stage production model"""
         try:
-            self.unified_model = joblib.load('models/production_unified_model.pkl')
-            self.unified_scaler = joblib.load('models/production_unified_scaler.pkl')
+            model_data = joblib.load('models/clean_production_model.joblib')
+            self.stage1_model = model_data['model_draw_vs_not']  # Draw vs Not-Draw
+            self.stage2_model = model_data['model_home_vs_away']  # Home vs Away  
+            self.unified_scaler = model_data.get('scaler')
+            self.feature_names = model_data.get('feature_order', [])
             self.is_trained = True
-            logger.info("Unified production model loaded successfully")
+            logger.info("Clean two-stage production model loaded successfully")
         except Exception as e:
-            logger.warning(f"Unified model not found, using fallback: {e}")
+            logger.warning(f"Clean model not found, using fallback: {e}")
             self.is_trained = False
     
     def _initialize_models(self):
