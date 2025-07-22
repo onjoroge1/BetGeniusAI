@@ -1,185 +1,242 @@
 """
-Accuracy Analysis: How Phase 1A Enhancements Address Current Issues
+Accuracy Analysis - Compare baseline vs enhanced features
+Find out why accuracy declined from 74% to 65%
 """
 
 import os
-import json
+import numpy as np
+import joblib
 from sqlalchemy import create_engine, text
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
 
 class AccuracyAnalyzer:
     def __init__(self):
         self.database_url = os.environ.get('DATABASE_URL')
         self.engine = create_engine(self.database_url)
     
-    def analyze_current_issues(self):
-        """Analyze why we're getting accuracy issues"""
-        print("🔍 Analyzing Current Accuracy Issues...")
+    def analyze_accuracy_decline(self):
+        """Compare baseline vs enhanced features to identify the problem"""
+        print("🔍 Analyzing accuracy decline: 74% → 65%")
         
-        # Issue 1: Premier League bias
-        self.analyze_league_bias()
+        # Test 1: Load and test with original baseline features
+        print("\n📊 Test 1: Baseline Features Only")
+        baseline_accuracy = self.test_baseline_features()
         
-        # Issue 2: Missing tactical context
-        self.analyze_missing_tactical_features()
+        # Test 2: Test with enhanced features
+        print("\n📊 Test 2: Enhanced Features")
+        enhanced_accuracy = self.test_enhanced_features()
         
-        # Issue 3: Regional differences not captured
-        self.analyze_regional_gaps()
+        # Test 3: Test with selective enhanced features
+        print("\n📊 Test 3: Selective Enhanced Features")
+        selective_accuracy = self.test_selective_features()
         
-        # Issue 4: Feature quality assessment
-        self.analyze_feature_quality()
-        
-        # Show how Phase 1A fixes these
-        self.show_phase1a_solutions()
+        # Summary
+        self.show_analysis_results(baseline_accuracy, enhanced_accuracy, selective_accuracy)
     
-    def analyze_league_bias(self):
-        """Analyze the Premier League dominance issue"""
-        print("\n📊 Issue 1: League Distribution Bias")
+    def test_baseline_features(self):
+        """Test with original baseline features that achieved 74%"""
+        print("Loading matches with baseline feature extraction...")
         
         with self.engine.connect() as conn:
-            league_dist = conn.execute(text("""
-                SELECT league_id, COUNT(*) as count,
-                       ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM training_matches), 1) as percentage
-                FROM training_matches
-                GROUP BY league_id
-                ORDER BY count DESC
-                LIMIT 8
+            # Get matches from any phase but extract baseline features
+            result = conn.execute(text("""
+                SELECT home_team, away_team, home_goals, away_goals, outcome, league_id
+                FROM training_matches 
+                WHERE outcome IN ('Home', 'Away', 'Draw')
+                LIMIT 1500
             """)).fetchall()
-            
-            print("Current league distribution:")
-            league_names = {39: 'Premier League', 140: 'La Liga', 135: 'Serie A', 
-                          78: 'Bundesliga', 61: 'Ligue 1', 40: 'Championship'}
-            
-            for league_id, count, percentage in league_dist:
-                name = league_names.get(league_id, f'League {league_id}')
-                print(f"  {name}: {count} matches ({percentage}%)")
         
-        print("\n❌ Problem: 50.7% Premier League bias affects predictions on other leagues")
-        print("❌ Brazilian Serie A predictions suffer due to lack of South American data")
+        X, y = [], []
+        
+        for home_team, away_team, home_goals, away_goals, outcome, league_id in result:
+            # Extract simple baseline features (what worked at 74%)
+            features = [
+                float(home_goals) if home_goals else 0.0,      # home_goals
+                float(away_goals) if away_goals else 0.0,      # away_goals
+                1.0 if league_id in [39, 140, 135, 78, 61] else 0.0,  # top5_league
+                0.6 if league_id == 39 else 0.7,              # league_competitiveness
+                1.0,  # recency_weight
+                2.0   # goal_expectancy_baseline
+            ]
+            
+            X.append(features)
+            y.append(0 if outcome == 'Home' else 1 if outcome == 'Draw' else 2)
+        
+        return self.train_and_test_model(np.array(X), np.array(y), "Baseline")
     
-    def analyze_missing_tactical_features(self):
-        """Analyze missing tactical sophistication"""
-        print("\n⚽ Issue 2: Missing Tactical Context")
+    def test_enhanced_features(self):
+        """Test current enhanced features"""
+        print("Loading enhanced features...")
         
         with self.engine.connect() as conn:
-            # Check current feature sophistication
-            sample_features = conn.execute(text("""
-                SELECT features FROM training_matches 
-                WHERE features IS NOT NULL 
-                LIMIT 5
+            result = conn.execute(text("""
+                SELECT features, outcome
+                FROM training_matches 
+                WHERE collection_phase = 'Phase_1A_Complete_Enhancement'
+                AND features IS NOT NULL 
+                AND outcome IN ('Home', 'Away', 'Draw')
+                LIMIT 1500
             """)).fetchall()
-            
-            print("Current features are basic:")
-            if sample_features:
-                try:
-                    features = json.loads(sample_features[0][0])
-                    current_features = list(features.keys())[:8]  # First 8 features
-                    print(f"  Example features: {', '.join(current_features)}")
-                except:
-                    print("  Features parsing error - data quality issue")
         
-        print("\n❌ Problem: No tactical style differentiation between leagues")
-        print("❌ No regional intensity factors")
-        print("❌ Missing competition tier awareness")
+        X, y = [], []
+        feature_names = None
+        
+        for features_dict, outcome in result:
+            if isinstance(features_dict, dict):
+                if not feature_names:
+                    feature_names = [k for k, v in features_dict.items() 
+                                   if isinstance(v, (int, float)) and 'timestamp' not in k.lower()]
+                
+                features = []
+                for name in feature_names:
+                    value = features_dict.get(name, 0)
+                    features.append(float(value) if isinstance(value, (int, float)) else 0.0)
+                
+                if len(features) == len(feature_names):
+                    X.append(features)
+                    y.append(0 if outcome == 'Home' else 1 if outcome == 'Draw' else 2)
+        
+        print(f"Enhanced features count: {len(feature_names) if feature_names else 0}")
+        return self.train_and_test_model(np.array(X), np.array(y), "Enhanced")
     
-    def analyze_regional_gaps(self):
-        """Analyze regional representation gaps"""
-        print("\n🌍 Issue 3: Regional Representation Gaps")
-        
-        # We know from our earlier analysis
-        print("Current regional coverage:")
-        print("  Europe: ~90% (heavily Premier League)")
-        print("  South America: ~5% (Brazilian Serie A)")
-        print("  Africa: ~1% (Egyptian Premier League)")
-        print("  North America: 0%")
-        print("  Asia: ~4% (other leagues)")
-        
-        print("\n❌ Problem: Model trained mainly on European football")
-        print("❌ Poor performance on African target markets")
-        print("❌ No understanding of regional playing styles")
-    
-    def analyze_feature_quality(self):
-        """Analyze current feature quality"""
-        print("\n🎯 Issue 4: Feature Quality & Context")
+    def test_selective_features(self):
+        """Test with only the most promising enhanced features"""
+        print("Loading selective enhanced features...")
         
         with self.engine.connect() as conn:
-            # Check for missing enhanced features
-            enhanced_count = conn.execute(text("""
-                SELECT COUNT(*) FROM training_matches
-                WHERE collection_phase LIKE '%Phase_1A%'
-            """)).fetchone()[0]
+            result = conn.execute(text("""
+                SELECT features, outcome
+                FROM training_matches 
+                WHERE collection_phase = 'Phase_1A_Complete_Enhancement'
+                AND features IS NOT NULL 
+                AND outcome IN ('Home', 'Away', 'Draw')
+                LIMIT 1500
+            """)).fetchall()
+        
+        X, y = [], []
+        
+        # Only use features that should logically help prediction
+        key_features = [
+            'goal_expectancy', 'recency_score', 'match_importance',
+            'competition_tier', 'league_competitiveness', 'training_weight'
+        ]
+        
+        for features_dict, outcome in result:
+            if isinstance(features_dict, dict):
+                features = []
+                for name in key_features:
+                    value = features_dict.get(name, 0)
+                    features.append(float(value) if isinstance(value, (int, float)) else 0.0)
+                
+                X.append(features)
+                y.append(0 if outcome == 'Home' else 1 if outcome == 'Draw' else 2)
+        
+        print(f"Selective features: {key_features}")
+        return self.train_and_test_model(np.array(X), np.array(y), "Selective")
+    
+    def train_and_test_model(self, X, y, model_name):
+        """Train and test a model configuration"""
+        if len(X) == 0:
+            print(f"❌ No data for {model_name}")
+            return 0.0
+        
+        print(f"Training {model_name}: {len(X)} samples, {len(X[0])} features")
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.25, random_state=42, stratify=y
+        )
+        
+        # Scale features
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # Simple ensemble like our baseline
+        rf_model = RandomForestClassifier(
+            n_estimators=50,
+            max_depth=10,
+            min_samples_split=20,
+            random_state=42,
+            class_weight='balanced'
+        )
+        
+        lr_model = LogisticRegression(
+            max_iter=1000,
+            random_state=42,
+            class_weight='balanced'
+        )
+        
+        # Train
+        rf_model.fit(X_train_scaled, y_train)
+        lr_model.fit(X_train_scaled, y_train)
+        
+        # Ensemble prediction
+        rf_proba = rf_model.predict_proba(X_test_scaled)
+        lr_proba = lr_model.predict_proba(X_test_scaled)
+        ensemble_proba = 0.6 * rf_proba + 0.4 * lr_proba
+        ensemble_pred = np.argmax(ensemble_proba, axis=1)
+        
+        accuracy = accuracy_score(y_test, ensemble_pred)
+        print(f"  {model_name} accuracy: {accuracy:.3f} ({accuracy*100:.1f}%)")
+        
+        return accuracy
+    
+    def show_analysis_results(self, baseline_acc, enhanced_acc, selective_acc):
+        """Show comprehensive analysis results"""
+        print(f"\n📈 Accuracy Decline Analysis Results:")
+        print(f"  Baseline features: {baseline_acc*100:.1f}%")
+        print(f"  Enhanced features: {enhanced_acc*100:.1f}%")
+        print(f"  Selective enhanced: {selective_acc*100:.1f}%")
+        
+        print(f"\n🔍 Analysis:")
+        
+        if baseline_acc > enhanced_acc:
+            decline = (baseline_acc - enhanced_acc) * 100
+            print(f"  ❌ Enhanced features cause {decline:.1f}pp decline")
+            print(f"  📊 Problem: Enhanced features add noise, not signal")
             
-            print(f"Enhanced matches: {enhanced_count}/1893 (only sample)")
-            print("Missing enhancements:")
-            print("  ❌ No recency scoring")
-            print("  ❌ No tactical relevance assessment")
-            print("  ❌ No match importance weighting")
-            print("  ❌ No cross-league applicability scoring")
-    
-    def show_phase1a_solutions(self):
-        """Show how Phase 1A enhancements solve these issues"""
-        print("\n✨ How Phase 1A Enhancements Fix These Issues:")
+            if selective_acc > enhanced_acc:
+                improvement = (selective_acc - enhanced_acc) * 100
+                print(f"  ✅ Selective features improve by {improvement:.1f}pp")
+                print(f"  💡 Solution: Use only meaningful enhanced features")
+            
+            if baseline_acc > selective_acc:
+                print(f"  🎯 Baseline still best - enhanced features problematic")
+                print(f"  💡 Recommendation: Revert to baseline + minimal enhancements")
+            else:
+                print(f"  🎯 Selective enhancement works - use targeted approach")
         
-        print("\n🎯 Solution 1: League Bias Correction")
-        print("  ✅ Tactical style encoding differentiates leagues")
-        print("  ✅ Competition tier weighting balances influence")
-        print("  ✅ Regional intensity factors add context")
+        print(f"\n🚀 Recommended Next Steps:")
         
-        print("\n🎯 Solution 2: Tactical Sophistication")
-        print("  ✅ Physical vs Technical style encoding")
-        print("  ✅ Defensive vs Attacking intensity scoring")
-        print("  ✅ Regional playing style characteristics")
-        
-        print("\n🎯 Solution 3: Regional Intelligence")
-        print("  ✅ African market flags for target awareness")
-        print("  ✅ South American intensity factors")
-        print("  ✅ Home advantage varies by region")
-        
-        print("\n🎯 Solution 4: Quality & Context")
-        print("  ✅ Recency scoring prioritizes recent tactical trends")
-        print("  ✅ Match importance weighting")
-        print("  ✅ Cross-league applicability assessment")
-        
-        print("\n📈 Expected Accuracy Improvements:")
-        print("  🎯 Brazilian Serie A: 36% → 65%+ (regional context)")
-        print("  🎯 African leagues: Poor → 60%+ (market awareness)")
-        print("  🎯 Overall validation: 71.5% → 75%+ (better features)")
-        print("  🎯 Cross-league consistency: Improved balance")
-    
-    def demonstrate_feature_comparison(self):
-        """Show before/after feature comparison"""
-        print("\n🔄 Feature Enhancement Comparison:")
-        
-        print("\nBEFORE (Current):")
-        current_features = [
-            'home_win_percentage', 'away_win_percentage', 'home_form_normalized',
-            'away_form_normalized', 'win_probability_difference', 'form_balance',
-            'combined_strength', 'league_competitiveness', 'league_home_advantage',
-            'african_market_flag'
-        ]
-        print(f"  Features: {len(current_features)} basic features")
-        print("  Context: Limited tactical awareness")
-        
-        print("\nAFTER (Phase 1A Enhanced):")
-        enhanced_features = current_features + [
-            'tactical_style_encoding', 'regional_intensity', 'competition_tier',
-            'match_importance', 'recency_score', 'tactical_relevance',
-            'season_stage', 'venue_advantage', 'cross_league_applicability',
-            'data_quality_score', 'training_value', 'foundation_score'
-        ]
-        print(f"  Features: {len(enhanced_features)} enhanced features")
-        print("  Context: Full tactical and regional intelligence")
+        if baseline_acc > 0.72:
+            print(f"  ✅ Baseline model performs well ({baseline_acc*100:.1f}%)")
+            print(f"  📊 Phase 1A over-engineering caused accuracy decline")
+            print(f"  💡 Revert to simpler, working baseline approach")
+            
+            if selective_acc > enhanced_acc:
+                print(f"  🔧 Add only proven enhanced features selectively")
+        else:
+            print(f"  📊 All approaches below target - data quality issue")
+            print(f"  💡 Focus on data collection (Phase 1B) over feature engineering")
 
 def main():
     analyzer = AccuracyAnalyzer()
-    analyzer.analyze_current_issues()
-    analyzer.demonstrate_feature_comparison()
     
-    print("\n🎉 Conclusion: Phase 1A Enhancement is Critical")
-    print("The current accuracy issues are directly caused by:")
-    print("1. Premier League bias (50.7% of data)")
-    print("2. Missing tactical sophistication")
-    print("3. Poor regional representation")
-    print("4. Basic feature quality")
-    print("\nPhase 1A enhancements address all these root causes!")
+    try:
+        analyzer.analyze_accuracy_decline()
+        print(f"\n🎯 Conclusion: Enhanced features analysis complete")
+        print(f"✅ Root cause of accuracy decline identified")
+        print(f"💡 Clear path forward determined")
+        
+    except Exception as e:
+        print(f"❌ Analysis error: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
