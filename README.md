@@ -7,35 +7,33 @@ Africa's first AI-powered sports prediction platform that combines unified machi
 ### Unified Machine Learning Model
 
 **Production Approach:**
-- **Unified Ensemble Model**: Combines Random Forest and Logistic Regression with conservative parameters
-- **Realistic Accuracy**: 71.5% validated performance (addresses previous overfitting issues)
-- **Robust Training**: 1,893+ matches across multiple European leagues with proper cross-validation
-- **African Market Ready**: Specialized features for target markets (Kenya, Uganda, Nigeria, South Africa, Tanzania)
+- **Clean Ensemble Model**: Random Forest + Logistic Regression with legitimate pre-match features only  
+- **Honest Accuracy**: 27.3% validated performance (no data leakage, room for improvement)
+- **Data Integrity**: 1,893 matches with proper validation preventing overfitting
+- **African Market Ready**: Foundation established for target markets (Kenya, Uganda, Nigeria, South Africa, Tanzania)
 
-**Enhanced Feature Engineering:**
-The system uses 10 optimized features from real sports data:
+**Clean Feature Engineering:**
+The system uses 8 legitimate pre-match features (no data leakage):
 
 ```python
-# Core Team Metrics
-- home_win_percentage: Historical win rate at home venue
-- away_win_percentage: Historical win rate away from home
-- home_form_normalized: Recent form points (normalized 0-1)
-- away_form_normalized: Away team recent form (normalized 0-1)
+# League Context Features
+- league_tier: League quality classification (1.0, 0.7, 0.5)
+- league_competitiveness: Historical league competitiveness score  
+- regional_strength: Regional coefficient (Europe, South America, Africa)
+- match_importance: League-based importance weighting
 
-# Derived Intelligence Features
-- win_probability_difference: Absolute difference in team win rates
-- form_balance: Balance between home and away team form
-- combined_strength: Overall match quality indicator
-- league_competitiveness: League-specific competitiveness factor
-- league_home_advantage: League-specific home advantage factor
-- african_market_flag: Market context indicator (0=European, 1=African)
+# Statistical Features
+- expected_goals_avg: League average goals per match
+- home_advantage_factor: Statistical home advantage (0.55)
+- premier_league_indicator: Binary Premier League flag
+- top5_league_indicator: Binary top 5 European leagues flag
 ```
 
 ### Comprehensive Analysis System
 
 **Dual-Layer Intelligence:**
-1. **ML Layer**: Unified model provides statistical foundation with 71.5% validated accuracy
-2. **AI Layer**: OpenAI GPT-4o aggregates ML predictions + real-time context for holistic verdict
+1. **ML Layer**: Clean model provides honest statistical foundation (27.3% current accuracy)
+2. **AI Layer**: OpenAI GPT-4o aggregates ML predictions + real-time context for enhanced analysis
 
 **Real-Time Data Integration:**
 - Live injury reports and team news from RapidAPI
@@ -51,10 +49,10 @@ The system uses 10 optimized features from real sports data:
 - **Overfitting Prevention**: Conservative model parameters and thorough validation
 
 **Performance Metrics:**
-- **Unified Model**: 71.5% ± 1.2% realistic accuracy (cross-validated)
-- **Overfitting Gap**: -0.1% (excellent generalization)
-- **Data Quality**: 1,893 authentic matches (no synthetic data)
-- **Market Context**: Specialized features for African and European markets
+- **Clean Model**: 27.3% honest accuracy (no data leakage, properly validated)
+- **Generalization**: CV ≈ Test accuracy (no overfitting detected)
+- **Data Quality**: 1,893 authentic matches with legitimate pre-match features
+- **Improvement Potential**: Foundation established for feature enhancement and data expansion
 
 ### AI Aggregation Process
 

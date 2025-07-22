@@ -17,10 +17,10 @@ Preferred communication style: Simple, everyday language.
 - **AsyncIO**: Asynchronous operations for improved performance
 
 ### Machine Learning Pipeline
-- **Unified Ensemble Model**: Combines Random Forest and Logistic Regression
-- **Conservative Parameters**: Prevents overfitting with 71.5% validated accuracy
-- **Multi-Context Training**: Specialized models for different match scenarios
-- **Cross-Validation**: Proper train/validation/test splits for reliable performance
+- **Clean Ensemble Model**: Random Forest + Logistic Regression with legitimate features only
+- **Data Leakage Prevention**: No match outcome features used in training
+- **Pre-Match Features Only**: league_tier, competitiveness, regional_strength, home_advantage, expected_goals
+- **Rigorous Validation**: Stratified CV with 30% holdout test set (27.3% honest accuracy)
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: Comprehensive match analysis
@@ -115,19 +115,19 @@ Preferred communication style: Simple, everyday language.
 
 ## Development Notes
 
-The system has evolved through multiple phases to optimize accuracy and real-world performance:
+The system has undergone critical validation revealing fundamental issues with data leakage:
 
-### Phase 1A Enhancement (Complete)
-- Enhanced all 1,893 matches with tactical intelligence features
-- Added regional awareness and training weight optimization
-- Implemented 9 distinct tactical styles with intensity factors
-- Successfully integrated enhanced features: training_weight, tactical_style_encoding, regional_intensity
+### Data Leakage Discovery (Critical)
+- Previous 65%-100% accuracies were due to data leakage using match outcome features
+- Features like home_goals, away_goals, and goal_difference predict outcomes perfectly but are useless for real prediction
+- Phase 1A enhanced features (23 tactical features) added complexity without genuine predictive value
+- Clean validation with only pre-match features shows 27.3% accuracy (near random 33.3%)
 
-### Phase 1B Training Progress (Current)
-- Validated Phase 1A enhancements with rigorous testing
-- Conservative training approach prevents overfitting (65.1% realistic accuracy vs 99.4% overfitted)
-- Core feature selection focuses on: tactical_style_encoding, regional_intensity, training_weight, competitiveness_indicator
-- Production-ready model saved with ensemble weights optimized for stability
+### Clean Model Implementation (Current)
+- Built legitimate prediction model using only pre-match available features
+- Features: league_tier, league_competitiveness, regional_strength, home_advantage_factor, expected_goals_avg, match_importance
+- Rigorous validation prevents overfitting: CV ≈ Test accuracy
+- Production model saved with no data leakage: models/clean_production_model.joblib
 
-### Current Status
-The system uses enhanced features from Phase 1A with conservative training parameters. While external data collection is limited due to API constraints, the enhanced feature engineering provides a solid foundation. The current approach prioritizes reliability and real-world performance over theoretical complexity, with ongoing work to expand the dataset strategically when APIs permit.
+### Current Status (Honest Assessment)
+The system now has a clean foundation with 27.3% accuracy using legitimate pre-match features. This represents the true baseline without data leakage. While below the 74% target, it provides an honest starting point for improvement through additional pre-match features and Phase 1B data expansion. The focus has shifted from complex feature engineering to building genuine predictive capability.

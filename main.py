@@ -124,10 +124,10 @@ async def root():
         "version": "1.0.0",
         "features": [
             "Real-time sports data from RapidAPI",
-            "Machine learning predictions (83-92% accuracy)",
+            "Clean ML predictions (27.3% current accuracy, improving to 74%+ target)",
             "AI explanations powered by OpenAI GPT-4o",
             "Multi-language support (English, Swahili)",
-            "Comprehensive betting market analysis"
+            "Honest performance reporting with no data leakage"
         ],
         "endpoints": {
             "predict": "POST /predict - Get match predictions with AI analysis",
