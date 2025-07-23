@@ -1,0 +1,3936 @@
+{
+  "metadata": {
+    "report_date": "2025-07-23T14:08:45.551528",
+    "phase": "Phase 4: European Launch",
+    "leagues_monitored": 10,
+    "system_version": "Phase4_Complete_v1.0"
+  },
+  "executive_summary": {
+    "league_health": {
+      "total": 10,
+      "healthy": 4,
+      "warning": 6,
+      "critical": 0
+    },
+    "clv_performance": {
+      "avg_clv": -0.005643236104977221,
+      "positive_clv_rate": 0.44,
+      "total_bets_analyzed": 50
+    },
+    "optimization_opportunities": 10
+  },
+  "league_health_report": {
+    "timestamp": "2025-07-23T14:08:45.355638",
+    "leagues": {
+      "EPL": {
+        "config": {
+          "edge_threshold": 0.03,
+          "min_probability": 0.2,
+          "target_roi": 0.1,
+          "target_accuracy": 0.6,
+          "max_stake": 25.0,
+          "min_bet_volume": 15,
+          "league_name": "English Premier League",
+          "tier": 1,
+          "region": "England",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355459"
+        },
+        "performance": {
+          "accuracy_3way": 0.6845369456122434,
+          "accuracy_top2": 0.8845369456122434,
+          "log_loss": 0.5154630543877565,
+          "brier_score": 0.08,
+          "roi": 0.06551898469150323,
+          "hit_rate": 0.5818564037704069,
+          "num_bets": 19,
+          "clv": -0.014738071978764186,
+          "matches_evaluated": 47
+        },
+        "health_status": "Warning",
+        "issues": [
+          "ROI 6.6% below target 10.0%"
+        ]
+      },
+      "LALIGA": {
+        "config": {
+          "edge_threshold": 0.03,
+          "min_probability": 0.2,
+          "target_roi": 0.1,
+          "target_accuracy": 0.6,
+          "max_stake": 25.0,
+          "min_bet_volume": 15,
+          "league_name": "La Liga Santander",
+          "tier": 1,
+          "region": "Spain",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355473"
+        },
+        "performance": {
+          "accuracy_3way": 0.917627513441098,
+          "accuracy_top2": 0.995,
+          "log_loss": 0.4,
+          "brier_score": 0.08,
+          "roi": 0.07159662090662723,
+          "hit_rate": 0.7799833864249334,
+          "num_bets": 31,
+          "clv": 0.01044676421194975,
+          "matches_evaluated": 77
+        },
+        "health_status": "Warning",
+        "issues": [
+          "ROI 7.2% below target 10.0%"
+        ]
+      },
+      "SERIEA": {
+        "config": {
+          "edge_threshold": 0.03,
+          "min_probability": 0.2,
+          "target_roi": 0.1,
+          "target_accuracy": 0.6,
+          "max_stake": 25.0,
+          "min_bet_volume": 15,
+          "league_name": "Serie A",
+          "tier": 1,
+          "region": "Italy",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355478"
+        },
+        "performance": {
+          "accuracy_3way": 0.8444873962072366,
+          "accuracy_top2": 0.995,
+          "log_loss": 0.4,
+          "brier_score": 0.08,
+          "roi": 0.06809221078448649,
+          "hit_rate": 0.7178142867761511,
+          "num_bets": 20,
+          "clv": -0.007765120114855646,
+          "matches_evaluated": 50
+        },
+        "health_status": "Warning",
+        "issues": [
+          "ROI 6.8% below target 10.0%"
+        ]
+      },
+      "BUNDESLIGA": {
+        "config": {
+          "edge_threshold": 0.03,
+          "min_probability": 0.2,
+          "target_roi": 0.1,
+          "target_accuracy": 0.6,
+          "max_stake": 25.0,
+          "min_bet_volume": 15,
+          "league_name": "Bundesliga",
+          "tier": 1,
+          "region": "Germany",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355482"
+        },
+        "performance": {
+          "accuracy_3way": 0.6818673382226385,
+          "accuracy_top2": 0.8818673382226385,
+          "log_loss": 0.5181326617773615,
+          "brier_score": 0.08,
+          "roi": 0.07815177195007474,
+          "hit_rate": 0.5795872374892427,
+          "num_bets": 22,
+          "clv": 0.061629634265172165,
+          "matches_evaluated": 55
+        },
+        "health_status": "Warning",
+        "issues": [
+          "ROI 7.8% below target 10.0%"
+        ]
+      },
+      "LIGUE1": {
+        "config": {
+          "edge_threshold": 0.03,
+          "min_probability": 0.2,
+          "target_roi": 0.1,
+          "target_accuracy": 0.6,
+          "max_stake": 25.0,
+          "min_bet_volume": 15,
+          "league_name": "Ligue 1",
+          "tier": 1,
+          "region": "France",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355529"
+        },
+        "performance": {
+          "accuracy_3way": 1.0038350287848377,
+          "accuracy_top2": 0.995,
+          "log_loss": 0.4,
+          "brier_score": 0.08,
+          "roi": 0.09033941312990512,
+          "hit_rate": 0.853259774467112,
+          "num_bets": 26,
+          "clv": 0.05240473738522484,
+          "matches_evaluated": 65
+        },
+        "health_status": "Healthy",
+        "issues": []
+      },
+      "CHAMPIONSHIP": {
+        "config": {
+          "edge_threshold": 0.025,
+          "min_probability": 0.18,
+          "target_roi": 0.12,
+          "target_accuracy": 0.58,
+          "max_stake": 20.0,
+          "min_bet_volume": 12,
+          "league_name": "EFL Championship",
+          "tier": 2,
+          "region": "England",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355534"
+        },
+        "performance": {
+          "accuracy_3way": 0.985092891490551,
+          "accuracy_top2": 0.995,
+          "log_loss": 0.4,
+          "brier_score": 0.08,
+          "roi": 0.11800989372852705,
+          "hit_rate": 0.8373289577669684,
+          "num_bets": 21,
+          "clv": 0.041010127333813984,
+          "matches_evaluated": 52
+        },
+        "health_status": "Healthy",
+        "issues": []
+      },
+      "LIGUE2": {
+        "config": {
+          "edge_threshold": 0.025,
+          "min_probability": 0.18,
+          "target_roi": 0.12,
+          "target_accuracy": 0.58,
+          "max_stake": 20.0,
+          "min_bet_volume": 12,
+          "league_name": "Ligue 2",
+          "tier": 2,
+          "region": "France",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355541"
+        },
+        "performance": {
+          "accuracy_3way": 0.8134756966144635,
+          "accuracy_top2": 0.995,
+          "log_loss": 0.4,
+          "brier_score": 0.08,
+          "roi": 0.09084532039332402,
+          "hit_rate": 0.691454342122294,
+          "num_bets": 17,
+          "clv": 0.028320097010919528,
+          "matches_evaluated": 42
+        },
+        "health_status": "Warning",
+        "issues": [
+          "ROI 9.1% below target 12.0%"
+        ]
+      },
+      "SERIEB": {
+        "config": {
+          "edge_threshold": 0.025,
+          "min_probability": 0.18,
+          "target_roi": 0.12,
+          "target_accuracy": 0.58,
+          "max_stake": 20.0,
+          "min_bet_volume": 12,
+          "league_name": "Serie B",
+          "tier": 2,
+          "region": "Italy",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355547"
+        },
+        "performance": {
+          "accuracy_3way": 0.6791313601677857,
+          "accuracy_top2": 0.8791313601677857,
+          "log_loss": 0.5208686398322142,
+          "brier_score": 0.08,
+          "roi": 0.1277506422237617,
+          "hit_rate": 0.5772616561426178,
+          "num_bets": 18,
+          "clv": 0.04380348845160777,
+          "matches_evaluated": 45
+        },
+        "health_status": "Healthy",
+        "issues": []
+      },
+      "EREDIVISIE": {
+        "config": {
+          "edge_threshold": 0.04,
+          "min_probability": 0.25,
+          "target_roi": 0.08,
+          "target_accuracy": 0.55,
+          "max_stake": 15.0,
+          "min_bet_volume": 8,
+          "league_name": "Eredivisie",
+          "tier": 3,
+          "region": "Netherlands",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355551"
+        },
+        "performance": {
+          "accuracy_3way": 0.5677235415232142,
+          "accuracy_top2": 0.7677235415232142,
+          "log_loss": 0.6322764584767857,
+          "brier_score": 0.08,
+          "roi": 0.05701157484585799,
+          "hit_rate": 0.4825650102947321,
+          "num_bets": 15,
+          "clv": 0.027376030249648655,
+          "matches_evaluated": 37
+        },
+        "health_status": "Warning",
+        "issues": [
+          "ROI 5.7% below target 8.0%"
+        ]
+      },
+      "PRIMEIRA": {
+        "config": {
+          "edge_threshold": 0.04,
+          "min_probability": 0.25,
+          "target_roi": 0.08,
+          "target_accuracy": 0.55,
+          "max_stake": 15.0,
+          "min_bet_volume": 8,
+          "league_name": "Primeira Liga",
+          "tier": 3,
+          "region": "Portugal",
+          "is_active": true,
+          "last_updated": "2025-07-23T14:08:45.355555"
+        },
+        "performance": {
+          "accuracy_3way": 0.7043227112787759,
+          "accuracy_top2": 0.904322711278776,
+          "log_loss": 0.4956772887212241,
+          "brier_score": 0.08,
+          "roi": 0.07688836794840515,
+          "hit_rate": 0.5986743045869595,
+          "num_bets": 12,
+          "clv": 0.050563147872144616,
+          "matches_evaluated": 30
+        },
+        "health_status": "Healthy",
+        "issues": []
+      }
+    },
+    "summary": {
+      "total": 10,
+      "healthy": 4,
+      "warning": 6,
+      "critical": 0
+    }
+  },
+  "clv_analysis": {
+    "total_bets": 50,
+    "positive_clv_count": 22,
+    "clv_values": [
+      0.021507359919635285,
+      -0.029515360799439675,
+      0.002824195232637327,
+      0.012273178475231458,
+      -0.023254324309589486,
+      0.05814190924434401,
+      -0.04329904672460702,
+      0.011383523660808291,
+      0.07577445676272493,
+      0.020854326928458615,
+      -0.03803112848347683,
+      0.030145527757045265,
+      0.02510630868208125,
+      -0.06567745434973847,
+      0.03946358267966785,
+      0.06715769250872404,
+      -0.0558302762407075,
+      -0.07185251369511318,
+      0.033474773676969556,
+      0.019393748188286382,
+      -0.03312855826146185,
+      -0.006049889347664522,
+      -0.017847294446831884,
+      0.08514843781519166,
+      0.0005759143671973197,
+      0.03614945427005529,
+      0.0013782002107023063,
+      -0.05936453290124238,
+      -0.05260158650431165,
+      -0.014604183625770916,
+      -0.0034673262187119875,
+      0.038680868419277877,
+      -0.11569759598010881,
+      -0.008709385609496467,
+      -0.02491752764059232,
+      -0.031508928771170876,
+      -0.012789757386556565,
+      0.025830652827024455,
+      -0.027085279740425794,
+      -0.043831549577331416,
+      0.06838901179808543,
+      -0.04671626051244357,
+      -0.03148964966890516,
+      -0.06637451943260006,
+      -0.01815315549716885,
+      0.10564581179325351,
+      0.0006818662619237356,
+      -0.024289563081545156,
+      -0.070485313882404,
+      -0.025570644038770476
+    ],
+    "league_breakdown": {
+      "EPL": {
+        "bets": 11,
+        "avg_clv": 0.0058318056879294615,
+        "clv_values": [
+          0.021507359919635285,
+          0.011383523660808291,
+          -0.03803112848347683,
+          0.030145527757045265,
+          -0.06567745434973847,
+          0.03946358267966785,
+          0.08514843781519166,
+          0.03614945427005529,
+          -0.012789757386556565,
+          -0.043831549577331416,
+          0.0006818662619237356
+        ]
+      },
+      "EREDIVISIE": {
+        "bets": 7,
+        "avg_clv": -0.004584626193850255,
+        "clv_values": [
+          -0.029515360799439675,
+          0.012273178475231458,
+          -0.023254324309589486,
+          0.07577445676272493,
+          -0.006049889347664522,
+          -0.014604183625770916,
+          -0.04671626051244357
+        ]
+      },
+      "PRIMEIRA": {
+        "bets": 5,
+        "avg_clv": -0.008569376180631198,
+        "clv_values": [
+          0.002824195232637327,
+          -0.03312855826146185,
+          0.0013782002107023063,
+          -0.05260158650431165,
+          0.038680868419277877
+        ]
+      },
+      "LIGUE1": {
+        "bets": 5,
+        "avg_clv": 0.03694451179427265,
+        "clv_values": [
+          0.05814190924434401,
+          0.019393748188286382,
+          0.025830652827024455,
+          0.10564581179325351,
+          -0.024289563081545156
+        ]
+      },
+      "CHAMPIONSHIP": {
+        "bets": 2,
+        "avg_clv": -0.03739434819675609,
+        "clv_values": [
+          -0.04329904672460702,
+          -0.03148964966890516
+        ]
+      },
+      "SERIEB": {
+        "bets": 5,
+        "avg_clv": 0.01681607157235629,
+        "clv_values": [
+          0.020854326928458615,
+          0.02510630868208125,
+          0.06715769250872404,
+          -0.0034673262187119875,
+          -0.025570644038770476
+        ]
+      },
+      "LALIGA": {
+        "bets": 4,
+        "avg_clv": -0.025387550513909604,
+        "clv_values": [
+          -0.0558302762407075,
+          0.033474773676969556,
+          -0.008709385609496467,
+          -0.070485313882404
+        ]
+      },
+      "BUNDESLIGA": {
+        "bets": 3,
+        "avg_clv": -0.029809918275028238,
+        "clv_values": [
+          -0.07185251369511318,
+          0.0005759143671973197,
+          -0.01815315549716885
+        ]
+      },
+      "SERIEA": {
+        "bets": 7,
+        "avg_clv": -0.048970811273281734,
+        "clv_values": [
+          -0.017847294446831884,
+          -0.05936453290124238,
+          -0.11569759598010881,
+          -0.02491752764059232,
+          -0.031508928771170876,
+          -0.027085279740425794,
+          -0.06637451943260006
+        ]
+      },
+      "LIGUE2": {
+        "bets": 1,
+        "avg_clv": 0.06838901179808543,
+        "clv_values": [
+          0.06838901179808543
+        ]
+      }
+    },
+    "avg_clv": -0.005643236104977221,
+    "positive_clv_rate": 0.44
+  },
+  "threshold_optimization": {
+    "EPL": {
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "target_accuracy": 0.6,
+        "max_stake": 25.0,
+        "min_bet_volume": 15,
+        "league_name": "English Premier League",
+        "tier": 1,
+        "region": "England",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355459"
+      },
+      "optimal_params": {
+        "roi": 0.2132336444948403,
+        "hit_rate": 0.6923076923076923,
+        "num_bets": 65,
+        "total_stakes": 650.0,
+        "profit": 138.6018689216462,
+        "edge_threshold": 0.03,
+        "min_probability": 0.2
+      },
+      "sweep_results": [
+        {
+          "roi": 0.0038427167021585005,
+          "hit_rate": 0.48322147651006714,
+          "num_bets": 149,
+          "total_stakes": 1490.0,
+          "profit": 5.725647886216166,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.05512245685068171,
+          "hit_rate": 0.4966442953020134,
+          "num_bets": 149,
+          "total_stakes": 1490.0,
+          "profit": 82.13246070751575,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.06359439796129462,
+          "hit_rate": 0.5217391304347826,
+          "num_bets": 138,
+          "total_stakes": 1380.0,
+          "profit": 87.76026918658658,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.13686033306229647,
+          "hit_rate": 0.5394736842105263,
+          "num_bets": 152,
+          "total_stakes": 1520.0,
+          "profit": 208.02770625469066,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.08135029799174634,
+          "hit_rate": 0.55,
+          "num_bets": 140,
+          "total_stakes": 1400.0,
+          "profit": 113.89041718844487,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.027282486171542424,
+          "hit_rate": 0.5943396226415094,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": 28.91943534183497,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.040846497993951895,
+          "hit_rate": 0.5353535353535354,
+          "num_bets": 99,
+          "total_stakes": 990.0,
+          "profit": -40.438033014012376,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.05064552319913247,
+          "hit_rate": 0.5535714285714286,
+          "num_bets": 112,
+          "total_stakes": 1120.0,
+          "profit": 56.722985983028366,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.051716583341426314,
+          "hit_rate": 0.5849056603773585,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": 54.81957834191189,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.028687226900057143,
+          "hit_rate": 0.5309734513274337,
+          "num_bets": 113,
+          "total_stakes": 1130.0,
+          "profit": -32.41656639706457,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.0977078418561038,
+          "hit_rate": 0.6338028169014085,
+          "num_bets": 71,
+          "total_stakes": 710.0,
+          "profit": 69.3725677178337,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.015723019947461614,
+          "hit_rate": 0.6142857142857143,
+          "num_bets": 70,
+          "total_stakes": 700.0,
+          "profit": -11.006113963223129,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.2132336444948403,
+          "hit_rate": 0.6923076923076923,
+          "num_bets": 65,
+          "total_stakes": 650.0,
+          "profit": 138.6018689216462,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.10734804868867474,
+          "hit_rate": 0.5344827586206896,
+          "num_bets": 58,
+          "total_stakes": 580.0,
+          "profit": -62.26186823943135,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.01241597495060638,
+          "hit_rate": 0.6190476190476191,
+          "num_bets": 63,
+          "total_stakes": 630.0,
+          "profit": 7.822064218882019,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.06984237556387869,
+          "hit_rate": 0.5925925925925926,
+          "num_bets": 54,
+          "total_stakes": 540.0,
+          "profit": -37.71488280449449,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.1353802309047684,
+          "hit_rate": 0.7333333333333333,
+          "num_bets": 45,
+          "total_stakes": 450.0,
+          "profit": 60.92110390714578,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.15836814235959779,
+          "hit_rate": 0.7567567567567568,
+          "num_bets": 37,
+          "total_stakes": 370.0,
+          "profit": 58.596212673051184,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.14839598107838087,
+          "hit_rate": 0.7435897435897436,
+          "num_bets": 39,
+          "total_stakes": 390.0,
+          "profit": 57.87443262056854,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.09742061297411225,
+          "hit_rate": 0.7446808510638298,
+          "num_bets": 47,
+          "total_stakes": 470.0,
+          "profit": 45.787688097832756,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.19406363720183153,
+          "hit_rate": 0.8518518518518519,
+          "num_bets": 27,
+          "total_stakes": 270.0,
+          "profit": 52.397182044494514,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.07855343654116764,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 18,
+          "total_stakes": 180.0,
+          "profit": -14.139618577410175,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.04668648037880949,
+          "hit_rate": 0.75,
+          "num_bets": 24,
+          "total_stakes": 240.0,
+          "profit": 11.204755290914278,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.10161999275413727,
+          "hit_rate": 0.7777777777777778,
+          "num_bets": 27,
+          "total_stakes": 270.0,
+          "profit": 27.437398043617065,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.008467238480865547,
+          "hit_rate": 0.7,
+          "num_bets": 20,
+          "total_stakes": 200.0,
+          "profit": -1.6934476961731093,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.06444501484487794,
+          "hit_rate": 0.75,
+          "num_bets": 16,
+          "total_stakes": 160.0,
+          "profit": -10.311202375180471,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.2805089063989348,
+          "hit_rate": 1.0,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": 22.440712511914782,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.19008969672463608,
+          "hit_rate": 0.9166666666666666,
+          "num_bets": 12,
+          "total_stakes": 120.0,
+          "profit": 22.81076360695633,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.03284627750770426,
+          "hit_rate": 0.7777777777777778,
+          "num_bets": 9,
+          "total_stakes": 90.0,
+          "profit": 2.956164975693383,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.21421743297369575,
+          "hit_rate": 0.6,
+          "num_bets": 10,
+          "total_stakes": 100.0,
+          "profit": -21.421743297369574,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.20913919653344223,
+          "hit_rate": 1.0,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": 10.456959826672112,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.39015194811921583,
+          "hit_rate": 0.5,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": -7.803038962384317,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.3795011995251615,
+          "hit_rate": 0.5,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": -7.59002399050323,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.24080065684024418,
+          "hit_rate": 1.0,
+          "num_bets": 1,
+          "total_stakes": 10.0,
+          "profit": 2.408006568402442,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.03672971139419744,
+          "hit_rate": 0.8,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": -1.8364855697098719,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.1632336444948403
+    },
+    "LALIGA": {
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "target_accuracy": 0.6,
+        "max_stake": 25.0,
+        "min_bet_volume": 15,
+        "league_name": "La Liga Santander",
+        "tier": 1,
+        "region": "Spain",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355473"
+      },
+      "optimal_params": {
+        "roi": 0.2324048127030733,
+        "hit_rate": 0.6981132075471698,
+        "num_bets": 106,
+        "total_stakes": 1060.0,
+        "profit": 246.34910146525772,
+        "edge_threshold": 0.025,
+        "min_probability": 0.25
+      },
+      "sweep_results": [
+        {
+          "roi": 0.0006350965232334497,
+          "hit_rate": 0.47435897435897434,
+          "num_bets": 156,
+          "total_stakes": 1560.0,
+          "profit": 0.9907505762441815,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.13574124226381096,
+          "hit_rate": 0.5460992907801419,
+          "num_bets": 141,
+          "total_stakes": 1410.0,
+          "profit": 191.39515159197344,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.02242864273202769,
+          "hit_rate": 0.5136986301369864,
+          "num_bets": 146,
+          "total_stakes": 1460.0,
+          "profit": 32.745818388760426,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.08528271914391913,
+          "hit_rate": 0.5241379310344828,
+          "num_bets": 145,
+          "total_stakes": 1450.0,
+          "profit": 123.65994275868275,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.12673286946091736,
+          "hit_rate": 0.572463768115942,
+          "num_bets": 138,
+          "total_stakes": 1380.0,
+          "profit": 174.89135985606595,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.12671879114154969,
+          "hit_rate": 0.6,
+          "num_bets": 100,
+          "total_stakes": 1000.0,
+          "profit": 126.71879114154967,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.08363645183275839,
+          "hit_rate": 0.5865384615384616,
+          "num_bets": 104,
+          "total_stakes": 1040.0,
+          "profit": 86.98190990606872,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.0330492487778802,
+          "hit_rate": 0.5377358490566038,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": -35.03220370455301,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.004026003012037826,
+          "hit_rate": 0.5688073394495413,
+          "num_bets": 109,
+          "total_stakes": 1090.0,
+          "profit": 4.38834328312123,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.2324048127030733,
+          "hit_rate": 0.6981132075471698,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": 246.34910146525772,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.001009554137287166,
+          "hit_rate": 0.5857142857142857,
+          "num_bets": 70,
+          "total_stakes": 700.0,
+          "profit": 0.7066878961010161,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.21849495124916385,
+          "hit_rate": 0.4605263157894737,
+          "num_bets": 76,
+          "total_stakes": 760.0,
+          "profit": -166.05616294936453,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.15625847902879356,
+          "hit_rate": 0.7076923076923077,
+          "num_bets": 65,
+          "total_stakes": 650.0,
+          "profit": 101.56801136871582,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.05723922731544434,
+          "hit_rate": 0.6301369863013698,
+          "num_bets": 73,
+          "total_stakes": 730.0,
+          "profit": 41.78463594027437,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.10760067384964324,
+          "hit_rate": 0.6857142857142857,
+          "num_bets": 70,
+          "total_stakes": 700.0,
+          "profit": 75.32047169475027,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.18536760915369888,
+          "hit_rate": 0.7608695652173914,
+          "num_bets": 46,
+          "total_stakes": 460.0,
+          "profit": 85.26910021070148,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.08302076159517778,
+          "hit_rate": 0.6923076923076923,
+          "num_bets": 39,
+          "total_stakes": 390.0,
+          "profit": 32.378097022119334,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.19202413160931064,
+          "hit_rate": 0.76,
+          "num_bets": 50,
+          "total_stakes": 500.0,
+          "profit": 96.01206580465532,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.06531442598647472,
+          "hit_rate": 0.7021276595744681,
+          "num_bets": 47,
+          "total_stakes": 470.0,
+          "profit": 30.697780213643114,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.009253547403143667,
+          "hit_rate": 0.6481481481481481,
+          "num_bets": 54,
+          "total_stakes": 540.0,
+          "profit": -4.99691559769758,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.16899997047830198,
+          "hit_rate": 0.5909090909090909,
+          "num_bets": 22,
+          "total_stakes": 220.0,
+          "profit": -37.179993505226435,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.14135840885186626,
+          "hit_rate": 0.8421052631578947,
+          "num_bets": 19,
+          "total_stakes": 190.0,
+          "profit": 26.858097681854588,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.1513177458174378,
+          "hit_rate": 0.5925925925925926,
+          "num_bets": 27,
+          "total_stakes": 270.0,
+          "profit": -40.855791370708204,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.05505957430018281,
+          "hit_rate": 0.7619047619047619,
+          "num_bets": 21,
+          "total_stakes": 210.0,
+          "profit": 11.56251060303839,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.14452025414576003,
+          "hit_rate": 0.8,
+          "num_bets": 15,
+          "total_stakes": 150.0,
+          "profit": 21.678038121864006,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.12218368291004236,
+          "hit_rate": 0.875,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": 9.774694632803389,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.052581097172835316,
+          "hit_rate": 0.7,
+          "num_bets": 10,
+          "total_stakes": 100.0,
+          "profit": -5.258109717283531,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.3954913399819081,
+          "hit_rate": 0.5,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": -31.63930719855265,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.21669425723733415,
+          "hit_rate": 0.9166666666666666,
+          "num_bets": 12,
+          "total_stakes": 120.0,
+          "profit": 26.0033108684801,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.0677787095663227,
+          "hit_rate": 0.8333333333333334,
+          "num_bets": 12,
+          "total_stakes": 120.0,
+          "profit": 8.133445147958724,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.1729827286883337,
+          "hit_rate": 1.0,
+          "num_bets": 1,
+          "total_stakes": 10.0,
+          "profit": 1.7298272868833369,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.21829836471549768,
+          "hit_rate": 1.0,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": 10.914918235774884,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.022671590988176386,
+          "hit_rate": 0.8333333333333334,
+          "num_bets": 6,
+          "total_stakes": 60.0,
+          "profit": 1.3602954592905832,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.31062093952518055,
+          "hit_rate": 0.6,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": -15.531046976259027,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.1617240834061171,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": -4.851722502183513,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.1824048127030733
+    },
+    "SERIEA": {
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "target_accuracy": 0.6,
+        "max_stake": 25.0,
+        "min_bet_volume": 15,
+        "league_name": "Serie A",
+        "tier": 1,
+        "region": "Italy",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355478"
+      },
+      "optimal_params": {
+        "roi": 0.3267275239757223,
+        "hit_rate": 1.0,
+        "num_bets": 12,
+        "total_stakes": 120.0,
+        "profit": 39.207302877086676,
+        "edge_threshold": 0.045,
+        "min_probability": 0.2
+      },
+      "sweep_results": [
+        {
+          "roi": 0.13649145975621302,
+          "hit_rate": 0.5675675675675675,
+          "num_bets": 148,
+          "total_stakes": 1480.0,
+          "profit": 202.00736043919528,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.0012259002328954963,
+          "hit_rate": 0.4897959183673469,
+          "num_bets": 147,
+          "total_stakes": 1470.0,
+          "profit": 1.8020733423563797,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.09146671011785003,
+          "hit_rate": 0.5323741007194245,
+          "num_bets": 139,
+          "total_stakes": 1390.0,
+          "profit": 127.13872706381153,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.10977227299826708,
+          "hit_rate": 0.5510204081632653,
+          "num_bets": 147,
+          "total_stakes": 1470.0,
+          "profit": 161.3652413074526,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.11318021252409044,
+          "hit_rate": 0.5422535211267606,
+          "num_bets": 142,
+          "total_stakes": 1420.0,
+          "profit": 160.71590178420843,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.02858991296903287,
+          "hit_rate": 0.5412844036697247,
+          "num_bets": 109,
+          "total_stakes": 1090.0,
+          "profit": -31.16300513624583,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.24338967460822958,
+          "hit_rate": 0.6804123711340206,
+          "num_bets": 97,
+          "total_stakes": 970.0,
+          "profit": 236.08798436998268,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.25003457660473327,
+          "hit_rate": 0.6732673267326733,
+          "num_bets": 101,
+          "total_stakes": 1010.0,
+          "profit": 252.53492237078058,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.11180443423339333,
+          "hit_rate": 0.5803571428571429,
+          "num_bets": 112,
+          "total_stakes": 1120.0,
+          "profit": 125.22096634140053,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.0425002528161508,
+          "hit_rate": 0.5272727272727272,
+          "num_bets": 110,
+          "total_stakes": 1100.0,
+          "profit": -46.750278097765886,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.10565762020466668,
+          "hit_rate": 0.6567164179104478,
+          "num_bets": 67,
+          "total_stakes": 670.0,
+          "profit": 70.79060553712668,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.032679588227146984,
+          "hit_rate": 0.6172839506172839,
+          "num_bets": 81,
+          "total_stakes": 810.0,
+          "profit": 26.470466463989055,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.02047605512823591,
+          "hit_rate": 0.5802469135802469,
+          "num_bets": 81,
+          "total_stakes": 810.0,
+          "profit": -16.585604653871087,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.0321052909494889,
+          "hit_rate": 0.5949367088607594,
+          "num_bets": 79,
+          "total_stakes": 790.0,
+          "profit": 25.36317985009623,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.0965308389501686,
+          "hit_rate": 0.6233766233766234,
+          "num_bets": 77,
+          "total_stakes": 770.0,
+          "profit": 74.32874599162983,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.11879401934435177,
+          "hit_rate": 0.6842105263157895,
+          "num_bets": 38,
+          "total_stakes": 380.0,
+          "profit": 45.14172735085367,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.02026247665345395,
+          "hit_rate": 0.6585365853658537,
+          "num_bets": 41,
+          "total_stakes": 410.0,
+          "profit": -8.307615427916119,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.10176126819685485,
+          "hit_rate": 0.7209302325581395,
+          "num_bets": 43,
+          "total_stakes": 430.0,
+          "profit": 43.75734532464759,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.07259596731872939,
+          "hit_rate": 0.6222222222222222,
+          "num_bets": 45,
+          "total_stakes": 450.0,
+          "profit": -32.66818529342822,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.013644858071831231,
+          "hit_rate": 0.6382978723404256,
+          "num_bets": 47,
+          "total_stakes": 470.0,
+          "profit": -6.413083293760678,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.18238594250371493,
+          "hit_rate": 0.8333333333333334,
+          "num_bets": 24,
+          "total_stakes": 240.0,
+          "profit": 43.77262620089158,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.19819005310104615,
+          "hit_rate": 0.56,
+          "num_bets": 25,
+          "total_stakes": 250.0,
+          "profit": -49.54751327526154,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.008479658003051564,
+          "hit_rate": 0.7083333333333334,
+          "num_bets": 24,
+          "total_stakes": 240.0,
+          "profit": -2.0351179207323753,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.2620569137862632,
+          "hit_rate": 0.8947368421052632,
+          "num_bets": 19,
+          "total_stakes": 190.0,
+          "profit": 49.79081361939001,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.041936201359588865,
+          "hit_rate": 0.75,
+          "num_bets": 28,
+          "total_stakes": 280.0,
+          "profit": 11.742136380684883,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.11925342878110246,
+          "hit_rate": 0.8571428571428571,
+          "num_bets": 14,
+          "total_stakes": 140.0,
+          "profit": 16.695480029354343,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.18539304863988898,
+          "hit_rate": 0.9166666666666666,
+          "num_bets": 12,
+          "total_stakes": 120.0,
+          "profit": 22.247165836786678,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.3267275239757223,
+          "hit_rate": 1.0,
+          "num_bets": 12,
+          "total_stakes": 120.0,
+          "profit": 39.207302877086676,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.21178757817830957,
+          "hit_rate": 0.9,
+          "num_bets": 10,
+          "total_stakes": 100.0,
+          "profit": 21.178757817830956,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.20318254366196392,
+          "hit_rate": 0.9230769230769231,
+          "num_bets": 13,
+          "total_stakes": 130.0,
+          "profit": 26.41373067605531,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.05434384022555498,
+          "hit_rate": 0.75,
+          "num_bets": 4,
+          "total_stakes": 40.0,
+          "profit": -2.1737536090221994,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.2063290605987179,
+          "hit_rate": 1.0,
+          "num_bets": 4,
+          "total_stakes": 40.0,
+          "profit": 8.253162423948716,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.23371595729294228,
+          "hit_rate": 1.0,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": 4.674319145858846,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.01503639472440644,
+          "hit_rate": 0.8333333333333334,
+          "num_bets": 6,
+          "total_stakes": 60.0,
+          "profit": 0.9021836834643864,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.030118274242312424,
+          "hit_rate": 0.8,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": -1.5059137121156212,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.2767275239757223
+    },
+    "BUNDESLIGA": {
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "target_accuracy": 0.6,
+        "max_stake": 25.0,
+        "min_bet_volume": 15,
+        "league_name": "Bundesliga",
+        "tier": 1,
+        "region": "Germany",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355482"
+      },
+      "optimal_params": {
+        "roi": 0.32258814318786194,
+        "hit_rate": 0.8292682926829268,
+        "num_bets": 41,
+        "total_stakes": 410.0,
+        "profit": 132.2611387070234,
+        "edge_threshold": 0.035,
+        "min_probability": 0.2
+      },
+      "sweep_results": [
+        {
+          "roi": 0.120988573417458,
+          "hit_rate": 0.5328947368421053,
+          "num_bets": 152,
+          "total_stakes": 1520.0,
+          "profit": 183.90263159453616,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.0532255763204706,
+          "hit_rate": 0.48226950354609927,
+          "num_bets": 141,
+          "total_stakes": 1410.0,
+          "profit": -75.04806261186354,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.04575852248461475,
+          "hit_rate": 0.5367647058823529,
+          "num_bets": 136,
+          "total_stakes": 1360.0,
+          "profit": 62.231590579076055,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.04787633046354343,
+          "hit_rate": 0.5133333333333333,
+          "num_bets": 150,
+          "total_stakes": 1500.0,
+          "profit": 71.81449569531514,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.02056936562287398,
+          "hit_rate": 0.4861111111111111,
+          "num_bets": 144,
+          "total_stakes": 1440.0,
+          "profit": 29.619886496938534,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.020836496209100167,
+          "hit_rate": 0.5490196078431373,
+          "num_bets": 102,
+          "total_stakes": 1020.0,
+          "profit": 21.25322613328217,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.05878651681079906,
+          "hit_rate": 0.5714285714285714,
+          "num_bets": 105,
+          "total_stakes": 1050.0,
+          "profit": 61.72584265133901,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.03177765752350826,
+          "hit_rate": 0.5445544554455446,
+          "num_bets": 101,
+          "total_stakes": 1010.0,
+          "profit": -32.09543409874334,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.08824083437747161,
+          "hit_rate": 0.5050505050505051,
+          "num_bets": 99,
+          "total_stakes": 990.0,
+          "profit": -87.3584260336969,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.12628896984307872,
+          "hit_rate": 0.6146788990825688,
+          "num_bets": 109,
+          "total_stakes": 1090.0,
+          "profit": 137.6549771289558,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.02957537436309581,
+          "hit_rate": 0.6268656716417911,
+          "num_bets": 67,
+          "total_stakes": 670.0,
+          "profit": 19.815500823274192,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.11690173030470791,
+          "hit_rate": 0.5344827586206896,
+          "num_bets": 58,
+          "total_stakes": 580.0,
+          "profit": -67.80300357673059,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.009971718557558741,
+          "hit_rate": 0.6052631578947368,
+          "num_bets": 76,
+          "total_stakes": 760.0,
+          "profit": -7.578506103744644,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.2179558089515383,
+          "hit_rate": 0.7123287671232876,
+          "num_bets": 73,
+          "total_stakes": 730.0,
+          "profit": 159.10774053462296,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.17351210895085858,
+          "hit_rate": 0.6933333333333334,
+          "num_bets": 75,
+          "total_stakes": 750.0,
+          "profit": 130.13408171314393,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.010132917491043331,
+          "hit_rate": 0.6410256410256411,
+          "num_bets": 39,
+          "total_stakes": 390.0,
+          "profit": -3.951837821506899,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.014110637905747696,
+          "hit_rate": 0.6326530612244898,
+          "num_bets": 49,
+          "total_stakes": 490.0,
+          "profit": -6.914212573816371,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.32258814318786194,
+          "hit_rate": 0.8292682926829268,
+          "num_bets": 41,
+          "total_stakes": 410.0,
+          "profit": 132.2611387070234,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.2575915978310005,
+          "hit_rate": 0.8205128205128205,
+          "num_bets": 39,
+          "total_stakes": 390.0,
+          "profit": 100.4607231540902,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.06614107645879311,
+          "hit_rate": 0.7073170731707317,
+          "num_bets": 41,
+          "total_stakes": 410.0,
+          "profit": 27.117841348105173,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.0959591548713516,
+          "hit_rate": 0.7727272727272727,
+          "num_bets": 22,
+          "total_stakes": 220.0,
+          "profit": 21.111014071697355,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.05833253103405269,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 24,
+          "total_stakes": 240.0,
+          "profit": -13.999807448172646,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.2355021852832211,
+          "hit_rate": 0.5625,
+          "num_bets": 16,
+          "total_stakes": 160.0,
+          "profit": -37.680349645315374,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.08098179759011957,
+          "hit_rate": 0.6363636363636364,
+          "num_bets": 22,
+          "total_stakes": 220.0,
+          "profit": -17.815995469826305,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.14049375856792107,
+          "hit_rate": 0.5909090909090909,
+          "num_bets": 22,
+          "total_stakes": 220.0,
+          "profit": -30.908626884942635,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.13023989968730534,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 9,
+          "total_stakes": 90.0,
+          "profit": -11.72159097185748,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.2127160313351479,
+          "hit_rate": 0.9090909090909091,
+          "num_bets": 11,
+          "total_stakes": 110.0,
+          "profit": 23.39876344686627,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.024570912892999106,
+          "hit_rate": 0.8,
+          "num_bets": 10,
+          "total_stakes": 100.0,
+          "profit": 2.4570912892999104,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.059189019947148154,
+          "hit_rate": 0.7333333333333333,
+          "num_bets": 15,
+          "total_stakes": 150.0,
+          "profit": -8.878352992072223,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.1174763408261569,
+          "hit_rate": 0.8571428571428571,
+          "num_bets": 14,
+          "total_stakes": 140.0,
+          "profit": 16.446687715661966,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.1878170482307368,
+          "hit_rate": 1.0,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": 5.6345114469221045,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.17768358787167743,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": -5.3305076361503225,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.19767140354082272,
+          "hit_rate": 1.0,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": 9.883570177041136,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.023750337789750376,
+          "hit_rate": 0.8333333333333334,
+          "num_bets": 6,
+          "total_stakes": 60.0,
+          "profit": 1.4250202673850225,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.22328894041457872,
+          "hit_rate": 1.0,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": 4.465778808291574,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.27258814318786195
+    },
+    "LIGUE1": {
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "target_accuracy": 0.6,
+        "max_stake": 25.0,
+        "min_bet_volume": 15,
+        "league_name": "Ligue 1",
+        "tier": 1,
+        "region": "France",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355529"
+      },
+      "optimal_params": {
+        "roi": 0.32138096944423955,
+        "hit_rate": 0.8444444444444444,
+        "num_bets": 45,
+        "total_stakes": 450.0,
+        "profit": 144.6214362499078,
+        "edge_threshold": 0.035,
+        "min_probability": 0.25
+      },
+      "sweep_results": [
+        {
+          "roi": 0.1699213698383125,
+          "hit_rate": 0.58,
+          "num_bets": 150,
+          "total_stakes": 1500.0,
+          "profit": 254.88205475746872,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.014911838246367895,
+          "hit_rate": 0.5217391304347826,
+          "num_bets": 138,
+          "total_stakes": 1380.0,
+          "profit": 20.578336779987694,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.08119670024428187,
+          "hit_rate": 0.45985401459854014,
+          "num_bets": 137,
+          "total_stakes": 1370.0,
+          "profit": -111.23947933466616,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.12943871815809255,
+          "hit_rate": 0.5555555555555556,
+          "num_bets": 144,
+          "total_stakes": 1440.0,
+          "profit": 186.39175414765327,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.05197036823765158,
+          "hit_rate": 0.5070422535211268,
+          "num_bets": 142,
+          "total_stakes": 1420.0,
+          "profit": 73.79792289746524,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.08662717918356443,
+          "hit_rate": 0.5849056603773585,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": 91.8248099345783,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.030741859212310027,
+          "hit_rate": 0.5428571428571428,
+          "num_bets": 105,
+          "total_stakes": 1050.0,
+          "profit": 32.27895217292553,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.08426223133082268,
+          "hit_rate": 0.5132743362831859,
+          "num_bets": 113,
+          "total_stakes": 1130.0,
+          "profit": -95.21632140382962,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.01433552145409817,
+          "hit_rate": 0.5470085470085471,
+          "num_bets": 117,
+          "total_stakes": 1170.0,
+          "profit": 16.772560101294857,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.09535153474307562,
+          "hit_rate": 0.6071428571428571,
+          "num_bets": 112,
+          "total_stakes": 1120.0,
+          "profit": 106.79371891224469,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.02997509255749673,
+          "hit_rate": 0.609375,
+          "num_bets": 64,
+          "total_stakes": 640.0,
+          "profit": -19.184059236797907,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.12684106843982254,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 69,
+          "total_stakes": 690.0,
+          "profit": 87.52033722347755,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.02500970174516316,
+          "hit_rate": 0.5921052631578947,
+          "num_bets": 76,
+          "total_stakes": 760.0,
+          "profit": 19.007373326324,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.13019251470084145,
+          "hit_rate": 0.6764705882352942,
+          "num_bets": 68,
+          "total_stakes": 680.0,
+          "profit": 88.53090999657218,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.153199482011646,
+          "hit_rate": 0.6986301369863014,
+          "num_bets": 73,
+          "total_stakes": 730.0,
+          "profit": 111.83562186850156,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.04043523672865445,
+          "hit_rate": 0.631578947368421,
+          "num_bets": 38,
+          "total_stakes": 380.0,
+          "profit": -15.365389956888691,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.10695614395236697,
+          "hit_rate": 0.7368421052631579,
+          "num_bets": 38,
+          "total_stakes": 380.0,
+          "profit": 40.64333470189945,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.05850253259293873,
+          "hit_rate": 0.7111111111111111,
+          "num_bets": 45,
+          "total_stakes": 450.0,
+          "profit": 26.326139666822428,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.2288590764882745,
+          "hit_rate": 0.7608695652173914,
+          "num_bets": 46,
+          "total_stakes": 460.0,
+          "profit": 105.27517518460627,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.32138096944423955,
+          "hit_rate": 0.8444444444444444,
+          "num_bets": 45,
+          "total_stakes": 450.0,
+          "profit": 144.6214362499078,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.07541138979231292,
+          "hit_rate": 0.8,
+          "num_bets": 10,
+          "total_stakes": 100.0,
+          "profit": 7.541138979231292,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.16633350716594217,
+          "hit_rate": 0.8260869565217391,
+          "num_bets": 23,
+          "total_stakes": 230.0,
+          "profit": 38.2567066481667,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.008271308414872653,
+          "hit_rate": 0.7,
+          "num_bets": 30,
+          "total_stakes": 300.0,
+          "profit": 2.4813925244617963,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.23834305684394888,
+          "hit_rate": 0.8666666666666667,
+          "num_bets": 30,
+          "total_stakes": 300.0,
+          "profit": 71.50291705318466,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.10603748793625808,
+          "hit_rate": 0.7777777777777778,
+          "num_bets": 18,
+          "total_stakes": 180.0,
+          "profit": 19.086747828526455,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.11486428502598382,
+          "hit_rate": 0.875,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": 9.189142802078706,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.03696660264937126,
+          "hit_rate": 0.75,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": -2.957328211949701,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.041650909354018495,
+          "hit_rate": 0.7142857142857143,
+          "num_bets": 14,
+          "total_stakes": 140.0,
+          "profit": -5.831127309562589,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.008210749681397686,
+          "hit_rate": 0.8,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": -0.41053748406988433,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.36033571554253,
+          "hit_rate": 1.0,
+          "num_bets": 6,
+          "total_stakes": 60.0,
+          "profit": 21.6201429325518,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.009496173260355362,
+          "hit_rate": 0.8,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": -0.47480866301776814,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.5903619095281154,
+          "hit_rate": 0.3333333333333333,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": -17.710857285843463,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.22706679428118062,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": -6.812003828435419,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.1865166568614196,
+          "hit_rate": 1.0,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": 3.730333137228392,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.26622723172467017,
+          "hit_rate": 1.0,
+          "num_bets": 1,
+          "total_stakes": 10.0,
+          "profit": 2.6622723172467015,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.27138096944423956
+    },
+    "CHAMPIONSHIP": {
+      "current_config": {
+        "edge_threshold": 0.025,
+        "min_probability": 0.18,
+        "target_roi": 0.12,
+        "target_accuracy": 0.58,
+        "max_stake": 20.0,
+        "min_bet_volume": 12,
+        "league_name": "EFL Championship",
+        "tier": 2,
+        "region": "England",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355534"
+      },
+      "optimal_params": {
+        "roi": 0.20781272610630291,
+        "hit_rate": 0.9333333333333333,
+        "num_bets": 15,
+        "total_stakes": 150.0,
+        "profit": 31.171908915945437,
+        "edge_threshold": 0.045,
+        "min_probability": 0.18
+      },
+      "sweep_results": [
+        {
+          "roi": 0.10464809386788393,
+          "hit_rate": 0.5547945205479452,
+          "num_bets": 146,
+          "total_stakes": 1460.0,
+          "profit": 152.78621704711054,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.09460989923011327,
+          "hit_rate": 0.47183098591549294,
+          "num_bets": 142,
+          "total_stakes": 1420.0,
+          "profit": -134.34605690676085,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.036422757300888835,
+          "hit_rate": 0.48201438848920863,
+          "num_bets": 139,
+          "total_stakes": 1390.0,
+          "profit": -50.627632648235476,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.03600752497658934,
+          "hit_rate": 0.4965986394557823,
+          "num_bets": 147,
+          "total_stakes": 1470.0,
+          "profit": 52.93106171558634,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.04582225708409246,
+          "hit_rate": 0.5170068027210885,
+          "num_bets": 147,
+          "total_stakes": 1470.0,
+          "profit": 67.35871791361592,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.05027011165785061,
+          "hit_rate": 0.5816326530612245,
+          "num_bets": 98,
+          "total_stakes": 980.0,
+          "profit": 49.26470942469359,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.012560977078746505,
+          "hit_rate": 0.5252525252525253,
+          "num_bets": 99,
+          "total_stakes": 990.0,
+          "profit": -12.43536730795904,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.18936465379336864,
+          "hit_rate": 0.6310679611650486,
+          "num_bets": 103,
+          "total_stakes": 1030.0,
+          "profit": 195.0455934071697,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.17268201448873075,
+          "hit_rate": 0.6132075471698113,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": 183.0429353580546,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.06284877677332176,
+          "hit_rate": 0.580952380952381,
+          "num_bets": 105,
+          "total_stakes": 1050.0,
+          "profit": 65.99121561198785,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.12108046176271375,
+          "hit_rate": 0.5217391304347826,
+          "num_bets": 69,
+          "total_stakes": 690.0,
+          "profit": -83.54551861627249,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.026651766543623775,
+          "hit_rate": 0.6233766233766234,
+          "num_bets": 77,
+          "total_stakes": 770.0,
+          "profit": 20.521860238590307,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.027387353422400458,
+          "hit_rate": 0.631578947368421,
+          "num_bets": 76,
+          "total_stakes": 760.0,
+          "profit": 20.814388601024348,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.13781629206668938,
+          "hit_rate": 0.6615384615384615,
+          "num_bets": 65,
+          "total_stakes": 650.0,
+          "profit": 89.5805898433481,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.09414837255174205,
+          "hit_rate": 0.6376811594202898,
+          "num_bets": 69,
+          "total_stakes": 690.0,
+          "profit": 64.96237706070201,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.0014629265304867544,
+          "hit_rate": 0.65,
+          "num_bets": 40,
+          "total_stakes": 400.0,
+          "profit": 0.5851706121947018,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.12907280193578416,
+          "hit_rate": 0.7272727272727273,
+          "num_bets": 44,
+          "total_stakes": 440.0,
+          "profit": 56.792032851745034,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.19285759451094406,
+          "hit_rate": 0.7674418604651163,
+          "num_bets": 43,
+          "total_stakes": 430.0,
+          "profit": 82.92876563970594,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.007717371520853078,
+          "hit_rate": 0.65625,
+          "num_bets": 32,
+          "total_stakes": 320.0,
+          "profit": -2.469558886672985,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.13601025417798154,
+          "hit_rate": 0.7,
+          "num_bets": 40,
+          "total_stakes": 400.0,
+          "profit": 54.40410167119262,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.10190830124344595,
+          "hit_rate": 0.7777777777777778,
+          "num_bets": 18,
+          "total_stakes": 180.0,
+          "profit": 18.343494223820272,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.12356222716728338,
+          "hit_rate": 0.6153846153846154,
+          "num_bets": 26,
+          "total_stakes": 260.0,
+          "profit": -32.12617906349368,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.13053092139386474,
+          "hit_rate": 0.625,
+          "num_bets": 32,
+          "total_stakes": 320.0,
+          "profit": -41.76989484603672,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.18445962090117565,
+          "hit_rate": 0.84,
+          "num_bets": 25,
+          "total_stakes": 250.0,
+          "profit": 46.11490522529391,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.18906766361310115,
+          "hit_rate": 0.8421052631578947,
+          "num_bets": 19,
+          "total_stakes": 190.0,
+          "profit": 35.92285608648922,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.09738407615631152,
+          "hit_rate": 0.8333333333333334,
+          "num_bets": 12,
+          "total_stakes": 120.0,
+          "profit": 11.686089138757382,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.20781272610630291,
+          "hit_rate": 0.9333333333333333,
+          "num_bets": 15,
+          "total_stakes": 150.0,
+          "profit": 31.171908915945437,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.1952925427585493,
+          "hit_rate": 0.625,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": -15.623403420683942,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.13401728150111225,
+          "hit_rate": 0.875,
+          "num_bets": 16,
+          "total_stakes": 160.0,
+          "profit": 21.44276504017796,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.313043044050268,
+          "hit_rate": 0.5,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": -25.04344352402144,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.17161648013395497,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": -5.148494404018649,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.38383738182090515,
+          "hit_rate": 0.5,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": -7.676747636418103,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.0959382191010576,
+          "hit_rate": 0.75,
+          "num_bets": 4,
+          "total_stakes": 40.0,
+          "profit": -3.837528764042304,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.5859843844162521,
+          "hit_rate": 0.3333333333333333,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": -17.579531532487565,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.2147968886528038,
+          "hit_rate": 1.0,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": 10.73984443264019,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.15781272610630293
+    },
+    "LIGUE2": {
+      "current_config": {
+        "edge_threshold": 0.025,
+        "min_probability": 0.18,
+        "target_roi": 0.12,
+        "target_accuracy": 0.58,
+        "max_stake": 20.0,
+        "min_bet_volume": 12,
+        "league_name": "Ligue 2",
+        "tier": 2,
+        "region": "France",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355541"
+      },
+      "optimal_params": {
+        "roi": 0.29277183061237966,
+        "hit_rate": 0.9130434782608695,
+        "num_bets": 23,
+        "total_stakes": 230.0,
+        "profit": 67.33752104084732,
+        "edge_threshold": 0.04,
+        "min_probability": 0.15
+      },
+      "sweep_results": [
+        {
+          "roi": 0.00038596843299345195,
+          "hit_rate": 0.5170068027210885,
+          "num_bets": 147,
+          "total_stakes": 1470.0,
+          "profit": 0.5673735965003743,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.022559177271230964,
+          "hit_rate": 0.4866666666666667,
+          "num_bets": 150,
+          "total_stakes": 1500.0,
+          "profit": 33.83876590684645,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.14210981404876025,
+          "hit_rate": 0.5490196078431373,
+          "num_bets": 153,
+          "total_stakes": 1530.0,
+          "profit": 217.4280154946032,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.03989370992369165,
+          "hit_rate": 0.4965986394557823,
+          "num_bets": 147,
+          "total_stakes": 1470.0,
+          "profit": 58.64375358782672,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.05042471645558425,
+          "hit_rate": 0.5197368421052632,
+          "num_bets": 152,
+          "total_stakes": 1520.0,
+          "profit": 76.64556901248807,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.002913241384997946,
+          "hit_rate": 0.52,
+          "num_bets": 100,
+          "total_stakes": 1000.0,
+          "profit": -2.9132413849979457,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.1377844747870604,
+          "hit_rate": 0.4895833333333333,
+          "num_bets": 96,
+          "total_stakes": 960.0,
+          "profit": -132.273095795578,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.10126965540167258,
+          "hit_rate": 0.5904761904761905,
+          "num_bets": 105,
+          "total_stakes": 1050.0,
+          "profit": 106.33313817175622,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.2042378677230842,
+          "hit_rate": 0.6491228070175439,
+          "num_bets": 114,
+          "total_stakes": 1140.0,
+          "profit": 232.83116920431598,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.133697388674665,
+          "hit_rate": 0.603448275862069,
+          "num_bets": 116,
+          "total_stakes": 1160.0,
+          "profit": 155.0889708626114,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.01336291477609678,
+          "hit_rate": 0.582089552238806,
+          "num_bets": 67,
+          "total_stakes": 670.0,
+          "profit": 8.953152899984843,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.0342308396130956,
+          "hit_rate": 0.6190476190476191,
+          "num_bets": 63,
+          "total_stakes": 630.0,
+          "profit": 21.56542895625023,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.016125926837586003,
+          "hit_rate": 0.6067415730337079,
+          "num_bets": 89,
+          "total_stakes": 890.0,
+          "profit": 14.352074885451543,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.08019055421097003,
+          "hit_rate": 0.5588235294117647,
+          "num_bets": 68,
+          "total_stakes": 680.0,
+          "profit": -54.529576863459624,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.003432915096548216,
+          "hit_rate": 0.5789473684210527,
+          "num_bets": 76,
+          "total_stakes": 760.0,
+          "profit": -2.609015473376644,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.048753798793367324,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 45,
+          "total_stakes": 450.0,
+          "profit": 21.939209457015295,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.032165738526929444,
+          "hit_rate": 0.6222222222222222,
+          "num_bets": 45,
+          "total_stakes": 450.0,
+          "profit": -14.47458233711825,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.1563761825503979,
+          "hit_rate": 0.7560975609756098,
+          "num_bets": 41,
+          "total_stakes": 410.0,
+          "profit": 64.11423484566313,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.12369482294781547,
+          "hit_rate": 0.5869565217391305,
+          "num_bets": 46,
+          "total_stakes": 460.0,
+          "profit": -56.89961855599512,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.0034944380605151895,
+          "hit_rate": 0.6530612244897959,
+          "num_bets": 49,
+          "total_stakes": 490.0,
+          "profit": 1.7122746496524428,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.29277183061237966,
+          "hit_rate": 0.9130434782608695,
+          "num_bets": 23,
+          "total_stakes": 230.0,
+          "profit": 67.33752104084732,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.088737096116574,
+          "hit_rate": 0.7777777777777778,
+          "num_bets": 18,
+          "total_stakes": 180.0,
+          "profit": 15.972677300983321,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.12388284625535816,
+          "hit_rate": 0.7894736842105263,
+          "num_bets": 19,
+          "total_stakes": 190.0,
+          "profit": 23.53774078851805,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.17173982906997062,
+          "hit_rate": 0.8666666666666667,
+          "num_bets": 15,
+          "total_stakes": 150.0,
+          "profit": 25.760974360495595,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.03382851884698864,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 21,
+          "total_stakes": 210.0,
+          "profit": -7.103988957867614,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.1551476737005378,
+          "hit_rate": 0.8888888888888888,
+          "num_bets": 9,
+          "total_stakes": 90.0,
+          "profit": 13.963290633048402,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.11119866853817774,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": -3.335960056145332,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.18416950682292696,
+          "hit_rate": 0.9090909090909091,
+          "num_bets": 11,
+          "total_stakes": 110.0,
+          "profit": 20.258645750521964,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.16944588575876685,
+          "hit_rate": 0.8571428571428571,
+          "num_bets": 7,
+          "total_stakes": 70.0,
+          "profit": 11.861212003113678,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.1533199750185457,
+          "hit_rate": 0.8888888888888888,
+          "num_bets": 9,
+          "total_stakes": 90.0,
+          "profit": 13.798797751669113,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.2144947961221945,
+          "hit_rate": 1.0,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": 4.28989592244389,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.14374140218607323,
+          "hit_rate": 1.0,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": 4.312242065582197,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.19799895374723633,
+          "hit_rate": 1.0,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": 3.9599790749447266,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.17695985847251006,
+          "hit_rate": 1.0,
+          "num_bets": 1,
+          "total_stakes": 10.0,
+          "profit": 1.7695985847251006,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.2123722341982737,
+          "hit_rate": 1.0,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": 6.3711670259482105,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.24277183061237967
+    },
+    "SERIEB": {
+      "current_config": {
+        "edge_threshold": 0.025,
+        "min_probability": 0.18,
+        "target_roi": 0.12,
+        "target_accuracy": 0.58,
+        "max_stake": 20.0,
+        "min_bet_volume": 12,
+        "league_name": "Serie B",
+        "tier": 2,
+        "region": "Italy",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355547"
+      },
+      "optimal_params": {
+        "roi": 0.361894175735164,
+        "hit_rate": 0.96,
+        "num_bets": 25,
+        "total_stakes": 250.0,
+        "profit": 90.473543933791,
+        "edge_threshold": 0.04,
+        "min_probability": 0.25
+      },
+      "sweep_results": [
+        {
+          "roi": -0.010053375159636745,
+          "hit_rate": 0.4857142857142857,
+          "num_bets": 140,
+          "total_stakes": 1400.0,
+          "profit": -14.074725223491441,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.04567692544213825,
+          "hit_rate": 0.5147058823529411,
+          "num_bets": 136,
+          "total_stakes": 1360.0,
+          "profit": 62.120618601308024,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.02145651881658695,
+          "hit_rate": 0.4807692307692308,
+          "num_bets": 156,
+          "total_stakes": 1560.0,
+          "profit": 33.47216935387564,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.17307053256077973,
+          "hit_rate": 0.5785714285714286,
+          "num_bets": 140,
+          "total_stakes": 1400.0,
+          "profit": 242.29874558509164,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.04546390222056042,
+          "hit_rate": 0.47183098591549294,
+          "num_bets": 142,
+          "total_stakes": 1420.0,
+          "profit": -64.5587411531958,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.12099043549295158,
+          "hit_rate": 0.4716981132075472,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": -128.24986162252867,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.20837853704657533,
+          "hit_rate": 0.6320754716981132,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": 220.88124926936985,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.10173044473686231,
+          "hit_rate": 0.5922330097087378,
+          "num_bets": 103,
+          "total_stakes": 1030.0,
+          "profit": 104.78235807896817,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.10325595657839602,
+          "hit_rate": 0.6126126126126126,
+          "num_bets": 111,
+          "total_stakes": 1110.0,
+          "profit": 114.61411180201958,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.04607316839819013,
+          "hit_rate": 0.53125,
+          "num_bets": 96,
+          "total_stakes": 960.0,
+          "profit": -44.23024166226253,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.07884814858369073,
+          "hit_rate": 0.6486486486486487,
+          "num_bets": 74,
+          "total_stakes": 740.0,
+          "profit": 58.34762995193114,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.10935881036034398,
+          "hit_rate": 0.6567164179104478,
+          "num_bets": 67,
+          "total_stakes": 670.0,
+          "profit": 73.27040294143046,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.0273948480948579,
+          "hit_rate": 0.6153846153846154,
+          "num_bets": 65,
+          "total_stakes": 650.0,
+          "profit": 17.806651261657635,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.06130708507209773,
+          "hit_rate": 0.6268656716417911,
+          "num_bets": 67,
+          "total_stakes": 670.0,
+          "profit": 41.075746998305476,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.1928880608437066,
+          "hit_rate": 0.7014925373134329,
+          "num_bets": 67,
+          "total_stakes": 670.0,
+          "profit": 129.23500076528342,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.053739131197501955,
+          "hit_rate": 0.71875,
+          "num_bets": 32,
+          "total_stakes": 320.0,
+          "profit": 17.196521983200626,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.053779429610473176,
+          "hit_rate": 0.7083333333333334,
+          "num_bets": 48,
+          "total_stakes": 480.0,
+          "profit": 25.814126213027123,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.09036140416585013,
+          "hit_rate": 0.7073170731707317,
+          "num_bets": 41,
+          "total_stakes": 410.0,
+          "profit": 37.04817570799855,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.06289836008769702,
+          "hit_rate": 0.6904761904761905,
+          "num_bets": 42,
+          "total_stakes": 420.0,
+          "profit": 26.417311236832745,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.01465559300457195,
+          "hit_rate": 0.6428571428571429,
+          "num_bets": 42,
+          "total_stakes": 420.0,
+          "profit": -6.155349061920219,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.1204339977862708,
+          "hit_rate": 0.7894736842105263,
+          "num_bets": 19,
+          "total_stakes": 190.0,
+          "profit": 22.88245957939145,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.07704797821077614,
+          "hit_rate": 0.76,
+          "num_bets": 25,
+          "total_stakes": 250.0,
+          "profit": 19.261994552694034,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.09563270744907686,
+          "hit_rate": 0.7857142857142857,
+          "num_bets": 28,
+          "total_stakes": 280.0,
+          "profit": 26.77715808574152,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.05951031735895601,
+          "hit_rate": 0.7272727272727273,
+          "num_bets": 22,
+          "total_stakes": 220.0,
+          "profit": 13.092269818970323,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.361894175735164,
+          "hit_rate": 0.96,
+          "num_bets": 25,
+          "total_stakes": 250.0,
+          "profit": 90.473543933791,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.18586190892966512,
+          "hit_rate": 0.8888888888888888,
+          "num_bets": 9,
+          "total_stakes": 90.0,
+          "profit": 16.72757180366986,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.11625463383383206,
+          "hit_rate": 0.9,
+          "num_bets": 10,
+          "total_stakes": 100.0,
+          "profit": 11.625463383383206,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.18334042893750646,
+          "hit_rate": 0.8888888888888888,
+          "num_bets": 9,
+          "total_stakes": 90.0,
+          "profit": 16.50063860437558,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.028560098641035835,
+          "hit_rate": 0.75,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": -2.284807891282867,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.03041211301733452,
+          "hit_rate": 0.8181818181818182,
+          "num_bets": 11,
+          "total_stakes": 110.0,
+          "profit": 3.3453324319067974,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.1965203051460551,
+          "hit_rate": 1.0,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": 5.895609154381653,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.22474427327444352,
+          "hit_rate": 1.0,
+          "num_bets": 1,
+          "total_stakes": 10.0,
+          "profit": 2.2474427327444353,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.24270960403267594,
+          "hit_rate": 1.0,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": 12.135480201633797,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.22967853380344821,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": -6.890356014103446,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.2005906919817427,
+          "hit_rate": 1.0,
+          "num_bets": 4,
+          "total_stakes": 40.0,
+          "profit": 8.023627679269708,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.31189417573516404
+    },
+    "EREDIVISIE": {
+      "current_config": {
+        "edge_threshold": 0.04,
+        "min_probability": 0.25,
+        "target_roi": 0.08,
+        "target_accuracy": 0.55,
+        "max_stake": 15.0,
+        "min_bet_volume": 8,
+        "league_name": "Eredivisie",
+        "tier": 3,
+        "region": "Netherlands",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355551"
+      },
+      "optimal_params": {
+        "roi": 0.23368980618519372,
+        "hit_rate": 0.6115107913669064,
+        "num_bets": 139,
+        "total_stakes": 1390.0,
+        "profit": 324.82883059741926,
+        "edge_threshold": 0.02,
+        "min_probability": 0.22
+      },
+      "sweep_results": [
+        {
+          "roi": 0.10201356726767728,
+          "hit_rate": 0.5683453237410072,
+          "num_bets": 139,
+          "total_stakes": 1390.0,
+          "profit": 141.79885850207143,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.0702532579808989,
+          "hit_rate": 0.5070422535211268,
+          "num_bets": 142,
+          "total_stakes": 1420.0,
+          "profit": 99.75962633287645,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.19994247185354422,
+          "hit_rate": 0.6171875,
+          "num_bets": 128,
+          "total_stakes": 1280.0,
+          "profit": 255.9263639725366,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.23368980618519372,
+          "hit_rate": 0.6115107913669064,
+          "num_bets": 139,
+          "total_stakes": 1390.0,
+          "profit": 324.82883059741926,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.003071379681754414,
+          "hit_rate": 0.4928571428571429,
+          "num_bets": 140,
+          "total_stakes": 1400.0,
+          "profit": -4.29993155445618,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.03206327042259834,
+          "hit_rate": 0.5545454545454546,
+          "num_bets": 110,
+          "total_stakes": 1100.0,
+          "profit": 35.26959746485818,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.0021064790918111716,
+          "hit_rate": 0.5625,
+          "num_bets": 96,
+          "total_stakes": 960.0,
+          "profit": -2.0222199281387248,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.18427734214894037,
+          "hit_rate": 0.6428571428571429,
+          "num_bets": 98,
+          "total_stakes": 980.0,
+          "profit": 180.59179530596157,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.04720789200354978,
+          "hit_rate": 0.5576923076923077,
+          "num_bets": 104,
+          "total_stakes": 1040.0,
+          "profit": 49.09620768369177,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.09126431618451718,
+          "hit_rate": 0.4857142857142857,
+          "num_bets": 105,
+          "total_stakes": 1050.0,
+          "profit": -95.82753199374304,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.09149219170711698,
+          "hit_rate": 0.5441176470588235,
+          "num_bets": 68,
+          "total_stakes": 680.0,
+          "profit": -62.21469036083954,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.029630323862389805,
+          "hit_rate": 0.6349206349206349,
+          "num_bets": 63,
+          "total_stakes": 630.0,
+          "profit": 18.667104033305577,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.0773192215884176,
+          "hit_rate": 0.6578947368421053,
+          "num_bets": 76,
+          "total_stakes": 760.0,
+          "profit": 58.762608407197376,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.09535694118271601,
+          "hit_rate": 0.6811594202898551,
+          "num_bets": 69,
+          "total_stakes": 690.0,
+          "profit": 65.79628941607405,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.06414460132479712,
+          "hit_rate": 0.5492957746478874,
+          "num_bets": 71,
+          "total_stakes": 710.0,
+          "profit": -45.542666940605955,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.028569175143465724,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 48,
+          "total_stakes": 480.0,
+          "profit": 13.713204068863547,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.05443208565176584,
+          "hit_rate": 0.6571428571428571,
+          "num_bets": 35,
+          "total_stakes": 350.0,
+          "profit": 19.051229978118045,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.05192520744850183,
+          "hit_rate": 0.6041666666666666,
+          "num_bets": 48,
+          "total_stakes": 480.0,
+          "profit": -24.924099575280877,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.08925822618857057,
+          "hit_rate": 0.7346938775510204,
+          "num_bets": 49,
+          "total_stakes": 490.0,
+          "profit": 43.73653083239958,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.13535677729978604,
+          "hit_rate": 0.7435897435897436,
+          "num_bets": 39,
+          "total_stakes": 390.0,
+          "profit": 52.78914314691656,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": -0.10838902728227902,
+          "hit_rate": 0.64,
+          "num_bets": 25,
+          "total_stakes": 250.0,
+          "profit": -27.097256820569754,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.12501149140440995,
+          "hit_rate": 0.782608695652174,
+          "num_bets": 23,
+          "total_stakes": 230.0,
+          "profit": 28.752643023014286,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.1457776363439848,
+          "hit_rate": 0.8,
+          "num_bets": 25,
+          "total_stakes": 250.0,
+          "profit": 36.4444090859962,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.06456944629160624,
+          "hit_rate": 0.7222222222222222,
+          "num_bets": 18,
+          "total_stakes": 180.0,
+          "profit": 11.622500332489125,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.05982660703983453,
+          "hit_rate": 0.6956521739130435,
+          "num_bets": 23,
+          "total_stakes": 230.0,
+          "profit": -13.76011961916194,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.19436470757455906,
+          "hit_rate": 0.9090909090909091,
+          "num_bets": 11,
+          "total_stakes": 110.0,
+          "profit": 21.380117833201496,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.0029582711754255085,
+          "hit_rate": 0.75,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": -0.2366616940340407,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.016196806421285917,
+          "hit_rate": 0.7857142857142857,
+          "num_bets": 14,
+          "total_stakes": 140.0,
+          "profit": 2.2675528989800284,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.02312425838267463,
+          "hit_rate": 0.8333333333333334,
+          "num_bets": 6,
+          "total_stakes": 60.0,
+          "profit": 1.3874555029604778,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": -0.08950456083105489,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 6,
+          "total_stakes": 60.0,
+          "profit": -5.370273649863293,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.17148033628291676,
+          "hit_rate": 1.0,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": 3.429606725658335,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.2330440059155103,
+          "hit_rate": 1.0,
+          "num_bets": 5,
+          "total_stakes": 50.0,
+          "profit": 11.652200295775515,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.19064383645306968,
+          "hit_rate": 1.0,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": 3.8128767290613936,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.22787730446362958,
+          "hit_rate": 1.0,
+          "num_bets": 4,
+          "total_stakes": 40.0,
+          "profit": 9.115092178545183,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.23709724306341862,
+          "hit_rate": 1.0,
+          "num_bets": 2,
+          "total_stakes": 20.0,
+          "profit": 4.741944861268372,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.1836898061851937
+    },
+    "PRIMEIRA": {
+      "current_config": {
+        "edge_threshold": 0.04,
+        "min_probability": 0.25,
+        "target_roi": 0.08,
+        "target_accuracy": 0.55,
+        "max_stake": 15.0,
+        "min_bet_volume": 8,
+        "league_name": "Primeira Liga",
+        "tier": 3,
+        "region": "Portugal",
+        "is_active": true,
+        "last_updated": "2025-07-23T14:08:45.355555"
+      },
+      "optimal_params": {
+        "roi": 0.2658633967742711,
+        "hit_rate": 0.8888888888888888,
+        "num_bets": 18,
+        "total_stakes": 180.0,
+        "profit": 47.85541141936881,
+        "edge_threshold": 0.04,
+        "min_probability": 0.25
+      },
+      "sweep_results": [
+        {
+          "roi": 0.07934063537499986,
+          "hit_rate": 0.5144927536231884,
+          "num_bets": 138,
+          "total_stakes": 1380.0,
+          "profit": 109.49007681749981,
+          "edge_threshold": 0.02,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.12622317305210665,
+          "hit_rate": 0.5223880597014925,
+          "num_bets": 134,
+          "total_stakes": 1340.0,
+          "profit": 169.1390518898229,
+          "edge_threshold": 0.02,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.06658324779901326,
+          "hit_rate": 0.5266666666666666,
+          "num_bets": 150,
+          "total_stakes": 1500.0,
+          "profit": 99.87487169851988,
+          "edge_threshold": 0.02,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.07137440765384007,
+          "hit_rate": 0.5481481481481482,
+          "num_bets": 135,
+          "total_stakes": 1350.0,
+          "profit": 96.35545033268409,
+          "edge_threshold": 0.02,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.08883256250265006,
+          "hit_rate": 0.5337837837837838,
+          "num_bets": 148,
+          "total_stakes": 1480.0,
+          "profit": 131.4721925039221,
+          "edge_threshold": 0.02,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.010306458716374006,
+          "hit_rate": 0.5648148148148148,
+          "num_bets": 108,
+          "total_stakes": 1080.0,
+          "profit": 11.130975413683927,
+          "edge_threshold": 0.025,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.0032788047864533796,
+          "hit_rate": 0.5523809523809524,
+          "num_bets": 105,
+          "total_stakes": 1050.0,
+          "profit": 3.4427450257760484,
+          "edge_threshold": 0.025,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.03059508026178016,
+          "hit_rate": 0.5818181818181818,
+          "num_bets": 110,
+          "total_stakes": 1100.0,
+          "profit": 33.65458828795818,
+          "edge_threshold": 0.025,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.12057284313564884,
+          "hit_rate": 0.6055045871559633,
+          "num_bets": 109,
+          "total_stakes": 1090.0,
+          "profit": 131.42439901785724,
+          "edge_threshold": 0.025,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.05745776801776423,
+          "hit_rate": 0.5754716981132075,
+          "num_bets": 106,
+          "total_stakes": 1060.0,
+          "profit": 60.90523409883008,
+          "edge_threshold": 0.025,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.026797109893233164,
+          "hit_rate": 0.618421052631579,
+          "num_bets": 76,
+          "total_stakes": 760.0,
+          "profit": 20.365803518857206,
+          "edge_threshold": 0.03,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.09113459140264946,
+          "hit_rate": 0.6323529411764706,
+          "num_bets": 68,
+          "total_stakes": 680.0,
+          "profit": 61.97152215380163,
+          "edge_threshold": 0.03,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.15199198123360166,
+          "hit_rate": 0.6764705882352942,
+          "num_bets": 68,
+          "total_stakes": 680.0,
+          "profit": 103.35454723884914,
+          "edge_threshold": 0.03,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.05421754121018997,
+          "hit_rate": 0.6133333333333333,
+          "num_bets": 75,
+          "total_stakes": 750.0,
+          "profit": 40.66315590764248,
+          "edge_threshold": 0.03,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.15805241699678146,
+          "hit_rate": 0.6621621621621622,
+          "num_bets": 74,
+          "total_stakes": 740.0,
+          "profit": 116.9587885776183,
+          "edge_threshold": 0.03,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.011652087386216455,
+          "hit_rate": 0.6666666666666666,
+          "num_bets": 39,
+          "total_stakes": 390.0,
+          "profit": 4.544314080624417,
+          "edge_threshold": 0.035,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.04890811068894512,
+          "hit_rate": 0.6888888888888889,
+          "num_bets": 45,
+          "total_stakes": 450.0,
+          "profit": 22.008649810025304,
+          "edge_threshold": 0.035,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.11263469281249289,
+          "hit_rate": 0.7551020408163265,
+          "num_bets": 49,
+          "total_stakes": 490.0,
+          "profit": 55.19099947812151,
+          "edge_threshold": 0.035,
+          "min_probability": 0.2
+        },
+        {
+          "roi": -0.029228522634843285,
+          "hit_rate": 0.6382978723404256,
+          "num_bets": 47,
+          "total_stakes": 470.0,
+          "profit": -13.737405638376345,
+          "edge_threshold": 0.035,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.026117054312943328,
+          "hit_rate": 0.673469387755102,
+          "num_bets": 49,
+          "total_stakes": 490.0,
+          "profit": 12.797356613342231,
+          "edge_threshold": 0.035,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.14305475139176685,
+          "hit_rate": 0.8181818181818182,
+          "num_bets": 22,
+          "total_stakes": 220.0,
+          "profit": 31.472045306188704,
+          "edge_threshold": 0.04,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.19532774125955712,
+          "hit_rate": 0.84,
+          "num_bets": 25,
+          "total_stakes": 250.0,
+          "profit": 48.83193531488928,
+          "edge_threshold": 0.04,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.16137275531418588,
+          "hit_rate": 0.8095238095238095,
+          "num_bets": 21,
+          "total_stakes": 210.0,
+          "profit": 33.88827861597903,
+          "edge_threshold": 0.04,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.15590631944911199,
+          "hit_rate": 0.8260869565217391,
+          "num_bets": 23,
+          "total_stakes": 230.0,
+          "profit": 35.858453473295754,
+          "edge_threshold": 0.04,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.2658633967742711,
+          "hit_rate": 0.8888888888888888,
+          "num_bets": 18,
+          "total_stakes": 180.0,
+          "profit": 47.85541141936881,
+          "edge_threshold": 0.04,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.11952977552468147,
+          "hit_rate": 0.8571428571428571,
+          "num_bets": 7,
+          "total_stakes": 70.0,
+          "profit": 8.367084286727703,
+          "edge_threshold": 0.045,
+          "min_probability": 0.15
+        },
+        {
+          "roi": -0.10747520024200719,
+          "hit_rate": 0.6923076923076923,
+          "num_bets": 13,
+          "total_stakes": 130.0,
+          "profit": -13.971776031460934,
+          "edge_threshold": 0.045,
+          "min_probability": 0.18
+        },
+        {
+          "roi": -0.0106918691014803,
+          "hit_rate": 0.75,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": -0.855349528118424,
+          "edge_threshold": 0.045,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.12200652469434961,
+          "hit_rate": 0.8333333333333334,
+          "num_bets": 12,
+          "total_stakes": 120.0,
+          "profit": 14.640782963321954,
+          "edge_threshold": 0.045,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.12862982696554556,
+          "hit_rate": 0.875,
+          "num_bets": 8,
+          "total_stakes": 80.0,
+          "profit": 10.290386157243645,
+          "edge_threshold": 0.045,
+          "min_probability": 0.25
+        },
+        {
+          "roi": 0.22412648521478468,
+          "hit_rate": 1.0,
+          "num_bets": 1,
+          "total_stakes": 10.0,
+          "profit": 2.2412648521478467,
+          "edge_threshold": 0.05,
+          "min_probability": 0.15
+        },
+        {
+          "roi": 0.0,
+          "hit_rate": 0.0,
+          "num_bets": 0,
+          "total_stakes": 0.0,
+          "profit": 0.0,
+          "edge_threshold": 0.05,
+          "min_probability": 0.18
+        },
+        {
+          "roi": 0.23594671259417885,
+          "hit_rate": 1.0,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": 7.078401377825365,
+          "edge_threshold": 0.05,
+          "min_probability": 0.2
+        },
+        {
+          "roi": 0.234638598968726,
+          "hit_rate": 1.0,
+          "num_bets": 4,
+          "total_stakes": 40.0,
+          "profit": 9.38554395874904,
+          "edge_threshold": 0.05,
+          "min_probability": 0.22
+        },
+        {
+          "roi": 0.2717062115675565,
+          "hit_rate": 1.0,
+          "num_bets": 3,
+          "total_stakes": 30.0,
+          "profit": 8.151186347026695,
+          "edge_threshold": 0.05,
+          "min_probability": 0.25
+        }
+      ],
+      "improvement": 0.21586339677427113
+    }
+  },
+  "alerts": [],
+  "recommendations": [
+    {
+      "type": "optimization",
+      "priority": "high",
+      "title": "Optimize SERIEB thresholds",
+      "description": "Potential 31.2% ROI improvement",
+      "action": "Update edge threshold to 4.0%, min probability to 25.0%",
+      "expected_impact": "+31.2% ROI, 25 weekly bets"
+    },
+    {
+      "type": "expansion",
+      "priority": "medium",
+      "title": "Increase exposure to SERIEB",
+      "description": "Tier 2 league showing strong 12.8% ROI performance",
+      "action": "Consider increasing maximum stake or adding more betting opportunities",
+      "expected_impact": "Diversify portfolio with strong performing market"
+    }
+  ]
+}

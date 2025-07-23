@@ -1,0 +1,88 @@
+Phase 4: Launch Euro Leagues, Harden Ops
+1. Euro Launch Pack (Next 1–2 sprints)
+League Matrix: EPL, La Liga, Serie A, Bundesliga, Ligue 1 + Tier 2 (Championship, Ligue 2, Serie B, etc.).
+
+Per-League Health Report (auto):
+
+3-way acc, Top-2, LogLoss, ROI, bet volume.
+
+Flag leagues < target ROI or drifting metrics.
+
+Threshold Profiles:
+
+Start conservative: Edge ≥ 3%, min prob ≥ 0.40 (adjust per league based on ROI curves).
+
+Store thresholds in config DB, not code.
+
+2. Betting Ops Layer
+Batch windows: Pull odds 48h, 24h, 6h pre-kickoff, re-score EV (optional micro-adjust).
+
+Alerting: Slack/Telegram/WhatsApp when new bets cross threshold.
+
+CLV Tracking: Record open vs close odds to prove edge.
+
+3. Monitoring & Drift
+Weekly auto-report: metrics + charts (calibration, ROI vs time, feature drift).
+
+Drift triggers:
+
+Spike in LogLoss/Brier (> X%).
+
+EV < 0 for 2 straight weeks.
+
+Class distribution shift (e.g., sudden draw spike).
+
+Phase 5: Global Expansion Framework
+1. Data Onboarding Playbook
+Schema mapping: Normalize team IDs, league tiers, season calendars.
+
+Quality checks: Missing odds, inconsistent dates, duplicate fixtures.
+
+Cold-start fallback: If a league has < N matches, back off to global priors (Elo initialized from region strength).
+
+2. Meta-Modeling
+Global base model + league adapters (fine-tune or add league_id as categorical with CatBoost).
+
+Transfer learning trick: Train on Euro, validate on new leagues, then incremental retrain when you hit 500+ matches.
+
+3. Rollout Order
+Tier by data quality & betting volume:
+
+Phase 5A: MLS, Eredivisie, Primeira Liga, Turkish Süper Lig
+
+5B: Brazil Série A/B, Argentina, Mexico Liga MX
+
+5C: Asia & Africa (K League, J League, SA PSL, Kenya etc.)
+
+Profit Maximization Loop
+Threshold Sweep Script: run weekly to re-optimize edge cutoff vs ROI/volume.
+
+Stake Sizing: Move from flat → fractional Kelly (0.25x recommended).
+
+Portfolio Cap: Max % bankroll at risk per day & per league to smooth variance.
+
+QA / Governance
+Leakage Unit Tests: Assert no feature timestamp ≥ match_date.
+
+Reproducibility: Save seed, code hash, feature list per model.
+
+Rollback Plan: Keep N-1 model hot; toggle via config.
+
+Dev Tasks (Hand to Agent)
+Do next:
+
+ Implement config-driven thresholds per league (DB table + admin UI).
+
+ Add CLV capture & CLV metric in monitoring.
+
+ Build weekly auto-report (HTML/Markdown + charts).
+
+ Implement threshold sweep & ROI curve generator (store results).
+
+ Create league onboarding script/template (mapping, QA checks).
+
+ Add drift detectors (psi or KS tests on key features & probs).
+
+ Implement bankroll manager module (simple Kelly, cap logic).
+
+ Version all artifacts & push metadata to a model_registry table.

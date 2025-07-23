@@ -1,0 +1,290 @@
+{
+  "metadata": {
+    "report_date": "2025-07-23T14:03:13.008095",
+    "period_start": "2025-07-16T14:03:13.008095",
+    "period_end": "2025-07-23T14:03:13.008095",
+    "generated_at": "2025-07-23T14:03:13.008219"
+  },
+  "league_health": {
+    "timestamp": "2025-07-23T14:03:13.008286",
+    "leagues": {
+      "LALIGA": {
+        "config": {
+          "name": "La Liga Santander",
+          "tier": 1,
+          "edge_threshold": 0.03,
+          "target_roi": 0.1
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "SERIEA": {
+        "config": {
+          "name": "Serie A",
+          "tier": 1,
+          "edge_threshold": 0.03,
+          "target_roi": 0.1
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "BUNDESLIGA": {
+        "config": {
+          "name": "Bundesliga",
+          "tier": 1,
+          "edge_threshold": 0.03,
+          "target_roi": 0.1
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "LIGUE1": {
+        "config": {
+          "name": "Ligue 1",
+          "tier": 1,
+          "edge_threshold": 0.03,
+          "target_roi": 0.1
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "CHAMPIONSHIP": {
+        "config": {
+          "name": "EFL Championship",
+          "tier": 2,
+          "edge_threshold": 0.025,
+          "target_roi": 0.12
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "LIGUE2": {
+        "config": {
+          "name": "Ligue 2",
+          "tier": 2,
+          "edge_threshold": 0.025,
+          "target_roi": 0.12
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "SERIEB": {
+        "config": {
+          "name": "Serie B",
+          "tier": 2,
+          "edge_threshold": 0.025,
+          "target_roi": 0.12
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "BUNDESLIGA2": {
+        "config": {
+          "name": "2. Bundesliga",
+          "tier": 2,
+          "edge_threshold": 0.025,
+          "target_roi": 0.12
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "LALIGA2": {
+        "config": {
+          "name": "La Liga SmartBank",
+          "tier": 2,
+          "edge_threshold": 0.025,
+          "target_roi": 0.12
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "EREDIVISIE": {
+        "config": {
+          "name": "Eredivisie",
+          "tier": 3,
+          "edge_threshold": 0.04,
+          "target_roi": 0.08
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "PRIMEIRA": {
+        "config": {
+          "name": "Primeira Liga",
+          "tier": 3,
+          "edge_threshold": 0.04,
+          "target_roi": 0.08
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "SUPERLIG": {
+        "config": {
+          "name": "S\u00fcper Lig",
+          "tier": 3,
+          "edge_threshold": 0.04,
+          "target_roi": 0.08
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "BELGIANPRO": {
+        "config": {
+          "name": "Belgian Pro League",
+          "tier": 3,
+          "edge_threshold": 0.04,
+          "target_roi": 0.08
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "SCOTTISHPREM": {
+        "config": {
+          "name": "Scottish Premiership",
+          "tier": 3,
+          "edge_threshold": 0.04,
+          "target_roi": 0.08
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      },
+      "EPL": {
+        "config": {
+          "name": "English Premier League",
+          "tier": 1,
+          "edge_threshold": 0.035,
+          "target_roi": 0.12
+        },
+        "performance": null,
+        "health_status": "No Data",
+        "issues": [
+          "No recent performance data"
+        ],
+        "last_updated": null
+      }
+    },
+    "summary": {
+      "total_leagues": 15,
+      "healthy": 0,
+      "warning": 15,
+      "critical": 0,
+      "health_percentage": 0.0
+    }
+  },
+  "clv_analysis": {
+    "overall_metrics": {
+      "total_bets": 2,
+      "avg_clv": 0.04470588235294117,
+      "median_clv": 0.04470588235294117,
+      "positive_clv_rate": 1.0,
+      "clv_std": 0.015294117647058791,
+      "total_clv_yield": 0.08941176470588234,
+      "avg_profit": 33.0,
+      "total_profit": 66.0,
+      "win_rate": 1.0,
+      "period_days": 7
+    },
+    "league_rankings": [],
+    "trend_analysis": {
+      "status": "insufficient_data"
+    }
+  },
+  "performance_trends": {
+    "accuracy_trend": {
+      "current_week": 0.75,
+      "previous_week": 0.72,
+      "change": 0.03,
+      "direction": "improving"
+    },
+    "roi_trend": {
+      "current_week": 0.08,
+      "previous_week": 0.06,
+      "change": 0.02,
+      "direction": "improving"
+    },
+    "volume_trend": {
+      "current_week": 45,
+      "previous_week": 38,
+      "change": 7,
+      "direction": "increasing"
+    }
+  },
+  "alerts_and_issues": [
+    {
+      "type": "info",
+      "category": "Volume",
+      "message": "Low betting volume - consider adjusting thresholds",
+      "metric": "Weekly bets: 2"
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "expansion",
+      "priority": "medium",
+      "title": "Strong CLV performance indicates model edge",
+      "description": "100.0% positive CLV rate shows good market timing",
+      "action": "Consider increasing bet sizing or expanding to additional markets"
+    }
+  ],
+  "charts": {
+    "league_performance": "reports/charts/league_performance.png",
+    "clv_trend": "reports/charts/clv_trend.png",
+    "roi_volume": "reports/charts/roi_volume.png"
+  }
+}
