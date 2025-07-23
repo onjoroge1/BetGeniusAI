@@ -1,0 +1,70 @@
+Phase 3: Turn Accuracy into Profit
+
+1. Calibrate + Trust the Probabilities
+	•	Fit isotonic or Platt scaling on a holdout fold; save calibrator.
+	•	Produce reliability plots & Brier score each retrain.
+	•	Use calibrated probs for EV and staking.
+
+2. Add the Betting Layer (if not done)
+	•	Ingest opening (and ideally closing) odds.
+	•	Compute implied probs (margin-adjusted).
+	•	For each outcome: edge = p_model - p_implied.
+	•	Filter bets: choose threshold (e.g., edge ≥ 3–5%) to control volume.
+	•	Track: ROI, hit rate, avg EV, CLV (closing line value).
+
+3. Optimize Thresholds
+
+Run a sweep:
+	•	Edge cutoffs (1% → 10%)
+	•	Min probability floors
+	•	Output: curve of ROI vs #bets → pick sweet spot.
+
+4. Monitor in Prod
+
+Daily/weekly job to:
+	•	Recompute rolling LogLoss, Top-2, ROI, CLV.
+	•	Drift alerts (class dist, feature shifts).
+	•	Auto-report league/season breakdowns.
+
+⸻
+
+Phase 4: Push Performance Further
+
+Modeling
+	•	Ensemble: Keep two-stage, add goal-diff regression, stack with LR/CatBoost.
+	•	Hyperparam tuning: Optuna on time-split CV.
+	•	Per-league fine-tuning or meta-feature “league_strength”.
+	•	Uncertainty-aware losses (focal loss/label smoothing) if class skew returns.
+
+Features (quick gains)
+	•	Form splits (home vs away) for 5 & 10 games (if not already).
+	•	Elo/Glicko per league + recency-weighted trend.
+	•	H2H goal metrics, not just results.
+	•	Rest/fatigue, table rank gap, late-season must-win flag.
+	•	Odds movement (open→close) once you capture closes.
+
+Evaluation
+	•	Always log: 3-way acc, Top-2 acc, Macro-F1, LogLoss, Brier.
+	•	Business metrics first in the report (ROI, hit rate).
+
+⸻
+
+Code / Ops Checklist for Agent
+
+Done? Mark ✔ when shipped.
+	•	Add calibration step & persist calibrator.
+	•	Odds ingestion module → market_features.
+	•	EV calculator + thresholding logic (configurable).
+	•	Threshold sweep script → outputs ROI vs volume chart.
+	•	Monitoring script/notebook (weekly KPIs, drift).
+	•	Version every artifact (model, features, code hash).
+	•	Unit tests: no leakage, correct time windows, feature availability.
+
+⸻
+
+What I Need Back
+	1.	Current Top-2 accuracy, LogLoss/Brier, Macro-F1.
+	2.	Sample EV report (threshold used, #bets, hit rate, ROI).
+	3.	Odds source + how early you get them.
+	4.	Volume target (bets/day or per weekend) so we tune thresholds.
+	5.	Any leagues you want to prioritize for profit focus.

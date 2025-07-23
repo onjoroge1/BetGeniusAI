@@ -1,0 +1,50 @@
+{
+  "timestamp": "2025-07-23T01:16:03.794469",
+  "accuracy_metrics": {
+    "3way_accuracy": 0.75,
+    "top2_accuracy": 0.995,
+    "macro_f1": 0.7458533848548784
+  },
+  "probability_metrics": {
+    "log_loss": 0.4708268782650579,
+    "avg_brier_score": 0.10213960481511998,
+    "brier_by_outcome": {
+      "Home": 0.11344720912894501,
+      "Draw": 0.08947668679097102,
+      "Away": 0.10349491852544389
+    }
+  },
+  "betting_metrics": {
+    "roi": 0,
+    "hit_rate": 0,
+    "num_bets": 0,
+    "total_stakes": 0,
+    "profit": 0,
+    "avg_edge": 0,
+    "avg_ev": 0,
+    "clv": 0.0,
+    "edge_threshold_used": 0.03,
+    "min_prob_used": 0.15
+  },
+  "league_breakdown": {
+    "Tier1": {
+      "accuracy": 0.75,
+      "top2_accuracy": 0.9875,
+      "log_loss": 0.4605318423923956,
+      "sample_size": 80
+    },
+    "Tier2": {
+      "accuracy": 0.7857142857142857,
+      "top2_accuracy": 1.0,
+      "log_loss": 0.44404189558663837,
+      "sample_size": 70
+    },
+    "Others": {
+      "accuracy": 0.7,
+      "top2_accuracy": 1.0,
+      "log_loss": 0.5247979114111048,
+      "sample_size": 50
+    }
+  },
+  "sample_size": 200
+}
