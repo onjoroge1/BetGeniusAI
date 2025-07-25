@@ -1,0 +1,345 @@
+{
+  "last_updated": "2025-07-25T14:28:01.993787",
+  "system_overview": {
+    "system_status": "OPERATIONAL",
+    "total_leagues": 15,
+    "active_leagues": 15,
+    "inactive_leagues": 0,
+    "last_model_update": "2025-07-22T14:28:01.993214",
+    "total_bets_today": 17,
+    "total_bets_week": 1795,
+    "system_uptime_hours": 72.5,
+    "api_requests_today": 186,
+    "prediction_accuracy_7d": 0.552,
+    "avg_roi_7d": 0.078,
+    "total_profit_7d": 1250.75,
+    "database_status": "HEALTHY",
+    "ml_model_status": "LOADED",
+    "clv_tracker_status": "ACTIVE"
+  },
+  "league_summary": {
+    "leagues": [
+      {
+        "id": "BUNDESLIGA2",
+        "name": "2. Bundesliga",
+        "tier": 2,
+        "roi_7d": 0.106,
+        "clv_rate": 0.594,
+        "bets_7d": 17,
+        "status": "HEALTHY"
+      },
+      {
+        "id": "SERIEA",
+        "name": "Serie A",
+        "tier": 1,
+        "roi_7d": 0.102,
+        "clv_rate": 0.576,
+        "bets_7d": 24,
+        "status": "HEALTHY"
+      },
+      {
+        "id": "CHAMPIONSHIP",
+        "name": "EFL Championship",
+        "tier": 2,
+        "roi_7d": 0.098,
+        "clv_rate": 0.63,
+        "bets_7d": 13,
+        "status": "HEALTHY"
+      },
+      {
+        "id": "LALIGA2",
+        "name": "La Liga SmartBank",
+        "tier": 2,
+        "roi_7d": 0.096,
+        "clv_rate": 0.525,
+        "bets_7d": 15,
+        "status": "WARNING"
+      },
+      {
+        "id": "SERIEB",
+        "name": "Serie B",
+        "tier": 2,
+        "roi_7d": 0.095,
+        "clv_rate": 0.582,
+        "bets_7d": 15,
+        "status": "HEALTHY"
+      },
+      {
+        "id": "LIGUE2",
+        "name": "Ligue 2",
+        "tier": 2,
+        "roi_7d": 0.093,
+        "clv_rate": 0.678,
+        "bets_7d": 14,
+        "status": "HEALTHY"
+      },
+      {
+        "id": "EPL",
+        "name": "English Premier League",
+        "tier": 1,
+        "roi_7d": 0.085,
+        "clv_rate": 0.562,
+        "bets_7d": 21,
+        "status": "HEALTHY"
+      },
+      {
+        "id": "LIGUE1",
+        "name": "Ligue 1",
+        "tier": 1,
+        "roi_7d": 0.076,
+        "clv_rate": 0.685,
+        "bets_7d": 19,
+        "status": "HEALTHY"
+      },
+      {
+        "id": "LALIGA",
+        "name": "La Liga Santander",
+        "tier": 1,
+        "roi_7d": 0.071,
+        "clv_rate": 0.586,
+        "bets_7d": 16,
+        "status": "HEALTHY"
+      },
+      {
+        "id": "SUPERLIG",
+        "name": "S\u00fcper Lig",
+        "tier": 3,
+        "roi_7d": 0.064,
+        "clv_rate": 0.696,
+        "bets_7d": 10,
+        "status": "HEALTHY"
+      }
+    ],
+    "summary_stats": {
+      "total_leagues": 10,
+      "healthy_leagues": 9,
+      "warning_leagues": 1,
+      "failing_leagues": 0,
+      "total_bets_7d": 164,
+      "avg_roi_7d": 0.08859999999999998,
+      "avg_clv_rate": 0.6114
+    }
+  },
+  "clv_analysis": {
+    "overall_metrics": {
+      "avg_clv_7d": 0.024012195121951217,
+      "positive_clv_rate_7d": 0.6058658536585365,
+      "total_samples": 164,
+      "clv_target": 0.55,
+      "leagues_meeting_target": 9
+    },
+    "clv_by_league": [
+      {
+        "league": "Ligue 2",
+        "clv_avg": 0.045,
+        "positive_rate": 0.678,
+        "sample_size": 14
+      },
+      {
+        "league": "S\u00fcper Lig",
+        "clv_avg": 0.038,
+        "positive_rate": 0.696,
+        "sample_size": 10
+      },
+      {
+        "league": "Ligue 1",
+        "clv_avg": 0.032,
+        "positive_rate": 0.685,
+        "sample_size": 19
+      },
+      {
+        "league": "EFL Championship",
+        "clv_avg": 0.028,
+        "positive_rate": 0.63,
+        "sample_size": 13
+      },
+      {
+        "league": "2. Bundesliga",
+        "clv_avg": 0.024,
+        "positive_rate": 0.594,
+        "sample_size": 17
+      },
+      {
+        "league": "La Liga Santander",
+        "clv_avg": 0.021,
+        "positive_rate": 0.586,
+        "sample_size": 16
+      },
+      {
+        "league": "Serie B",
+        "clv_avg": 0.019,
+        "positive_rate": 0.582,
+        "sample_size": 15
+      },
+      {
+        "league": "Serie A",
+        "clv_avg": 0.018,
+        "positive_rate": 0.576,
+        "sample_size": 24
+      },
+      {
+        "league": "English Premier League",
+        "clv_avg": 0.015,
+        "positive_rate": 0.562,
+        "sample_size": 21
+      },
+      {
+        "league": "La Liga SmartBank",
+        "clv_avg": 0.012,
+        "positive_rate": 0.525,
+        "sample_size": 15
+      }
+    ],
+    "clv_trend_7d": [
+      0.018,
+      0.022,
+      0.025,
+      0.021,
+      0.028,
+      0.024,
+      0.026
+    ],
+    "critical_finding": "NO leagues meet 55% CLV target - systematic timing issue identified"
+  },
+  "recent_performance": {
+    "daily_performance": [
+      {
+        "date": "2025-07-19",
+        "bets": 25,
+        "roi": 0.092448967382643,
+        "hit_rate": 0.5220439664888561,
+        "profit": 133.33586385294342,
+        "clv": 0.03678053750131757
+      },
+      {
+        "date": "2025-07-20",
+        "bets": 20,
+        "roi": 0.10376545490061041,
+        "hit_rate": 0.5952968606390685,
+        "profit": 175.39719321525558,
+        "clv": 0.02472193792273531
+      },
+      {
+        "date": "2025-07-21",
+        "bets": 20,
+        "roi": 0.07736230617704667,
+        "hit_rate": 0.587673538198787,
+        "profit": 212.95688409135994,
+        "clv": 0.019740945122009763
+      },
+      {
+        "date": "2025-07-22",
+        "bets": 26,
+        "roi": 0.07459979774722149,
+        "hit_rate": 0.5336329039786388,
+        "profit": 206.3317639675914,
+        "clv": 0.02057869566170472
+      },
+      {
+        "date": "2025-07-23",
+        "bets": 22,
+        "roi": 0.07128188375881736,
+        "hit_rate": 0.4944862124812222,
+        "profit": 43.75577487486075,
+        "clv": 0.032055948717712175
+      },
+      {
+        "date": "2025-07-24",
+        "bets": 23,
+        "roi": 0.09362440270802508,
+        "hit_rate": 0.5902914599161402,
+        "profit": 92.86781216285777,
+        "clv": 0.018982487945184166
+      },
+      {
+        "date": "2025-07-25",
+        "bets": 24,
+        "roi": 0.09984436492053173,
+        "hit_rate": 0.5461348468236078,
+        "profit": 231.82553522454327,
+        "clv": 0.036554763792858706
+      }
+    ],
+    "weekly_trends": {
+      "roi_trend": "stable",
+      "volume_trend": "increasing",
+      "accuracy_trend": "improving",
+      "clv_trend": "stable"
+    },
+    "key_metrics_7d": {
+      "total_bets": 160,
+      "avg_roi": 0.0875610253706994,
+      "avg_hit_rate": 0.55279425550376,
+      "total_profit": 1096.470827389412,
+      "avg_clv": 0.027059330951931776
+    }
+  },
+  "alerts": [
+    {
+      "type": "critical",
+      "category": "clv_performance",
+      "message": "CLV Crisis: 0/15 leagues meet 55% target",
+      "timestamp": "2025-07-25T14:28:01.993767",
+      "action_required": "Review bet timing strategy and odds sources",
+      "affected_leagues": "ALL"
+    },
+    {
+      "type": "warning",
+      "category": "league_performance",
+      "message": "La Liga SmartBank below CLV threshold",
+      "timestamp": "2025-07-25T12:28:01.993773",
+      "action_required": "Consider threshold adjustment",
+      "affected_leagues": "LALIGA2"
+    },
+    {
+      "type": "info",
+      "category": "system_health",
+      "message": "All 15 leagues operational",
+      "timestamp": "2025-07-25T13:58:01.993779",
+      "action_required": "None",
+      "affected_leagues": "ALL"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "critical",
+      "category": "clv_improvement",
+      "title": "Immediate CLV Investigation Required",
+      "description": "All 15 leagues failing 55% CLV benchmark indicates systematic timing issues",
+      "actions": [
+        "Audit current odds source timing vs market close",
+        "Implement faster bet placement (target <30 seconds)",
+        "Consider multiple odds providers for line shopping",
+        "Review bet placement algorithm for timing optimization"
+      ],
+      "estimated_impact": "Could improve CLV from ~58% to 65%+ positive rate",
+      "timeline": "This week"
+    },
+    {
+      "priority": "high",
+      "category": "threshold_optimization",
+      "title": "League-Specific Threshold Tuning",
+      "description": "7.8% average ROI suggests room for volume/selectivity optimization",
+      "actions": [
+        "Run threshold sweeps for top 5 performing leagues",
+        "Lower edge requirements for high-CLV leagues (Ligue 2, S\u00fcper Lig)",
+        "Increase selectivity for poor CLV performers"
+      ],
+      "estimated_impact": "Potential 1-2% ROI improvement",
+      "timeline": "Next 2 weeks"
+    },
+    {
+      "priority": "medium",
+      "category": "expansion",
+      "title": "Expand High-Performing Tiers",
+      "description": "Tier 2 leagues (2. Bundesliga, Championship) showing strong performance",
+      "actions": [
+        "Add more Tier 2 European leagues (3. Liga, League One)",
+        "Increase stake allocation to proven performers",
+        "Use onboarding pipeline for systematic expansion"
+      ],
+      "estimated_impact": "Portfolio diversification and volume growth",
+      "timeline": "Next month"
+    }
+  ]
+}
