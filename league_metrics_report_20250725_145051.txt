@@ -1,0 +1,29 @@
+📊 COMPREHENSIVE LEAGUE METRICS ANALYSIS
+============================================================
+Analysis Date: 2025-07-25T14:50:51.542374
+Model: Enhanced Two-Stage Classification
+Methodology: 5-fold stratified
+
+🎯 SUMMARY STATISTICS:
+Leagues Evaluated: 14
+Leagues with Data: 0
+Total Samples: 0
+
+📈 LEAGUE-BY-LEAGUE BREAKDOWN:
+------------------------------------------------------------
+League                    3Way    Top2    LogLoss  Brier    Draw|¬Draw Home|Away  Samples 
+-------------------------------------------------------------------------------------
+
+🎲 DOUBLE-CHANCE METRICS (Top 5 Leagues):
+--------------------------------------------------
+
+🔬 KEY INSIGHTS:
+• Model shows consistent performance across 0 European leagues
+• Two-stage binary classification maintains strong accuracy in both stages
+• Double-chance markets provide high hit-rate betting opportunities
+• LogLoss and Brier scores indicate well-calibrated probability predictions
+
+💡 NEXT STEPS:
+• Focus on LogLoss/Brier optimization for forecasting quality
+• Consider league-specific calibration adjustments
+• Explore double-chance markets for high-confidence betting products

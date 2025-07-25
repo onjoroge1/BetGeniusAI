@@ -1,0 +1,108 @@
+{
+  "analysis_date": "2025-07-25T14:50:51.542374",
+  "model_type": "Enhanced Two-Stage Classification",
+  "summary_statistics": {
+    "leagues_evaluated": 14,
+    "leagues_with_data": 0,
+    "total_samples": 0,
+    "avg_3way_accuracy": [],
+    "avg_logloss": [],
+    "avg_brier_score": []
+  },
+  "league_results": {
+    "39": {
+      "league_id": 39,
+      "league_name": "English Premier League",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "140": {
+      "league_id": 140,
+      "league_name": "La Liga Santander",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "135": {
+      "league_id": 135,
+      "league_name": "Serie A",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "78": {
+      "league_id": 78,
+      "league_name": "Bundesliga",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "61": {
+      "league_id": 61,
+      "league_name": "Ligue 1",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "144": {
+      "league_id": 144,
+      "league_name": "Belgian Pro League",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "141": {
+      "league_id": 141,
+      "league_name": "La Liga SmartBank",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "136": {
+      "league_id": 136,
+      "league_name": "Serie B",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "79": {
+      "league_id": 79,
+      "league_name": "2. Bundesliga",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "62": {
+      "league_id": 62,
+      "league_name": "Ligue 2",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "88": {
+      "league_id": 88,
+      "league_name": "Eredivisie",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "94": {
+      "league_id": 94,
+      "league_name": "Primeira Liga",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "203": {
+      "league_id": 203,
+      "league_name": "S\u00fcper Lig",
+      "error": "Insufficient data",
+      "samples": 0
+    },
+    "179": {
+      "league_id": 179,
+      "league_name": "Scottish Premiership",
+      "error": "Insufficient data",
+      "samples": 0
+    }
+  },
+  "methodology": {
+    "cross_validation": "5-fold stratified",
+    "metrics": [
+      "3-way: Accuracy, Top-2 Accuracy, LogLoss, Brier Score",
+      "Binary Stage 1: Draw vs Not-Draw (Accuracy, LogLoss, Brier)",
+      "Binary Stage 2: Home vs Away given Not-Draw",
+      "Double-Chance: Home/Draw, Away/Draw, Home/Away"
+    ],
+    "feature_sets": "Core + Enhanced (34 features when available)"
+  }
+}
