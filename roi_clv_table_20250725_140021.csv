@@ -1,0 +1,16 @@
+League,ID,Tier,ROI_8W,ROI_Target,ROI_vs_Target,CLV_8W,CLV_Positive_Rate,Total_Bets,Win_Rate,Risk_Level,Status
+2. Bundesliga,BUNDESLIGA2,2,10.6%,12.0%,-1.4%,1.1%,59.4%,138,50.3%,LOW,HEALTHY
+Serie A,SERIEA,1,10.2%,10.0%,0.2%,0.8%,57.6%,191,50.1%,LOW,HEALTHY
+EFL Championship,CHAMPIONSHIP,2,9.8%,12.0%,-2.2%,1.5%,63.0%,100,49.9%,LOW,HEALTHY
+La Liga SmartBank,LALIGA2,2,9.6%,12.0%,-2.4%,0.7%,52.5%,118,49.8%,LOW,FAILING
+Serie B,SERIEB,2,9.5%,12.0%,-2.5%,0.8%,58.2%,122,49.7%,LOW,HEALTHY
+Ligue 2,LIGUE2,2,9.3%,12.0%,-2.7%,1.3%,67.8%,115,49.7%,LOW,HEALTHY
+English Premier League,EPL,1,8.5%,12.0%,-3.5%,1.1%,56.2%,169,49.2%,LOW,HEALTHY
+Ligue 1,LIGUE1,1,7.6%,10.0%,-2.4%,2.0%,68.5%,149,48.8%,LOW,HEALTHY
+La Liga Santander,LALIGA,1,7.1%,10.0%,-2.9%,1.2%,58.6%,128,48.6%,LOW,HEALTHY
+Süper Lig,SUPERLIG,3,6.4%,8.0%,-1.6%,2.1%,69.6%,79,48.2%,LOW,HEALTHY
+Belgian Pro League,BELGIANPRO,3,6.4%,8.0%,-1.6%,2.1%,71.6%,102,48.2%,LOW,HEALTHY
+Bundesliga,BUNDESLIGA,1,6.2%,10.0%,-3.8%,1.9%,66.7%,132,48.1%,LOW,HEALTHY
+Primeira Liga,PRIMEIRA,3,5.7%,8.0%,-2.3%,1.4%,65.3%,98,47.8%,LOW,HEALTHY
+Scottish Premiership,SCOTTISHPREM,3,5.7%,8.0%,-2.3%,2.2%,64.3%,84,47.9%,LOW,HEALTHY
+Eredivisie,EREDIVISIE,3,4.7%,8.0%,-3.3%,1.6%,65.7%,70,47.4%,LOW,HEALTHY

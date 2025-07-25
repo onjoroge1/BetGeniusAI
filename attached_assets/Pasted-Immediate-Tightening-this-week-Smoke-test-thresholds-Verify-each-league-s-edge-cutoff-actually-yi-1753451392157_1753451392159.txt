@@ -1,0 +1,72 @@
+Immediate Tightening (this week)
+Smoke-test thresholds: Verify each league’s edge cutoff actually yields target bet volume & ROI (run last 4–6 weeks backtest).
+
+CLV sanity check: Report avg CLV and % of bets beating close. If <55%, revisit timing/odds source.
+
+Type coercion guardrail: Add a single ensure_py_types(df) util that runs before any DB write (numpy→python scalars).
+
+Phase 5: Global Rollout & Profit Scaling
+1. League Onboarding Pipeline
+Template script: scripts/onboard_league.py --league_id X
+
+Map team IDs, init Elo, backfill last 2 seasons, run leakage tests.
+
+Auto-generate initial thresholds from sweep.
+
+Data quality gate: Block launch if <500 historical matches or odds gaps >10%.
+
+2. Model Strategy
+Global base + league adapters (league_id categorical or per-league fine-tune).
+
+Periodic meta-retrain when N new matches > K or drift triggers.
+
+3. Threshold & Stake Optimization
+Weekly auto-sweep: recompute ROI vs edge thresholds per league.
+
+Bankroll module: flat → fractional Kelly (cap at X% daily / per league).
+
+4. Monitoring/Alerts (production hardening)
+Auto-email/Slack:
+
+ROI 7d/30d dips below 0
+
+LogLoss/Brier spike > set % vs trailing mean
+
+Bet count drops below floor (odds feed issues?)
+
+Feature drift PSI > threshold
+
+Advanced Enhancements (nice ROI boosters)
+Goal-diff regression head feeding 3‑way probs (ensemble).
+
+Live odds delta feature (open→pre-kickoff change).
+
+Injury/news embeddings (even a crude count of “key players out” helps).
+
+Price-shop book odds for better EV (multi-book integration).
+
+Auto-hedge logic if edge in opposing side appears pre-kickoff.
+
+Deliverables for the Agent (next sprint)
+ onboard_league.py + QA checklist
+
+ Global/league model registry with metrics & hashes
+
+ Bankroll manager (configurable risk caps)
+
+ Drift detector module (PSI/KS on probs & key features)
+
+ CLV dashboard in weekly report
+
+ Threshold auto-sweep integrated into report
+
+Send Me:
+Latest league-by-league ROI / CLV table (last 8 weeks).
+
+Current bet volume vs target per league.
+
+Any leagues failing the ROI test.
+
+Desired bankroll risk parameters (max %/day, per league).
+
+Roadmap order for non-Euro leagues.

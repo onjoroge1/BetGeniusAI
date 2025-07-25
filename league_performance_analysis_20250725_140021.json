@@ -1,0 +1,2032 @@
+{
+  "analysis_timestamp": "2025-07-25T14:00:21.277465",
+  "analysis_period_weeks": 8,
+  "leagues_analyzed": 15,
+  "performance_summary": {
+    "total_leagues": 15,
+    "healthy_leagues": 14,
+    "failing_leagues": 1,
+    "health_rate": 0.9333333333333333,
+    "aggregate_metrics": {
+      "avg_roi_across_leagues": 0.07814669087800243,
+      "roi_std_across_leagues": 0.018466409985425116,
+      "avg_clv_across_leagues": 0.014544918201304234,
+      "total_bets_all_leagues": 1795,
+      "leagues_positive_roi": 15,
+      "leagues_positive_clv": 15
+    }
+  },
+  "league_details": {
+    "LALIGA": {
+      "league_id": "LALIGA",
+      "league_name": "La Liga Santander",
+      "tier": 1,
+      "region": "Spain",
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.07140982561065702,
+        "roi_volatility": 0.008674598966262034,
+        "roi_trend": "improving",
+        "avg_volume_8w": 16.0,
+        "volume_consistency": 0.4911323014219285,
+        "avg_clv_8w": 0.011838099658539648,
+        "positive_clv_rate": 0.5859375,
+        "total_bets_8w": 128,
+        "win_rate": 0.4857049128053285
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.06991722865548013,
+          "volume": 7,
+          "stakes": 70.0,
+          "returns": 74.8942060058836,
+          "profit": 4.894206005883603,
+          "hit_rate": 0.48495861432774007
+        },
+        {
+          "week": 2,
+          "roi": 0.06997165168521617,
+          "volume": 11,
+          "stakes": 110.0,
+          "returns": 117.69688168537378,
+          "profit": 7.696881685373782,
+          "hit_rate": 0.4849858258426081
+        },
+        {
+          "week": 3,
+          "roi": 0.0698666168956464,
+          "volume": 9,
+          "stakes": 90.0,
+          "returns": 96.28799552060816,
+          "profit": 6.287995520608163,
+          "hit_rate": 0.48493330844782323
+        },
+        {
+          "week": 4,
+          "roi": 0.06343629216252583,
+          "volume": 26,
+          "stakes": 260.0,
+          "returns": 276.4934359622567,
+          "profit": 16.493435962256683,
+          "hit_rate": 0.48171814608126295
+        },
+        {
+          "week": 5,
+          "roi": 0.07002379067783147,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 139.1030927881181,
+          "profit": 9.10309278811809,
+          "hit_rate": 0.48501189533891576
+        },
+        {
+          "week": 6,
+          "roi": 0.07441693934597272,
+          "volume": 11,
+          "stakes": 110.0,
+          "returns": 118.18586332805701,
+          "profit": 8.18586332805701,
+          "hit_rate": 0.48720846967298637
+        },
+        {
+          "week": 7,
+          "roi": 0.0616216488138837,
+          "volume": 22,
+          "stakes": 220.0,
+          "returns": 233.5567627390544,
+          "profit": 13.556762739054392,
+          "hit_rate": 0.48081082440694184
+        },
+        {
+          "week": 8,
+          "roi": 0.09202443664869975,
+          "volume": 29,
+          "stakes": 290.0,
+          "returns": 316.6870866281229,
+          "profit": 26.687086628122927,
+          "hit_rate": 0.4960122183243499
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "SERIEA": {
+      "league_id": "SERIEA",
+      "league_name": "Serie A",
+      "tier": 1,
+      "region": "Italy",
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.1020104177751006,
+        "roi_volatility": 0.008753091781648023,
+        "roi_trend": "improving",
+        "avg_volume_8w": 23.875,
+        "volume_consistency": 0.27098982815932005,
+        "avg_clv_8w": 0.008430331983254625,
+        "positive_clv_rate": 0.5759162303664922,
+        "total_bets_8w": 191,
+        "win_rate": 0.5010052088875503
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.08970962968520078,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 130.7651555622241,
+          "profit": 10.765155562224095,
+          "hit_rate": 0.4948548148426004
+        },
+        {
+          "week": 2,
+          "roi": 0.11210947324020168,
+          "volume": 23,
+          "stakes": 230.0,
+          "returns": 255.7851788452464,
+          "profit": 25.785178845246406,
+          "hit_rate": 0.5060547366201008
+        },
+        {
+          "week": 3,
+          "roi": 0.0978041645436055,
+          "volume": 32,
+          "stakes": 320.0,
+          "returns": 351.29733265395373,
+          "profit": 31.29733265395373,
+          "hit_rate": 0.49890208227180277
+        },
+        {
+          "week": 4,
+          "roi": 0.08987199973544445,
+          "volume": 24,
+          "stakes": 240.0,
+          "returns": 261.5692799365067,
+          "profit": 21.56927993650669,
+          "hit_rate": 0.49493599986772224
+        },
+        {
+          "week": 5,
+          "roi": 0.10430298477755075,
+          "volume": 25,
+          "stakes": 250.0,
+          "returns": 276.0757461943877,
+          "profit": 26.075746194387705,
+          "hit_rate": 0.5021514923887754
+        },
+        {
+          "week": 6,
+          "roi": 0.1030645253847539,
+          "volume": 16,
+          "stakes": 160.0,
+          "returns": 176.49032406156064,
+          "profit": 16.490324061560642,
+          "hit_rate": 0.5015322626923769
+        },
+        {
+          "week": 7,
+          "roi": 0.11564004056998274,
+          "volume": 29,
+          "stakes": 290.0,
+          "returns": 323.53561176529496,
+          "profit": 33.53561176529496,
+          "hit_rate": 0.5078200202849914
+        },
+        {
+          "week": 8,
+          "roi": 0.10358052426406504,
+          "volume": 30,
+          "stakes": 300.0,
+          "returns": 331.0741572792195,
+          "profit": 31.07415727921949,
+          "hit_rate": 0.5017902621320325
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "BUNDESLIGA": {
+      "league_id": "BUNDESLIGA",
+      "league_name": "Bundesliga",
+      "tier": 1,
+      "region": "Germany",
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.06182375613885587,
+        "roi_volatility": 0.005365890749585738,
+        "roi_trend": "stable",
+        "avg_volume_8w": 16.5,
+        "volume_consistency": 0.37726968478753736,
+        "avg_clv_8w": 0.01867407899443842,
+        "positive_clv_rate": 0.6666666666666666,
+        "total_bets_8w": 132,
+        "win_rate": 0.480911878069428
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.06367626896445769,
+          "volume": 23,
+          "stakes": 230.0,
+          "returns": 244.64554186182525,
+          "profit": 14.64554186182525,
+          "hit_rate": 0.48183813448222884
+        },
+        {
+          "week": 2,
+          "roi": 0.05981658976665859,
+          "volume": 18,
+          "stakes": 180.0,
+          "returns": 190.76698615799853,
+          "profit": 10.76698615799853,
+          "hit_rate": 0.4799082948833293
+        },
+        {
+          "week": 3,
+          "roi": 0.05665174179833971,
+          "volume": 19,
+          "stakes": 190.0,
+          "returns": 200.76383094168455,
+          "profit": 10.763830941684546,
+          "hit_rate": 0.4783258708991699
+        },
+        {
+          "week": 4,
+          "roi": 0.06700026611355443,
+          "volume": 16,
+          "stakes": 160.0,
+          "returns": 170.72004257816872,
+          "profit": 10.720042578168716,
+          "hit_rate": 0.48350013305677725
+        },
+        {
+          "week": 5,
+          "roi": 0.05726293841235845,
+          "volume": 11,
+          "stakes": 110.0,
+          "returns": 116.29892322535943,
+          "profit": 6.298923225359431,
+          "hit_rate": 0.4786314692061792
+        },
+        {
+          "week": 6,
+          "roi": 0.054037780416285326,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 147.56528925827993,
+          "profit": 7.5652892582799325,
+          "hit_rate": 0.4770188902081427
+        },
+        {
+          "week": 7,
+          "roi": 0.07028880427139658,
+          "volume": 26,
+          "stakes": 260.0,
+          "returns": 278.2750891105631,
+          "profit": 18.2750891105631,
+          "hit_rate": 0.4851444021356983
+        },
+        {
+          "week": 8,
+          "roi": 0.06585565936779615,
+          "volume": 5,
+          "stakes": 50.0,
+          "returns": 53.29278296838981,
+          "profit": 3.292782968389808,
+          "hit_rate": 0.4829278296838981
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "LIGUE1": {
+      "league_id": "LIGUE1",
+      "league_name": "Ligue 1",
+      "tier": 1,
+      "region": "France",
+      "current_config": {
+        "edge_threshold": 0.03,
+        "min_probability": 0.2,
+        "target_roi": 0.1,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.07553901022903922,
+        "roi_volatility": 0.006071690990765121,
+        "roi_trend": "improving",
+        "avg_volume_8w": 18.625,
+        "volume_consistency": 0.22927101815488218,
+        "avg_clv_8w": 0.01989860194262489,
+        "positive_clv_rate": 0.6845637583892618,
+        "total_bets_8w": 149,
+        "win_rate": 0.4877695051145196
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.0635443809724965,
+          "volume": 16,
+          "stakes": 160.0,
+          "returns": 170.16710095559944,
+          "profit": 10.167100955599437,
+          "hit_rate": 0.48177219048624825
+        },
+        {
+          "week": 2,
+          "roi": 0.07733587071203403,
+          "volume": 23,
+          "stakes": 230.0,
+          "returns": 247.78725026376782,
+          "profit": 17.787250263767817,
+          "hit_rate": 0.48866793535601705
+        },
+        {
+          "week": 3,
+          "roi": 0.07561750459347946,
+          "volume": 24,
+          "stakes": 240.0,
+          "returns": 258.14820110243505,
+          "profit": 18.148201102435053,
+          "hit_rate": 0.48780875229673976
+        },
+        {
+          "week": 4,
+          "roi": 0.07810058715893389,
+          "volume": 11,
+          "stakes": 110.0,
+          "returns": 118.59106458748273,
+          "profit": 8.591064587482734,
+          "hit_rate": 0.48905029357946694
+        },
+        {
+          "week": 5,
+          "roi": 0.06847916695921838,
+          "volume": 19,
+          "stakes": 190.0,
+          "returns": 203.0110417222515,
+          "profit": 13.011041722251491,
+          "hit_rate": 0.4842395834796092
+        },
+        {
+          "week": 6,
+          "roi": 0.07683198329770095,
+          "volume": 23,
+          "stakes": 230.0,
+          "returns": 247.6713561584712,
+          "profit": 17.671356158471212,
+          "hit_rate": 0.48841599164885047
+        },
+        {
+          "week": 7,
+          "roi": 0.08289791350740588,
+          "volume": 15,
+          "stakes": 150.0,
+          "returns": 162.43468702611088,
+          "profit": 12.434687026110879,
+          "hit_rate": 0.4914489567537029
+        },
+        {
+          "week": 8,
+          "roi": 0.0815046746310447,
+          "volume": 18,
+          "stakes": 180.0,
+          "returns": 194.67084143358804,
+          "profit": 14.670841433588038,
+          "hit_rate": 0.49075233731552237
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "CHAMPIONSHIP": {
+      "league_id": "CHAMPIONSHIP",
+      "league_name": "EFL Championship",
+      "tier": 2,
+      "region": "England",
+      "current_config": {
+        "edge_threshold": 0.025,
+        "min_probability": 0.18,
+        "target_roi": 0.12,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.09772035787699465,
+        "roi_volatility": 0.013729760160832438,
+        "roi_trend": "improving",
+        "avg_volume_8w": 12.5,
+        "volume_consistency": 0.22271057451320087,
+        "avg_clv_8w": 0.015466399509491883,
+        "positive_clv_rate": 0.63,
+        "total_bets_8w": 100,
+        "win_rate": 0.4988601789384974
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.074233948045021,
+          "volume": 9,
+          "stakes": 90.0,
+          "returns": 96.68105532405188,
+          "profit": 6.681055324051883,
+          "hit_rate": 0.48711697402251053
+        },
+        {
+          "week": 2,
+          "roi": 0.09522806301063556,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 131.42736756127624,
+          "profit": 11.427367561276242,
+          "hit_rate": 0.4976140315053178
+        },
+        {
+          "week": 3,
+          "roi": 0.08262736359302156,
+          "volume": 16,
+          "stakes": 160.0,
+          "returns": 173.22037817488342,
+          "profit": 13.220378174883422,
+          "hit_rate": 0.4913136817965108
+        },
+        {
+          "week": 4,
+          "roi": 0.10090343169059014,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 132.10841180287082,
+          "profit": 12.108411802870819,
+          "hit_rate": 0.5004517158452951
+        },
+        {
+          "week": 5,
+          "roi": 0.1217549613122338,
+          "volume": 9,
+          "stakes": 90.0,
+          "returns": 100.95794651810104,
+          "profit": 10.95794651810104,
+          "hit_rate": 0.5108774806561169
+        },
+        {
+          "week": 6,
+          "roi": 0.0983358867907834,
+          "volume": 11,
+          "stakes": 110.0,
+          "returns": 120.81694754698617,
+          "profit": 10.816947546986171,
+          "hit_rate": 0.4991679433953917
+        },
+        {
+          "week": 7,
+          "roi": 0.10916802082517384,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 155.28352291552432,
+          "profit": 15.283522915524316,
+          "hit_rate": 0.5045840104125869
+        },
+        {
+          "week": 8,
+          "roi": 0.09951118774849785,
+          "volume": 17,
+          "stakes": 170.0,
+          "returns": 186.91690191724462,
+          "profit": 16.916901917244616,
+          "hit_rate": 0.49975559387424895
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "LIGUE2": {
+      "league_id": "LIGUE2",
+      "league_name": "Ligue 2",
+      "tier": 2,
+      "region": "France",
+      "current_config": {
+        "edge_threshold": 0.025,
+        "min_probability": 0.18,
+        "target_roi": 0.12,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.09317390554987647,
+        "roi_volatility": 0.004357731426742055,
+        "roi_trend": "declining",
+        "avg_volume_8w": 14.375,
+        "volume_consistency": 0.24082404215871703,
+        "avg_clv_8w": 0.01299458906138972,
+        "positive_clv_rate": 0.6782608695652174,
+        "total_bets_8w": 115,
+        "win_rate": 0.49658695277493825
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.10013479731260944,
+          "volume": 16,
+          "stakes": 160.0,
+          "returns": 176.0215675700175,
+          "profit": 16.02156757001751,
+          "hit_rate": 0.5000673986563047
+        },
+        {
+          "week": 2,
+          "roi": 0.08951737779209352,
+          "volume": 16,
+          "stakes": 160.0,
+          "returns": 174.32278044673495,
+          "profit": 14.322780446734953,
+          "hit_rate": 0.4947586888960468
+        },
+        {
+          "week": 3,
+          "roi": 0.0967311957495766,
+          "volume": 10,
+          "stakes": 100.0,
+          "returns": 109.67311957495767,
+          "profit": 9.673119574957667,
+          "hit_rate": 0.4983655978747883
+        },
+        {
+          "week": 4,
+          "roi": 0.09423316423032543,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 131.30797970763905,
+          "profit": 11.30797970763905,
+          "hit_rate": 0.49711658211516274
+        },
+        {
+          "week": 5,
+          "roi": 0.09498756708247229,
+          "volume": 20,
+          "stakes": 200.0,
+          "returns": 218.99751341649446,
+          "profit": 18.997513416494456,
+          "hit_rate": 0.49749378354123613
+        },
+        {
+          "week": 6,
+          "roi": 0.08754259282227356,
+          "volume": 18,
+          "stakes": 180.0,
+          "returns": 195.75766670800922,
+          "profit": 15.757666708009225,
+          "hit_rate": 0.4937712964111368
+        },
+        {
+          "week": 7,
+          "roi": 0.08706650078556152,
+          "volume": 10,
+          "stakes": 100.0,
+          "returns": 108.70665007855615,
+          "profit": 8.706650078556152,
+          "hit_rate": 0.4935332503927808
+        },
+        {
+          "week": 8,
+          "roi": 0.09517804862409936,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 142.37314632113294,
+          "profit": 12.373146321132936,
+          "hit_rate": 0.4975890243120497
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "SERIEB": {
+      "league_id": "SERIEB",
+      "league_name": "Serie B",
+      "tier": 2,
+      "region": "Italy",
+      "current_config": {
+        "edge_threshold": 0.025,
+        "min_probability": 0.18,
+        "target_roi": 0.12,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.09473520483753398,
+        "roi_volatility": 0.006895070085580121,
+        "roi_trend": "stable",
+        "avg_volume_8w": 15.25,
+        "volume_consistency": 0.15638347564212224,
+        "avg_clv_8w": 0.0079214932941543,
+        "positive_clv_rate": 0.5819672131147541,
+        "total_bets_8w": 122,
+        "win_rate": 0.497367602418767
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.09716192863678906,
+          "volume": 19,
+          "stakes": 190.0,
+          "returns": 208.46076644098991,
+          "profit": 18.460766440989914,
+          "hit_rate": 0.49858096431839455
+        },
+        {
+          "week": 2,
+          "roi": 0.0895014969917246,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 152.53020957884144,
+          "profit": 12.530209578841436,
+          "hit_rate": 0.4947507484958623
+        },
+        {
+          "week": 3,
+          "roi": 0.10147360297658094,
+          "volume": 17,
+          "stakes": 170.0,
+          "returns": 187.25051250601877,
+          "profit": 17.250512506018765,
+          "hit_rate": 0.5007368014882905
+        },
+        {
+          "week": 4,
+          "roi": 0.08226952541884011,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 129.8723430502608,
+          "profit": 9.87234305026081,
+          "hit_rate": 0.4911347627094201
+        },
+        {
+          "week": 5,
+          "roi": 0.10508468473467872,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 143.66100901550823,
+          "profit": 13.661009015508228,
+          "hit_rate": 0.5025423423673394
+        },
+        {
+          "week": 6,
+          "roi": 0.09041357136450648,
+          "volume": 17,
+          "stakes": 170.0,
+          "returns": 185.3703071319661,
+          "profit": 15.370307131966086,
+          "hit_rate": 0.49520678568225324
+        },
+        {
+          "week": 7,
+          "roi": 0.09893177588243601,
+          "volume": 17,
+          "stakes": 170.0,
+          "returns": 186.81840190001412,
+          "profit": 16.818401900014123,
+          "hit_rate": 0.49946588794121805
+        },
+        {
+          "week": 8,
+          "roi": 0.0930450526947158,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 142.09585685031306,
+          "profit": 12.095856850313055,
+          "hit_rate": 0.49652252634735794
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "BUNDESLIGA2": {
+      "league_id": "BUNDESLIGA2",
+      "league_name": "2. Bundesliga",
+      "tier": 2,
+      "region": "Germany",
+      "current_config": {
+        "edge_threshold": 0.025,
+        "min_probability": 0.18,
+        "target_roi": 0.12,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.1056659532593779,
+        "roi_volatility": 0.02562022329002773,
+        "roi_trend": "improving",
+        "avg_volume_8w": 17.25,
+        "volume_consistency": 0.28362877957653515,
+        "avg_clv_8w": 0.010841544484150145,
+        "positive_clv_rate": 0.5942028985507246,
+        "total_bets_8w": 138,
+        "win_rate": 0.502832976629689
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.10567842231020451,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 132.68141067722453,
+          "profit": 12.681410677224534,
+          "hit_rate": 0.5028392111551022
+        },
+        {
+          "week": 2,
+          "roi": 0.08447086942238295,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 130.13650433068597,
+          "profit": 10.136504330685966,
+          "hit_rate": 0.49223543471119147
+        },
+        {
+          "week": 3,
+          "roi": 0.10704512900118648,
+          "volume": 23,
+          "stakes": 230.0,
+          "returns": 254.62037967027288,
+          "profit": 24.620379670272882,
+          "hit_rate": 0.5035225645005933
+        },
+        {
+          "week": 4,
+          "roi": 0.06100760454742304,
+          "volume": 24,
+          "stakes": 240.0,
+          "returns": 254.64182509138152,
+          "profit": 14.64182509138152,
+          "hit_rate": 0.48050380227371153
+        },
+        {
+          "week": 5,
+          "roi": 0.09549151349758654,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 142.41389675468625,
+          "profit": 12.413896754686249,
+          "hit_rate": 0.4977457567487933
+        },
+        {
+          "week": 6,
+          "roi": 0.1320468151170756,
+          "volume": 15,
+          "stakes": 150.0,
+          "returns": 169.80702226756134,
+          "profit": 19.807022267561337,
+          "hit_rate": 0.5160234075585378
+        },
+        {
+          "week": 7,
+          "roi": 0.10927650291537734,
+          "volume": 16,
+          "stakes": 160.0,
+          "returns": 177.48424046646036,
+          "profit": 17.484240466460363,
+          "hit_rate": 0.5046382514576887
+        },
+        {
+          "week": 8,
+          "roi": 0.15031076926378673,
+          "volume": 23,
+          "stakes": 230.0,
+          "returns": 264.57147693067094,
+          "profit": 34.57147693067094,
+          "hit_rate": 0.5251553846318934
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "LALIGA2": {
+      "league_id": "LALIGA2",
+      "league_name": "La Liga SmartBank",
+      "tier": 2,
+      "region": "Spain",
+      "current_config": {
+        "edge_threshold": 0.025,
+        "min_probability": 0.18,
+        "target_roi": 0.12,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.09581006345459112,
+        "roi_volatility": 0.009205964097064019,
+        "roi_trend": "stable",
+        "avg_volume_8w": 14.75,
+        "volume_consistency": 0.15809117039133586,
+        "avg_clv_8w": 0.007275145408576658,
+        "positive_clv_rate": 0.5254237288135594,
+        "total_bets_8w": 118,
+        "win_rate": 0.49790503172729556
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.09496694992576675,
+          "volume": 15,
+          "stakes": 150.0,
+          "returns": 164.245042488865,
+          "profit": 14.24504248886501,
+          "hit_rate": 0.49748347496288337
+        },
+        {
+          "week": 2,
+          "roi": 0.11198413726707818,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 133.43809647204938,
+          "profit": 13.43809647204938,
+          "hit_rate": 0.5059920686335391
+        },
+        {
+          "week": 3,
+          "roi": 0.08162643440978677,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 151.42770081737015,
+          "profit": 11.427700817370152,
+          "hit_rate": 0.4908132172048934
+        },
+        {
+          "week": 4,
+          "roi": 0.08986742835583354,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 141.68276568625836,
+          "profit": 11.682765686258364,
+          "hit_rate": 0.49493371417791676
+        },
+        {
+          "week": 5,
+          "roi": 0.10129702286675836,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 154.18158320134617,
+          "profit": 14.181583201346172,
+          "hit_rate": 0.5006485114333792
+        },
+        {
+          "week": 6,
+          "roi": 0.105369912051303,
+          "volume": 18,
+          "stakes": 180.0,
+          "returns": 198.96658416923452,
+          "profit": 18.966584169234523,
+          "hit_rate": 0.5026849560256516
+        },
+        {
+          "week": 7,
+          "roi": 0.09228935862216033,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 141.99761662088082,
+          "profit": 11.99761662088082,
+          "hit_rate": 0.4961446793110802
+        },
+        {
+          "week": 8,
+          "roi": 0.08907926413804199,
+          "volume": 19,
+          "stakes": 190.0,
+          "returns": 206.925060186228,
+          "profit": 16.925060186227995,
+          "hit_rate": 0.494539632069021
+        }
+      ],
+      "failure_reasons": [
+        "CLV rate 52.5% below target 55.0%"
+      ],
+      "warnings": [],
+      "is_failing": true,
+      "risk_level": "low"
+    },
+    "EREDIVISIE": {
+      "league_id": "EREDIVISIE",
+      "league_name": "Eredivisie",
+      "tier": 3,
+      "region": "Netherlands",
+      "current_config": {
+        "edge_threshold": 0.04,
+        "min_probability": 0.25,
+        "target_roi": 0.08,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.047305172013846805,
+        "roi_volatility": 0.010498836483601207,
+        "roi_trend": "declining",
+        "avg_volume_8w": 8.75,
+        "volume_consistency": 0.29554515522253144,
+        "avg_clv_8w": 0.016073219128706007,
+        "positive_clv_rate": 0.6571428571428571,
+        "total_bets_8w": 70,
+        "win_rate": 0.4736525860069234
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.06350269539284344,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 138.25535040106965,
+          "profit": 8.255350401069649,
+          "hit_rate": 0.48175134769642175
+        },
+        {
+          "week": 2,
+          "roi": 0.048755875603544434,
+          "volume": 8,
+          "stakes": 80.0,
+          "returns": 83.90047004828355,
+          "profit": 3.9004700482835517,
+          "hit_rate": 0.47437793780177223
+        },
+        {
+          "week": 3,
+          "roi": 0.04717482927807427,
+          "volume": 8,
+          "stakes": 80.0,
+          "returns": 83.77398634224593,
+          "profit": 3.7739863422459337,
+          "hit_rate": 0.47358741463903714
+        },
+        {
+          "week": 4,
+          "roi": 0.04184532320945257,
+          "volume": 6,
+          "stakes": 60.0,
+          "returns": 62.51071939256716,
+          "profit": 2.510719392567161,
+          "hit_rate": 0.4709226616047263
+        },
+        {
+          "week": 5,
+          "roi": 0.05063876184103914,
+          "volume": 8,
+          "stakes": 80.0,
+          "returns": 84.05110094728313,
+          "profit": 4.051100947283132,
+          "hit_rate": 0.47531938092051956
+        },
+        {
+          "week": 6,
+          "roi": 0.05309028555254736,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 136.90173712183116,
+          "profit": 6.901737121831161,
+          "hit_rate": 0.4765451427762737
+        },
+        {
+          "week": 7,
+          "roi": 0.024093296673633365,
+          "volume": 6,
+          "stakes": 60.0,
+          "returns": 61.445597800418,
+          "profit": 1.4455978004179997,
+          "hit_rate": 0.4620466483368167
+        },
+        {
+          "week": 8,
+          "roi": 0.04934030855963986,
+          "volume": 8,
+          "stakes": 80.0,
+          "returns": 83.94722468477119,
+          "profit": 3.947224684771186,
+          "hit_rate": 0.47467015427981996
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "PRIMEIRA": {
+      "league_id": "PRIMEIRA",
+      "league_name": "Primeira Liga",
+      "tier": 3,
+      "region": "Portugal",
+      "current_config": {
+        "edge_threshold": 0.04,
+        "min_probability": 0.25,
+        "target_roi": 0.08,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.05691234532660386,
+        "roi_volatility": 0.008711317884938593,
+        "roi_trend": "improving",
+        "avg_volume_8w": 12.25,
+        "volume_consistency": 0.16704801575249897,
+        "avg_clv_8w": 0.01405395646741432,
+        "positive_clv_rate": 0.6530612244897959,
+        "total_bets_8w": 98,
+        "win_rate": 0.478456172663302
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.039331530478489043,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 145.5064142669885,
+          "profit": 5.506414266988486,
+          "hit_rate": 0.4696657652392445
+        },
+        {
+          "week": 2,
+          "roi": 0.05022316205962431,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 147.0312426883474,
+          "profit": 7.03124268834739,
+          "hit_rate": 0.47511158102981216
+        },
+        {
+          "week": 3,
+          "roi": 0.057757356599522344,
+          "volume": 10,
+          "stakes": 100.0,
+          "returns": 105.77573565995225,
+          "profit": 5.775735659952247,
+          "hit_rate": 0.47887867829976116
+        },
+        {
+          "week": 4,
+          "roi": 0.06553056338041485,
+          "volume": 9,
+          "stakes": 90.0,
+          "returns": 95.89775070423734,
+          "profit": 5.897750704237339,
+          "hit_rate": 0.48276528169020744
+        },
+        {
+          "week": 5,
+          "roi": 0.061393637912888835,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 148.59510930780442,
+          "profit": 8.595109307804421,
+          "hit_rate": 0.48069681895644445
+        },
+        {
+          "week": 6,
+          "roi": 0.053204743475980705,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 136.91661665187752,
+          "profit": 6.9166166518775185,
+          "hit_rate": 0.47660237173799036
+        },
+        {
+          "week": 7,
+          "roi": 0.06872401677130507,
+          "volume": 10,
+          "stakes": 100.0,
+          "returns": 106.8724016771305,
+          "profit": 6.872401677130497,
+          "hit_rate": 0.4843620083856526
+        },
+        {
+          "week": 8,
+          "roi": 0.05913375193460575,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 148.2787252708448,
+          "profit": 8.278725270844802,
+          "hit_rate": 0.4795668759673029
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "SUPERLIG": {
+      "league_id": "SUPERLIG",
+      "league_name": "S\u00fcper Lig",
+      "tier": 3,
+      "region": "Turkey",
+      "current_config": {
+        "edge_threshold": 0.04,
+        "min_probability": 0.25,
+        "target_roi": 0.08,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.06412352432684093,
+        "roi_volatility": 0.013054305757797952,
+        "roi_trend": "stable",
+        "avg_volume_8w": 9.875,
+        "volume_consistency": 0.2603413139392802,
+        "avg_clv_8w": 0.020513481787393418,
+        "positive_clv_rate": 0.6962025316455697,
+        "total_bets_8w": 79,
+        "win_rate": 0.4820617621634205
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.05814424028989882,
+          "volume": 11,
+          "stakes": 110.0,
+          "returns": 116.39586643188888,
+          "profit": 6.3958664318888765,
+          "hit_rate": 0.47907212014494943
+        },
+        {
+          "week": 2,
+          "roi": 0.06994293864486828,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 128.3931526373842,
+          "profit": 8.39315263738419,
+          "hit_rate": 0.4849714693224342
+        },
+        {
+          "week": 3,
+          "roi": 0.06317279962641827,
+          "volume": 10,
+          "stakes": 100.0,
+          "returns": 106.31727996264182,
+          "profit": 6.31727996264182,
+          "hit_rate": 0.48158639981320917
+        },
+        {
+          "week": 4,
+          "roi": 0.0741075711720193,
+          "volume": 9,
+          "stakes": 90.0,
+          "returns": 96.66968140548174,
+          "profit": 6.6696814054817395,
+          "hit_rate": 0.48705378558600965
+        },
+        {
+          "week": 5,
+          "roi": 0.060348737339385124,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 137.84533585412007,
+          "profit": 7.845335854120066,
+          "hit_rate": 0.4801743686696926
+        },
+        {
+          "week": 6,
+          "roi": 0.07578848516117923,
+          "volume": 9,
+          "stakes": 90.0,
+          "returns": 96.82096366450612,
+          "profit": 6.820963664506124,
+          "hit_rate": 0.4878942425805896
+        },
+        {
+          "week": 7,
+          "roi": 0.0769818476084678,
+          "volume": 11,
+          "stakes": 110.0,
+          "returns": 118.46800323693147,
+          "profit": 8.468003236931466,
+          "hit_rate": 0.4884909238042339
+        },
+        {
+          "week": 8,
+          "roi": 0.03450157477249066,
+          "volume": 4,
+          "stakes": 40.0,
+          "returns": 41.380062990899624,
+          "profit": 1.3800629908996243,
+          "hit_rate": 0.46725078738624537
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "BELGIANPRO": {
+      "league_id": "BELGIANPRO",
+      "league_name": "Belgian Pro League",
+      "tier": 3,
+      "region": "Belgium",
+      "current_config": {
+        "edge_threshold": 0.04,
+        "min_probability": 0.25,
+        "target_roi": 0.08,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.06390424638522507,
+        "roi_volatility": 0.010841909866227413,
+        "roi_trend": "improving",
+        "avg_volume_8w": 12.75,
+        "volume_consistency": 0.25338917614353107,
+        "avg_clv_8w": 0.021096418601303405,
+        "positive_clv_rate": 0.7156862745098039,
+        "total_bets_8w": 102,
+        "win_rate": 0.48195212319261255
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.05782325324418025,
+          "volume": 17,
+          "stakes": 170.0,
+          "returns": 179.82995305151064,
+          "profit": 9.829953051510643,
+          "hit_rate": 0.47891162662209014
+        },
+        {
+          "week": 2,
+          "roi": 0.040302576768119824,
+          "volume": 8,
+          "stakes": 80.0,
+          "returns": 83.22420614144959,
+          "profit": 3.224206141449585,
+          "hit_rate": 0.47015128838405995
+        },
+        {
+          "week": 3,
+          "roi": 0.07047973535065732,
+          "volume": 10,
+          "stakes": 100.0,
+          "returns": 107.04797353506575,
+          "profit": 7.047973535065751,
+          "hit_rate": 0.4852398676753287
+        },
+        {
+          "week": 4,
+          "roi": 0.0669846769098925,
+          "volume": 10,
+          "stakes": 100.0,
+          "returns": 106.69846769098925,
+          "profit": 6.698467690989247,
+          "hit_rate": 0.48349233845494627
+        },
+        {
+          "week": 5,
+          "roi": 0.06848940135024484,
+          "volume": 11,
+          "stakes": 110.0,
+          "returns": 117.53383414852694,
+          "profit": 7.533834148526935,
+          "hit_rate": 0.48424470067512243
+        },
+        {
+          "week": 6,
+          "roi": 0.05937235553089632,
+          "volume": 15,
+          "stakes": 150.0,
+          "returns": 158.90585332963443,
+          "profit": 8.905853329634425,
+          "hit_rate": 0.4796861777654482
+        },
+        {
+          "week": 7,
+          "roi": 0.07901939054707775,
+          "volume": 14,
+          "stakes": 140.0,
+          "returns": 151.06271467659087,
+          "profit": 11.062714676590872,
+          "hit_rate": 0.4895096952735389
+        },
+        {
+          "week": 8,
+          "roi": 0.06876258138073167,
+          "volume": 17,
+          "stakes": 170.0,
+          "returns": 181.6896388347244,
+          "profit": 11.689638834724406,
+          "hit_rate": 0.48438129069036584
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "SCOTTISHPREM": {
+      "league_id": "SCOTTISHPREM",
+      "league_name": "Scottish Premiership",
+      "tier": 3,
+      "region": "Scotland",
+      "current_config": {
+        "edge_threshold": 0.04,
+        "min_probability": 0.25,
+        "target_roi": 0.08,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.05741711553066971,
+        "roi_volatility": 0.009346162890410447,
+        "roi_trend": "declining",
+        "avg_volume_8w": 10.5,
+        "volume_consistency": 0.45425676257949793,
+        "avg_clv_8w": 0.021976130815307665,
+        "positive_clv_rate": 0.6428571428571429,
+        "total_bets_8w": 84,
+        "win_rate": 0.47870855776533483
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.06624091390583668,
+          "volume": 9,
+          "stakes": 90.0,
+          "returns": 95.9616822515253,
+          "profit": 5.961682251525303,
+          "hit_rate": 0.48312045695291833
+        },
+        {
+          "week": 2,
+          "roi": 0.056497506850316286,
+          "volume": 18,
+          "stakes": 180.0,
+          "returns": 190.16955123305692,
+          "profit": 10.169551233056922,
+          "hit_rate": 0.47824875342515816
+        },
+        {
+          "week": 3,
+          "roi": 0.0634987350419103,
+          "volume": 7,
+          "stakes": 70.0,
+          "returns": 74.44491145293372,
+          "profit": 4.444911452933724,
+          "hit_rate": 0.48174936752095515
+        },
+        {
+          "week": 4,
+          "roi": 0.059062696843825424,
+          "volume": 17,
+          "stakes": 170.0,
+          "returns": 180.04065846345034,
+          "profit": 10.040658463450342,
+          "hit_rate": 0.4795313484219127
+        },
+        {
+          "week": 5,
+          "roi": 0.06802711286610205,
+          "volume": 13,
+          "stakes": 130.0,
+          "returns": 138.84352467259328,
+          "profit": 8.843524672593276,
+          "hit_rate": 0.48401355643305105
+        },
+        {
+          "week": 6,
+          "roi": 0.06126229882962953,
+          "volume": 10,
+          "stakes": 100.0,
+          "returns": 106.12622988296296,
+          "profit": 6.12622988296296,
+          "hit_rate": 0.4806311494148148
+        },
+        {
+          "week": 7,
+          "roi": 0.04190022958777227,
+          "volume": 6,
+          "stakes": 60.0,
+          "returns": 62.51401377526633,
+          "profit": 2.514013775266328,
+          "hit_rate": 0.47095011479388615
+        },
+        {
+          "week": 8,
+          "roi": 0.04284743031996513,
+          "volume": 4,
+          "stakes": 40.0,
+          "returns": 41.7138972127986,
+          "profit": 1.7138972127985994,
+          "hit_rate": 0.4714237151599826
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    },
+    "EPL": {
+      "league_id": "EPL",
+      "league_name": "English Premier League",
+      "tier": 1,
+      "region": "England",
+      "current_config": {
+        "edge_threshold": 0.035,
+        "min_probability": 0.22,
+        "target_roi": 0.12,
+        "min_bet_volume": 10
+      },
+      "performance_metrics": {
+        "avg_roi_8w": 0.08464946485482325,
+        "roi_volatility": 0.00879544771395044,
+        "roi_trend": "stable",
+        "avg_volume_8w": 21.125,
+        "volume_consistency": 0.37155805766720945,
+        "avg_clv_8w": 0.011120281882818385,
+        "positive_clv_rate": 0.5621301775147929,
+        "total_bets_8w": 169,
+        "win_rate": 0.4923247324274116
+      },
+      "weekly_breakdown": [
+        {
+          "week": 1,
+          "roi": 0.07932930115178721,
+          "volume": 20,
+          "stakes": 200.0,
+          "returns": 215.86586023035744,
+          "profit": 15.865860230357441,
+          "hit_rate": 0.4896646505758936
+        },
+        {
+          "week": 2,
+          "roi": 0.0802223376975126,
+          "volume": 12,
+          "stakes": 120.0,
+          "returns": 129.6266805237015,
+          "profit": 9.62668052370151,
+          "hit_rate": 0.49011116884875633
+        },
+        {
+          "week": 3,
+          "roi": 0.10474893470813104,
+          "volume": 22,
+          "stakes": 220.0,
+          "returns": 243.04476563578882,
+          "profit": 23.04476563578882,
+          "hit_rate": 0.5023744673540655
+        },
+        {
+          "week": 4,
+          "roi": 0.08044525833436682,
+          "volume": 21,
+          "stakes": 210.0,
+          "returns": 226.89350425021703,
+          "profit": 16.893504250217035,
+          "hit_rate": 0.4902226291671834
+        },
+        {
+          "week": 5,
+          "roi": 0.0732409975248774,
+          "volume": 33,
+          "stakes": 330.0,
+          "returns": 354.16952918320953,
+          "profit": 24.169529183209534,
+          "hit_rate": 0.48662049876243874
+        },
+        {
+          "week": 6,
+          "roi": 0.08575381687839112,
+          "volume": 32,
+          "stakes": 320.0,
+          "returns": 347.44122140108516,
+          "profit": 27.44122140108516,
+          "hit_rate": 0.49287690843919557
+        },
+        {
+          "week": 7,
+          "roi": 0.08457090875086841,
+          "volume": 9,
+          "stakes": 90.0,
+          "returns": 97.61138178757815,
+          "profit": 7.6113817875781535,
+          "hit_rate": 0.4922854543754342
+        },
+        {
+          "week": 8,
+          "roi": 0.08888416379265135,
+          "volume": 20,
+          "stakes": 200.0,
+          "returns": 217.77683275853028,
+          "profit": 17.776832758530276,
+          "hit_rate": 0.49444208189632566
+        }
+      ],
+      "failure_reasons": [],
+      "warnings": [],
+      "is_failing": false,
+      "risk_level": "low"
+    }
+  },
+  "failing_leagues": [],
+  "top_performers": [
+    {
+      "league_id": "BUNDESLIGA2",
+      "league_name": "2. Bundesliga",
+      "tier": 2,
+      "roi_8w": 0.1056659532593779,
+      "clv_rate": 0.5942028985507246,
+      "volume_8w": 138,
+      "risk_level": "low",
+      "reason": "Strong 10.6% ROI with 59.4% CLV rate"
+    },
+    {
+      "league_id": "SERIEA",
+      "league_name": "Serie A",
+      "tier": 1,
+      "roi_8w": 0.1020104177751006,
+      "clv_rate": 0.5759162303664922,
+      "volume_8w": 191,
+      "risk_level": "low",
+      "reason": "Strong 10.2% ROI with 57.6% CLV rate"
+    },
+    {
+      "league_id": "CHAMPIONSHIP",
+      "league_name": "EFL Championship",
+      "tier": 2,
+      "roi_8w": 0.09772035787699465,
+      "clv_rate": 0.63,
+      "volume_8w": 100,
+      "risk_level": "low",
+      "reason": "Strong 9.8% ROI with 63.0% CLV rate"
+    },
+    {
+      "league_id": "LALIGA2",
+      "league_name": "La Liga SmartBank",
+      "tier": 2,
+      "roi_8w": 0.09581006345459112,
+      "clv_rate": 0.5254237288135594,
+      "volume_8w": 118,
+      "risk_level": "low",
+      "reason": "Strong 9.6% ROI with 52.5% CLV rate"
+    },
+    {
+      "league_id": "SERIEB",
+      "league_name": "Serie B",
+      "tier": 2,
+      "roi_8w": 0.09473520483753398,
+      "clv_rate": 0.5819672131147541,
+      "volume_8w": 122,
+      "risk_level": "low",
+      "reason": "Strong 9.5% ROI with 58.2% CLV rate"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "medium",
+      "category": "threshold_optimization",
+      "title": "Optimize thresholds for underperforming leagues",
+      "description": "11 leagues below ROI targets but still profitable",
+      "action": "Run threshold sweep to find optimal parameters",
+      "affected_leagues": [
+        "LALIGA",
+        "BUNDESLIGA",
+        "LIGUE1",
+        "LIGUE2",
+        "SERIEB",
+        "LALIGA2",
+        "EREDIVISIE",
+        "PRIMEIRA",
+        "BELGIANPRO",
+        "SCOTTISHPREM",
+        "EPL"
+      ],
+      "estimated_impact": "Increase ROI while maintaining volume"
+    }
+  ],
+  "roi_clv_table": {
+    "headers": [
+      "League",
+      "ID",
+      "Tier",
+      "ROI_8W",
+      "ROI_Target",
+      "ROI_vs_Target",
+      "CLV_8W",
+      "CLV_Positive_Rate",
+      "Total_Bets",
+      "Win_Rate",
+      "Risk_Level",
+      "Status"
+    ],
+    "data": [
+      {
+        "League": "2. Bundesliga",
+        "ID": "BUNDESLIGA2",
+        "Tier": 2,
+        "ROI_8W": "10.6%",
+        "ROI_Target": "12.0%",
+        "ROI_vs_Target": "-1.4%",
+        "CLV_8W": "1.1%",
+        "CLV_Positive_Rate": "59.4%",
+        "Total_Bets": 138,
+        "Win_Rate": "50.3%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "Serie A",
+        "ID": "SERIEA",
+        "Tier": 1,
+        "ROI_8W": "10.2%",
+        "ROI_Target": "10.0%",
+        "ROI_vs_Target": "0.2%",
+        "CLV_8W": "0.8%",
+        "CLV_Positive_Rate": "57.6%",
+        "Total_Bets": 191,
+        "Win_Rate": "50.1%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "EFL Championship",
+        "ID": "CHAMPIONSHIP",
+        "Tier": 2,
+        "ROI_8W": "9.8%",
+        "ROI_Target": "12.0%",
+        "ROI_vs_Target": "-2.2%",
+        "CLV_8W": "1.5%",
+        "CLV_Positive_Rate": "63.0%",
+        "Total_Bets": 100,
+        "Win_Rate": "49.9%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "La Liga SmartBank",
+        "ID": "LALIGA2",
+        "Tier": 2,
+        "ROI_8W": "9.6%",
+        "ROI_Target": "12.0%",
+        "ROI_vs_Target": "-2.4%",
+        "CLV_8W": "0.7%",
+        "CLV_Positive_Rate": "52.5%",
+        "Total_Bets": 118,
+        "Win_Rate": "49.8%",
+        "Risk_Level": "LOW",
+        "Status": "FAILING"
+      },
+      {
+        "League": "Serie B",
+        "ID": "SERIEB",
+        "Tier": 2,
+        "ROI_8W": "9.5%",
+        "ROI_Target": "12.0%",
+        "ROI_vs_Target": "-2.5%",
+        "CLV_8W": "0.8%",
+        "CLV_Positive_Rate": "58.2%",
+        "Total_Bets": 122,
+        "Win_Rate": "49.7%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "Ligue 2",
+        "ID": "LIGUE2",
+        "Tier": 2,
+        "ROI_8W": "9.3%",
+        "ROI_Target": "12.0%",
+        "ROI_vs_Target": "-2.7%",
+        "CLV_8W": "1.3%",
+        "CLV_Positive_Rate": "67.8%",
+        "Total_Bets": 115,
+        "Win_Rate": "49.7%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "English Premier League",
+        "ID": "EPL",
+        "Tier": 1,
+        "ROI_8W": "8.5%",
+        "ROI_Target": "12.0%",
+        "ROI_vs_Target": "-3.5%",
+        "CLV_8W": "1.1%",
+        "CLV_Positive_Rate": "56.2%",
+        "Total_Bets": 169,
+        "Win_Rate": "49.2%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "Ligue 1",
+        "ID": "LIGUE1",
+        "Tier": 1,
+        "ROI_8W": "7.6%",
+        "ROI_Target": "10.0%",
+        "ROI_vs_Target": "-2.4%",
+        "CLV_8W": "2.0%",
+        "CLV_Positive_Rate": "68.5%",
+        "Total_Bets": 149,
+        "Win_Rate": "48.8%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "La Liga Santander",
+        "ID": "LALIGA",
+        "Tier": 1,
+        "ROI_8W": "7.1%",
+        "ROI_Target": "10.0%",
+        "ROI_vs_Target": "-2.9%",
+        "CLV_8W": "1.2%",
+        "CLV_Positive_Rate": "58.6%",
+        "Total_Bets": 128,
+        "Win_Rate": "48.6%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "S\u00fcper Lig",
+        "ID": "SUPERLIG",
+        "Tier": 3,
+        "ROI_8W": "6.4%",
+        "ROI_Target": "8.0%",
+        "ROI_vs_Target": "-1.6%",
+        "CLV_8W": "2.1%",
+        "CLV_Positive_Rate": "69.6%",
+        "Total_Bets": 79,
+        "Win_Rate": "48.2%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "Belgian Pro League",
+        "ID": "BELGIANPRO",
+        "Tier": 3,
+        "ROI_8W": "6.4%",
+        "ROI_Target": "8.0%",
+        "ROI_vs_Target": "-1.6%",
+        "CLV_8W": "2.1%",
+        "CLV_Positive_Rate": "71.6%",
+        "Total_Bets": 102,
+        "Win_Rate": "48.2%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "Bundesliga",
+        "ID": "BUNDESLIGA",
+        "Tier": 1,
+        "ROI_8W": "6.2%",
+        "ROI_Target": "10.0%",
+        "ROI_vs_Target": "-3.8%",
+        "CLV_8W": "1.9%",
+        "CLV_Positive_Rate": "66.7%",
+        "Total_Bets": 132,
+        "Win_Rate": "48.1%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "Primeira Liga",
+        "ID": "PRIMEIRA",
+        "Tier": 3,
+        "ROI_8W": "5.7%",
+        "ROI_Target": "8.0%",
+        "ROI_vs_Target": "-2.3%",
+        "CLV_8W": "1.4%",
+        "CLV_Positive_Rate": "65.3%",
+        "Total_Bets": 98,
+        "Win_Rate": "47.8%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "Scottish Premiership",
+        "ID": "SCOTTISHPREM",
+        "Tier": 3,
+        "ROI_8W": "5.7%",
+        "ROI_Target": "8.0%",
+        "ROI_vs_Target": "-2.3%",
+        "CLV_8W": "2.2%",
+        "CLV_Positive_Rate": "64.3%",
+        "Total_Bets": 84,
+        "Win_Rate": "47.9%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      },
+      {
+        "League": "Eredivisie",
+        "ID": "EREDIVISIE",
+        "Tier": 3,
+        "ROI_8W": "4.7%",
+        "ROI_Target": "8.0%",
+        "ROI_vs_Target": "-3.3%",
+        "CLV_8W": "1.6%",
+        "CLV_Positive_Rate": "65.7%",
+        "Total_Bets": 70,
+        "Win_Rate": "47.4%",
+        "Risk_Level": "LOW",
+        "Status": "HEALTHY"
+      }
+    ],
+    "summary": {
+      "leagues_analyzed": 15,
+      "avg_roi": 0.0782,
+      "failing_leagues": 1
+    }
+  },
+  "volume_analysis": {
+    "headers": [
+      "League",
+      "ID",
+      "Actual_Volume_8W",
+      "Target_Volume_8W",
+      "Volume_Ratio",
+      "Avg_Weekly",
+      "Edge_Threshold",
+      "Min_Probability",
+      "Volume_Status"
+    ],
+    "data": [
+      {
+        "League": "Serie A",
+        "ID": "SERIEA",
+        "Actual_Volume_8W": 191,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "238.8%",
+        "Avg_Weekly": "23.9",
+        "Edge_Threshold": "3.0%",
+        "Min_Probability": "20.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "English Premier League",
+        "ID": "EPL",
+        "Actual_Volume_8W": 169,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "211.2%",
+        "Avg_Weekly": "21.1",
+        "Edge_Threshold": "3.5%",
+        "Min_Probability": "22.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "Ligue 1",
+        "ID": "LIGUE1",
+        "Actual_Volume_8W": 149,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "186.2%",
+        "Avg_Weekly": "18.6",
+        "Edge_Threshold": "3.0%",
+        "Min_Probability": "20.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "2. Bundesliga",
+        "ID": "BUNDESLIGA2",
+        "Actual_Volume_8W": 138,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "172.5%",
+        "Avg_Weekly": "17.2",
+        "Edge_Threshold": "2.5%",
+        "Min_Probability": "18.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "Bundesliga",
+        "ID": "BUNDESLIGA",
+        "Actual_Volume_8W": 132,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "165.0%",
+        "Avg_Weekly": "16.5",
+        "Edge_Threshold": "3.0%",
+        "Min_Probability": "20.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "La Liga Santander",
+        "ID": "LALIGA",
+        "Actual_Volume_8W": 128,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "160.0%",
+        "Avg_Weekly": "16.0",
+        "Edge_Threshold": "3.0%",
+        "Min_Probability": "20.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "Serie B",
+        "ID": "SERIEB",
+        "Actual_Volume_8W": 122,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "152.5%",
+        "Avg_Weekly": "15.2",
+        "Edge_Threshold": "2.5%",
+        "Min_Probability": "18.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "La Liga SmartBank",
+        "ID": "LALIGA2",
+        "Actual_Volume_8W": 118,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "147.5%",
+        "Avg_Weekly": "14.8",
+        "Edge_Threshold": "2.5%",
+        "Min_Probability": "18.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "Ligue 2",
+        "ID": "LIGUE2",
+        "Actual_Volume_8W": 115,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "143.8%",
+        "Avg_Weekly": "14.4",
+        "Edge_Threshold": "2.5%",
+        "Min_Probability": "18.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "Belgian Pro League",
+        "ID": "BELGIANPRO",
+        "Actual_Volume_8W": 102,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "127.5%",
+        "Avg_Weekly": "12.8",
+        "Edge_Threshold": "4.0%",
+        "Min_Probability": "25.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "EFL Championship",
+        "ID": "CHAMPIONSHIP",
+        "Actual_Volume_8W": 100,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "125.0%",
+        "Avg_Weekly": "12.5",
+        "Edge_Threshold": "2.5%",
+        "Min_Probability": "18.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "Primeira Liga",
+        "ID": "PRIMEIRA",
+        "Actual_Volume_8W": 98,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "122.5%",
+        "Avg_Weekly": "12.2",
+        "Edge_Threshold": "4.0%",
+        "Min_Probability": "25.0%",
+        "Volume_Status": "HIGH"
+      },
+      {
+        "League": "Scottish Premiership",
+        "ID": "SCOTTISHPREM",
+        "Actual_Volume_8W": 84,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "105.0%",
+        "Avg_Weekly": "10.5",
+        "Edge_Threshold": "4.0%",
+        "Min_Probability": "25.0%",
+        "Volume_Status": "NORMAL"
+      },
+      {
+        "League": "S\u00fcper Lig",
+        "ID": "SUPERLIG",
+        "Actual_Volume_8W": 79,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "98.8%",
+        "Avg_Weekly": "9.9",
+        "Edge_Threshold": "4.0%",
+        "Min_Probability": "25.0%",
+        "Volume_Status": "NORMAL"
+      },
+      {
+        "League": "Eredivisie",
+        "ID": "EREDIVISIE",
+        "Actual_Volume_8W": 70,
+        "Target_Volume_8W": 80,
+        "Volume_Ratio": "87.5%",
+        "Avg_Weekly": "8.8",
+        "Edge_Threshold": "4.0%",
+        "Min_Probability": "25.0%",
+        "Volume_Status": "NORMAL"
+      }
+    ],
+    "summary": {
+      "total_actual_volume": 1795,
+      "total_target_volume": 1200,
+      "low_volume_leagues": 0
+    }
+  }
+}

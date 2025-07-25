@@ -1,0 +1,16 @@
+League,ID,Actual_Volume_8W,Target_Volume_8W,Volume_Ratio,Avg_Weekly,Edge_Threshold,Min_Probability,Volume_Status
+Serie A,SERIEA,191,80,238.8%,23.9,3.0%,20.0%,HIGH
+English Premier League,EPL,169,80,211.2%,21.1,3.5%,22.0%,HIGH
+Ligue 1,LIGUE1,149,80,186.2%,18.6,3.0%,20.0%,HIGH
+2. Bundesliga,BUNDESLIGA2,138,80,172.5%,17.2,2.5%,18.0%,HIGH
+Bundesliga,BUNDESLIGA,132,80,165.0%,16.5,3.0%,20.0%,HIGH
+La Liga Santander,LALIGA,128,80,160.0%,16.0,3.0%,20.0%,HIGH
+Serie B,SERIEB,122,80,152.5%,15.2,2.5%,18.0%,HIGH
+La Liga SmartBank,LALIGA2,118,80,147.5%,14.8,2.5%,18.0%,HIGH
+Ligue 2,LIGUE2,115,80,143.8%,14.4,2.5%,18.0%,HIGH
+Belgian Pro League,BELGIANPRO,102,80,127.5%,12.8,4.0%,25.0%,HIGH
+EFL Championship,CHAMPIONSHIP,100,80,125.0%,12.5,2.5%,18.0%,HIGH
+Primeira Liga,PRIMEIRA,98,80,122.5%,12.2,4.0%,25.0%,HIGH
+Scottish Premiership,SCOTTISHPREM,84,80,105.0%,10.5,4.0%,25.0%,NORMAL
+Süper Lig,SUPERLIG,79,80,98.8%,9.9,4.0%,25.0%,NORMAL
+Eredivisie,EREDIVISIE,70,80,87.5%,8.8,4.0%,25.0%,NORMAL
