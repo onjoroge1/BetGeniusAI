@@ -1,0 +1,454 @@
+{
+  "clv_by_league": {
+    "39": {
+      "league_name": "English Premier League",
+      "total_matches": 2,
+      "windows": {
+        "24h": {
+          "window": "24h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": 0.051670813479824725,
+          "positive_clv_rate": 1.0,
+          "median_clv": 0.051670813479824725,
+          "clv_p25": 0.051670813479824725,
+          "clv_p75": 0.051670813479824725,
+          "volume_score": 0.01
+        },
+        "12h": {
+          "window": "12h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "6h": {
+          "window": "6h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": 0.026821572985033303,
+          "positive_clv_rate": 1.0,
+          "median_clv": 0.026821572985033303,
+          "clv_p25": 0.026821572985033303,
+          "clv_p75": 0.026821572985033303,
+          "volume_score": 0.01
+        },
+        "3h": {
+          "window": "3h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "1h": {
+          "window": "1h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "30m": {
+          "window": "30m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "5m": {
+          "window": "5m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        }
+      },
+      "optimal_window": "24h",
+      "optimal_clv_rate": 0.0
+    },
+    "140": {
+      "league_name": "La Liga Santander",
+      "total_matches": 2,
+      "windows": {
+        "24h": {
+          "window": "24h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": -0.040031337632349305,
+          "positive_clv_rate": 0.0,
+          "median_clv": -0.040031337632349305,
+          "clv_p25": -0.040031337632349305,
+          "clv_p75": -0.040031337632349305,
+          "volume_score": 0.01
+        },
+        "12h": {
+          "window": "12h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "6h": {
+          "window": "6h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": 0.1226068985987348,
+          "positive_clv_rate": 1.0,
+          "median_clv": 0.1226068985987348,
+          "clv_p25": 0.1226068985987348,
+          "clv_p75": 0.1226068985987348,
+          "volume_score": 0.01
+        },
+        "3h": {
+          "window": "3h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "1h": {
+          "window": "1h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "30m": {
+          "window": "30m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "5m": {
+          "window": "5m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        }
+      },
+      "optimal_window": "24h",
+      "optimal_clv_rate": 0.0
+    },
+    "135": {
+      "league_name": "Serie A",
+      "total_matches": 2,
+      "windows": {
+        "24h": {
+          "window": "24h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": 0.020922500960515192,
+          "positive_clv_rate": 1.0,
+          "median_clv": 0.020922500960515192,
+          "clv_p25": 0.020922500960515192,
+          "clv_p75": 0.020922500960515192,
+          "volume_score": 0.01
+        },
+        "12h": {
+          "window": "12h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "6h": {
+          "window": "6h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": -0.0026894559740442132,
+          "positive_clv_rate": 0.0,
+          "median_clv": -0.0026894559740442132,
+          "clv_p25": -0.0026894559740442132,
+          "clv_p75": -0.0026894559740442132,
+          "volume_score": 0.01
+        },
+        "3h": {
+          "window": "3h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "1h": {
+          "window": "1h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "30m": {
+          "window": "30m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "5m": {
+          "window": "5m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        }
+      },
+      "optimal_window": "24h",
+      "optimal_clv_rate": 0.0
+    },
+    "78": {
+      "league_name": "Bundesliga",
+      "total_matches": 2,
+      "windows": {
+        "24h": {
+          "window": "24h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": -0.09024691300728896,
+          "positive_clv_rate": 0.0,
+          "median_clv": -0.09024691300728896,
+          "clv_p25": -0.09024691300728896,
+          "clv_p75": -0.09024691300728896,
+          "volume_score": 0.01
+        },
+        "12h": {
+          "window": "12h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "6h": {
+          "window": "6h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": -0.030729027449452054,
+          "positive_clv_rate": 0.0,
+          "median_clv": -0.030729027449452054,
+          "clv_p25": -0.030729027449452054,
+          "clv_p75": -0.030729027449452054,
+          "volume_score": 0.01
+        },
+        "3h": {
+          "window": "3h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "1h": {
+          "window": "1h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "30m": {
+          "window": "30m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "5m": {
+          "window": "5m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        }
+      },
+      "optimal_window": "24h",
+      "optimal_clv_rate": 0.0
+    },
+    "61": {
+      "league_name": "Ligue 1",
+      "total_matches": 2,
+      "windows": {
+        "24h": {
+          "window": "24h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": 0.024503049696277444,
+          "positive_clv_rate": 1.0,
+          "median_clv": 0.024503049696277444,
+          "clv_p25": 0.024503049696277444,
+          "clv_p75": 0.024503049696277444,
+          "volume_score": 0.01
+        },
+        "12h": {
+          "window": "12h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "6h": {
+          "window": "6h",
+          "total_predictions": 1,
+          "clv_available": 1,
+          "avg_clv": -0.01084574682728188,
+          "positive_clv_rate": 0.0,
+          "median_clv": -0.01084574682728188,
+          "clv_p25": -0.01084574682728188,
+          "clv_p75": -0.01084574682728188,
+          "volume_score": 0.01
+        },
+        "3h": {
+          "window": "3h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "1h": {
+          "window": "1h",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "30m": {
+          "window": "30m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        },
+        "5m": {
+          "window": "5m",
+          "total_predictions": 0,
+          "clv_available": 0,
+          "avg_clv": 0.0,
+          "positive_clv_rate": 0.0,
+          "median_clv": 0.0,
+          "clv_p25": 0.0,
+          "clv_p75": 0.0,
+          "volume_score": 0.0
+        }
+      },
+      "optimal_window": "24h",
+      "optimal_clv_rate": 0.0
+    }
+  },
+  "overall_summary": {
+    "24h": {
+      "avg_clv": -0.006636377300604181,
+      "avg_positive_rate": 0.6,
+      "total_volume": 5,
+      "leagues_with_data": 5
+    },
+    "6h": {
+      "avg_clv": 0.02103284826659799,
+      "avg_positive_rate": 0.4,
+      "total_volume": 5,
+      "leagues_with_data": 5
+    }
+  },
+  "lookback_days": 14,
+  "analysis_date": "2025-07-27T18:46:25.139577",
+  "windows_analyzed": [
+    "24h",
+    "12h",
+    "6h",
+    "3h",
+    "1h",
+    "30m",
+    "5m"
+  ]
+}

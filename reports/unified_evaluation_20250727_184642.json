@@ -1,0 +1,63 @@
+{
+  "results": {
+    "uniform": {
+      "accuracy": 0.5,
+      "logloss": 1.0986122886681096,
+      "brier_mean": 0.2222222222222222,
+      "brier_h": 0.2777777777777778,
+      "brier_d": 0.17777777777777776,
+      "brier_a": 0.2111111111111111,
+      "reliability_mean": 0.015555555555555553,
+      "resolution_mean": 0.0,
+      "top2_accuracy": 0.7,
+      "rps": 0.48888888888888893
+    },
+    "frequency": {
+      "accuracy": 0.5,
+      "logloss": 1.0296530140645734,
+      "brier_mean": 0.20666666666666667,
+      "brier_h": 0.25,
+      "brier_d": 0.16000000000000003,
+      "brier_a": 0.20999999999999996,
+      "reliability_mean": 1.2839532962581573e-33,
+      "resolution_mean": 0.0,
+      "top2_accuracy": 0.8,
+      "rps": 0.4600000000000001
+    },
+    "market_implied": {
+      "accuracy": 0.5,
+      "logloss": 0.9986290415937212,
+      "brier_mean": 0.19932666666666665,
+      "brier_h": 0.23763,
+      "brier_d": 0.1574,
+      "brier_a": 0.20295000000000002,
+      "reliability_mean": 0.11926033307613167,
+      "resolution_mean": 0.1462962962962963,
+      "top2_accuracy": 0.9,
+      "rps": 0.44058
+    },
+    "consensus_raw": {
+      "error": "Consensus model not available"
+    },
+    "consensus_calibrated": {
+      "error": "Consensus model not available"
+    },
+    "twostage_shadow": {
+      "error": "Two-stage model not available"
+    }
+  },
+  "gate_results": {},
+  "quality_gates": {
+    "min_logloss_vs_market": -0.005,
+    "min_weekly_matches": 10,
+    "max_dispersion_threshold": 0.15
+  },
+  "evaluation_timestamp": "2025-07-27T18:46:42.013881",
+  "euro_leagues": {
+    "39": "English Premier League",
+    "140": "La Liga Santander",
+    "135": "Serie A",
+    "78": "Bundesliga",
+    "61": "Ligue 1"
+  }
+}

@@ -1,0 +1,137 @@
+This is a great place to be. Now let’s prove it’s production-ready, ship safely, and keep improving. Below is a copy-pasteable Go-Live Checklist + Runbook you can hand to the agent right now. It validates the new Calibrated-Consensus forecaster, keeps the two-stage model in shadow, and locks CLV/timing ops.
+
+⸻
+
+0) Launch criteria (must be green before you flip default to “live”)
+
+Per launch league and overall (same unified harness & time bucket):
+	•	LogLoss: Calibrated-Consensus < Raw Market-Implied
+	•	Top-2: ≥ 95%
+	•	Brier: ≤ 0.205
+	•	CLV (static window): ≥ 55% positive CLV over last 2 weeks (shadow)
+	•	Inference parity: API vs offline max abs diff < 1e-6 on frozen batch
+	•	Leakage & feature contract tests: all pass
+
+If any fail → hold launch for that league, keep shadowing.
+
+⸻
+
+1) Pre-launch verification (run these and attach artifacts)
+
+Commands (example):
+
+# 1) Quality vs market (per league + bucket)
+python -m src.eval.unified_harness --model consensus_calibrated --buckets 24h,6h --leagues EPL,LALIGA,SERIEA,BUNDES,LIGUE1 \
+  --out /reports/METRICS_TABLE.csv
+
+# 2) Calibration stats & reliability plots
+python -m src.eval.reports --report calibration --out /reports/CALIBRATION_STATS.json
+
+# 3) Inference parity (API vs offline)
+python -m src.eval.unified_harness --check_inference_parity --fixtures /fixtures/frozen \
+  --out /reports/INFERENCE_PARITY.json
+
+# 4) CLV by timing window (shadow)
+python -m src.monitoring.clv_report --windows 24h,6h,1h,30m,5m --out /reports/CLV_SHADOW_REPORT.html
+
+# 5) Snapshot coverage & backfill status
+python -m src.ingest.coverage_report --out /reports/SNAPSHOT_COVERAGE.csv
+python -m src.ingest.backfill_status --out /reports/BACKFILL_STATUS.csv
+
+You should receive:
+	•	/reports/METRICS_TABLE.csv (Calibrated-Consensus beats raw market on LogLoss per league)
+	•	/reports/CALIBRATION_STATS.json (ECE/MCE reasonable)
+	•	/reports/INFERENCE_PARITY.json (passed: true)
+	•	/reports/CLV_SHADOW_REPORT.html (CLV ≥ 55% in chosen window per league)
+	•	/reports/SNAPSHOT_COVERAGE.csv (open, 24h, 6h, close present for most matches)
+
+⸻
+
+2) Switch-over plan (shadow → canary → full)
+
+Day 0 (Shadow already on):
+	•	Consensus is default internally, not yet exposed to users (or exposed with “beta” label).
+	•	Two-stage stays in shadow; log predictions for the same fixtures.
+
+Day 1–3 (Canary launch):
+	•	Enable consensus to a limited surface (e.g., 10–20% of leagues or users).
+	•	Keep static timing window from config/leagues.yml for CLV.
+	•	Alerts on (see §3).
+
+Day 4+ (Full launch per league):
+	•	Promote a league only if the canary metrics hold:
+	•	Calibrated-Consensus LogLoss still < market,
+	•	CLV ≥ 55%,
+	•	No parity or leakage failures.
+
+Rollback:
+	•	One-flag toggle in api_router.py (consensus_enabled=false per league)
+	•	Revert to “display market implied” only (safe fallback) while investigating.
+
+⸻
+
+3) Production monitoring & alerts (turn these on)
+	•	Daily (auto):
+	•	LogLoss/Brier/RPS vs market by league (24h or 6h bucket you publish)
+	•	% positive CLV, CLV median, CLV p25/p75 by league
+	•	Execution lag p50/p90
+	•	Volume (# fixtures with predictions)
+	•	Alerts (Slack/Email):
+	•	RED: Calibrated-Consensus LogLoss ≥ market in any launch league (past 3 days).
+	•	RED: CLV < 50% for 2 consecutive weeks in any launch league.
+	•	YELLOW: Inference parity diff ≥ 1e-6 on any regression test.
+	•	YELLOW: Snapshot coverage drops < 80% for open/24h/6h/close.
+	•	Auto-tighten: If CLV < 55% for a league in a rolling 7-day window → raise edge_threshold by +2% and/or switch to the better window (per the timing report).
+
+⸻
+
+4) Timing (static now, dynamic next)
+	•	Use the best static window per league from your CLV shadow report (e.g., 24h for EPL, 6h for La Liga—whatever came out best).
+	•	Keep a capacity cap (Top-K EV bets/day per league) while CLV stabilizes.
+	•	Next sprint: A/B dynamic timing classifier (P(CLV>0)), promote only if CLV improves at equal or better volume.
+
+⸻
+
+5) Two-stage model (kept, retrained later)
+	•	Remains in shadow and is not user-visible.
+	•	Retrain when the backfill grows (toward 10k matches) and new features land.
+	•	Promotion gate (per league): LogLoss(model_calibrated) ≤ LogLoss(market_implied) – 0.005 for two consecutive weeks with OOF-only calibration.
+
+⸻
+
+6) Data expansion to ~10k (kick off now)
+	•	Backfill top-5 Euro leagues across 5–10 seasons (aim ≥10k).
+	•	Ensure snapshots at open, 24h, 6h, close minimum; add 1h/30m/5m as they’re available.
+	•	Add context tables incrementally (form/Elo/H2H/phase now; weather/manager/lineups later).
+	•	Keep guardrails: all feature timestamps strictly < match_date_utc.
+
+⸻
+
+7) What I need from the agent to sign off launch
+
+Please drop these files after your next run (they can be the same ones generated above):
+	•	/reports/METRICS_TABLE.csv — show Calibrated-Consensus beats market on LogLoss per league (launch scope), bucket used, n.
+	•	/reports/CALIBRATION_STATS.json — ECE/MCE and reliability summary per league.
+	•	/reports/INFERENCE_PARITY.json — passed: true, max_abs_diff < 1e-6.
+	•	/reports/CLV_SHADOW_REPORT.html — chosen window achieves CLV ≥ 55% per league; include volume.
+	•	/config/leagues.yml — final thresholds, timing windows, buckets.
+	•	/registry/run_metadata/RUN_METADATA.json — data snapshot hash, code SHA, seeds.
+
+Once those are in and green, you can flip canary on for the initial Euro leagues.
+
+⸻
+
+8) Optional: next two sprints (after launch)
+	•	Sprint A: Dynamic timing model (odds velocity + dispersion + time-to-KO → P(CLV>0)), microstructure consistency (3-way vs AH/Totals), multi-book best-price routing rollouts.
+	•	Sprint B: Start residual head & Poisson/DC head in shadow on the expanded dataset. Promote only if LogLoss gains ≥ 0.005 and stable.
+
+⸻
+
+Final notes / small cautions
+	•	If your product is analytics-only, keep “bet sizing / recommendations” behind a feature flag for internal use; showing EV/edge is fine if positioned as informational probabilities.
+	•	Keep the kill switch handy for each league.
+	•	Record a short MODEL_CARD_consensus_v1.md for transparency (data slices, buckets, calibration method, known limits).
+
+⸻
+
+If you want, I can review the first METRICS_TABLE.csv and CLV report you get back and tell you exactly which leagues are ready for canary and which need threshold/window tweaks. Just paste those summaries here when they’re ready.

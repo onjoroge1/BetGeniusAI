@@ -1,0 +1,18 @@
+UNIFIED EVALUATION HARNESS REPORT
+============================================================
+Generated: 2025-07-27 18:46:42
+Evaluation Window: 30 days
+
+PERFORMANCE SUMMARY:
+------------------------------
+Model                LogLoss    Accuracy   Top-2      Brier      Status         
+-------------------------------------------------------------------------------------
+uniform              1.0986     50.0%      70.0%      0.2222                    
+frequency            1.0297     50.0%      80.0%      0.2067                    
+market_implied       0.9986     50.0%      90.0%      0.1993     BASELINE       
+consensus_raw        ERROR      ERROR      ERROR      ERROR      FAILED         
+consensus_calibrated ERROR      ERROR      ERROR      ERROR      FAILED         
+twostage_shadow      ERROR      ERROR      ERROR      ERROR      FAILED         
+
+PROMOTION GATE RESULTS:
+------------------------------

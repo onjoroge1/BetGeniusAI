@@ -1,0 +1,6 @@
+league_id,league_name,total_matches,avg_books_per_match,avg_buckets_per_match,open_coverage,h24_coverage,h6_coverage,close_coverage,full_coverage,status,launch_ready
+39,English Premier League,2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,POOR,False
+61,Ligue 1,2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,POOR,False
+78,Bundesliga,2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,POOR,False
+135,Serie A,2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,POOR,False
+140,La Liga Santander,2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,POOR,False

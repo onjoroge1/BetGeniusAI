@@ -1,0 +1,82 @@
+{
+  "calibration_analysis": {
+    "overall": {
+      "home": {
+        "ece": 0.306,
+        "mce": 0.48,
+        "brier_score": 0.22526000000000002,
+        "reliability": 0.14155925925925925,
+        "resolution": 0.17481481481481484,
+        "n_samples": 5,
+        "calibration_curve": {
+          "fraction_positives": [
+            0.0,
+            0.6666666666666666,
+            1.0
+          ],
+          "mean_predicted": [
+            0.38,
+            0.4433333333333333,
+            0.52
+          ]
+        }
+      },
+      "draw": {
+        "ece": 0.356,
+        "mce": 0.69,
+        "brier_score": 0.1548,
+        "reliability": 0.27517812499999994,
+        "resolution": 0.3400000000000001,
+        "n_samples": 5,
+        "calibration_curve": {
+          "fraction_positives": [
+            0.0,
+            1.0
+          ],
+          "mean_predicted": [
+            0.2725,
+            0.31
+          ]
+        }
+      },
+      "away": {
+        "ece": 0.07400000000000001,
+        "mce": 0.31,
+        "brier_score": 0.15589999999999998,
+        "reliability": 0.048162500000000004,
+        "resolution": 0.021250000000000005,
+        "n_samples": 5,
+        "calibration_curve": {
+          "fraction_positives": [
+            0.25,
+            0.0
+          ],
+          "mean_predicted": [
+            0.265,
+            0.31
+          ]
+        }
+      }
+    },
+    "by_league": {},
+    "summary": {
+      "total_leagues_analyzed": 0,
+      "overall_metrics": {
+        "avg_ece": 0.24533333333333332,
+        "avg_mce": 0.49333333333333335,
+        "avg_brier": 0.17865333333333333
+      },
+      "league_averages": {},
+      "calibration_quality": "unknown"
+    }
+  },
+  "generated_at": "2025-07-27T18:46:21.405585",
+  "euro_leagues": {
+    "39": "English Premier League",
+    "140": "La Liga Santander",
+    "135": "Serie A",
+    "78": "Bundesliga",
+    "61": "Ligue 1"
+  },
+  "analysis_type": "consensus_calibration"
+}

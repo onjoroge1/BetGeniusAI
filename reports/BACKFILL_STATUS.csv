@@ -1,0 +1,8 @@
+league_id,league_name,total_matches,seasons_covered,target_seasons,earliest_match,latest_match,matches_with_outcomes,matches_with_scores,outcome_completion_rate,score_completion_rate,season_status,quality_status,launch_ready
+39,English Premier League,2,1,5,2025-07-21,2025-07-26,2,2,1.0,1.0,PARTIAL,EXCELLENT,False
+61,Ligue 1,2,1,5,2025-07-17,2025-07-22,2,2,1.0,1.0,PARTIAL,EXCELLENT,False
+78,Bundesliga,2,1,5,2025-07-18,2025-07-23,2,2,1.0,1.0,PARTIAL,EXCELLENT,False
+135,Serie A,2,1,5,2025-07-19,2025-07-24,2,2,1.0,1.0,PARTIAL,EXCELLENT,False
+140,La Liga Santander,2,1,5,2025-07-20,2025-07-25,2,2,1.0,1.0,PARTIAL,EXCELLENT,False
+,,,,,,,,,,,,,
+,SUMMARY,10,,Target: 10000,,,,,0.001,,,BEHIND_TARGET,

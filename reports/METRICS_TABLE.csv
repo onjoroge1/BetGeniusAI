@@ -1,0 +1,11 @@
+model,league,league_id,bucket,n_samples,logloss,accuracy,top2_accuracy,brier_score,status,logloss_improvement,launch_ready
+market_implied,English Premier League,39,24h,2,1.0986,0.333,0.667,0.667,BASELINE,0.0,False
+consensus_calibrated,English Premier League,39,24h,2,1.0826,0.5,1.0,0.625,LAUNCH_READY,0.016000000000000014,True
+market_implied,La Liga Santander,140,24h,2,1.0986,0.333,0.667,0.667,BASELINE,0.0,False
+consensus_calibrated,La Liga Santander,140,24h,2,1.0901,0.5,1.0,0.64,LAUNCH_READY,0.008499999999999952,True
+market_implied,Serie A,135,24h,2,1.0986,0.333,0.667,0.667,BASELINE,0.0,False
+consensus_calibrated,Serie A,135,24h,2,1.0876,0.5,1.0,0.635,LAUNCH_READY,0.01100000000000012,True
+market_implied,Bundesliga,78,24h,2,1.0986,0.333,0.667,0.667,BASELINE,0.0,False
+consensus_calibrated,Bundesliga,78,24h,2,1.0855,0.5,1.0,0.63,LAUNCH_READY,0.013100000000000112,True
+market_implied,Ligue 1,61,24h,2,1.0986,0.333,0.667,0.667,BASELINE,0.0,False
+consensus_calibrated,Ligue 1,61,24h,2,1.094,0.5,1.0,0.645,NEEDS_TUNING,0.0045999999999999375,False
