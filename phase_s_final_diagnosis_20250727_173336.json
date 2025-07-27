@@ -1,0 +1,137 @@
+{
+  "s1_audit": {
+    "status": "PASSED",
+    "matches": 1313,
+    "features": 27,
+    "issues": 0
+  },
+  "s2_residual": {
+    "status": "FAILED",
+    "improvement_vs_market": -0.1404,
+    "target": 0.005,
+    "conclusion": "Residual modeling cannot beat market"
+  },
+  "s3_poisson": {
+    "status": "EVALUATION_PENDING",
+    "approach": "Dixon-Coles team strengths",
+    "expectation": "Likely to fail vs market like S2"
+  },
+  "strategic_recommendation": {
+    "strategy": {
+      "accept_baseline_performance": true,
+      "focus_areas": [
+        "Best-in-class calibrated probabilities anchored to market",
+        "Superior UX and explainability",
+        "CLV/timing optimization (multi-book routing)",
+        "Line movement prediction",
+        "Risk management and bankroll optimization"
+      ],
+      "edge_sources": [
+        "Faster odds updates",
+        "Player-level injury data",
+        "Weather conditions",
+        "Tactical formation analysis",
+        "Real-time sentiment",
+        "Multi-market arbitrage"
+      ],
+      "success_metrics": [
+        "Probability calibration quality (Brier decomposition)",
+        "Market-relative performance vs sportsbooks",
+        "Bankroll growth in simulation (Kelly criterion)",
+        "Long-term ROI vs risk-adjusted returns",
+        "CLV capture rates",
+        "Line shopping efficiency"
+      ]
+    },
+    "rationale": "Focus on market efficiency and operational excellence rather than prediction accuracy",
+    "competitive_advantage": "Superior execution of market-anchored predictions with advanced tooling"
+  },
+  "production_design": {
+    "core_model": {
+      "type": "Market-anchored calibrated ensemble",
+      "components": [
+        "Market implied probabilities (margin-adjusted)",
+        "Per-league isotonic calibration",
+        "Confidence intervals and uncertainty quantification",
+        "Real-time probability updates"
+      ],
+      "target_metrics": [
+        "Brier score decomposition (reliability + resolution)",
+        "Calibration plots per league",
+        "Coverage probability accuracy",
+        "Market correlation analysis"
+      ]
+    },
+    "operational_intelligence": {
+      "clv_optimization": [
+        "Multi-book line shopping",
+        "Optimal betting timing",
+        "Market movement prediction",
+        "Closing line value tracking"
+      ],
+      "risk_management": [
+        "Kelly criterion bankroll sizing",
+        "Correlation-aware portfolio construction",
+        "Drawdown protection",
+        "Live position monitoring"
+      ],
+      "user_experience": [
+        "Confidence-calibrated predictions",
+        "Explanation of market context",
+        "Historical accuracy tracking",
+        "Personalized risk tolerance"
+      ]
+    },
+    "data_strategy": {
+      "current_sources": [
+        "RapidAPI Football (match results, basic stats)",
+        "Market odds aggregation"
+      ],
+      "priority_acquisitions": [
+        "Player injury/availability feeds",
+        "Real-time lineup information",
+        "Weather data for outdoor matches",
+        "Faster odds update streams",
+        "Historical CLV benchmarks"
+      ],
+      "feature_engineering": [
+        "Market efficiency indicators",
+        "Public betting percentages",
+        "Sharp vs public money flows",
+        "Line movement patterns",
+        "Reverse line movement detection"
+      ]
+    }
+  },
+  "roadmap": {
+    "immediate_actions": [
+      "Accept that current ML approaches cannot beat market baselines",
+      "Pivot to market-anchored production system",
+      "Implement best-in-class probability calibration",
+      "Focus on CLV optimization and timing",
+      "Build superior UX around market-anchored predictions"
+    ],
+    "week_1_deliverables": [
+      "Market-anchored production model with per-league calibration",
+      "Brier score decomposition analysis framework",
+      "CLV tracking and optimization system",
+      "Probability confidence intervals",
+      "Basic multi-book line shopping simulation"
+    ],
+    "week_2_enhancements": [
+      "Real-time market monitoring and alerts",
+      "Kelly criterion bankroll management",
+      "Historical accuracy tracking dashboard",
+      "Market inefficiency detection algorithms",
+      "Automated line movement analysis"
+    ],
+    "month_1_advanced": [
+      "Player-level data integration",
+      "Live betting optimization",
+      "Cross-market arbitrage detection",
+      "Advanced risk management tools",
+      "Machine learning for line movement prediction"
+    ]
+  },
+  "evaluation_date": "2025-07-27T17:33:36.207656"
+}

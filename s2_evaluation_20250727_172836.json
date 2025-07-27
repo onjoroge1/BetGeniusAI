@@ -1,0 +1,32 @@
+{
+  "uniform": {
+    "accuracy": 0.31,
+    "logloss": 1.0986122886681096,
+    "top2_accuracy": 0.6166666666666667
+  },
+  "frequency": {
+    "accuracy": 0.31,
+    "logloss": 1.106890293578131,
+    "top2_accuracy": 0.6933333333333334
+  },
+  "market_implied": {
+    "accuracy": 0.5633333333333334,
+    "logloss": 0.9163763196598386,
+    "top2_accuracy": 0.8666666666666667
+  },
+  "residual_uncalibrated": {
+    "accuracy": 0.5066666666666667,
+    "logloss": 1.0122624669501288,
+    "top2_accuracy": 0.83
+  },
+  "residual_calibrated": {
+    "accuracy": 0.4633333333333333,
+    "logloss": 1.0567837953007844,
+    "top2_accuracy": 0.7433333333333333
+  },
+  "s2_gate": {
+    "improvement_vs_market": -0.1404074756409458,
+    "target_improvement": 0.005,
+    "gate_passed": false
+  }
+}

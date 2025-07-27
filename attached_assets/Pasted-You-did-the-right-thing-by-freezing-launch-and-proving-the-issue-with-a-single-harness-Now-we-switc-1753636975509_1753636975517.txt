@@ -1,0 +1,162 @@
+You did the right thing by freezing launch and proving the issue with a single harness. Now we switch from “tune the same thing” to **rebuild around market‑anchored + hierarchical signal** and only ship when we **beat baselines on LogLoss** league‑by‑league.
+
+Below is a focused plan that (a) recovers **predictive signal**, (b) implements your **team/player experts → parent model** idea in a pragmatic way, and (c) keeps guardrails tight.
+
+---
+
+## Phase **S** — Signal Restoration (7–10 days)
+
+### S0 — Non‑negotiable gates (always on)
+
+* One evaluation harness (you shipped this) with **OOF** calibration only.
+* Compare against **Uniform**, **Frequency Prior**, and **Market‑Implied** (margin‑adjusted).
+* **Gate to proceed:** Our model must produce **lower LogLoss than Market‑Implied** in each target Euro league.
+
+---
+
+### S1 — Data & label audit (24–36h)
+
+**Why:** If the model can’t beat market priors, either the data has weak signal or we’re leaking/losing it.
+
+**Checklist**
+
+* Outcomes mapping (H/D/A), duplicates, postponed/neutral‑venue flags.
+* Train/eval splits are **strictly time‑based** (no team leakage across future folds).
+* Recompute simple **Elo** and **form** features from raw matches (no reuse of any cached feature that might be misaligned).
+* Validate **xG features** (are they pre‑match expectations or post‑match stats? must be pre‑match projections only).
+* Impute/clip outliers; coerce dtypes; ensure **feature\_order** matches artifact.
+
+**Deliverable:** Data audit report + fixed feature builder snapshot.
+
+---
+
+### S2 — **Market‑Anchored Residual Modeling** (2–3 days)
+
+**Why:** The market is the strongest prior. We model the **residual** signal on top of it.
+
+**Method**
+
+* Compute **market implied probabilities** `q = (q_H, q_D, q_A)` (normalize to remove margin).
+* Learn a residual function `f(x)` in **logit space**:
+
+  * `logit(p_o) = logit(q_o) + g_o(x)` for outcomes `o ∈ {H,D,A}`
+  * Implement via **multi-output ElasticNet or CatBoost** with a **sum‑to‑one** constraint (e.g., predict deltas and re‑normalize).
+* Train & evaluate with walk‑forward CV; **calibrate per league** on OOF.
+
+**Acceptance target:** **LogLoss improvement ≥ 0.005** vs market in ≥3 of 5 Euro leagues.
+
+---
+
+### S3 — **Hierarchical Poisson (team strengths)** (2–3 days)
+
+**Why:** Your “team experts” idea is essentially hierarchical attack/defense strengths with home advantage—this is the classic, *very* strong baseline.
+
+**Method (pragmatic)**
+
+* Fit **Dixon–Coles** or **Poisson** model:
+
+  * Team‑season **attack** & **defense** ratings + **home advantage (per league)**.
+  * Optional covariates: rest days, form, Elo, season phase.
+* Produce **λ\_home, λ\_away**, convert to H/D/A via Skellam/DC, **calibrate per league**.
+
+**Deliverable:** A **pure Poisson model** that **beats market** on LogLoss in at least 2 leagues (often it will).
+
+---
+
+### S4 — **Team Embeddings (shared backbone, not per‑team silos)** (2–3 days, in parallel)
+
+**Why:** True per‑team models will overfit; instead, learn **shared representations** and let a parent model combine them.
+
+**Method**
+
+* Learn **team\_id embeddings** (and optionally manager\_id, league\_id) in a small NN trained to predict goal difference or outcome on **past seasons** (sequence or simple embedding).
+* Freeze or fine‑tune embeddings; feed them (home\_emb, away\_emb, abs/home‑away diffs) + contextual features into:
+
+  * (a) the **residual model** from S2, and
+  * (b) the **Poisson intensity model** from S3 (as covariates).
+
+**Deliverable:** Embedding‑augmented residual/Poisson models that **tighten LogLoss** a bit further.
+
+---
+
+### S5 — **Parent model (stacking)** (1 day)
+
+Blend the three calibrated heads:
+
+1. **Market‑only** (baseline)
+2. **Residual head** (S2)
+3. **Poisson/DC head** (S3, with/without embeddings)
+
+Use **logit averaging** or a **calibrated meta‑LR** on OOF predictions to combine them.
+Calibrate final 3‑way per league.
+
+**Gate:** Final **LogLoss < Market‑Implied** in each Euro league; **Top‑2 ≥ 95%**.
+
+---
+
+## How your “team/player experts” idea fits
+
+* **Today (team level):**
+
+  * *Experts* = team embeddings + Poisson attack/defense parameters (seasonal).
+  * *Parent* = blending layer over market + residual + Poisson (stacked & calibrated).
+
+* **Tomorrow (player level):**
+
+  * Add **player availability/injury** features → adjust team strength on the fly (e.g., sum of player xG contribution, ELO‑like player ratings).
+  * If you ingest lineups, create **player embeddings** and aggregate per match; parent model learns weights.
+
+This preserves generalization (shared backbone) and avoids overfitting per‑team micros.
+
+---
+
+## Deliverables for the Agent (copy/paste)
+
+1. **S1 Audit**
+
+* [ ] Rebuild form/Elo/xG features from raw match joins; prove pre‑match only.
+* [ ] Dedupe/clean labels; confirm time‑CV splits.
+* [ ] One **feature\_builder.py** that produces a **frozen `feature_order.json`**.
+
+2. **S2 Residual Head**
+
+* [ ] `residual_head.py`: train `logit(p) = logit(q_market) + g(x)` with ElasticNet/CatBoost; enforce sum‑to‑one.
+* [ ] Per‑league OOF calibration; export artifact.
+
+3. **S3 Poisson/DC Head**
+
+* [ ] `poisson_head.py`: fit DC/Poisson with attack/defense + home adv; derive H/D/A probs; per‑league calibration.
+
+4. **S4 Embeddings (optional but recommended)**
+
+* [ ] `team_embeddings.py`: learn team embeddings; integrate into S2/S3 as covariates.
+
+5. **S5 Stacker**
+
+* [ ] `stack_parent.py`: blend calibrated outputs (market, residual, Poisson).
+* [ ] Unified harness run; produce **league‑wise** metrics table (Accuracy, **LogLoss**, **Brier**, **Top‑2**, **RPS**) vs baselines.
+
+6. **CI Guardrails**
+
+* [ ] Fail build if any target Euro league **LogLoss ≥ Market‑Implied**.
+* [ ] Assert feature set equals `feature_order.json`; dtype coercion before inference.
+* [ ] OOF‑only calibration; no touching test folds.
+
+---
+
+## Targets (Euro launch)
+
+* **Beat Market‑Implied LogLoss** in each Euro league.
+* **Top‑2 ≥ 95%**, **Brier ≤ 0.205** (tighten later).
+* Maintain all **Phase R** checks green for 2 consecutive weekly runs.
+
+---
+
+## If we still don’t beat market after S2–S5
+
+* Accept that current public data lacks incremental edge; pivot product to **best‑in‑class calibrated probabilities anchored to market** (great UX + explainability), and shift **edge** to **CLV/timing** (multi‑book, routing, line‑movement model).
+* Meanwhile, acquire **player‑level** and **faster odds** data to re‑try S2–S5.
+
+---
+
+If you want, I’ll draft the residual‑head and Poisson/DC training skeletons (inputs/outputs, eval hooks) so your agent can code against it straight away. Which head do you want first—**residual vs market** or **Poisson/DC**?
