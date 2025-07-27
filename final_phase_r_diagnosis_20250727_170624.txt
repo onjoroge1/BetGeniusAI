@@ -1,0 +1,38 @@
+FINAL PHASE R DIAGNOSIS - ROOT CAUSE ANALYSIS
+======================================================================
+Analysis Date: 2025-07-27 17:06:24
+
+SUMMARY: Why Models Fail to Beat Baselines
+--------------------------------------------------
+
+1. DATA QUALITY ISSUES:
+------------------------------
+   ✅ No major data quality issues detected
+
+2. PREDICTABILITY ANALYSIS:
+------------------------------
+   ✅ Data shows 0.1% improvement over random
+   Best LogLoss: 1.0973
+   Random LogLoss: 1.0986
+
+3. MODEL TRAINING ISSUES:
+------------------------------
+   ✅ No major model training issues detected
+   Total samples: 1313
+   Class distribution: {'home': np.int64(576), 'away': np.int64(411), 'draw': np.int64(326)}
+
+4. ROOT CAUSE CONCLUSION:
+------------------------------
+5. PHASE R RECOVERY RECOMMENDATIONS:
+----------------------------------------
+   🛠️  IMMEDIATE ACTIONS:
+   → Collect more diverse training data
+   → Implement stronger feature engineering
+   → Focus on market beat metrics (vs sportsbooks)
+   → Consider external data sources (injuries, weather, etc.)
+
+   📊 ALTERNATIVE SUCCESS METRICS:
+   → Probability calibration quality (Brier score decomposition)
+   → Market-relative performance (vs betting odds)
+   → Bankroll growth in simulation (Kelly criterion)
+   → Long-term ROI vs risk-adjusted returns

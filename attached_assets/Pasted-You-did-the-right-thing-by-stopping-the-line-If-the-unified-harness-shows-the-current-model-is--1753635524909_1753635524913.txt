@@ -1,0 +1,150 @@
+You did the right thing by “stopping the line.” If the unified harness shows the **current model is worse than uniform + market baselines**, we should treat this as a **hotfix incident** and rebuild the pipeline with guardrails before any more tuning.
+
+Below is a **copy‑pasteable Recovery Plan** that gets you back to *beating baselines* fast, then lifts accuracy (LogLoss/Brier) to launch quality.
+
+---
+
+## Phase R — Recover & Verify (48 hours)
+
+### R1) Lock a single evaluation harness (source of truth)
+
+**Goal:** Same folds, same metrics, same calibration, same feature order for *every* model/baseline.
+
+**Run & store for each league *and* overall:**
+
+* **3‑way**: Accuracy, **Top‑2**, **LogLoss**, **Brier**, **RPS** (ranked probability score).
+* **Baselines:**
+
+  1. Uniform 33/33/33
+  2. Frequency prior (league/season empirical H/D/A)
+  3. **Market implied** probs (margin‑adjusted)
+* **Model(s):** your current two‑stage, plus simple CatBoost/LightGBM and Logistic baseline.
+
+**Acceptance gate (must pass to proceed):**
+
+> Model **LogLoss < min(market\_implied, frequency\_prior)** on **each** league and overall.
+
+---
+
+### R2) Fix feature/schema alignment (common root cause)
+
+**Symptoms you saw:** “Model expects N features; live eval used M” → catastrophic LogLoss.
+
+**Actions (make these non‑optional):**
+
+* Save in the model artifact: `feature_order`, `feature_dtypes`, `preprocess_version`, `calibrator_version`.
+* At predict time:
+
+  * **Enforce column order**: `X = X.reindex(columns=feature_order)`.
+  * **Type‑coerce** with a single utility (no numpy scalars, no timestamps as raw features).
+  * **Assert no missing columns**; compute or impute any missing engineered feature; **error out** if unavailable.
+  * **Check sum-to-1** and `np.isfinite` on output probabilities; fail closed if violated.
+
+> Add a unit test: “Training feature list equals prediction feature list exactly.”
+
+---
+
+### R3) Fix Top‑2 metric bug (quick)
+
+Top‑2 should check whether the **true class is among the two largest predicted probs**:
+
+```python
+def top2_acc(y_true, proba, labels=('H','D','A')):
+    import numpy as np
+    top2 = np.argsort(-proba, axis=1)[:, :2]          # indices of two highest probs
+    true_idx = np.array([labels.index(y) for y in y_true])
+    return (top2[:,0] == true_idx) | (top2[:,1] == true_idx)
+```
+
+Expect **Top‑2 ≥ 90–95%** for a reasonable forecaster. (Your earlier 72–79% was a red flag.)
+
+---
+
+### R4) Calibrate correctly (and only on OOF)
+
+* Build calibration **on out‑of‑fold (OOF)** predictions **only** (never on test).
+* Do **per‑league** calibration for final 3‑way outputs (isotonic or temperature).
+* Store calibrators with versions; apply at inference after model probs.
+
+**Quick win:** Per‑league calibration often drops LogLoss/Brier **0.01–0.03**.
+
+---
+
+### R5) Establish strong sanity baselines (you must beat them)
+
+Train two quick baselines with the same harness:
+
+1. **Multinomial Logistic Regression** on your 18 features.
+2. **CatBoost** (plain 3‑class), minimal tuning.
+
+If your two‑stage pipeline doesn’t beat these on **LogLoss** consistently, keep iterating on features & calibration before more complexity.
+
+---
+
+## Phase A — Accuracy Lift (next 1–2 weeks)
+
+### A1) Odds‑anchored modeling (beats “market only”)
+
+Use **market implied probabilities as features** and let the model learn residual signal:
+
+* Features include: `p_mkt_home`, `p_mkt_draw`, `p_mkt_away` (margin‑adj), plus your team/form/elo/xG features and **diffs** (home–away).
+* Train to output final probs; **calibrate per league**.
+* Evaluate **LogLoss gain vs market** (that’s the real bar).
+
+This often flips a model that’s “worse than market” to **“market+signal”**.
+
+### A2) Goal‑difference / Poisson head (stacking)
+
+* Train **goal‑diff regression** (HomeGoals − AwayGoals) and/or **Dixon‑Coles Poisson** (λ\_home, λ\_away).
+* Convert to H/D/A probabilities and **blend** with the two‑stage classifier (logit averaging or a meta LR on OOF).
+* This tightens probability shape → **better LogLoss/Brier**.
+
+### A3) Sharpen features (cheap & effective)
+
+* **Diffs**: `elo_pre_diff`, `form_pts_last5_diff`, `xG_for_last5_diff`, `xGA_last5_diff`, `table_rank_diff`, `rest_days_diff`, `market_prob_open_diff`.
+* **Recency weighting**: exponential decay on form/elo/H2H.
+* **Season phase**: early/mid/late flags; relegation/title pressure flags.
+
+### A4) Time‑CV hyper‑tuning (Optuna, optimize LogLoss)
+
+* Walk‑forward folds only.
+* Optimize **LogLoss/RPS**, not accuracy.
+* Keep configs per league if data is sufficient.
+
+---
+
+## CI Guardrails (bake in now)
+
+* **Leakage tests**: assert no feature uses info with `timestamp ≥ match_date`.
+* **Prob tests**: sums to 1, finite, within \[0,1].
+* **Baseline tests**: fail pipeline if model LogLoss ≥ market\_implied LogLoss in any main league.
+* **Reproducibility**: persist random seeds, data snapshot hash, code git SHA in the model artifact.
+
+---
+
+## Go/No‑Go gates (Euro launch)
+
+* **Beats market implied & frequency prior on LogLoss** per league and overall.
+* **LogLoss ≤ 1.05** and **Brier ≤ 0.205** (tighten after first wins).
+* **Top‑2 ≥ 95%** (post‑fix).
+* Weekly stability: metrics within normal bands; no regression for 2 consecutive weeks.
+
+---
+
+## What I need from you / the agent
+
+1. Paste the **unified harness report** (overall + per league) with:
+
+   * Uniform, frequency prior, market implied
+   * Two‑stage, LR, CatBoost baselines
+   * Metrics: Accuracy, **Top‑2**, **LogLoss**, **Brier**, **RPS** (OOF‑calibrated)
+
+2. Confirm:
+
+   * **Feature order/dtype enforcement** added at inference
+   * **Per‑league calibration** now applied
+   * **Top‑2** function fixed as above
+
+3. If market implied still beats our model on LogLoss after those fixes, we’ll **switch to odds‑anchored modeling** and add the **goal‑diff/Poisson head** next.
+
+You found the right failure mode. Now we lock the harness, beat the benchmarks, and then go back to CLV/timing. Once the model’s LogLoss < market, *then* our edge work actually compounds. 💪⚽️📉

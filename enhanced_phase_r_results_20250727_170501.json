@@ -1,0 +1,34 @@
+{
+  "models": {
+    "odds_anchored": {
+      "accuracy": 0.30710659898477155,
+      "top2_accuracy": 0.7055837563451777,
+      "logloss": 1.1328596419698382
+    },
+    "ensemble": {
+      "accuracy": 0.34517766497461927,
+      "top2_accuracy": 0.7157360406091371,
+      "logloss": 1.105954704098295
+    }
+  },
+  "baselines": {
+    "uniform": {
+      "accuracy": 0.43147208121827413,
+      "top2_accuracy": 0.7157360406091371,
+      "logloss": 1.0986122886681096
+    },
+    "frequency": {
+      "accuracy": 0.43147208121827413,
+      "top2_accuracy": 0.7157360406091371,
+      "logloss": 1.0778908515565848
+    },
+    "market_implied": {
+      "accuracy": 0.43147208121827413,
+      "top2_accuracy": 0.733502538071066,
+      "logloss": 1.0712296610511398
+    }
+  },
+  "total_samples": 394,
+  "feature_count": 18,
+  "evaluation_date": "2025-07-27T17:05:01.829238"
+}

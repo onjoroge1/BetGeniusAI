@@ -1,0 +1,38 @@
+{
+  "data_issues": [],
+  "predictability": {
+    "predictable": true,
+    "results": {
+      "Random": {
+        "accuracy": 0.30456852791878175,
+        "logloss": 1.0986122886681096
+      },
+      "MostFrequent": {
+        "accuracy": 0.43908629441624364,
+        "logloss": 20.217379185266218
+      },
+      "Stratified": {
+        "accuracy": 0.35786802030456855,
+        "logloss": 23.144782506209744
+      },
+      "Logistic": {
+        "accuracy": 0.42385786802030456,
+        "logloss": 1.0972959640168891
+      }
+    },
+    "best_logloss": 1.0972959640168891,
+    "random_logloss": 1.0986122886681096
+  },
+  "model_diagnosis": {
+    "issues": [],
+    "sample_sizes": {
+      "home": "576",
+      "away": "411",
+      "draw": "326"
+    },
+    "temporal_shift": 0.06178489702517159,
+    "total_matches": 1313
+  },
+  "report": "FINAL PHASE R DIAGNOSIS - ROOT CAUSE ANALYSIS\n======================================================================\nAnalysis Date: 2025-07-27 17:06:24\n\nSUMMARY: Why Models Fail to Beat Baselines\n--------------------------------------------------\n\n1. DATA QUALITY ISSUES:\n------------------------------\n   \u2705 No major data quality issues detected\n\n2. PREDICTABILITY ANALYSIS:\n------------------------------\n   \u2705 Data shows 0.1% improvement over random\n   Best LogLoss: 1.0973\n   Random LogLoss: 1.0986\n\n3. MODEL TRAINING ISSUES:\n------------------------------\n   \u2705 No major model training issues detected\n   Total samples: 1313\n   Class distribution: {'home': np.int64(576), 'away': np.int64(411), 'draw': np.int64(326)}\n\n4. ROOT CAUSE CONCLUSION:\n------------------------------\n5. PHASE R RECOVERY RECOMMENDATIONS:\n----------------------------------------\n   \ud83d\udee0\ufe0f  IMMEDIATE ACTIONS:\n   \u2192 Collect more diverse training data\n   \u2192 Implement stronger feature engineering\n   \u2192 Focus on market beat metrics (vs sportsbooks)\n   \u2192 Consider external data sources (injuries, weather, etc.)\n\n   \ud83d\udcca ALTERNATIVE SUCCESS METRICS:\n   \u2192 Probability calibration quality (Brier score decomposition)\n   \u2192 Market-relative performance (vs betting odds)\n   \u2192 Bankroll growth in simulation (Kelly criterion)\n   \u2192 Long-term ROI vs risk-adjusted returns",
+  "evaluation_date": "2025-07-27T17:06:24.319995"
+}

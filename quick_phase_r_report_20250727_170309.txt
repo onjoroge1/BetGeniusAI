@@ -1,0 +1,36 @@
+PHASE R - QUICK RECOVERY EVALUATION REPORT
+======================================================================
+Analysis Date: 2025-07-27 17:03:09
+Feature Order: 18 features (enforced)
+
+OVERALL PERFORMANCE (Test Set):
+--------------------------------------------------
+Method               Acc      Top2     LogLoss   Brier    RPS     
+----------------------------------------------------------------------
+uniform              43.1%   71.6%   1.0986    0.6667   0.4608
+frequency_prior      43.1%   71.6%   1.0778    0.6522   0.4488
+market_implied       43.1%   71.6%   1.0792    0.6531   0.4495
+----------------------------------------------------------------------
+logistic_regression  42.9%   70.6%   1.1015    0.6650   0.4548
+random_forest        41.6%   72.6%   1.0884    0.6581   0.4516
+gradient_boosting    37.3%   71.6%   1.3029    0.7641   0.5194
+
+GUARDRAIL STATUS:
+------------------------------
+FAIL: logistic_regression_beats_baselines
+FAIL: logistic_regression_top2_above_90
+FAIL: logistic_regression_beats_uniform_5pct
+FAIL: random_forest_beats_baselines
+FAIL: random_forest_top2_above_90
+FAIL: random_forest_beats_uniform_5pct
+FAIL: gradient_boosting_beats_baselines
+FAIL: gradient_boosting_top2_above_90
+FAIL: gradient_boosting_beats_uniform_5pct
+FAIL: phase_r_ready
+
+PHASE R STATUS: NEEDS MORE WORK
+
+KEY FINDINGS:
+--------------------
+Models still worse than baselines - continue Phase R
+Top-2 accuracy needs work: 72.6% (target >90%)

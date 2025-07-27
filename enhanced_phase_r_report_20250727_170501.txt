@@ -1,0 +1,21 @@
+PHASE R - ENHANCED RECOVERY WITH ODDS-ANCHORED MODELING
+======================================================================
+Analysis Date: 2025-07-27 17:05:01
+Enhanced Features: 18 (market odds + differences)
+
+PERFORMANCE COMPARISON:
+--------------------------------------------------
+Method               Accuracy   Top-2      LogLoss    Status    
+----------------------------------------------------------------------
+uniform              43.1%      71.6%      1.0986     Baseline
+frequency            43.1%      71.6%      1.0779     Baseline
+market_implied       43.1%      73.4%      1.0712     Baseline
+----------------------------------------------------------------------
+odds_anchored        30.7%      70.6%      1.1329     FAILS
+ensemble             34.5%      71.6%      1.1060     FAILS
+
+PHASE R GUARDRAIL CHECK:
+------------------------------
+FAIL: Models still worse than baselines
+
+PHASE R STATUS: CONTINUE RECOVERY

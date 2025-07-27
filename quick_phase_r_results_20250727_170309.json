@@ -1,0 +1,284 @@
+{
+  "overall_baselines": {
+    "uniform": {
+      "accuracy": 0.43147208121827413,
+      "top2_accuracy": 0.7157360406091371,
+      "logloss": 1.0986122886681096,
+      "brier": 0.6666666666666669,
+      "rps": 0.46080090242526794
+    },
+    "frequency_prior": {
+      "accuracy": 0.43147208121827413,
+      "top2_accuracy": 0.7157360406091371,
+      "logloss": 1.0777989258749756,
+      "brier": 0.6522198459120307,
+      "rps": 0.448761885129738
+    },
+    "market_implied": {
+      "accuracy": 0.43147208121827413,
+      "top2_accuracy": 0.7157360406091371,
+      "logloss": 1.0792283189703193,
+      "brier": 0.6530971826945629,
+      "rps": 0.44946403228087667
+    }
+  },
+  "overall_models": {
+    "logistic_regression": {
+      "accuracy": 0.4289340101522843,
+      "top2_accuracy": 0.7055837563451777,
+      "logloss": 1.1015311035657045,
+      "brier": 0.6649662573702241,
+      "rps": 0.45483249277527243
+    },
+    "random_forest": {
+      "accuracy": 0.41624365482233505,
+      "top2_accuracy": 0.7258883248730964,
+      "logloss": 1.0884304814057963,
+      "brier": 0.6581251819025139,
+      "rps": 0.45164899973421313
+    },
+    "gradient_boosting": {
+      "accuracy": 0.3730964467005076,
+      "top2_accuracy": 0.7157360406091371,
+      "logloss": 1.3029105176031075,
+      "brier": 0.7640569299280501,
+      "rps": 0.5193846481038736
+    }
+  },
+  "league_breakdown": {
+    "140": {
+      "league_name": "La Liga Santander",
+      "baselines": {
+        "uniform": {
+          "accuracy": 0.4666666666666667,
+          "top2_accuracy": 0.725,
+          "logloss": 1.0986122886681096,
+          "brier": 0.6666666666666666,
+          "rps": 0.46944444444444444
+        },
+        "frequency_prior": {
+          "accuracy": 0.4666666666666667,
+          "top2_accuracy": 0.7416666666666667,
+          "logloss": 1.060341346543698,
+          "brier": 0.6398611111111111,
+          "rps": 0.4482638888888888
+        },
+        "market_implied": {
+          "accuracy": 0.4666666666666667,
+          "top2_accuracy": 0.7416666666666667,
+          "logloss": 1.064962003752636,
+          "brier": 0.6432643316737999,
+          "rps": 0.4515059539406644
+        }
+      },
+      "models": {
+        "logistic_regression": {
+          "accuracy": 0.4666666666666667,
+          "top2_accuracy": 0.7,
+          "logloss": 1.1064731965858805,
+          "brier": 0.6656324294467875,
+          "rps": 0.46222350816024804
+        },
+        "random_forest": {
+          "accuracy": 0.48333333333333334,
+          "top2_accuracy": 0.725,
+          "logloss": 1.0565336399517422,
+          "brier": 0.6347322967212288,
+          "rps": 0.4434349363610229
+        },
+        "gradient_boosting": {
+          "accuracy": 0.38333333333333336,
+          "top2_accuracy": 0.775,
+          "logloss": 1.2845564299155678,
+          "brier": 0.7665244054111441,
+          "rps": 0.5329871728896666
+        }
+      },
+      "samples": 120
+    },
+    "135": {
+      "league_name": "Serie A",
+      "baselines": {
+        "uniform": {
+          "accuracy": 0.43333333333333335,
+          "top2_accuracy": 0.7,
+          "logloss": 1.0986122886681096,
+          "brier": 0.6666666666666666,
+          "rps": 0.4666666666666667
+        },
+        "frequency_prior": {
+          "accuracy": 0.43333333333333335,
+          "top2_accuracy": 0.7333333333333333,
+          "logloss": 1.076034209113334,
+          "brier": 0.6511111111111111,
+          "rps": 0.4555555555555556
+        },
+        "market_implied": {
+          "accuracy": 0.43333333333333335,
+          "top2_accuracy": 0.7333333333333333,
+          "logloss": 1.0763772657917638,
+          "brier": 0.6513640201473201,
+          "rps": 0.45578944303723756
+        }
+      },
+      "models": {
+        "logistic_regression": {
+          "accuracy": 0.425,
+          "top2_accuracy": 0.7083333333333334,
+          "logloss": 1.1022419115282809,
+          "brier": 0.6658576731748495,
+          "rps": 0.4627267377606813
+        },
+        "random_forest": {
+          "accuracy": 0.44166666666666665,
+          "top2_accuracy": 0.7083333333333334,
+          "logloss": 1.0937065391306513,
+          "brier": 0.6594289679554144,
+          "rps": 0.45493259500394057
+        },
+        "gradient_boosting": {
+          "accuracy": 0.4,
+          "top2_accuracy": 0.7333333333333333,
+          "logloss": 1.3270928822073138,
+          "brier": 0.7644952346942815,
+          "rps": 0.5244116160425722
+        }
+      },
+      "samples": 120
+    },
+    "78": {
+      "league_name": "Bundesliga",
+      "baselines": {
+        "uniform": {
+          "accuracy": 0.4444444444444444,
+          "top2_accuracy": 0.7037037037037037,
+          "logloss": 1.0986122886681096,
+          "brier": 0.6666666666666665,
+          "rps": 0.469135802469136
+        },
+        "frequency_prior": {
+          "accuracy": 0.4444444444444444,
+          "top2_accuracy": 0.7407407407407407,
+          "logloss": 1.0708078595494444,
+          "brier": 0.6474622770919067,
+          "rps": 0.45541838134430734
+        },
+        "market_implied": {
+          "accuracy": 0.4444444444444444,
+          "top2_accuracy": 0.7407407407407407,
+          "logloss": 1.0719739759848321,
+          "brier": 0.6483179834564236,
+          "rps": 0.456135583570294
+        }
+      },
+      "models": {
+        "logistic_regression": {
+          "accuracy": 0.42592592592592593,
+          "top2_accuracy": 0.7222222222222222,
+          "logloss": 1.0964338078742801,
+          "brier": 0.6617124323961336,
+          "rps": 0.4632748078583541
+        },
+        "random_forest": {
+          "accuracy": 0.35185185185185186,
+          "top2_accuracy": 0.7777777777777778,
+          "logloss": 1.1098755382110137,
+          "brier": 0.6738984541924586,
+          "rps": 0.4761614618169505
+        },
+        "gradient_boosting": {
+          "accuracy": 0.37037037037037035,
+          "top2_accuracy": 0.6666666666666666,
+          "logloss": 1.2875807407722206,
+          "brier": 0.7397221342442556,
+          "rps": 0.5038249783791687
+        }
+      },
+      "samples": 54
+    },
+    "61": {
+      "league_name": "Ligue 1",
+      "baselines": {
+        "uniform": {
+          "accuracy": 0.38,
+          "top2_accuracy": 0.73,
+          "logloss": 1.0986122886681096,
+          "brier": 0.666666666666667,
+          "rps": 0.43888888888888894
+        },
+        "frequency_prior": {
+          "accuracy": 0.38,
+          "top2_accuracy": 0.73,
+          "logloss": 1.0886396699496013,
+          "brier": 0.6601999999999998,
+          "rps": 0.4327
+        },
+        "market_implied": {
+          "accuracy": 0.38,
+          "top2_accuracy": 0.65,
+          "logloss": 1.1036865062579693,
+          "brier": 0.6695571665647655,
+          "rps": 0.4358205956852128
+        }
+      },
+      "models": {
+        "logistic_regression": {
+          "accuracy": 0.39,
+          "top2_accuracy": 0.7,
+          "logloss": 1.0975001620597713,
+          "brier": 0.6648542173988065,
+          "rps": 0.431931330185947
+        },
+        "random_forest": {
+          "accuracy": 0.34,
+          "top2_accuracy": 0.72,
+          "logloss": 1.1087950912060187,
+          "brier": 0.6761145338200055,
+          "rps": 0.4443288319336906
+        },
+        "gradient_boosting": {
+          "accuracy": 0.33,
+          "top2_accuracy": 0.65,
+          "logloss": 1.3041946647917855,
+          "brier": 0.7737107832981087,
+          "rps": 0.5054314784858245
+        }
+      },
+      "samples": 100
+    }
+  },
+  "guardrails_passed": {
+    "logistic_regression_beats_baselines": false,
+    "logistic_regression_top2_above_90": "False",
+    "logistic_regression_beats_uniform_5pct": false,
+    "random_forest_beats_baselines": false,
+    "random_forest_top2_above_90": "False",
+    "random_forest_beats_uniform_5pct": false,
+    "gradient_boosting_beats_baselines": false,
+    "gradient_boosting_top2_above_90": "False",
+    "gradient_boosting_beats_uniform_5pct": false,
+    "phase_r_ready": false
+  },
+  "evaluation_date": "2025-07-27T17:03:09.250998",
+  "total_samples": 394,
+  "feature_order": [
+    "league_tier",
+    "league_competitiveness",
+    "regional_strength",
+    "home_advantage_factor",
+    "expected_goals_avg",
+    "match_importance",
+    "home_team_strength",
+    "away_team_strength",
+    "team_strength_diff",
+    "home_attack_strength",
+    "away_attack_strength",
+    "home_defense_strength",
+    "away_defense_strength",
+    "home_form_points",
+    "away_form_points",
+    "form_difference",
+    "head_to_head_factor",
+    "context_factor"
+  ]
+}
