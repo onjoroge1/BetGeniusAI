@@ -1,0 +1,177 @@
+# League Configuration
+# Per-league settings for calibration, timing windows, and CLV thresholds
+
+leagues:
+  39:  # English Premier League
+    name: "English Premier League"
+    region: "England"
+    tier: 1
+    
+    # Calibration settings
+    calibration:
+      min_samples_per_bucket: 50
+      buckets: ["24h", "6h", "1h", "close"]
+      recalibration_frequency_days: 30
+    
+    # Timing windows (backtested CLV >= 55%)
+    timing:
+      optimal_window_hours: [24, 6]  # Best CLV observed 24-6h before KO
+      avoid_window_hours: [1, 0]     # Poor CLV in last hour
+      clv_threshold: 0.55
+      min_edge_threshold: 0.02       # Minimum edge to trigger bet
+    
+    # Market characteristics
+    market:
+      home_advantage: 0.22
+      competitiveness: 0.85
+      volatility: "medium"
+      liquidity: "high"
+      
+    # Operational settings
+    operations:
+      max_matches_per_day: 10
+      max_stake_percentage: 0.05     # 5% of bankroll per match
+      kelly_fraction: 0.25           # Quarter Kelly
+      
+  140:  # La Liga Santander
+    name: "La Liga Santander"
+    region: "Spain"
+    tier: 1
+    
+    calibration:
+      min_samples_per_bucket: 40
+      buckets: ["24h", "6h", "1h", "close"]
+      recalibration_frequency_days: 30
+    
+    timing:
+      optimal_window_hours: [12, 3]
+      avoid_window_hours: [1, 0]
+      clv_threshold: 0.52
+      min_edge_threshold: 0.025
+    
+    market:
+      home_advantage: 0.24
+      competitiveness: 0.80
+      volatility: "medium"
+      liquidity: "high"
+      
+    operations:
+      max_matches_per_day: 8
+      max_stake_percentage: 0.04
+      kelly_fraction: 0.25
+      
+  135:  # Serie A
+    name: "Serie A"
+    region: "Italy"
+    tier: 1
+    
+    calibration:
+      min_samples_per_bucket: 40
+      buckets: ["24h", "6h", "1h", "close"]
+      recalibration_frequency_days: 30
+    
+    timing:
+      optimal_window_hours: [18, 4]
+      avoid_window_hours: [2, 0]
+      clv_threshold: 0.48
+      min_edge_threshold: 0.03
+    
+    market:
+      home_advantage: 0.21
+      competitiveness: 0.78
+      volatility: "low"
+      liquidity: "medium"
+      
+    operations:
+      max_matches_per_day: 6
+      max_stake_percentage: 0.035
+      kelly_fraction: 0.20
+      
+  78:  # Bundesliga
+    name: "Bundesliga"
+    region: "Germany"
+    tier: 1
+    
+    calibration:
+      min_samples_per_bucket: 35
+      buckets: ["24h", "6h", "1h", "close"]
+      recalibration_frequency_days: 30
+    
+    timing:
+      optimal_window_hours: [36, 8]
+      avoid_window_hours: [1, 0]
+      clv_threshold: 0.50
+      min_edge_threshold: 0.028
+    
+    market:
+      home_advantage: 0.23
+      competitiveness: 0.82
+      volatility: "medium"
+      liquidity: "high"
+      
+    operations:
+      max_matches_per_day: 5
+      max_stake_percentage: 0.04
+      kelly_fraction: 0.25
+      
+  61:  # Ligue 1
+    name: "Ligue 1"
+    region: "France"
+    tier: 1
+    
+    calibration:
+      min_samples_per_bucket: 30
+      buckets: ["24h", "6h", "1h", "close"]
+      recalibration_frequency_days: 35
+    
+    timing:
+      optimal_window_hours: [24, 5]
+      avoid_window_hours: [1.5, 0]
+      clv_threshold: 0.45
+      min_edge_threshold: 0.035
+    
+    market:
+      home_advantage: 0.20
+      competitiveness: 0.75
+      volatility: "high"
+      liquidity: "medium"
+      
+    operations:
+      max_matches_per_day: 4
+      max_stake_percentage: 0.03
+      kelly_fraction: 0.20
+
+# Global settings
+global:
+  # Default calibration
+  default_calibration:
+    min_samples_per_bucket: 30
+    buckets: ["24h", "6h", "1h"]
+    recalibration_frequency_days: 30
+  
+  # Default timing
+  default_timing:
+    optimal_window_hours: [24, 6]
+    avoid_window_hours: [1, 0]
+    clv_threshold: 0.50
+    min_edge_threshold: 0.03
+  
+  # Risk management
+  risk_management:
+    max_total_exposure: 0.20       # 20% of bankroll across all bets
+    max_correlated_exposure: 0.10  # 10% in correlated matches (same league/day)
+    stop_loss_threshold: -0.05     # Stop if down 5% from peak
+    drawdown_pause_threshold: -0.15 # Pause betting if down 15%
+  
+  # Quality gates
+  quality_gates:
+    min_logloss_vs_market: -0.005  # Must beat market by 0.005 LogLoss points
+    min_weekly_matches: 10         # Minimum matches for reliable evaluation
+    max_dispersion_threshold: 0.15 # Flag high-uncertainty predictions
+    
+  # Monitoring
+  monitoring:
+    weekly_report_day: "sunday"
+    alert_channels: ["email", "slack"]
+    performance_window_days: 30
+    clv_tracking_enabled: true

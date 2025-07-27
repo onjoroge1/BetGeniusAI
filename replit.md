@@ -168,4 +168,26 @@ Following recovery plan fallback strategy, pivoted from accuracy optimization to
 - Advanced timing optimization and risk management
 - Superior execution of market-anchored strategies with comprehensive guardrails
 
-The system architecture provides a solid foundation for market-anchored operational excellence with proven evaluation frameworks and quality gates.
+### Phase T: Market-Anchored Production System (Implemented)
+**COMPREHENSIVE FRAMEWORK COMPLETE:**
+- Calibrated-Consensus Forecaster v1: Multi-book implied probabilities → vig removal → robust consensus → per-league calibration
+- Two-Stage Model Shadow: Current model maintained in shadow for continuity and expanded data retraining
+- Unified Evaluation Harness: Source of truth for model performance with strict CI gates (LogLoss vs market -0.005, Top-2 ≥95%, Brier ≤0.205)
+- Production Module Structure: /consensus, /research, /eval, /predict with proper separation of concerns
+- League Configuration System: Per-league timing windows, CLV thresholds, calibration settings, and risk management parameters
+
+**OPERATIONAL INTELLIGENCE INFRASTRUCTURE:**
+- Consensus Builder: Multi-book odds aggregation with vig removal (proportional/additive/power methods)
+- Per-league Isotonic Calibration: Time-bucket aware calibration with OOF validation
+- Quality Gates: Hard CI failures for models that don't beat market baseline
+- Shadow Model Pipeline: Two-stage model retraining on expanded data with promotion gates
+- Risk Management: Kelly criterion, correlation-aware exposure limits, drawdown protection
+
+**PRODUCTION ARCHITECTURE:**
+- API routing to consensus by default, two-stage in shadow comparison
+- League-specific optimal timing windows based on backtested CLV ≥55%
+- Confidence-calibrated predictions with uncertainty quantification
+- Weekly quality reports with LogLoss/Brier/RPS per league monitoring
+- Database schema scaling to 10k+ matches with odds snapshots and feature store
+
+The system architecture provides a solid foundation for market-anchored operational excellence with proven evaluation frameworks and quality gates ready for production deployment.

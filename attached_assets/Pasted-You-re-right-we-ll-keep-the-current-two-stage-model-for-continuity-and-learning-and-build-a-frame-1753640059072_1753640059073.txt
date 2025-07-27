@@ -1,0 +1,289 @@
+You’re right—we’ll keep the current two-stage model (for continuity and learning), and build a framework to scale data to ~10k matches + richer features, while the user-facing forecasts come from a Calibrated-Consensus layer. As we grow the dataset and features, we’ll periodically retrain the residual/two-stage models and only promote them if they beat the market on LogLoss.
+
+Below is a copy-pasteable handoff for your agent.
+
+⸻
+
+✅ Plan Overview
+	•	Production (what users see):
+Calibrated-Consensus Forecaster v1 (multi-book implied probs → vig removal → robust average → per-league calibration).
+Goal: best, stable, well-calibrated pre-match probabilities.
+	•	Research (kept & improved):
+Two-Stage Model (Draw vs Not, then Home vs Away) kept as TwoStage_vCurrent.
+Run in shadow, retrain on expanded data, and promote only if it beats market implied on LogLoss per league.
+	•	Data Expansion:
+Backfill ≥10k matches (5–10 seasons of top Euro leagues) + odds snapshots + richer context.
+Goal: enable residual models to find real signal beyond market.
+
+⸻
+
+1) Repo / Module Layout
+
+/data
+  /raw
+  /snapshots         # odds snapshots from multiple books
+  /backfills         # historical season dumps
+/models
+  /consensus
+    calibrated_consensus_v1.joblib
+    calibrators/     # per-league, per-time-bucket
+  /twostage
+    TwoStage_vCurrent.joblib
+    feature_order.json
+    feature_dtypes.json
+/registry
+  model_cards/
+  run_metadata/
+/src
+  /ingest
+    backfill_matches.py
+    ingest_odds_snapshots.py
+    book_mapper.py
+  /features
+    build_feature_store.py
+    elo.py
+    form.py
+    h2h.py
+    season_phase.py
+    weather.py
+  /consensus
+    consensus_builder.py
+    calibrate_consensus.py
+  /research
+    twostage_train.py
+    residual_head.py          # (shadow, for later)
+    poisson_dc_head.py        # (shadow, for later)
+    stack_parent.py           # (shadow)
+  /eval
+    unified_harness.py        # source of truth
+    baselines.py
+    reports.py
+  /predict
+    api_router.py             # routes "consensus" vs "twostage" via config
+    predictor_consensus.py
+    predictor_twostage.py
+  /monitoring
+    weekly_quality_report.py  # LogLoss/Brier/Top-2 per league
+    clv_report.py
+  /utils
+    type_coercion.py
+    time_cv.py
+    leakage_tests.py
+/config
+  leagues.yml                 # per-league settings (calibration buckets, timing windows)
+/tests
+  test_feature_contract.py
+  test_leakage.py
+  test_metrics_vs_market.py
+  test_inference_parity.py
+
+
+⸻
+
+2) Database: Minimal DDL to Scale to 10k+
+
+Matches (canonical)
+
+CREATE TABLE IF NOT EXISTS matches (
+  match_id        BIGINT PRIMARY KEY,
+  league_id       INT NOT NULL,
+  season          INT NOT NULL,
+  match_date_utc  TIMESTAMP NOT NULL,
+  venue           VARCHAR(200),
+  neutral_flag    BOOLEAN DEFAULT FALSE,
+  home_team_id    INT NOT NULL,
+  away_team_id    INT NOT NULL,
+  outcome         CHAR(1) CHECK (outcome IN ('H','D','A')),
+  home_goals      INT,
+  away_goals      INT
+);
+CREATE INDEX IF NOT EXISTS idx_matches_league_season ON matches(league_id, season);
+CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(match_date_utc);
+
+Odds snapshots (multi-book, multi-time)
+
+CREATE TABLE IF NOT EXISTS odds_snapshots (
+  match_id        BIGINT,
+  league_id       INT,
+  book_id         VARCHAR(32),
+  ts_snapshot     TIMESTAMP,
+  secs_to_kickoff INT,
+  outcome         CHAR(1) CHECK (outcome IN ('H','D','A')),
+  odds_decimal    DOUBLE PRECISION,
+  implied_prob    DOUBLE PRECISION,
+  market_margin   DOUBLE PRECISION,
+  PRIMARY KEY(match_id, book_id, ts_snapshot, outcome)
+);
+CREATE INDEX IF NOT EXISTS idx_snapshots_match ON odds_snapshots(match_id, ts_snapshot);
+
+Feature store (team-match features; two rows per match—home & away—then pivot/merge)
+
+CREATE TABLE IF NOT EXISTS team_features (
+  match_id BIGINT,
+  team_id  INT,
+  is_home  BOOLEAN,
+  form_pts_last5 INT,
+  gf_avg5 DOUBLE PRECISION,
+  ga_avg5 DOUBLE PRECISION,
+  elo_pre DOUBLE PRECISION,
+  elo_trend5 DOUBLE PRECISION,
+  rest_days INT,
+  h2h_wins5 INT,
+  h2h_draws5 INT,
+  h2h_goal_diff5 DOUBLE PRECISION,
+  season_phase VARCHAR(16), -- early/mid/late
+  manager_tenure_days INT,
+  PRIMARY KEY(match_id, team_id, is_home)
+);
+
+(Add weather, lineups_injuries later if available.)
+
+⸻
+
+3) Ingestion & Backfill (target ≥10k matches)
+
+Backfill scope (top Euro)
+	•	EPL, La Liga, Serie A, Bundesliga, Ligue 1
+	•	Seasons: last 5–10 (aim ≥10k matches total)
+
+Odds snapshots cadence (per match)
+	•	open, 48h, 24h, 12h, 6h, 3h, 1h, 30m, 5m, close
+	•	Multi-book: store all, later compute consensus on implied probs.
+
+Commands
+
+# Backfill matches by league/season
+python -m src.ingest.backfill_matches --league_id EPL --seasons 2018-2025
+
+# Ingest odds snapshots from provider(s)
+python -m src.ingest.ingest_odds_snapshots --since 2018-07-01 --books pinn,bet365,williamhill
+
+Guardrails
+	•	All snapshot timestamps < match_date_utc (except close == last pre-KO).
+	•	Remove vig properly; store both raw odds and implied_prob.
+
+⸻
+
+4) Feature Store Build (pre-match only)
+
+python -m src.features.build_feature_store --recompute_all
+
+Rules
+	•	Compute for each team before given match: rolling form (5 & 10), GF/GA, Elo (recency-weighted), rest_days, H2H with decay, season_phase.
+	•	Then pivot to match-level with home_* and away_* columns + diffs (*_diff = home - away).
+	•	Persist feature_order.json + feature_dtypes.json with each model.
+
+Leakage tests
+
+pytest -q src/utils/leakage_tests.py
+# asserts: no feature timestamp >= match_date_utc; time-based CV only
+
+
+⸻
+
+5) Calibrated-Consensus Forecaster (Production)
+
+Consensus build
+	•	At a given prediction time bucket (e.g., 24–6h before KO), for each match:
+	•	Collect all books’ implied probs (vig-removed).
+	•	Compute median (or trimmed mean) per outcome → q_consensus.
+	•	Compute dispersion (std or IQR) per outcome for context.
+
+Per-league, per-bucket calibration
+
+python -m src.consensus.calibrate_consensus \
+  --buckets "24h,6h" --leagues "EPL,LALIGA,SERIEA,BUNDES,LIGUE1"
+
+	•	Fit isotonic (or Dirichlet) on OOF predictions only.
+	•	Save calibrators as artifacts, versioned by league & bucket.
+
+Weekly quality report
+
+python -m src.monitoring.weekly_quality_report
+# Outputs: LogLoss/Brier/RPS vs raw market implied, per league + overall
+
+CI gate (hard fail):
+Calibrated-Consensus LogLoss ≥ raw market implied in any launch league → block deploy.
+
+API routing
+	•	api_router.py routes /predict → predictor_consensus.py by default.
+	•	Keep /predict?model=twostage for shadow comparison.
+
+⸻
+
+6) Keep the Current Two-Stage Model (Shadow)
+	•	Keep TwoStage_vCurrent.joblib + feature_order.json in /models/twostage/.
+	•	Batch score the same matches as consensus; log outputs to compare.
+	•	Do not show two-stage to users until it beats market implied on LogLoss.
+
+Retraining (after data grows)
+
+python -m src.research.twostage_train --time_cv --optimize logloss
+
+	•	Evaluate with unified_harness.py against baselines (uniform, frequency, market implied).
+	•	OOF calibration per league.
+	•	Promotion gate below.
+
+⸻
+
+7) Promotion Gate (for any residual/two-stage model)
+
+A research model can be promoted only if ALL pass:
+	•	Per league: LogLoss(model_calibrated) ≤ LogLoss(market_implied) - 0.005
+	•	Overall: Top-2 ≥ 95%, Brier ≤ 0.205
+	•	Stability: Improvements reproducible across two consecutive weekly runs
+	•	Parity: API inference == offline within 1e-6 on a frozen test batch
+	•	No leakage & feature contract tests green
+
+If not, keep it in shadow and stick to Calibrated-Consensus for users.
+
+⸻
+
+8) Timing / CLV Layer (run alongside, but separate concern)
+	•	Static timing windows per league (backtested CLV ≥ 55%) in /config/leagues.yml.
+	•	Add dynamic timing classifier (predict P(CLV>0)) later; A/B vs static.
+	•	Best-price routing across books before any bet.
+	•	CLV report weekly: CLV%, magnitude, execution lag p50/p90.
+
+(This layer helps edge capture; it doesn’t change the forecast layer.)
+
+⸻
+
+9) Tests & CI Gates (must be green to merge)
+
+pytest -q src/tests
+
+# Gates:
+# 1) Feature contract + dtype coercion passes
+# 2) Leakage tests pass
+# 3) Calibrated-Consensus LogLoss < raw market implied per league
+# 4) Inference parity (consensus API vs offline) within 1e-6
+# 5) (Optional) Shadow: TwoStage_vCurrent beats uniform & frequency priors on LogLoss
+
+
+⸻
+
+10) Week-by-Week Execution (suggested)
+
+Week 1–2
+	•	Backfill seasons to hit ≥10k matches (top-5 Euro).
+	•	Populate odds_snapshots for open, 24h, 6h, close at minimum.
+	•	Build feature store (form/Elo/H2H/phase) and pass leakage tests.
+	•	Ship Calibrated-Consensus v1 + per-league calibration.
+	•	Wire API to consensus by default; two-stage in shadow.
+
+Week 3–4
+	•	Add additional snapshots (12h, 3h, 1h, 30m, 5m) + more books.
+	•	Ship static timing windows (per league) and weekly CLV report.
+	•	Retrain two-stage on the larger dataset (shadow); track LogLoss vs market.
+	•	Decide on adding Poisson/DC head (shadow) if data is ready.
+
+⸻
+
+TL;DR
+	•	Yes, we’re maintaining the current two-stage model—it runs in shadow and will be retrained on the bigger dataset.
+	•	Production forecasts now come from Calibrated-Consensus (market-anchored, per-league calibrated).
+	•	Data expansion to ~10k matches + richer features is underway to give the residual/two-stage model a real shot at beating the market later.
+	•	Promotion to production requires beating market implied on LogLoss with strict gates.
+
+If you want, I can also draft the consensus_builder.py + calibrate_consensus.py function signatures and a sample leagues.yml so your agent can drop it in quickly. Want me to add those stubs?
