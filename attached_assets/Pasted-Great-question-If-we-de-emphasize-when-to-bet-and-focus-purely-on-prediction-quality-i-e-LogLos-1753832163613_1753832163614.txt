@@ -1,0 +1,111 @@
+Great question. If we de-emphasize “when to bet” and focus purely on prediction quality—i.e., LogLoss, Brier, RPS, Top-2—the approach becomes simpler and more “offline-science.” You can drop the execution/timing/CLV layers and build a static, accuracy-first forecasting stack that you can evaluate rigorously on backfilled data.
+
+Below is a concise blueprint you can hand to the agent.
+
+⸻
+
+What changes (conceptually)
+
+We stop caring about:
+	•	Live odds ingestion cadence, multi-book routing, timing windows, CLV, execution lag.
+
+We do care about:
+	•	Getting the best possible calibrated probabilities at a fixed snapshot time (e.g., T-24h before kickoff).
+	•	Proper scoring rules: lower LogLoss and Brier, higher Top-2, better RPS.
+	•	Beating baselines (uniform, frequency prior, market-implied if you have historical odds).
+
+Net effect: The pipeline is lighter, more reproducible, and easier to validate. The complexity shifts from ops/timing to feature quality, model design, and calibration.
+
+⸻
+
+Static Accuracy-First Pipeline (fixed snapshot time)
+
+Choose one evaluation cutoff (e.g., T-24h pre-kickoff) and make everything revolve around that.
+
+	1.	Data snapshot
+	•	Backfill 5–10 seasons for target Euro leagues.
+	•	For every match, freeze features available at or before T-24h.
+	•	If you have historical odds for research, include opening or T-24h market-implied (margin-adjusted) as baselines and/or features. If you don’t, proceed without them—still fine for an accuracy-only product.
+	2.	Feature store (pre-match only)
+	•	Team strength: Elo/Glicko (global + league-specific), recency-weighted.
+	•	Form (L5/L10): points, GF/GA, goal-diff, streaks (home/away splits).
+	•	Head-to-head: recency-weighted summaries (H2H_wins5, H2H_goal_diff5).
+	•	Table context: rank, points gap, season phase, “must-win” flags.
+	•	Fatigue/Rest: days since last match, congestion flags (“3 in 7”).
+	•	Derived diffs: home−away for each numeric feature.
+	•	(Optional) Market implied probabilities (T-24h) as features.
+	3.	Targets & models
+	•	Primary target: 3-way outcome (H/D/A).
+	•	Architectures to train in parallel:
+	•	Two-stage classifier (Draw vs Not-Draw; then Home vs Away).
+	•	Multinomial (single-head) with CatBoost/LightGBM.
+	•	Goal-difference regression (HomeGoals − AwayGoals) → map to H/D/A.
+	•	Poisson / Dixon-Coles (λ_home, λ_away) → probabilities via Skellam/DC.
+	•	Stack the above with a simple meta-learner (logit averaging or meta-LR over out-of-fold predictions).
+	4.	Calibration (OOF-only)
+	•	Calibrate the final 3-way per league (isotonic or temperature).
+	•	Save calibrator artifacts per league. No calibration on test fold.
+	5.	Evaluation harness (single source of truth)
+	•	Metrics (per league + overall): LogLoss, Brier, RPS, Top-2, 3-way accuracy.
+	•	Baselines: uniform, frequency prior, (optional) market-implied.
+	•	Bootstrap confidence intervals for LogLoss deltas vs baselines.
+	•	Reliability plots; Brier decomposition (Reliability / Resolution / Uncertainty).
+	6.	Promotion rule (accuracy-only)
+	•	Promote a model to “consensus forecaster” if, for each target league with N ≥ 300 test matches at T-24h:
+	•	LogLoss(model) < LogLoss(best_baseline) by ≥ 0.005
+	•	Brier ≤ 0.205
+	•	Top-2 ≥ 95%
+	•	Otherwise, fall back to the market-implied (if available) or frequency prior as the published probability baseline.
+
+⸻
+
+Concrete build plan (copy to agent)
+
+Sprint A (1–2 weeks): “Make the probabilities right”
+	•	Lock T-24h snapshot builder; assert all features are pre-T-24h.
+	•	Implement feature diffs + recency weighting (Elo, form, H2H).
+	•	Train 3 heads:
+	1.	Two-stage classifier (CatBoost/LGBM).
+	2.	Poisson/DC (attack/defense + home advantage).
+	3.	Goal-diff regression → H/D/A mapping.
+	•	Create OOF meta-stacker (logit averaging / meta-LR).
+	•	Per-league calibration (OOF-only); persist calibrators.
+	•	Unified harness: LogLoss, Brier (correctly normalized), RPS, Top-2 + baselines.
+	•	Model card with delta vs baselines and calibration plots.
+
+Sprint B (1–2 weeks): “Squeeze LogLoss/Brier further”
+	•	Team embeddings (CatBoost categorical or light NN) → add to Poisson & classifier heads.
+	•	Season phase & must-win features.
+	•	Optuna hyper-tuning with walk-forward CV optimizing LogLoss.
+	•	League adapters (league_id categorical, or small per-league heads).
+	•	Ablation study: quantify gains per feature family; keep only signal.
+
+⸻
+
+Guardrails & tests (still needed, just simpler)
+	•	Leakage tests: assert feature timestamps < match_date (T-24h).
+	•	Feature contract: feature_order.json, feature_dtypes.json; inference must reindex & coerce.
+	•	Metrics contract: One implementation of Brier used everywhere (no unnormalized variants).
+	•	Reproducibility: model artifact carries data hash, code SHA, seeds; rerun delta < 0.001.
+
+⸻
+
+Deliverables to expect each run
+	•	METRICS_TABLE.csv (per league + overall; Model vs Uniform, Freq, Market)
+	•	CALIBRATION_REPORT.html (reliability curves; ECE/MCE)
+	•	ABLATION_RESULTS.csv (delta LogLoss by feature family)
+	•	MODEL_CARD.md (data slice, splits, metrics, calibration type, limits)
+	•	Artifacts: model.joblib, calibrator.pkl, feature_order.json, train_metadata.json
+
+⸻
+
+Practical notes
+	•	You don’t need live feeds for this mode. A nightly batch that retrains on the latest season and exports T-24h probabilities is sufficient.
+	•	If you do have historical market implied probabilities, keep using them as baselines and optionally as features (residual modeling). You just don’t need to stream them live.
+	•	When/if you later decide to monetize through “betting assistance,” you can bolt the timing/CLV layer back on. Your accuracy stack won’t change.
+
+⸻
+
+TL;DR
+
+Strip the ops/timing complexity. Fix a snapshot time (e.g., T-24h), optimize proper scoring rules with strong heads (two-stage + Poisson/DC + goal-diff), stack and calibrate per league, and promote only when you beat baselines (LogLoss/Brier/Top-2) with enough samples. This will give you a clean, defensible forecasting product even without any live/timing data.
