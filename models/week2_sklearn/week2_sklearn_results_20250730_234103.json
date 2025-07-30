@@ -1,0 +1,100 @@
+{
+  "cv_results": {
+    "oof_final_logloss": 8.437300367184257,
+    "oof_consensus_logloss": 0.963734649170279,
+    "oof_logloss_improvement": -7.473565718013978,
+    "oof_final_brier": 0.930198882971776,
+    "oof_consensus_brier": 0.5728068442287402,
+    "oof_brier_improvement": -0.3573920387430358,
+    "oof_accuracy": 0.5181315304240934,
+    "fold_performances": [
+      {
+        "fold": 1,
+        "final_logloss": 8.438216081458455,
+        "consensus_logloss": 0.9447450238776225,
+        "improvement": -7.493471057580832,
+        "sample_size": 326
+      },
+      {
+        "fold": 2,
+        "final_logloss": 8.61399845924889,
+        "consensus_logloss": 0.9829434597417127,
+        "improvement": -7.631054999507177,
+        "sample_size": 326
+      },
+      {
+        "fold": 3,
+        "final_logloss": 8.620030111538847,
+        "consensus_logloss": 0.958298862826603,
+        "improvement": -7.661731248712244,
+        "sample_size": 325
+      },
+      {
+        "fold": 4,
+        "final_logloss": 8.289759954730014,
+        "consensus_logloss": 0.9493136691358026,
+        "improvement": -7.340446285594211,
+        "sample_size": 325
+      },
+      {
+        "fold": 5,
+        "final_logloss": 8.223950724925578,
+        "consensus_logloss": 0.9833715558534116,
+        "improvement": -7.240579169072166,
+        "sample_size": 325
+      }
+    ],
+    "trained_models": {
+      "H": [
+        "RandomForestRegressor(max_depth=10, min_samples_leaf=10, min_samples_split=20,\n                      n_jobs=-1, random_state=42)",
+        "StandardScaler()"
+      ],
+      "D": [
+        "RandomForestRegressor(max_depth=10, min_samples_leaf=10, min_samples_split=20,\n                      n_jobs=-1, random_state=42)",
+        "StandardScaler()"
+      ],
+      "A": [
+        "RandomForestRegressor(max_depth=10, min_samples_leaf=10, min_samples_split=20,\n                      n_jobs=-1, random_state=42)",
+        "StandardScaler()"
+      ]
+    },
+    "feature_names": [
+      "logit_cons_h",
+      "logit_cons_d",
+      "logit_cons_a",
+      "dispH",
+      "dispD",
+      "dispA",
+      "total_dispersion",
+      "max_dispersion",
+      "market_confidence",
+      "n_books",
+      "book_coverage_pct",
+      "avg_overround",
+      "overround_deviation",
+      "league_tier",
+      "is_weekend",
+      "season_phase",
+      "dispersion_x_books",
+      "confidence_x_tier",
+      "disagree_js"
+    ]
+  },
+  "verification": {
+    "logloss_improvement": -7.473565718013978,
+    "brier_improvement": -0.3573920387430358,
+    "accuracy": 0.5181315304240934,
+    "targets": {
+      "logloss_target": 0.015,
+      "logloss_achieved": "False",
+      "brier_target": 0.005,
+      "brier_achieved": "False"
+    },
+    "fold_consistency": {
+      "positive_folds": 0,
+      "total_folds": 5,
+      "mean_improvement": -7.473456552093326,
+      "std_improvement": 0.1628550391980923
+    }
+  }
+}

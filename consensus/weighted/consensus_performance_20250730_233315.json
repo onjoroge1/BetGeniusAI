@@ -1,0 +1,56 @@
+{
+  "overall": {
+    "sample_size": 1627,
+    "weighted_logloss": 0.963734649170279,
+    "equal_logloss": 0.9637346878951978,
+    "logloss_improvement": 3.8724918827170995e-08,
+    "weighted_brier": 0.5728068442287402,
+    "equal_brier": 0.5728068710980233,
+    "brier_improvement": 2.686928313178072e-08,
+    "avg_n_books": 5.76459741856177,
+    "avg_dispersion": 0.005816919487607448,
+    "avg_disagreement": 5.670676185215007e-05
+  },
+  "by_league": [
+    {
+      "league": "I1",
+      "sample_size": 380,
+      "weighted_logloss": 0.9671795496199628,
+      "equal_logloss": 0.9671801494956005,
+      "improvement": 5.998756377190162e-07,
+      "avg_n_books": 5.447368421052632,
+      "avg_dispersion": 0.006767367105325567,
+      "avg_disagreement": 7.562936325640253e-05
+    },
+    {
+      "league": "D1",
+      "sample_size": 306,
+      "weighted_logloss": 0.9480123945290783,
+      "equal_logloss": 0.9480113670683048,
+      "improvement": -1.0274607734617192e-06,
+      "avg_n_books": 5.437908496732026,
+      "avg_dispersion": 0.005249319151645222,
+      "avg_disagreement": 4.620082807191255e-05
+    },
+    {
+      "league": "E0",
+      "sample_size": 561,
+      "weighted_logloss": 0.9457256745784741,
+      "equal_logloss": 0.9457257561889196,
+      "improvement": 8.161044551258101e-08,
+      "avg_n_books": 6.0,
+      "avg_dispersion": 0.005371075627686432,
+      "avg_disagreement": 5.006299596127282e-05
+    },
+    {
+      "league": "F1",
+      "sample_size": 380,
+      "weighted_logloss": 0.9995372346843051,
+      "equal_logloss": 0.9995375075059829,
+      "improvement": 2.7282167780473543e-07,
+      "avg_n_books": 5.997368421052632,
+      "avg_dispersion": 0.005981745838889672,
+      "avg_disagreement": 5.6052498346673394e-05
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "timestamp": "2025-07-30T23:43:09.962751",
+  "previous_results": {
+    "cv_results": {
+      "oof_final_logloss": 8.437300367184257,
+      "oof_consensus_logloss": 0.963734649170279,
+      "oof_logloss_improvement": -7.473565718013978,
+      "oof_final_brier": 0.930198882971776,
+      "oof_consensus_brier": 0.5728068442287402,
+      "oof_brier_improvement": -0.3573920387430358,
+      "oof_accuracy": 0.5181315304240934,
+      "fold_performances": [
+        {
+          "fold": 1,
+          "final_logloss": 8.438216081458455,
+          "consensus_logloss": 0.9447450238776225,
+          "improvement": -7.493471057580832,
+          "sample_size": 326
+        },
+        {
+          "fold": 2,
+          "final_logloss": 8.61399845924889,
+          "consensus_logloss": 0.9829434597417127,
+          "improvement": -7.631054999507177,
+          "sample_size": 326
+        },
+        {
+          "fold": 3,
+          "final_logloss": 8.620030111538847,
+          "consensus_logloss": 0.958298862826603,
+          "improvement": -7.661731248712244,
+          "sample_size": 325
+        },
+        {
+          "fold": 4,
+          "final_logloss": 8.289759954730014,
+          "consensus_logloss": 0.9493136691358026,
+          "improvement": -7.340446285594211,
+          "sample_size": 325
+        },
+        {
+          "fold": 5,
+          "final_logloss": 8.223950724925578,
+          "consensus_logloss": 0.9833715558534116,
+          "improvement": -7.240579169072166,
+          "sample_size": 325
+        }
+      ],
+      "trained_models": {
+        "H": [
+          "RandomForestRegressor(max_depth=10, min_samples_leaf=10, min_samples_split=20,\n                      n_jobs=-1, random_state=42)",
+          "StandardScaler()"
+        ],
+        "D": [
+          "RandomForestRegressor(max_depth=10, min_samples_leaf=10, min_samples_split=20,\n                      n_jobs=-1, random_state=42)",
+          "StandardScaler()"
+        ],
+        "A": [
+          "RandomForestRegressor(max_depth=10, min_samples_leaf=10, min_samples_split=20,\n                      n_jobs=-1, random_state=42)",
+          "StandardScaler()"
+        ]
+      },
+      "feature_names": [
+        "logit_cons_h",
+        "logit_cons_d",
+        "logit_cons_a",
+        "dispH",
+        "dispD",
+        "dispA",
+        "total_dispersion",
+        "max_dispersion",
+        "market_confidence",
+        "n_books",
+        "book_coverage_pct",
+        "avg_overround",
+        "overround_deviation",
+        "league_tier",
+        "is_weekend",
+        "season_phase",
+        "dispersion_x_books",
+        "confidence_x_tier",
+        "disagree_js"
+      ]
+    },
+    "verification": {
+      "logloss_improvement": -7.473565718013978,
+      "brier_improvement": -0.3573920387430358,
+      "accuracy": 0.5181315304240934,
+      "targets": {
+        "logloss_target": 0.015,
+        "logloss_achieved": "False",
+        "brier_target": 0.005,
+        "brier_achieved": "False"
+      },
+      "fold_consistency": {
+        "positive_folds": 0,
+        "total_folds": 5,
+        "mean_improvement": -7.473456552093326,
+        "std_improvement": 0.1628550391980923
+      }
+    }
+  },
+  "data_diagnosis": {
+    "prob_sum_stats": {
+      "mean": 1.0,
+      "std": 1.055263354885533e-16,
+      "min": 0.9999999999999997,
+      "max": 1.0000000000000002
+    },
+    "logit_stats": {
+      "inf_counts": [
+        0,
+        0,
+        0
+      ],
+      "nan_counts": [
+        0,
+        0,
+        0
+      ],
+      "ranges": [
+        [
+          -2.8579297345789776,
+          2.146224617986847
+        ],
+        [
+          -2.6202344696826465,
+          -0.7176910111321926
+        ],
+        [
+          -3.3855690383888026,
+          1.6315923523049363
+        ]
+      ]
+    },
+    "result_distribution": {
+      "H": 704,
+      "A": 496,
+      "D": 427
+    }
+  },
+  "improved_results": {
+    "oof_ml_logloss": 0.9836923032225443,
+    "oof_consensus_logloss": 0.963734649170279,
+    "oof_logloss_improvement": -0.01995765405226535,
+    "oof_ml_brier": 0.5845780676631129,
+    "oof_consensus_brier": 0.5728068442287402,
+    "oof_brier_improvement": -0.011771223434372757,
+    "oof_accuracy": 0.5298094652735095,
+    "oof_predictions": "[[0.71409568 0.20832518 0.07757913]\n [0.16106765 0.26063087 0.57830148]\n [0.73490326 0.16433464 0.1007621 ]\n ...\n [0.18478555 0.27458521 0.54062924]\n [0.19805824 0.23752012 0.56442163]\n [0.58084958 0.23349245 0.18565797]]",
+    "fold_performances": [
+      {
+        "fold": 1,
+        "ml_logloss": 0.9714485372533455,
+        "consensus_logloss": 0.9447450238776225,
+        "improvement": -0.026703513375722965,
+        "sample_size": 326
+      },
+      {
+        "fold": 2,
+        "ml_logloss": 1.0057145536094632,
+        "consensus_logloss": 0.9829434597417127,
+        "improvement": -0.022771093867750447,
+        "sample_size": 326
+      },
+      {
+        "fold": 3,
+        "ml_logloss": 0.9832979920620035,
+        "consensus_logloss": 0.958298862826603,
+        "improvement": -0.024999129235400486,
+        "sample_size": 325
+      },
+      {
+        "fold": 4,
+        "ml_logloss": 0.9520387304552116,
+        "consensus_logloss": 0.9493136691358026,
+        "improvement": -0.0027250613194089723,
+        "sample_size": 325
+      },
+      {
+        "fold": 5,
+        "ml_logloss": 1.0059316150883355,
+        "consensus_logloss": 0.9833715558534114,
+        "improvement": -0.0225600592349241,
+        "sample_size": 325
+      }
+    ]
+  },
+  "recommendations": [
+    "\ud83d\udd27 Further optimization needed - consider different model architecture",
+    "\u2705 Accuracy is reasonable for 3-way classification",
+    "\ud83c\udfaf Focus on market confidence and dispersion features",
+    "\ud83d\udcc8 Consider ensemble approach combining market consensus with ML",
+    "\ud83d\udd0d Investigate league-specific modeling for better performance"
+  ]
+}

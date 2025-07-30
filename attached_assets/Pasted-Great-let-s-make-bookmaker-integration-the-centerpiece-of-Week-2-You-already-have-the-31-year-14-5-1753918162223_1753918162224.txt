@@ -1,0 +1,148 @@
+Great—let’s make bookmaker integration the centerpiece of Week 2. You already have the 31-year, 14,527-row historical asset and a working weighted consensus. Now we’ll (1) push the market prior beyond equal/weighted averages by learning from book-level behavior, (2) feed book features into the Residual-on-Market head, and (3) harden evaluation so we can promote changes confidently.
+
+Below is an execution-ready plan for your agent.
+
+⸻
+
+Week 2 Goal (no user exposure)
+
+Target: move from LL ≈ 0.8157 to ~0.79–0.80 by adding bookmaker-aware features and retraining the Residual-on-Market stack using T-72 snapshots—while keeping all verification gates and horizon checks.
+
+⸻
+
+1) Data model additions (book intelligence)
+
+Create/extend these tables once:
+	1.	bookmaker_meta
+	•	book_id, name, type (sharp/recreational/other), country, optional era_start/era_end.
+	•	is_active flag; optional historical change notes.
+	2.	book_quality_by_era (computed from historical_odds; closing odds only)
+	•	Keys: league_id, era_bin (e.g., 5-year bins), book_id.
+	•	Metrics: ll_closing, brier_closing, coverage_rate, avg_overround.
+	•	Derived: quality_weight (non-neg., sums to 1 within league×era), sharpness_rank.
+	3.	odds_snapshots / odds_consensus (already in place)
+	•	Ensure odds_snapshots stores per-book implied probs (margin-adjusted) at T-72 and overround.
+	•	odds_consensus will now store weighted consensus (pH_cons_w, pD_cons_w, pA_cons_w) + dispersion (dispH, dispD, dispA) + n_books.
+
+Notes
+	•	Keep era bins large enough to be stable (e.g., 5-year); smooth with the adjacent era if a book is sparse.
+	•	Default to equal weights if n_books < 2 or era weights missing.
+
+⸻
+
+2) Features to extract per match (T-72)
+
+For every match at T-72, compute in a feature pack passed to the residual head:
+
+2.1 Consensus-based inputs
+	•	logit(q_cons_w): logit(pH_cons_w), logit(pD_cons_w), logit(pA_cons_w).
+	•	Dispersion: dispH, dispD, dispA; n_books, avg_overround.
+	•	Disagreement index: mean KL divergence across books vs consensus (or Jensen-Shannon); call it disagree_js.
+
+2.2 Book-identity features (multi-book)
+
+For each available book j:
+	•	Delta-logits: Δlogit_j = logit(q_j) − logit(q_cons_w) for H/D/A (3 numbers).
+(If many books: aggregate sharp vs rec means using bookmaker_meta.type.)
+	•	Book presence mask: binary flags per book (or per group—sharp/rec).
+	•	Book quality: inject quality_weight_j and ll_closing_j (league×era) so the model can learn to trust some books more even before weighting.
+	•	Overround_j: predictive of book’s pricing style at T-72.
+
+If you want a compact version:
+	•	Aggregate sharp mean Δlogit and rec mean Δlogit; include their std.
+
+2.3 Structural enrichment (existing)
+	•	Team diffs (Elo/form/attack vs defense ratios), Poisson/DC λ features (λ_home, λ_away, λ_diff, λ_sum), rest/congestion, season-phase.
+
+Missingness policy
+	•	If a book is absent for a match: set deltas to 0 and present_flag=0 (or leave NaN + mask); never impute with consensus blindly without a mask.
+
+⸻
+
+3) Residual-on-Market head (book-aware)
+
+We keep the same residual formulation but let the model learn from book signals:
+
+\text{logit}(p_o) \;=\; \text{logit}(q^{\text{cons,\,weighted}}o)\;+\;g_o\big( x{\text{book}}, x_{\text{disp}}, x_{\text{struct}}\big),
+\quad o\in\{H,D,A\}
+
+Where g_o(\cdot) is a small CatBoost (or multinomial LR) that outputs delta logits. Then re-normalize and apply OOF per-league isotonic calibration.
+
+Training details
+	•	Walk-forward CV; optimize LogLoss.
+	•	Sample weights (if any) from process scores only—not as features.
+	•	Clip probabilities to [0.02, 0.98] before logits to avoid infinities.
+
+⸻
+
+4) New consensus formation (under the hood)
+
+You already saw “equal vs optimal” perform similarly in Week 1. That’s common. The lift often comes when your residual head sees per-book deviations from the weighted consensus:
+	•	Maintain weighted consensus at T-72 using book_quality_by_era weights.
+	•	Let the residual head leverage Δlogit_j, overround_j, disagree_js, n_books to nudge away from consensus when multiple higher-quality books disagree in the same direction.
+
+⸻
+
+5) Verification bundle (Week 2, must pass)
+
+Run on the same evaluation slice used for 0.8157 to make deltas clean:
+	1.	METRICS_TABLE.csv (per league + overall)
+	•	N, LL_uniform, LL_freq, LL_mkt_close, LL_mkt_T72_equal, LL_mkt_T72_weighted, LL_resid_bookaware, LL_stack, Brier, Top2, RPS.
+	2.	TOP2_AUDIT.csv
+	•	Counts of top-2 misses per league. (We expect ≥95%; if 100%, double-check label mapping again.)
+	3.	HORIZON_AUDIT.csv
+	•	ts_snapshot, secs_to_kickoff dist; confirm all ≤ KO−72h.
+	4.	ABLATIONS_DeltaLL.csv
+	•	Remove book identity features; remove dispersion; market-only; no Poissonλ; report ΔLL each.
+	5.	CALIBRATION_REPORT.html
+	•	Reliability (ECE/MCE) per outcome; Brier decomposition.
+
+Promotion gates (internal):
+	•	LL(resid_bookaware or stack) ≤ LL(Market-T72_weighted) − 0.005 (95% CI excludes 0).
+	•	Brier ≤ 0.202 (aim ≤ 0.200 once stable).
+	•	Top-2 ≥ 92–95%.
+	•	Horizon audit clean; parity & reproducibility pass (|Δprob| ≤ 1e-6; metric delta ≤ 0.001).
+
+⸻
+
+6) Tasks for the agent (copy/paste)
+
+Data & ETL
+	•	meta/build_book_quality_by_era.py → fills book_quality_by_era (league×era, per book): ll_closing, brier_closing, coverage, avg_overround, quality_weight.
+	•	consensus/apply_weighted_consensus.py → forms T-72 weighted consensus + dispersion + n_books.
+	•	features/build_book_features.py → builds per-match feature pack: logit(q_cons_w), dispersion, n_books, disagree_js, per-book Δlogit, overround_j, present_flag_j, and book group aggregates.
+
+Modeling
+	•	models/train_residual_bookaware.py → residual head with book features; OOF per-league calibration.
+	•	models/stack_and_calibrate.py → stack residual head + CatBoost (feature-only) + Poisson/DC; recalibrate per league.
+
+Verification
+	•	reports/run_week2_verification.py → emits METRICS_TABLE, TOP2_AUDIT, HORIZON_AUDIT, ABLATIONS_DeltaLL, CALIBRATION_REPORT; computes bootstrap CIs vs Market-T72_weighted.
+
+CI guardrails
+	•	Feature safelist enforced (no process/meta fields in X).
+	•	Horizon assertion: all odds snapshots used as features satisfy ts_snapshot ≤ KO−72h.
+	•	Baseline gate: build fails if LL(model) ≥ LL(Market-T72_weighted).
+
+⸻
+
+7) Expected results & interpretation
+	•	Weighted consensus may only slightly beat equal weights; that’s fine.
+	•	Real lift comes when the residual head learns from book disagreements and dispersion:
+	•	If several higher-quality books push the same way, the model can deviate from consensus confidently → lower LogLoss.
+	•	When dispersion high / n_books low, calibration should soften predictions → lower Brier.
+
+Conservative Week-2 target: −0.015 to −0.025 LL vs 0.8157 → 0.79–0.80 overall, with Brier ≤ 0.200–0.202, Top-2 ≥ 95%.
+
+⸻
+
+8) What we’ll do after Week 2 (still offline)
+	•	Add movement features once multiple pre-KO snapshots (e.g., T-168, T-120, T-72) are stored: Δlogit across time.
+	•	Integrate the OpenAI contextual layer to produce the analysis and additional markets fields required by your workflow doc (kept behind a feature flag for now).
+	•	Prepare weekly MODEL_CARD & schema contract tests for /predict.
+
+⸻
+
+Bottom line
+
+You’ve done the heavy lifting with historical odds. Week 2 is about teaching the model how book behaviors matter—who disagrees, by how much, and when to trust (or distrust) consensus—and proving the gains with the same rigorous harness. If you give the go-ahead, I’ll draft the build_book_features.py spec (exact field list and shapes) so your agent can implement it without ambiguity.

@@ -1,0 +1,66 @@
+{
+  "b365": {
+    "name": "Bet365",
+    "type": "recreational",
+    "country": "UK",
+    "era_start": "1998",
+    "is_active": true,
+    "market_position": "major_recreational"
+  },
+  "bw": {
+    "name": "Betway",
+    "type": "recreational",
+    "country": "UK",
+    "era_start": "2006",
+    "is_active": true,
+    "market_position": "mid_tier_recreational"
+  },
+  "iw": {
+    "name": "Interwetten",
+    "type": "recreational",
+    "country": "Austria",
+    "era_start": "1997",
+    "is_active": true,
+    "market_position": "european_recreational"
+  },
+  "lb": {
+    "name": "Ladbrokes",
+    "type": "recreational",
+    "country": "UK",
+    "era_start": "1995",
+    "is_active": true,
+    "market_position": "traditional_uk"
+  },
+  "ps": {
+    "name": "Pinnacle",
+    "type": "sharp",
+    "country": "Curacao",
+    "era_start": "1998",
+    "is_active": true,
+    "market_position": "sharp_leader"
+  },
+  "wh": {
+    "name": "William Hill",
+    "type": "recreational",
+    "country": "UK",
+    "era_start": "1993",
+    "is_active": true,
+    "market_position": "major_traditional"
+  },
+  "sj": {
+    "name": "Stan James",
+    "type": "recreational",
+    "country": "UK",
+    "era_start": "2000",
+    "is_active": false,
+    "market_position": "uk_specialist"
+  },
+  "vc": {
+    "name": "Victor Chandler",
+    "type": "recreational",
+    "country": "UK",
+    "era_start": "1999",
+    "is_active": false,
+    "market_position": "premium_uk"
+  }
+}
