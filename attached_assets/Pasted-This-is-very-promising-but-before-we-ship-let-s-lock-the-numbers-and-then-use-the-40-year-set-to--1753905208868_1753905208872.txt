@@ -1,0 +1,198 @@
+This is *very* promising—but before we ship, let’s lock the numbers and then use the 40‑year set to build something durable.
+
+Below is a tight plan that (A) **re‑verifies** the new results, (B) **stands up** a two‑store odds architecture (historical + horizon snapshots), and (C) **ships** a canary with guardrails.
+
+---
+
+## A) Re‑verify the new metrics (blockers before ship)
+
+Some of the reported figures still look unusually strong (e.g., **Top‑2 = 100%**, **Brier = 0.156**). Let’s confirm with a single reference implementation and publish the raw baselines next to the model.
+
+**Ask the agent to run & attach a one‑screen “truth table”:**
+
+1. **Exact metric formulae** (same harness everywhere):
+
+   ```python
+   import numpy as np
+   def logloss_mc(y_true_idx, P, eps=1e-15):
+       p = np.clip(P[np.arange(len(P)), y_true_idx], eps, 1-eps)
+       return float(-np.log(p).mean())
+
+   def brier_mc(y_true_idx, P):
+       Y = np.eye(3)[y_true_idx]
+       return float(((P - Y)**2).mean())  # normalized over classes & samples
+   ```
+
+   *Sanity check:* **Uniform 33/33/33** must be \~**0.222** Brier. If your uniform Brier isn’t ≈0.222, the implementation is off.
+
+2. **Same 1,000‑match slice**: print **per‑league and overall** (one CSV):
+
+   * `N, LL_uniform, LL_freq, LL_market_close, LL_market_T72, LL_model, Brier_model, Top2_model, Acc_model, RPS_model`
+   * Also print **mean p\_true** (the probability the model assigned to the realized outcome). For **LL = 0.8089**, mean p\_true ≈ `exp(-0.8089) ≈ 0.445`. (This helps spot formula mistakes.)
+
+3. **Top‑2 audit**
+
+   * Dump a confusion matrix and **count of top‑2 misses**. On 1,000 matches, **Top‑2 = 100%** means **zero** times the true class was the least‑probable—possible but very unlikely; please confirm label mapping and that probabilities always sum to 1.
+
+4. **Horizon audit**
+
+   * For each match used as features, list: `match_id, ts_snapshot, secs_to_kickoff, used_horizon=72h, horizon_effective`.
+   * Confirm **no closing odds** were used as features and all snapshots satisfy `ts_snapshot ≤ KO − 72h`.
+
+5. **Ablations** (should move metrics sensibly):
+
+   * Remove **odds features** → LL should degrade toward your feature‑only stack.
+   * Remove **dispersion** features → small LL rise.
+   * Keep **Market‑T72** only → LL near the Market‑T72 baseline.
+
+> If all of this checks out, the **0.8089 LL**, **Brier \~0.156**, and **market‑beating ΔLL** are defensible. If not, we’ll fix the metric or horizon bug before canary.
+
+---
+
+## B) Dual odds architecture (what to build with the 40‑year file)
+
+You’re right: the “**historical\_odds** + **odds\_consensus (T‑72h)**” architecture is the best of both worlds.
+
+### 1) Schemas
+
+**Historical (mostly closing odds, many books, many seasons):**
+
+```sql
+CREATE TABLE IF NOT EXISTS historical_odds (
+  provider_match_key TEXT,            -- e.g., league+date+teams or native id
+  league_id INT,
+  season INT,
+  kickoff_utc TIMESTAMP,
+  home_team_id INT,
+  away_team_id INT,
+  book_id VARCHAR(64),
+  odds_type VARCHAR(16) DEFAULT 'closing',  -- closing/opening if available
+  odds_H DOUBLE PRECISION,
+  odds_D DOUBLE PRECISION,
+  odds_A DOUBLE PRECISION,
+  implied_H DOUBLE PRECISION,              -- margin-adjusted
+  implied_D DOUBLE PRECISION,
+  implied_A DOUBLE PRECISION,
+  market_margin DOUBLE PRECISION,
+  source_file TEXT,
+  PRIMARY KEY (provider_match_key, book_id, odds_type)
+);
+```
+
+**Horizon snapshots (The Odds API, used as features):**
+
+```sql
+CREATE TABLE IF NOT EXISTS odds_snapshots (
+  match_id BIGINT,
+  league_id INT,
+  book_id  VARCHAR(64),
+  market   VARCHAR(32),                -- '1x2'
+  ts_snapshot TIMESTAMP,               -- UTC
+  secs_to_kickoff INT,
+  outcome CHAR(1) CHECK (outcome IN ('H','D','A')),
+  odds_decimal DOUBLE PRECISION,
+  implied_prob DOUBLE PRECISION,       -- margin-adjusted
+  market_margin DOUBLE PRECISION,
+  PRIMARY KEY(match_id, book_id, ts_snapshot, outcome)
+);
+
+CREATE TABLE IF NOT EXISTS odds_consensus (
+  match_id BIGINT,
+  horizon_hours INT,                   -- 72, 120
+  ts_effective TIMESTAMP,
+  pH_cons DOUBLE PRECISION,
+  pD_cons DOUBLE PRECISION,
+  pA_cons DOUBLE PRECISION,
+  dispH DOUBLE PRECISION,              -- dispersion (IQR or std)
+  dispD DOUBLE PRECISION,
+  dispA DOUBLE PRECISION,
+  n_books INT,
+  PRIMARY KEY (match_id, horizon_hours)
+);
+```
+
+**Support tables:**
+
+* `team_name_xwalk(provider_name → canonical_team_id)` (versioned across eras).
+* `league_map(theodds_sport_key → league_id)`.
+
+### 2) ETL for the 40‑year CSVs
+
+* Normalize dates/timezones; standardize team names via the crosswalk; dedupe rows.
+* Compute implied probs per book (`1/odds`, margin‑adjust each match), store **closing** probs in `historical_odds`.
+* Build quality flags: missing outcomes, absurd margins (e.g., overround > 1.15).
+* Create **per‑league era weights** (older seasons down‑weighted in training to handle regime changes).
+
+### 3) How we’ll *use* the historical table
+
+* **Not** as direct features at T‑72h (to avoid leakage).
+* Use it to:
+
+  * Learn **book weights** (which books are historically sharper → weight them in consensus).
+  * Derive **league/era priors** (draw rates, home adv) for calibration.
+  * Train auxiliary models that map **market consensus → outcome** by league/era (helps stabilize the residual head).
+  * Provide **dispersion priors** (eras with fewer books → wider uncertainty bands).
+
+---
+
+## C) Production plan (canary with guardrails)
+
+**Ship only if all gates pass per league (N ≥ 300 in eval slice):**
+
+* `LL(model) ≤ LL(Market‑T72) − 0.005` and 95% CI excludes 0.
+* `Brier ≤ 0.202` (tighten to ≤ 0.200 once stable).
+* `Top‑2 ≥ 92–95%`.
+* Horizon audit clean; ablations behave as expected.
+
+**Runtime policy:**
+
+* If **odds snapshot missing** for a match at T‑72h → fall back to:
+
+  1. **Residual‑on‑Frequency** (logit prior = frequency prior), else
+  2. **Feature‑only stack** (CatBoost + Poisson/DC), calibrated.
+* If **dispersion high** or **n\_books < 2** → widen probabilities (calibration layer aware of dispersion).
+
+**Monitoring:**
+
+* LogLoss/Brier/Top‑2 per league vs **Market‑T72** every week.
+* Reliability plots (ECE/MCE) per outcome.
+* Drift alerts: market margin spikes, book coverage drops, mapping failures.
+
+---
+
+## D) Exact “asks” for the agent (copy/paste)
+
+1. **Verification bundle** for the 1,000‑match run:
+
+   * `METRICS_TABLE.csv` with uniform/frequency/market\_close/market\_T72 + all model heads.
+   * `PTRUE_HIST.csv` (p\_true per match), **reliability curves** to `CALIBRATION_REPORT.html`.
+   * `HORIZON_AUDIT.csv` (ts\_snapshot, secs\_to\_kickoff).
+   * **Ablations** (no‑odds, no‑dispersion, market‑only) with ΔLL.
+   * **Bootstrap CIs** for ΔLL vs Market‑T72 (per league + overall).
+
+2. **Dual architecture ETL**:
+
+   * Load 40‑year CSVs → `historical_odds`.
+   * Build `team_name_xwalk` and resolve aliases; unit tests for hard names.
+   * Compute bookwise implied → consensus rules; learn historical **book weights** by league/era.
+
+3. **Model training**:
+
+   * Add **Residual‑on‑Market** head (logit(q\_cons\_T72) + g(x\_enrichment)).
+   * Keep **CatBoost** + **Poisson/DC** heads; **stack + OOF‑calibrate** per league.
+   * Retrain with **era/sample weights** (down‑weight very old seasons).
+
+4. **Gates & canary**:
+
+   * Evaluate on out‑of‑time slice; apply gates above.
+   * If pass in ≥4/5 leagues, **canary deploy** with weekly model cards.
+
+---
+
+### What you get if this checks out
+
+* A **defensible**, **market‑beating** model with realistic LL (\~0.81), **tight Brier**, and improved **Top‑2**—validated vs horizon‑aligned Market‑T72.
+* A 40‑year **historical backbone** to stabilize consensus and calibration across eras.
+* Clean **canary rollout** with monitors that catch any drift or data issues fast.
+
+If you want, I can draft the small verification script that emits the five artifacts above so you can staple it to every PR before merge.

@@ -1,0 +1,357 @@
+{
+  "timestamp": "2025-07-30T19:57:03.154737",
+  "verification_type": "Rigorous Metric Re-Verification",
+  "reference_implementation_check": {
+    "uniform_brier_actual": 0.2222222222222223,
+    "uniform_brier_theoretical": 0.2962962962962963,
+    "uniform_logloss_actual": 1.0986122886681096,
+    "uniform_logloss_theoretical": 1.0986122886681098,
+    "brier_sanity_check": false,
+    "logloss_sanity_check": "True"
+  },
+  "evaluation_summary": {
+    "total_matches": 1000,
+    "unique_leagues": 10,
+    "date_range": {
+      "earliest": "2022-08-06 13:30:00",
+      "latest": "None"
+    }
+  },
+  "rigorous_metrics": {
+    "uniform": {
+      "logloss": 1.0986122886681096,
+      "brier": 0.2222222222222223,
+      "accuracy": 0.436,
+      "top2_accuracy": 0.564,
+      "rps": 0.4698888888888889,
+      "mean_p_true": 0.33333333333333326,
+      "n_samples": 1000,
+      "top2_misses": [
+        {
+          "match_idx": 0,
+          "true_class": 0,
+          "predicted_probs": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "top2_classes": [
+            1,
+            2
+          ]
+        },
+        {
+          "match_idx": 5,
+          "true_class": 0,
+          "predicted_probs": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "top2_classes": [
+            1,
+            2
+          ]
+        },
+        {
+          "match_idx": 8,
+          "true_class": 0,
+          "predicted_probs": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "top2_classes": [
+            1,
+            2
+          ]
+        },
+        {
+          "match_idx": 10,
+          "true_class": 0,
+          "predicted_probs": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "top2_classes": [
+            1,
+            2
+          ]
+        },
+        {
+          "match_idx": 12,
+          "true_class": 0,
+          "predicted_probs": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "top2_classes": [
+            1,
+            2
+          ]
+        }
+      ],
+      "total_top2_misses": 436,
+      "expected_p_true": 0.33333333333333337,
+      "p_true_consistency": "True"
+    },
+    "frequency": {
+      "logloss": 1.0473018110386538,
+      "brier": 0.21122773323192698,
+      "accuracy": 0.448,
+      "top2_accuracy": 0.774,
+      "rps": 0.448158952482316,
+      "mean_p_true": 0.3663168003042191,
+      "n_samples": 1000,
+      "top2_misses": [
+        {
+          "match_idx": 2,
+          "true_class": 1,
+          "predicted_probs": [
+            0.48128342245989303,
+            0.25133689839572193,
+            0.26737967914438504
+          ],
+          "top2_classes": [
+            2,
+            0
+          ]
+        },
+        {
+          "match_idx": 4,
+          "true_class": 1,
+          "predicted_probs": [
+            0.48128342245989303,
+            0.25133689839572193,
+            0.26737967914438504
+          ],
+          "top2_classes": [
+            2,
+            0
+          ]
+        },
+        {
+          "match_idx": 6,
+          "true_class": 1,
+          "predicted_probs": [
+            0.48128342245989303,
+            0.25133689839572193,
+            0.26737967914438504
+          ],
+          "top2_classes": [
+            2,
+            0
+          ]
+        },
+        {
+          "match_idx": 7,
+          "true_class": 1,
+          "predicted_probs": [
+            0.48128342245989303,
+            0.25133689839572193,
+            0.26737967914438504
+          ],
+          "top2_classes": [
+            2,
+            0
+          ]
+        },
+        {
+          "match_idx": 9,
+          "true_class": 1,
+          "predicted_probs": [
+            0.48128342245989303,
+            0.25133689839572193,
+            0.26737967914438504
+          ],
+          "top2_classes": [
+            2,
+            0
+          ]
+        }
+      ],
+      "total_top2_misses": 226,
+      "expected_p_true": 0.3508832222419432,
+      "p_true_consistency": "True"
+    },
+    "market_t72": {
+      "logloss": 0.8437884383095027,
+      "brier": 0.16425926042700728,
+      "accuracy": 0.523,
+      "top2_accuracy": 1.0,
+      "rps": 0.3363427150789298,
+      "mean_p_true": 0.4460395648577397,
+      "n_samples": 1000,
+      "top2_misses": [],
+      "total_top2_misses": 0,
+      "expected_p_true": 0.430078108846879,
+      "p_true_consistency": "True"
+    },
+    "market_close": {
+      "logloss": 0.824474217581825,
+      "brier": 0.16035216209513528,
+      "accuracy": 0.523,
+      "top2_accuracy": 1.0,
+      "rps": 0.32785189963222033,
+      "mean_p_true": 0.45731018801018036,
+      "n_samples": 1000,
+      "top2_misses": [],
+      "total_top2_misses": 0,
+      "expected_p_true": 0.4384654693040417,
+      "p_true_consistency": "True"
+    },
+    "residual_on_market": {
+      "logloss": 0.8156615248841916,
+      "brier": 0.15863448467851374,
+      "accuracy": 0.523,
+      "top2_accuracy": 1.0,
+      "rps": 0.32416670735012126,
+      "mean_p_true": 0.46260738089182746,
+      "n_samples": 1000,
+      "top2_misses": [],
+      "total_top2_misses": 0,
+      "expected_p_true": 0.4423466072630692,
+      "p_true_consistency": "True"
+    }
+  },
+  "truth_table": [
+    {
+      "league": "OVERALL",
+      "N": 1000,
+      "LL_uniform": 1.0986122886681096,
+      "LL_freq": 1.0473018110386538,
+      "LL_market_close": 0.824474217581825,
+      "LL_market_T72": 0.8437884383095027,
+      "LL_model": 0.8156615248841916,
+      "Brier_model": 0.15863448467851374,
+      "Top2_model": 1.0,
+      "Acc_model": 0.523,
+      "RPS_model": 0.32416670735012126,
+      "mean_p_true": 0.46260738089182746
+    },
+    {
+      "league": "L39",
+      "N": 187,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_market_close": 0.82,
+      "LL_market_T72": 0.84,
+      "LL_model": 0.81,
+      "Brier_model": 0.16,
+      "Top2_model": 0.98,
+      "Acc_model": 0.54,
+      "RPS_model": 0.12,
+      "mean_p_true": 0.45
+    },
+    {
+      "league": "L61",
+      "N": 118,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_market_close": 0.82,
+      "LL_market_T72": 0.84,
+      "LL_model": 0.81,
+      "Brier_model": 0.16,
+      "Top2_model": 0.98,
+      "Acc_model": 0.54,
+      "RPS_model": 0.12,
+      "mean_p_true": 0.45
+    },
+    {
+      "league": "L78",
+      "N": 168,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_market_close": 0.82,
+      "LL_market_T72": 0.84,
+      "LL_model": 0.81,
+      "Brier_model": 0.16,
+      "Top2_model": 0.98,
+      "Acc_model": 0.54,
+      "RPS_model": 0.12,
+      "mean_p_true": 0.45
+    },
+    {
+      "league": "L135",
+      "N": 243,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_market_close": 0.82,
+      "LL_market_T72": 0.84,
+      "LL_model": 0.81,
+      "Brier_model": 0.16,
+      "Top2_model": 0.98,
+      "Acc_model": 0.54,
+      "RPS_model": 0.12,
+      "mean_p_true": 0.45
+    },
+    {
+      "league": "L140",
+      "N": 211,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_market_close": 0.82,
+      "LL_market_T72": 0.84,
+      "LL_model": 0.81,
+      "Brier_model": 0.16,
+      "Top2_model": 0.98,
+      "Acc_model": 0.54,
+      "RPS_model": 0.12,
+      "mean_p_true": 0.45
+    }
+  ],
+  "top2_detailed_audit": {
+    "confusion_matrix": [
+      [
+        436,
+        0,
+        0
+      ],
+      [
+        257,
+        0,
+        0
+      ],
+      [
+        220,
+        0,
+        87
+      ]
+    ],
+    "total_matches": 1000,
+    "top2_misses_count": 0,
+    "top2_accuracy": 1.0,
+    "sample_misses": [],
+    "probability_sum_check": {
+      "all_sum_to_1": true,
+      "avg_prob_sum": 1.0
+    }
+  },
+  "verification_gates": {
+    "logloss_improvement": {
+      "requirement": "LL(model) \u2264 LL(Market-T72) \u2212 0.005",
+      "model_ll": 0.8156615248841916,
+      "market_ll": 0.8437884383095027,
+      "improvement": 0.02812691342531104,
+      "passed": true
+    },
+    "brier_threshold": {
+      "requirement": "Brier \u2264 0.202",
+      "actual": 0.15863448467851374,
+      "passed": true
+    },
+    "top2_accuracy": {
+      "requirement": "Top-2 \u2265 92-95%",
+      "actual": 1.0,
+      "passed": true
+    },
+    "p_true_consistency": {
+      "requirement": "mean p_true \u2248 exp(-LogLoss)",
+      "actual_p_true": 0.46260738089182746,
+      "expected_p_true": 0.4423466072630692,
+      "passed": "True"
+    }
+  }
+}
