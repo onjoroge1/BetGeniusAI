@@ -1,0 +1,31 @@
+{
+  "timestamp": "20250730_154435",
+  "phase": "1B_enhanced_training",
+  "dataset_size": 5151,
+  "feature_count": 50,
+  "baseline_accuracy": 0.501,
+  "models": {
+    "enhanced_random_forest": {
+      "accuracy": 0.5063045586808923,
+      "log_loss": 0.951229350286668,
+      "brier_score": 0.19282310336657763,
+      "cv_performance": 0.504126213592233
+    },
+    "enhanced_logistic_regression": {
+      "accuracy": 0.472356935014549,
+      "log_loss": 1.0240861781694923,
+      "brier_score": 0.20620821296796657,
+      "cv_performance": 0
+    },
+    "ensemble": {
+      "accuracy": 0.49078564500484967,
+      "log_loss": 0.969001103642771,
+      "brier_score": 0.19639367690141352,
+      "cv_performance": 0
+    }
+  },
+  "best_accuracy": 0.5063045586808923,
+  "improvement_over_phase1a": 0.005304558680892302,
+  "target_achievement": false,
+  "model_path": "models/phase1b_production_model_20250730_154434.joblib"
+}

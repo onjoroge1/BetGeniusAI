@@ -1,463 +1,672 @@
 """
 Phase 1B Enhanced Training System
-Since external collection is limited, focus on optimizing the Phase 1A enhanced dataset
-Train improved models and validate the enhanced features for accuracy gains
+Train models using expanded 5,151 match dataset from European leagues
+Goal: Push accuracy beyond 50.1% Phase 1A baseline toward 55% target
 """
 
 import os
 import json
 import numpy as np
+import pandas as pd
+import psycopg2
 import joblib
-from sqlalchemy import create_engine, text
+from datetime import datetime, timedelta
+from typing import Dict, List, Tuple, Optional
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
-from datetime import datetime
-import logging
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import accuracy_score, log_loss, brier_score_loss, classification_report
+import warnings
+warnings.filterwarnings('ignore')
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-class Phase1BEnhancedTraining:
-    """Enhanced training system with Phase 1A features"""
+class Phase1BTrainingSystem:
+    """Enhanced training system with expanded European dataset"""
     
     def __init__(self):
-        self.database_url = os.environ.get('DATABASE_URL')
-        self.engine = create_engine(self.database_url)
+        self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
         
-    def execute_enhanced_training(self):
-        """Execute comprehensive enhanced model training"""
-        logger.info("🚀 Phase 1B Enhanced Training with Phase 1A Features")
+        # Phase 1A optimal feature set (43 features proved optimal)
+        self.base_features = [
+            'season_stage', 'recency_score', 'training_weight', 'competition_tier',
+            'foundation_value', 'match_importance', 'regional_intensity', 'tactical_relevance',
+            'african_market_flag', 'european_tier1_flag', 'south_american_flag',
+            'league_home_advantage', 'premier_league_weight', 'developing_market_flag',
+            'league_competitiveness', 'prediction_reliability', 'tactical_style_encoding',
+            'competitiveness_indicator', 'cross_league_applicability'
+        ]
         
-        # Load and prepare enhanced data
-        X, y, metadata = self.load_enhanced_dataset()
+        # Enhanced features from Phase 1A (will be generated dynamically)
+        self.enhanced_features = [
+            'enh_home_ppg', 'enh_home_gpg', 'enh_home_gapg', 'enh_home_goal_diff_pg', 
+            'enh_home_recent_form', 'enh_home_win_pct', 'enh_home_draw_pct', 'enh_home_matches_played',
+            'enh_away_ppg', 'enh_away_gpg', 'enh_away_gapg', 'enh_away_goal_diff_pg',
+            'enh_away_recent_form', 'enh_away_win_pct', 'enh_away_draw_pct', 'enh_away_matches_played',
+            'enh_h2h_home_wins', 'enh_h2h_draws', 'enh_h2h_away_wins', 'enh_h2h_total_matches',
+            'enh_h2h_avg_goals', 'enh_h2h_home_advantage', 'enh_league_tier',
+            'enh_league_home_advantage', 'enh_season_phase', 'enh_match_importance',
+            'enh_league_avg_goals', 'enh_home_xg', 'enh_away_xg', 'enh_xg_difference', 'enh_total_xg'
+        ]
         
-        if len(X) == 0:
-            logger.error("No enhanced data available")
-            return None
-            
-        logger.info(f"📊 Enhanced dataset: {len(X)} matches, {X.shape[1]} features")
+        self.all_features = self.base_features + self.enhanced_features
         
-        # Train multiple enhanced models
-        models = self.train_enhanced_models(X, y, metadata)
+    def load_expanded_dataset(self) -> pd.DataFrame:
+        """Load the expanded 5,151 match dataset"""
         
-        # Validate and compare models
-        results = self.validate_models(models, X, y, metadata)
+        print("LOADING EXPANDED EUROPEAN DATASET")
+        print("=" * 40)
         
-        # Save best model
-        best_model = self.select_and_save_best_model(models, results)
+        query = """
+        SELECT 
+            match_id, league_id, season, home_team, away_team,
+            match_date, home_goals, away_goals, outcome, features
+        FROM training_matches 
+        WHERE outcome IS NOT NULL
+        ORDER BY match_date ASC
+        """
         
-        # Show comprehensive results
-        self.show_comprehensive_results(results, metadata)
+        df = pd.read_sql_query(query, self.conn)
         
-        return results
+        print(f"Loaded {len(df)} matches")
+        print(f"Date range: {df['match_date'].min()} to {df['match_date'].max()}")
+        print(f"Leagues: {df['league_id'].nunique()}")
+        print(f"Seasons: {df['season'].nunique()}")
+        
+        # Verify European league coverage
+        league_counts = df['league_id'].value_counts()
+        print(f"\nLeague Distribution:")
+        for league_id, count in league_counts.head(7).items():
+            league_names = {
+                135: 'Serie A', 140: 'La Liga', 39: 'Premier League',
+                78: 'Bundesliga', 61: 'Ligue 1', 88: 'Eredivisie'
+            }
+            name = league_names.get(league_id, f'League {league_id}')
+            print(f"  {name}: {count} matches")
+        
+        return df
     
-    def load_enhanced_dataset(self):
-        """Load Phase 1A enhanced dataset for training"""
-        logger.info("📥 Loading Phase 1A enhanced dataset...")
+    def generate_enhanced_features_v2(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Generate enhanced features using expanded dataset (Phase 1B version)"""
         
-        with self.engine.connect() as conn:
-            # Load all enhanced matches
-            result = conn.execute(text("""
-                SELECT features, outcome, league_id, region, home_team, away_team
-                FROM training_matches 
-                WHERE collection_phase = 'Phase_1A_Complete_Enhancement'
-                AND features IS NOT NULL 
-                AND outcome IN ('Home', 'Away', 'Draw')
-                ORDER BY RANDOM()
-            """)).fetchall()
+        print("\nGENERATING PHASE 1B ENHANCED FEATURES")
+        print("=" * 40)
+        print("Using expanded dataset for better team performance calculations")
         
-        X = []
-        y = []
-        metadata = {
-            'league_ids': [],
-            'regions': [],
-            'match_info': [],
-            'feature_names': []
+        enhanced_features = []
+        
+        for idx, match in df.iterrows():
+            if idx % 500 == 0:
+                print(f"Processing match {idx}/{len(df)}")
+            
+            match_date = match['match_date']
+            home_team = match['home_team']
+            away_team = match['away_team']
+            league_id = match['league_id']
+            
+            # Extended lookback with more data available
+            lookback_date = match_date - timedelta(days=365)  # 1 year lookback
+            
+            # Historical matches for analysis
+            historical_matches = df[
+                (df['match_date'] < match_date) & 
+                (df['match_date'] >= lookback_date) &
+                (df['league_id'] == league_id)
+            ]
+            
+            # Calculate enhanced team statistics
+            home_stats = self._calculate_enhanced_team_stats_v2(historical_matches, home_team, 'home')
+            away_stats = self._calculate_enhanced_team_stats_v2(historical_matches, away_team, 'away')
+            
+            # Head-to-head with extended history
+            h2h_stats = self._calculate_enhanced_h2h_stats_v2(historical_matches, home_team, away_team)
+            
+            # League context with bigger dataset
+            context_stats = self._calculate_enhanced_context_v2(match, historical_matches, league_id)
+            
+            # Expected goals with improved accuracy
+            xg_stats = self._calculate_enhanced_xg_v2(home_stats, away_stats, league_id, historical_matches)
+            
+            # Combine all enhanced features
+            enhanced_match_features = {
+                **home_stats,
+                **away_stats,
+                **h2h_stats,
+                **context_stats,
+                **xg_stats
+            }
+            
+            enhanced_features.append(enhanced_match_features)
+        
+        enhanced_df = pd.DataFrame(enhanced_features)
+        
+        print(f"Generated {enhanced_df.shape[1]} enhanced features")
+        print(f"Feature completeness: {(enhanced_df.notna()).sum().sum() / (enhanced_df.shape[0] * enhanced_df.shape[1]) * 100:.1f}%")
+        
+        return enhanced_df
+    
+    def _calculate_enhanced_team_stats_v2(self, team_matches: pd.DataFrame, team_name: str, prefix: str) -> Dict:
+        """Calculate enhanced team statistics with improved accuracy"""
+        
+        if len(team_matches) == 0:
+            return self._default_enhanced_stats_v2(prefix)
+        
+        # All matches involving this team
+        team_involved = team_matches[
+            (team_matches['home_team'] == team_name) | 
+            (team_matches['away_team'] == team_name)
+        ]
+        
+        if len(team_involved) == 0:
+            return self._default_enhanced_stats_v2(prefix)
+        
+        # Separate home and away performances
+        home_matches = team_involved[team_involved['home_team'] == team_name]
+        away_matches = team_involved[team_involved['away_team'] == team_name]
+        
+        # Points calculation
+        total_points = 0
+        total_matches = len(team_involved)
+        
+        for _, match in team_involved.iterrows():
+            if match['home_team'] == team_name:
+                if match['outcome'] == 'Home':
+                    total_points += 3
+                elif match['outcome'] == 'Draw':
+                    total_points += 1
+            else:  # Away team
+                if match['outcome'] == 'Away':
+                    total_points += 3
+                elif match['outcome'] == 'Draw':
+                    total_points += 1
+        
+        # Goals statistics
+        goals_for = 0
+        goals_against = 0
+        
+        for _, match in team_involved.iterrows():
+            if match['home_team'] == team_name:
+                goals_for += match['home_goals']
+                goals_against += match['away_goals']
+            else:
+                goals_for += match['away_goals']
+                goals_against += match['home_goals']
+        
+        # Enhanced metrics
+        ppg = total_points / max(total_matches, 1)
+        gpg = goals_for / max(total_matches, 1)
+        gapg = goals_against / max(total_matches, 1)
+        goal_diff_pg = gpg - gapg
+        
+        # Recent form (last 8 matches with more data available)
+        recent_matches = team_involved.tail(8) if len(team_involved) >= 8 else team_involved
+        recent_points = 0
+        
+        for _, match in recent_matches.iterrows():
+            if match['home_team'] == team_name:
+                if match['outcome'] == 'Home':
+                    recent_points += 3
+                elif match['outcome'] == 'Draw':
+                    recent_points += 1
+            else:
+                if match['outcome'] == 'Away':
+                    recent_points += 3
+                elif match['outcome'] == 'Draw':
+                    recent_points += 1
+        
+        recent_form = recent_points / max(len(recent_matches), 1)
+        
+        # Win/draw percentages
+        wins = 0
+        draws = 0
+        
+        for _, match in team_involved.iterrows():
+            if match['outcome'] == 'Draw':
+                draws += 1
+            elif ((match['home_team'] == team_name and match['outcome'] == 'Home') or
+                  (match['away_team'] == team_name and match['outcome'] == 'Away')):
+                wins += 1
+        
+        win_pct = wins / max(total_matches, 1)
+        draw_pct = draws / max(total_matches, 1)
+        
+        return {
+            f'enh_{prefix}_ppg': ppg,
+            f'enh_{prefix}_gpg': gpg,
+            f'enh_{prefix}_gapg': gapg,
+            f'enh_{prefix}_goal_diff_pg': goal_diff_pg,
+            f'enh_{prefix}_recent_form': recent_form,
+            f'enh_{prefix}_win_pct': win_pct,
+            f'enh_{prefix}_draw_pct': draw_pct,
+            f'enh_{prefix}_matches_played': total_matches
+        }
+    
+    def _calculate_enhanced_h2h_stats_v2(self, historical_matches: pd.DataFrame, home_team: str, away_team: str) -> Dict:
+        """Calculate enhanced head-to-head statistics"""
+        
+        h2h_matches = historical_matches[
+            ((historical_matches['home_team'] == home_team) & (historical_matches['away_team'] == away_team)) |
+            ((historical_matches['home_team'] == away_team) & (historical_matches['away_team'] == home_team))
+        ]
+        
+        if len(h2h_matches) == 0:
+            return {
+                'enh_h2h_home_wins': 0, 'enh_h2h_draws': 0, 'enh_h2h_away_wins': 0,
+                'enh_h2h_total_matches': 0, 'enh_h2h_avg_goals': 2.5,
+                'enh_h2h_home_advantage': 0.5
+            }
+        
+        home_wins = len(h2h_matches[
+            (h2h_matches['home_team'] == home_team) & (h2h_matches['outcome'] == 'Home')
+        ])
+        away_wins = len(h2h_matches[
+            (h2h_matches['away_team'] == home_team) & (h2h_matches['outcome'] == 'Away')
+        ])
+        draws = len(h2h_matches[h2h_matches['outcome'] == 'Draw'])
+        
+        total_goals = (h2h_matches['home_goals'] + h2h_matches['away_goals']).sum()
+        avg_goals = total_goals / len(h2h_matches)
+        
+        home_advantage = (home_wins + 0.5 * draws) / len(h2h_matches)
+        
+        return {
+            'enh_h2h_home_wins': home_wins,
+            'enh_h2h_draws': draws, 
+            'enh_h2h_away_wins': away_wins,
+            'enh_h2h_total_matches': len(h2h_matches),
+            'enh_h2h_avg_goals': avg_goals,
+            'enh_h2h_home_advantage': home_advantage
+        }
+    
+    def _calculate_enhanced_context_v2(self, match: pd.Series, historical_matches: pd.DataFrame, league_id: int) -> Dict:
+        """Calculate enhanced contextual factors"""
+        
+        # League tier mapping with expanded coverage
+        tier_mapping = {
+            39: 1, 140: 1, 135: 1, 78: 1, 61: 1,  # Big 5
+            88: 2, 94: 2, 144: 2  # Strong tier 2
         }
         
-        # Process all enhanced matches
-        for row in result:
-            features_json, outcome, league_id, region, home_team, away_team = row
-            
-            try:
-                features = json.loads(features_json)
-                
-                # Extract feature names (first iteration only)
-                if not metadata['feature_names']:
-                    numerical_features = []
-                    for key, value in features.items():
-                        if isinstance(value, (int, float)) and 'timestamp' not in key.lower():
-                            numerical_features.append(key)
-                    metadata['feature_names'] = sorted(numerical_features)
-                
-                # Extract feature vector
-                feature_vector = []
-                for name in metadata['feature_names']:
-                    value = features.get(name, 0)
-                    feature_vector.append(float(value) if isinstance(value, (int, float)) else 0.0)
-                
-                if len(feature_vector) >= 15:  # Ensure sufficient features
-                    X.append(feature_vector)
-                    
-                    # Encode outcome
-                    if outcome == 'Home':
-                        y.append(0)
-                    elif outcome == 'Draw':
-                        y.append(1)
-                    else:
-                        y.append(2)
-                    
-                    # Store metadata
-                    metadata['league_ids'].append(league_id)
-                    metadata['regions'].append(region)
-                    metadata['match_info'].append(f"{home_team} vs {away_team}")
-                    
-            except Exception as e:
-                continue
+        league_tier = tier_mapping.get(league_id, 3)
         
-        logger.info(f"✅ Loaded {len(X)} enhanced matches with {len(metadata['feature_names'])} features")
-        logger.info(f"📋 Key features: {metadata['feature_names'][:8]}")
+        # Season phase calculation
+        match_date = match['match_date']
+        month = match_date.month
         
-        return np.array(X), np.array(y), metadata
+        if month >= 8:  # August onwards - early season
+            season_phase = (month - 8) / 4
+        elif month <= 5:  # Up to May - mid to late season
+            season_phase = (month + 4) / 4
+        else:  # June/July - off season
+            season_phase = 0.1
+        
+        # Match importance based on league tier and timing
+        base_importance = 0.9 if league_tier == 1 else 0.7
+        if month in [4, 5]:  # End of season - more important
+            match_importance = base_importance * 1.2
+        else:
+            match_importance = base_importance
+        
+        # League averages from historical data
+        if len(historical_matches) > 0:
+            league_avg_goals = (historical_matches['home_goals'] + historical_matches['away_goals']).mean()
+            league_home_advantage = (historical_matches['outcome'] == 'Home').mean()
+        else:
+            league_avg_goals = 2.7
+            league_home_advantage = 0.45
+        
+        return {
+            'enh_league_tier': league_tier,
+            'enh_league_home_advantage': league_home_advantage,
+            'enh_season_phase': season_phase,
+            'enh_match_importance': match_importance,
+            'enh_league_avg_goals': league_avg_goals
+        }
     
-    def train_enhanced_models(self, X, y, metadata):
-        """Train multiple enhanced model variants"""
-        logger.info("🤖 Training enhanced model variants...")
+    def _calculate_enhanced_xg_v2(self, home_stats: Dict, away_stats: Dict, league_id: int, historical_matches: pd.DataFrame) -> Dict:
+        """Calculate enhanced expected goals with improved accuracy"""
         
-        # Split data with stratification
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.25, random_state=42, stratify=y
+        # Extract team scoring rates
+        home_gpg = home_stats.get('enh_home_gpg', 1.3)
+        home_gapg = home_stats.get('enh_home_gapg', 1.3)
+        away_gpg = away_stats.get('enh_away_gpg', 1.2)
+        away_gapg = away_stats.get('enh_away_gapg', 1.4)
+        
+        # League home advantage factors
+        home_advantage_factors = {
+            39: 1.15, 140: 1.18, 135: 1.12, 78: 1.10, 61: 1.16,
+            88: 1.20, 94: 1.18
+        }
+        home_advantage = home_advantage_factors.get(league_id, 1.14)
+        
+        # Expected goals calculation with home advantage
+        home_xg = (home_gpg * home_advantage + (2.7 - away_gapg)) / 2
+        away_xg = (away_gpg / home_advantage + (2.7 - home_gapg)) / 2
+        
+        # Normalize to realistic ranges
+        home_xg = max(0.5, min(3.5, home_xg))
+        away_xg = max(0.5, min(3.5, away_xg))
+        
+        return {
+            'enh_home_xg': home_xg,
+            'enh_away_xg': away_xg,
+            'enh_xg_difference': home_xg - away_xg,
+            'enh_total_xg': home_xg + away_xg
+        }
+    
+    def _default_enhanced_stats_v2(self, prefix: str) -> Dict:
+        """Default enhanced stats when no historical data"""
+        return {
+            f'enh_{prefix}_ppg': 1.2,
+            f'enh_{prefix}_gpg': 1.3,
+            f'enh_{prefix}_gapg': 1.3,
+            f'enh_{prefix}_goal_diff_pg': 0.0,
+            f'enh_{prefix}_recent_form': 1.2,
+            f'enh_{prefix}_win_pct': 0.35,
+            f'enh_{prefix}_draw_pct': 0.25,
+            f'enh_{prefix}_matches_played': 0
+        }
+    
+    def prepare_training_data(self, df: pd.DataFrame, enhanced_df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+        """Prepare training data combining base and enhanced features"""
+        
+        print("\nPREPARING PHASE 1B TRAINING DATA")
+        print("=" * 40)
+        
+        # Extract base features from stored JSON
+        base_feature_data = []
+        for _, row in df.iterrows():
+            features = row['features']
+            if isinstance(features, str):
+                features = json.loads(features)
+            
+            feature_row = []
+            for feature in self.base_features:
+                feature_row.append(features.get(feature, 0.0))
+            
+            base_feature_data.append(feature_row)
+        
+        base_df = pd.DataFrame(base_feature_data, columns=self.base_features)
+        
+        # Combine base and enhanced features
+        combined_df = pd.concat([base_df, enhanced_df], axis=1)
+        
+        # Ensure we have the expected 43 features
+        expected_features = len(self.base_features) + len(self.enhanced_features)
+        
+        print(f"Base features: {len(self.base_features)}")
+        print(f"Enhanced features: {len(self.enhanced_features)}")
+        print(f"Total features: {combined_df.shape[1]}")
+        print(f"Expected: {expected_features}")
+        
+        if combined_df.shape[1] != expected_features:
+            print(f"WARNING: Feature count mismatch!")
+        
+        # Handle missing values
+        combined_df = combined_df.fillna(combined_df.median())
+        
+        # Prepare target variable
+        y = df['outcome'].map({'Home': 0, 'Draw': 1, 'Away': 2}).values
+        X = combined_df.values
+        
+        print(f"Training data shape: {X.shape}")
+        print(f"Target distribution: {np.bincount(y)}")
+        
+        return X, y
+    
+    def train_phase1b_models(self, X: np.ndarray, y: np.ndarray) -> Dict:
+        """Train Phase 1B models with expanded dataset"""
+        
+        print("\nTRAINING PHASE 1B MODELS")
+        print("=" * 40)
+        print("Using 5,151 match dataset for enhanced accuracy")
+        
+        # Time-aware train/test split (80/20)
+        split_idx = int(0.8 * len(X))
+        X_train, X_test = X[:split_idx], X[split_idx:]
+        y_train, y_test = y[:split_idx], y[split_idx:]
+        
+        print(f"Training set: {X_train.shape[0]} matches")
+        print(f"Test set: {X_test.shape[0]} matches")
+        
+        results = {}
+        
+        # Model 1: Enhanced Random Forest (Phase 1A champion)
+        print("\nTraining Enhanced Random Forest...")
+        rf_model = RandomForestClassifier(
+            n_estimators=300,  # Increased for larger dataset
+            max_depth=10,      # Slightly deeper
+            min_samples_split=12,
+            min_samples_leaf=6,
+            class_weight='balanced',
+            random_state=42,
+            n_jobs=-1
         )
         
-        # Scale features
+        # Calibrated classifier for probability calibration
+        rf_calibrated = CalibratedClassifierCV(rf_model, method='isotonic', cv=3)
+        rf_calibrated.fit(X_train, y_train)
+        
+        # Predictions and evaluation
+        rf_pred = rf_calibrated.predict(X_test)
+        rf_pred_proba = rf_calibrated.predict_proba(X_test)
+        
+        rf_accuracy = accuracy_score(y_test, rf_pred)
+        rf_log_loss = log_loss(y_test, rf_pred_proba)
+        # Calculate multiclass Brier score (average of binary Brier scores)
+        rf_brier_scores = []
+        for i in range(3):  # 3 classes
+            y_binary = (y_test == i).astype(int)
+            rf_brier_scores.append(brier_score_loss(y_binary, rf_pred_proba[:, i]))
+        rf_brier = np.mean(rf_brier_scores)
+        
+        # Cross-validation for robustness
+        cv_scores = cross_val_score(rf_calibrated, X_train, y_train, cv=5, scoring='accuracy')
+        
+        results['enhanced_random_forest'] = {
+            'model': rf_calibrated,
+            'accuracy': rf_accuracy,
+            'log_loss': rf_log_loss,
+            'brier_score': rf_brier,
+            'cv_mean': cv_scores.mean(),
+            'cv_std': cv_scores.std(),
+            'feature_importance': rf_model.feature_importances_ if hasattr(rf_model, 'feature_importances_') else None
+        }
+        
+        print(f"Random Forest - Accuracy: {rf_accuracy:.4f}")
+        print(f"Random Forest - Log Loss: {rf_log_loss:.4f}")
+        print(f"Random Forest - CV: {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
+        
+        # Model 2: Enhanced Logistic Regression
+        print("\nTraining Enhanced Logistic Regression...")
+        
+        # Scale features for logistic regression
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
         
-        models = {}
+        lr_model = LogisticRegression(
+            C=1.0,  # Regularization strength
+            class_weight='balanced',
+            multi_class='multinomial',
+            max_iter=1000,
+            random_state=42
+        )
         
-        # Model 1: Conservative Random Forest (prevent overfitting)
-        models['conservative_rf'] = {
-            'model': RandomForestClassifier(
-                n_estimators=40,
-                max_depth=6,
-                min_samples_split=25,
-                min_samples_leaf=12,
-                max_features='sqrt',
-                random_state=42,
-                class_weight='balanced'
-            ),
-            'name': 'Conservative Random Forest'
+        lr_calibrated = CalibratedClassifierCV(lr_model, method='isotonic', cv=3)
+        lr_calibrated.fit(X_train_scaled, y_train)
+        
+        lr_pred = lr_calibrated.predict(X_test_scaled)
+        lr_pred_proba = lr_calibrated.predict_proba(X_test_scaled)
+        
+        lr_accuracy = accuracy_score(y_test, lr_pred)
+        lr_log_loss = log_loss(y_test, lr_pred_proba)
+        # Calculate multiclass Brier score for logistic regression
+        lr_brier_scores = []
+        for i in range(3):
+            y_binary = (y_test == i).astype(int)
+            lr_brier_scores.append(brier_score_loss(y_binary, lr_pred_proba[:, i]))
+        lr_brier = np.mean(lr_brier_scores)
+        
+        results['enhanced_logistic_regression'] = {
+            'model': lr_calibrated,
+            'scaler': scaler,
+            'accuracy': lr_accuracy,
+            'log_loss': lr_log_loss,
+            'brier_score': lr_brier
         }
         
-        # Model 2: Balanced Random Forest
-        models['balanced_rf'] = {
-            'model': RandomForestClassifier(
-                n_estimators=60,
-                max_depth=8,
-                min_samples_split=20,
-                min_samples_leaf=8,
-                max_features='sqrt',
-                random_state=42,
-                class_weight='balanced'
-            ),
-            'name': 'Balanced Random Forest'
-        }
+        print(f"Logistic Regression - Accuracy: {lr_accuracy:.4f}")
+        print(f"Logistic Regression - Log Loss: {lr_log_loss:.4f}")
         
-        # Model 3: Enhanced Logistic Regression
-        models['enhanced_lr'] = {
-            'model': LogisticRegression(
-                max_iter=1500,
-                random_state=42,
-                class_weight='balanced',
-                C=1.0,
-                multi_class='ovr'
-            ),
-            'name': 'Enhanced Logistic Regression'
-        }
-        
-        # Model 4: Regularized Logistic Regression
-        models['regularized_lr'] = {
-            'model': LogisticRegression(
-                max_iter=1500,
-                random_state=42,
-                class_weight='balanced',
-                C=0.5,  # More regularization
-                multi_class='ovr'
-            ),
-            'name': 'Regularized Logistic Regression'
-        }
-        
-        # Train all models
-        for model_name, model_info in models.items():
-            model = model_info['model']
+        # Model 3: Ensemble (if both models are reasonable)
+        if rf_accuracy > 0.40 and lr_accuracy > 0.40:
+            print("\nCreating Ensemble Model...")
             
-            # Train model
-            model.fit(X_train_scaled, y_train)
+            # Simple averaging ensemble
+            ensemble_proba = (rf_pred_proba + lr_pred_proba) / 2
+            ensemble_pred = np.argmax(ensemble_proba, axis=1)
             
-            # Add training data and scaler to model info
-            model_info['scaler'] = scaler
-            model_info['X_train'] = X_train_scaled
-            model_info['X_test'] = X_test_scaled
-            model_info['y_train'] = y_train
-            model_info['y_test'] = y_test
+            ensemble_accuracy = accuracy_score(y_test, ensemble_pred)
+            ensemble_log_loss = log_loss(y_test, ensemble_proba)
+            # Calculate multiclass Brier score for ensemble
+            ensemble_brier_scores = []
+            for i in range(3):
+                y_binary = (y_test == i).astype(int)
+                ensemble_brier_scores.append(brier_score_loss(y_binary, ensemble_proba[:, i]))
+            ensemble_brier = np.mean(ensemble_brier_scores)
             
-            logger.info(f"✅ Trained {model_info['name']}")
-        
-        return models
-    
-    def validate_models(self, models, X, y, metadata):
-        """Comprehensive model validation"""
-        logger.info("🔍 Validating enhanced models...")
-        
-        results = {}
-        
-        for model_name, model_info in models.items():
-            model = model_info['model']
-            scaler = model_info['scaler']
-            X_train = model_info['X_train']
-            X_test = model_info['X_test']
-            y_train = model_info['y_train']
-            y_test = model_info['y_test']
-            
-            # Cross-validation
-            cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-            cv_scores = cross_val_score(model, X_train, y_train, cv=cv, scoring='accuracy')
-            
-            # Test set predictions
-            y_pred = model.predict(X_test)
-            test_accuracy = accuracy_score(y_test, y_pred)
-            
-            # League-specific performance
-            league_performance = self.evaluate_league_performance(
-                model, scaler, X, y, metadata['league_ids']
-            )
-            
-            # Regional performance
-            regional_performance = self.evaluate_regional_performance(
-                model, scaler, X, y, metadata['regions']
-            )
-            
-            results[model_name] = {
-                'cv_mean': cv_scores.mean(),
-                'cv_std': cv_scores.std(),
-                'test_accuracy': test_accuracy,
-                'league_performance': league_performance,
-                'regional_performance': regional_performance,
-                'model_info': model_info
+            results['ensemble'] = {
+                'accuracy': ensemble_accuracy,
+                'log_loss': ensemble_log_loss,
+                'brier_score': ensemble_brier
             }
             
-            logger.info(f"📊 {model_info['name']}:")
-            logger.info(f"  CV: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})")
-            logger.info(f"  Test: {test_accuracy:.3f}")
+            print(f"Ensemble - Accuracy: {ensemble_accuracy:.4f}")
+            print(f"Ensemble - Log Loss: {ensemble_log_loss:.4f}")
         
         return results
     
-    def evaluate_league_performance(self, model, scaler, X, y, league_ids):
-        """Evaluate performance by league"""
-        league_performance = {}
+    def save_phase1b_models(self, results: Dict, feature_names: List[str]) -> str:
+        """Save Phase 1B trained models"""
         
-        league_names = {
-            39: 'Premier League', 140: 'La Liga', 135: 'Serie A', 
-            78: 'Bundesliga', 61: 'Ligue 1', 143: 'Brazilian Serie A',
-            179: 'Scottish Premiership', 203: 'Turkish Super Lig',
-            88: 'Eredivisie', 399: 'Egyptian Premier League'
-        }
-        
-        unique_leagues = np.unique(league_ids)
-        
-        for league_id in unique_leagues:
-            mask = np.array(league_ids) == league_id
-            if np.sum(mask) >= 10:  # Minimum samples
-                X_league = X[mask]
-                y_league = y[mask]
-                
-                X_league_scaled = scaler.transform(X_league)
-                y_pred_league = model.predict(X_league_scaled)
-                
-                accuracy = accuracy_score(y_league, y_pred_league)
-                league_name = league_names.get(league_id, f'League {league_id}')
-                
-                league_performance[league_name] = {
-                    'accuracy': accuracy,
-                    'sample_count': np.sum(mask)
-                }
-        
-        return league_performance
-    
-    def evaluate_regional_performance(self, model, scaler, X, y, regions):
-        """Evaluate performance by region"""
-        regional_performance = {}
-        
-        unique_regions = np.unique(regions)
-        
-        for region in unique_regions:
-            mask = np.array(regions) == region
-            if np.sum(mask) >= 20:  # Minimum samples
-                X_region = X[mask]
-                y_region = y[mask]
-                
-                X_region_scaled = scaler.transform(X_region)
-                y_pred_region = model.predict(X_region_scaled)
-                
-                accuracy = accuracy_score(y_region, y_pred_region)
-                
-                regional_performance[region] = {
-                    'accuracy': accuracy,
-                    'sample_count': np.sum(mask)
-                }
-        
-        return regional_performance
-    
-    def select_and_save_best_model(self, models, results):
-        """Select and save the best performing model"""
-        logger.info("🏆 Selecting best enhanced model...")
-        
-        # Score models based on CV performance and generalization
-        model_scores = {}
-        
-        for model_name, result in results.items():
-            # Weighted score: CV performance + test generalization - overfitting penalty
-            cv_score = result['cv_mean']
-            test_score = result['test_accuracy']
-            generalization = min(cv_score, test_score)  # Penalize overfitting
-            
-            model_scores[model_name] = {
-                'score': generalization,
-                'cv_mean': cv_score,
-                'test_accuracy': test_score
-            }
-        
-        # Select best model
-        best_model_name = max(model_scores.keys(), key=lambda x: model_scores[x]['score'])
-        best_result = results[best_model_name]
-        
-        logger.info(f"🏆 Best model: {best_result['model_info']['name']}")
-        logger.info(f"  Score: {model_scores[best_model_name]['score']:.3f}")
-        logger.info(f"  CV: {best_result['cv_mean']:.3f}")
-        logger.info(f"  Test: {best_result['test_accuracy']:.3f}")
-        
-        # Save best model
-        best_model_info = best_result['model_info']
-        
-        model_data = {
-            'model': best_model_info['model'],
-            'scaler': best_model_info['scaler'],
-            'model_name': best_model_info['name'],
-            'accuracy': best_result['test_accuracy'],
-            'cv_mean': best_result['cv_mean'],
-            'cv_std': best_result['cv_std'],
-            'model_version': 'Phase_1B_Enhanced',
-            'training_date': datetime.now().isoformat(),
-            'league_performance': best_result['league_performance'],
-            'regional_performance': best_result['regional_performance']
-        }
-        
-        # Create models directory
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         os.makedirs('models', exist_ok=True)
         
-        # Save enhanced model
-        joblib.dump(model_data, 'models/phase1b_enhanced_model.joblib')
-        logger.info("💾 Best enhanced model saved")
+        # Save best performing model
+        best_model = None
+        best_accuracy = 0
+        best_name = ""
         
-        return best_model_name
-    
-    def show_comprehensive_results(self, results, metadata):
-        """Show comprehensive training results"""
-        logger.info(f"\n📈 Phase 1B Enhanced Training Results:")
+        for name, result in results.items():
+            if 'accuracy' in result and result['accuracy'] > best_accuracy:
+                best_accuracy = result['accuracy']
+                best_model = result
+                best_name = name
         
-        baseline_accuracy = 0.715
-        
-        logger.info(f"\n🎯 Model Performance Comparison:")
-        for model_name, result in results.items():
-            model_info = result['model_info']
-            logger.info(f"\n{model_info['name']}:")
-            logger.info(f"  Cross-validation: {result['cv_mean']:.3f} (+/- {result['cv_std']*2:.3f})")
-            logger.info(f"  Test accuracy: {result['test_accuracy']:.3f}")
+        if best_model:
+            model_path = f'models/phase1b_production_model_{timestamp}.joblib'
             
-            improvement = (result['test_accuracy'] - baseline_accuracy) * 100
-            if improvement > 0:
-                logger.info(f"  Improvement vs baseline: +{improvement:.1f} percentage points")
-            else:
-                logger.info(f"  Change vs baseline: {improvement:.1f} percentage points")
+            model_data = {
+                'model': best_model.get('model'),
+                'scaler': best_model.get('scaler'),
+                'feature_names': feature_names,
+                'accuracy': best_accuracy,
+                'model_type': best_name,
+                'training_timestamp': timestamp,
+                'dataset_size': 5151,
+                'phase': '1B'
+            }
+            
+            joblib.dump(model_data, model_path)
+            print(f"\nSaved best model ({best_name}): {model_path}")
+            print(f"Model accuracy: {best_accuracy:.4f}")
         
-        # Find best performing model for detailed analysis
-        best_model = max(results.keys(), key=lambda x: results[x]['test_accuracy'])
-        best_result = results[best_model]
+        return model_path if best_model else ""
+    
+    def run_phase1b_training(self) -> Dict:
+        """Complete Phase 1B training workflow"""
         
-        logger.info(f"\n🏆 Best Model Detailed Analysis ({best_result['model_info']['name']}):")
+        print("PHASE 1B ENHANCED TRAINING SYSTEM")
+        print("=" * 50)
+        print("Goal: Push beyond 50.1% Phase 1A baseline with 5,151 match dataset")
         
-        # League-specific results
-        logger.info(f"\n📊 League-Specific Performance:")
-        for league_name, perf in best_result['league_performance'].items():
-            logger.info(f"  {league_name}: {perf['accuracy']:.3f} ({perf['accuracy']*100:.1f}%) - {perf['sample_count']} matches")
+        # Load expanded dataset
+        df = self.load_expanded_dataset()
         
-        # Regional results
-        logger.info(f"\n🌍 Regional Performance:")
-        for region, perf in best_result['regional_performance'].items():
-            logger.info(f"  {region}: {perf['accuracy']:.3f} ({perf['accuracy']*100:.1f}%) - {perf['sample_count']} matches")
+        # Generate enhanced features using expanded data
+        enhanced_df = self.generate_enhanced_features_v2(df)
         
-        # Phase 1A enhancement impact assessment
-        logger.info(f"\n✨ Phase 1A Enhancement Impact:")
+        # Prepare training data
+        X, y = self.prepare_training_data(df, enhanced_df)
         
-        overall_accuracy = best_result['test_accuracy']
-        if overall_accuracy > 0.72:
-            logger.info(f"  ✅ SUCCESS: Enhanced features improve model performance")
+        # Train models
+        results = self.train_phase1b_models(X, y)
         
-        # Check specific improvements
-        brazilian_improved = False
-        for league_name, perf in best_result['league_performance'].items():
-            if 'Brazilian' in league_name and perf['accuracy'] > 0.50:
-                brazilian_improved = True
-                logger.info(f"  ✅ Brazilian Serie A improvement: {perf['accuracy']*100:.1f}% (vs 36% baseline)")
+        # Save models
+        feature_names = self.base_features + self.enhanced_features
+        model_path = self.save_phase1b_models(results, feature_names)
         
-        if not brazilian_improved:
-            logger.info(f"  📊 Brazilian accuracy needs Phase 1B South American data collection")
+        # Generate comprehensive report
+        report = {
+            'timestamp': datetime.now().strftime('%Y%m%d_%H%M%S'),
+            'phase': '1B_enhanced_training',
+            'dataset_size': len(df),
+            'feature_count': len(feature_names),
+            'baseline_accuracy': 0.501,  # Phase 1A result
+            'models': {}
+        }
         
-        # Regional balance check
-        europe_dominance = False
-        for region, perf in best_result['regional_performance'].items():
-            if region == 'Europe' and perf['sample_count'] > 1500:
-                europe_dominance = True
+        for name, result in results.items():
+            if 'accuracy' in result:
+                report['models'][name] = {
+                    'accuracy': result['accuracy'],
+                    'log_loss': result.get('log_loss', 0),
+                    'brier_score': result.get('brier_score', 0),
+                    'cv_performance': result.get('cv_mean', 0)
+                }
         
-        if europe_dominance:
-            logger.info(f"  📊 European dominance remains - Phase 1B collection needed for balance")
+        # Determine success
+        best_accuracy = max([r.get('accuracy', 0) for r in results.values()])
+        improvement = best_accuracy - 0.501
         
-        logger.info(f"\n🎯 Phase 1B Training Conclusions:")
-        if overall_accuracy > baseline_accuracy:
-            logger.info(f"  ✅ Phase 1A enhancements successfully improve model accuracy")
-            logger.info(f"  🚀 Model ready for production use")
+        report['best_accuracy'] = best_accuracy
+        report['improvement_over_phase1a'] = improvement
+        report['target_achievement'] = best_accuracy >= 0.55
+        report['model_path'] = model_path
         
-        logger.info(f"  📈 Enhanced features provide tactical intelligence")
-        logger.info(f"  🎯 Training weights optimize for regional balance")
-        logger.info(f"  ⚡ Model generalizes well across leagues")
+        print(f"\nPHASE 1B TRAINING COMPLETE")
+        print("=" * 30)
+        print(f"Best accuracy: {best_accuracy:.4f}")
+        print(f"Phase 1A baseline: 50.1%")
+        print(f"Improvement: {improvement:+.3f}")
+        print(f"Target (55%): {'✅ ACHIEVED' if best_accuracy >= 0.55 else '📈 Progress'}")
         
-        if overall_accuracy > 0.74:
-            logger.info(f"  🎉 EXCELLENT: Model exceeds 74% accuracy target!")
+        return report
 
 def main():
-    """Execute Phase 1B enhanced training"""
-    trainer = Phase1BEnhancedTraining()
+    """Run Phase 1B enhanced training"""
+    
+    trainer = Phase1BTrainingSystem()
     
     try:
-        results = trainer.execute_enhanced_training()
+        results = trainer.run_phase1b_training()
         
-        if results:
-            best_accuracy = max(result['test_accuracy'] for result in results.values())
-            print(f"\n🎉 Phase 1B Enhanced Training Complete!")
-            print(f"✅ Best model accuracy: {best_accuracy*100:.1f}%")
-            print(f"✅ Enhanced features validated and optimized")
-            print(f"✅ Model ready for production deployment")
-            print(f"🚀 Phase 1A enhancements successfully integrated")
-        else:
-            print("❌ Training failed - no data available")
+        # Save results
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        os.makedirs('reports', exist_ok=True)
         
-    except Exception as e:
-        logger.error(f"❌ Enhanced training failed: {e}")
-        raise
+        results_path = f'reports/phase1b_training_{timestamp}.json'
+        with open(results_path, 'w') as f:
+            json.dump(results, f, indent=2, default=str)
+        
+        print(f"\nTraining results saved: {results_path}")
+        
+        return results
+        
+    finally:
+        trainer.conn.close()
 
 if __name__ == "__main__":
     main()
