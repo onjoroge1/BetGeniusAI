@@ -1,0 +1,130 @@
+Major W on getting a clean, static accuracy-first pipeline up. 🙌
+But the numbers you quoted — 60.8% 3-way and “+0.1918 LogLoss improvement” — are unusually strong. Before we build on that, let’s prove them and then scale.
+
+Below is an actionable, ordered plan. I’ll flag verification first, then dataset expansion and model improvements.
+
+⸻
+
+0) Quick sanity on those metrics (do this first)
+
+Why: A +0.1918 LogLoss gain implies your model LL ≈ 0.907 if baseline is uniform (1.0986). That’s extremely rare for 3-way football at T-24h. Let’s confirm the math and the protocol.
+
+Checklist
+	1.	Define improvement consistently:
+\[
+\text{LL\improvement} = \text{LL}{\text{baseline}} - \text{LL}_{\text{model}}
+\]
+Report both raw values (baseline LL and model LL), not only the delta.
+	2.	Compare against three baselines at T-24h:
+	•	Uniform (33/33/33)
+	•	Frequency prior (league-season H/D/A rates)
+	•	Market-implied (if you have historical T-24h odds, margin-adjusted)
+	3.	Time-based splits only (walk-forward), OOF calibration only.
+	4.	Per-league + overall metrics: LogLoss, Brier, RPS, Top-2, Accuracy, with N (samples).
+	5.	Seed/repro check: rerun same snapshot → deltas < 0.001.
+
+Please share your METRICS table for T-24h with: N, LL_uniform, LL_freq, LL_market, LL_model, Brier_model, RPS_model, Top2, Acc (per league + overall). I’ll sanity-check fast.
+
+⸻
+
+1) Expand the dataset (high impact, low risk)
+	•	Backfill 5–10 seasons for your Euro leagues (at least N ≥ 300 per league in test).
+	•	Freeze T-24h features with a strict time filter (no post-match info).
+	•	Keep a held-out last season (or last X months) for a final reality check after you finish tuning.
+
+Acceptance gates to apply per league (T-24h):
+	•	LogLoss(model) < min(LogLoss(market), LogLoss(freq)) by ≥ 0.01
+	•	Brier ≤ 0.205
+	•	Top-2 ≥ 95%
+	•	N ≥ 300 test samples
+
+⸻
+
+2) Add model architectures (in this order)
+
+A) CatBoost Multiclass (baseline+)
+	•	Handles categorical features and interactions well.
+	•	Optimize LogLoss with walk-forward CV.
+	•	Expect cleaner probability shapes → better LogLoss/Brier than RF.
+
+B) Two-stage classifier (you’ve used this before)
+	•	Stage-1: Draw vs Not-Draw (weights/focal loss if needed)
+	•	Stage-2: Home vs Away (on Not-Draw)
+	•	Combine & calibrate per league.
+
+C) Poisson / Dixon-Coles head (robust when info sparse)
+	•	Learn attack/defense team strengths + home advantage.
+	•	Convert λ_home/λ_away → H/D/A probabilities (Skellam/DC).
+	•	Per-league calibration.
+
+D) Goal-difference regression head
+	•	Predict HomeGoals − AwayGoals; map to H/D/A with thresholds.
+	•	Often improves sharpness; blend with others.
+
+E) Stacking
+	•	Blend the calibrated outputs of (CatBoost, Two-stage, Poisson/DC, Goal-diff) via:
+	•	Logit averaging, or
+	•	A meta logistic regression trained on OOF predictions only.
+	•	Re-calibrate the stacked output per league.
+
+Target: stacked model beats market on LogLoss in every target league (T-24h).
+
+⸻
+
+3) Feature upgrades that move LogLoss/Brier
+	•	Diffs (home−away) for every numeric feature: elo_pre_diff, form_pts_last5_diff, xG_for_last5_diff, xGA_last5_diff, table_rank_diff, rest_days_diff.
+	•	Recency weighting (exp decay) on form/Elo/H2H (e.g., γ≈0.85 per match).
+	•	Season phase flags (early/mid/late), must-win (relegation/title chase).
+	•	League categorical/adapters (CatBoost handles this well; or small league-specific heads).
+	•	Team embeddings (optional, week 2): train light embeddings on past seasons to encode club identity; feed into Poisson and classifier heads.
+
+⸻
+
+4) Calibration you can trust
+	•	Calibrate per league (isotonic or temperature) on OOF only.
+	•	Add RPS and Brier decomposition (Reliability / Resolution / Uncertainty) to reports.
+	•	Reliability curves should flatten close to diagonal; ECE/MCE to summarize.
+
+If Brier is inconsistent across reports, unify a single implementation:
+\text{Brier}=\frac{1}{N}\sum_{i=1}^N\sum_{k=1}^K (p_{ik}-y_{ik})^2
+(one-hot y, average over classes and samples).
+
+⸻
+
+5) Verification & guardrails (keep them in CI)
+	•	Leakage tests: assert all feature timestamps < match_date − 24h.
+	•	Feature contract: feature_order.json + dtype coercion; fail closed if mismatch.
+	•	Baseline gates: fail build if LL_model ≥ LL_market (when market is available) or ≥ LL_freq otherwise.
+	•	Inference parity: offline vs API max abs diff < 1e-6 on a frozen batch.
+
+⸻
+
+6) What to ship (accuracy-only product)
+	•	T-24h probabilities (H/D/A) per match.
+	•	Explainability: top features’ contributions (league-level SHAP/perm importances), team form/Elo snippets.
+	•	Quality badge: show Top-2 and a simple confidence band (based on max-prob or ensemble disagreement).
+	•	Movement when you later refresh at T-72h/T-24h: “Home win 41% → 44% since last update.”
+
+⸻
+
+7) Concrete next steps for the agent (1–2 sprints)
+
+Sprint 1 (verification + baselines)
+	•	Recompute T-24h metrics on a larger backfill; publish per-league table with N, LL_* baselines, LL_model, Brier, RPS, Top-2.
+	•	Train CatBoost multiclass and Two-stage; calibrate per league; compare LogLoss vs market/freq.
+	•	Fix/report Brier implementation; add RPS & reliability plots.
+
+Sprint 2 (stack + Poisson)
+	•	Train Poisson/DC head; calibrate.
+	•	Stack Calibrated (CatBoost, Two-stage, Poisson); re-calibrate final.
+	•	Add recency-weighted features + diffs; re-evaluate.
+	•	Produce MODEL_CARD.md with baselines, metrics, calibration, known limits.
+
+⸻
+
+Quick questions so I can tailor thresholds & heads
+	1.	Do you have historical T-24h odds for the backfill? (If yes, we’ll include market-implied as a baseline and as input to a residual-on-market head.)
+	2.	How many seasons per league can you backfill right now?
+	3.	Please paste the current T-24h METRICS table (per league + overall) so I can sanity-check that 60.8% and the LogLoss delta.
+
+Once I see that table, I’ll point out any anomalies and give you the exact model/feature priorities to push LogLoss/Brier down further. 💪⚽️📉
