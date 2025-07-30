@@ -1,0 +1,163 @@
+{
+  "timestamp": "2025-07-30T18:58:17.851404",
+  "comparison_type": "Historical vs Synthetic Odds Analysis",
+  "historical_data_analysis": {
+    "historical_analysis": {
+      "sample_matches": 2000,
+      "leagues_found": 5,
+      "leagues_list": [
+        "EPL",
+        "Serie A",
+        "Bundesliga",
+        "La Liga",
+        "Ligue 1"
+      ],
+      "bookmakers_available": 12,
+      "top_bookmakers": [
+        {
+          "name": "B365",
+          "coverage": 1973,
+          "completeness_pct": 98.6
+        },
+        {
+          "name": "BW",
+          "coverage": 1607,
+          "completeness_pct": 80.4
+        },
+        {
+          "name": "IW",
+          "coverage": 1980,
+          "completeness_pct": 99.0
+        },
+        {
+          "name": "LB",
+          "coverage": 1819,
+          "completeness_pct": 91.0
+        },
+        {
+          "name": "PS",
+          "coverage": 545,
+          "completeness_pct": 27.3
+        },
+        {
+          "name": "WH",
+          "coverage": 1988,
+          "completeness_pct": 99.4
+        },
+        {
+          "name": "SJ",
+          "coverage": 1105,
+          "completeness_pct": 55.2
+        },
+        {
+          "name": "VC",
+          "coverage": 1599,
+          "completeness_pct": 80.0
+        }
+      ],
+      "avg_coverage_pct": 70.4,
+      "consensus_quality": {
+        "sample_size": 50,
+        "avg_bookmakers_per_match": 7.8,
+        "avg_market_dispersion": 0.0109,
+        "market_efficiency_score": 0.989,
+        "quality_rating": "excellent"
+      }
+    }
+  },
+  "current_system_analysis": {
+    "current_synthetic_system": {
+      "consensus_entries": 1000,
+      "feature_entries": 1000,
+      "data_type": "synthetic_simulation",
+      "simulated_bookmakers": 5,
+      "synthetic_margin": 0.065,
+      "generation_method": "algorithmic_with_noise",
+      "time_depth": "current_snapshot_only"
+    }
+  },
+  "dual_architecture_proposal": {
+    "proposed_dual_architecture": {
+      "historical_odds_table": {
+        "purpose": "Rich 40-year historical odds storage",
+        "data_source": "Authentic bookmaker odds from CSV dataset",
+        "bookmaker_count": "12+ real bookmakers (B365, BW, IW, LB, PS, WH, etc.)",
+        "time_span": "40+ years of market evolution",
+        "coverage": "98%+ odds completeness",
+        "use_cases": [
+          "Historical consensus generation with real market data",
+          "Long-term model training on authentic odds",
+          "Market efficiency analysis across decades",
+          "True head-to-head and league historical priors",
+          "Seasonal pattern detection with multi-year cycles"
+        ]
+      },
+      "odds_consensus_table": {
+        "purpose": "Current odds consensus (T-72h snapshots)",
+        "data_source": "The Odds API + synthetic for development",
+        "bookmaker_count": "Variable (5+ current bookmakers)",
+        "time_span": "Recent/current matches only",
+        "coverage": "Current match predictions",
+        "use_cases": [
+          "Real-time T-72h market snapshots",
+          "Current match prediction pipeline",
+          "Live market sentiment tracking",
+          "Production prediction system"
+        ]
+      }
+    },
+    "integration_strategy": {
+      "training_phase": "Use historical_odds for base model training and priors",
+      "prediction_phase": "Combine historical context + current market from odds_consensus",
+      "feature_engineering": "Historical priors + current market logits + structural features",
+      "model_architecture": "Hybrid: historical baselines + current market residuals"
+    },
+    "competitive_advantages": {
+      "depth": "40 years vs typical 2-3 years of market data",
+      "authenticity": "Real bookmaker consensus vs synthetic approximation",
+      "scale": "Massive training dataset with authentic market behavior",
+      "calibration": "Decades of true market outcomes for superior calibration",
+      "market_evolution": "Track how odds accuracy evolved over time"
+    }
+  },
+  "implementation_plan": {
+    "implementation_phases": {
+      "phase_1_historical_setup": {
+        "tasks": [
+          "Create enhanced historical_odds table schema",
+          "Implement robust date parsing for mixed formats",
+          "Process full 40-year CSV dataset",
+          "Generate authentic multi-bookmaker consensus"
+        ],
+        "estimated_time": "1-2 days",
+        "complexity": "medium"
+      },
+      "phase_2_hybrid_modeling": {
+        "tasks": [
+          "Train base models on historical odds data",
+          "Create historical prior features (H2H, league context)",
+          "Integrate current odds_consensus for recent matches",
+          "Build hybrid feature pipeline"
+        ],
+        "estimated_time": "2-3 days",
+        "complexity": "high"
+      },
+      "phase_3_production_integration": {
+        "tasks": [
+          "Deploy dual-table prediction pipeline",
+          "Integrate with The Odds API for current data",
+          "Create automated model retraining",
+          "Performance monitoring and validation"
+        ],
+        "estimated_time": "1-2 days",
+        "complexity": "medium"
+      }
+    },
+    "success_metrics": {
+      "data_quality": "Historical odds processing with >95% success rate",
+      "consensus_quality": "Multi-bookmaker consensus with <0.02 dispersion",
+      "model_performance": "LogLoss improvement over current synthetic baseline",
+      "production_readiness": "Dual-table system with <100ms query performance"
+    }
+  }
+}
