@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-07-30T20:37:46.096332",
+  "processing_results": {
+    "total_processed": 16838,
+    "total_inserted": 0,
+    "duplicates_skipped": 16838,
+    "success_rate": 0.0
+  },
+  "verification_results": {
+    "total_records": 4717,
+    "league_distribution": [
+      [
+        "SP1",
+        1140
+      ],
+      [
+        "D1",
+        1112
+      ],
+      [
+        "I1",
+        954
+      ],
+      [
+        "E0",
+        842
+      ],
+      [
+        "F1",
+        669
+      ]
+    ],
+    "date_range": {
+      "earliest": "1994-08-20",
+      "latest": "2018-05-20"
+    }
+  }
+}

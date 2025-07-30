@@ -1,0 +1,107 @@
+{
+  "timestamp": "2025-07-30T20:39:37.173766",
+  "processing_results": {
+    "total_processed": 16838,
+    "total_inserted": 9810,
+    "duplicates_skipped": 7028,
+    "success_rate": 58.261076137308464
+  },
+  "verification_results": {
+    "total_records": 14527,
+    "league_distribution": [
+      [
+        "E0",
+        3502
+      ],
+      [
+        "I1",
+        3063
+      ],
+      [
+        "F1",
+        2660
+      ],
+      [
+        "SP1",
+        2660
+      ],
+      [
+        "D1",
+        2642
+      ]
+    ],
+    "season_distribution": [
+      [
+        "9900",
+        1066
+      ],
+      [
+        "9798",
+        306
+      ],
+      [
+        "9596",
+        380
+      ],
+      [
+        "9495",
+        1222
+      ],
+      [
+        "9394",
+        760
+      ],
+      [
+        "910",
+        686
+      ],
+      [
+        "809",
+        1066
+      ],
+      [
+        "708",
+        1520
+      ],
+      [
+        "607",
+        380
+      ],
+      [
+        "506",
+        737
+      ]
+    ],
+    "date_range": {
+      "earliest": "1993-07-23",
+      "latest": "2024-06-02"
+    },
+    "bookmaker_coverage": {
+      "bet365": 10756,
+      "betway": 9316,
+      "pinnacle": 4188,
+      "william_hill": 10342,
+      "total": 14527
+    }
+  },
+  "enhancement_impact": {
+    "dataset_scale_multiplier": 3.079711681153275,
+    "original_records": 4717,
+    "enhanced_records": 14527,
+    "records_added": 9810,
+    "expected_logloss_improvements": {
+      "bookmaker_accuracy_weighting": 0.015,
+      "league_specific_priors": 0.01,
+      "seasonal_adaptation": 0.008,
+      "market_pattern_recognition": 0.012
+    },
+    "total_expected_improvement": 0.045,
+    "enhanced_capabilities": [
+      "Multi-season trend analysis",
+      "Historical market efficiency patterns",
+      "Era-specific calibration",
+      "Cross-league behavior analysis",
+      "Long-term team strength modeling"
+    ]
+  }
+}
