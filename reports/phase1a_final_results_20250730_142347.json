@@ -1,0 +1,133 @@
+{
+  "timestamp": "20250730_142347",
+  "phase": "phase_1a_final_optimization",
+  "dataset_info": {
+    "total_matches": 1893,
+    "features_used": 24,
+    "feature_list": [
+      "competitiveness_indicator",
+      "league_competitiveness",
+      "league_home_advantage",
+      "match_importance",
+      "regional_intensity",
+      "cross_league_applicability",
+      "foundation_value",
+      "prediction_reliability",
+      "tactical_style_encoding",
+      "home_recent_ppg",
+      "away_recent_ppg",
+      "ppg_difference",
+      "home_recent_gpg",
+      "away_recent_gpg",
+      "home_recent_gapg",
+      "away_recent_gapg",
+      "goal_expectancy_diff",
+      "h2h_advantage",
+      "expected_home_xg",
+      "expected_away_xg",
+      "expected_xg_diff",
+      "league_tier",
+      "form_balance",
+      "attacking_potential"
+    ]
+  },
+  "baselines": {
+    "clean_features_only": 0.488,
+    "enhanced_features": 0.501,
+    "target_accuracy": 0.55
+  },
+  "best_model": {
+    "name": "optimal_random_forest",
+    "test_accuracy": 0.48548812664907653,
+    "cv_accuracy": 0.5218302624964484,
+    "log_loss": 0.8668087078850536,
+    "brier_score": 0.5524957423786434,
+    "stable": "False"
+  },
+  "all_results": {
+    "optimal_random_forest": {
+      "test_accuracy": 0.48548812664907653,
+      "cv_accuracy": 0.5218302624964484,
+      "vs_clean_improvement": -0.5147281456810358,
+      "vs_target_gap": -11.729431518349728,
+      "status": "\u26a0\ufe0f BELOW ENHANCED",
+      "log_loss": 0.8668087078850536,
+      "brier_score": 0.5524957423786434,
+      "stable": "False"
+    },
+    "optimal_logistic_regression": {
+      "test_accuracy": 0.40633245382585753,
+      "cv_accuracy": 0.4669158306559133,
+      "vs_clean_improvement": -16.73515290453739,
+      "vs_target_gap": -26.121372031662272,
+      "status": "\u26a0\ufe0f BELOW ENHANCED",
+      "log_loss": 1.1340848604195528,
+      "brier_score": 0.7187855051619685,
+      "stable": "False"
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "competitiveness_indicator",
+      "importance": 0.35408655403437184
+    },
+    {
+      "feature": "expected_xg_diff",
+      "importance": 0.07555586973103853
+    },
+    {
+      "feature": "ppg_difference",
+      "importance": 0.06795792667373945
+    },
+    {
+      "feature": "expected_home_xg",
+      "importance": 0.04512408614531256
+    },
+    {
+      "feature": "away_recent_ppg",
+      "importance": 0.041389887830570016
+    },
+    {
+      "feature": "home_recent_gpg",
+      "importance": 0.03945276604723612
+    },
+    {
+      "feature": "home_recent_ppg",
+      "importance": 0.03893309046105406
+    },
+    {
+      "feature": "away_recent_gapg",
+      "importance": 0.03853912282248927
+    },
+    {
+      "feature": "expected_away_xg",
+      "importance": 0.03675991931401985
+    },
+    {
+      "feature": "away_recent_gpg",
+      "importance": 0.034622864266501276
+    },
+    {
+      "feature": "home_recent_gapg",
+      "importance": 0.034114850876061656
+    },
+    {
+      "feature": "form_balance",
+      "importance": 0.03392131197680525
+    },
+    {
+      "feature": "attacking_potential",
+      "importance": 0.03127353488019792
+    },
+    {
+      "feature": "goal_expectancy_diff",
+      "importance": 0.029825829386280162
+    },
+    {
+      "feature": "cross_league_applicability",
+      "importance": 0.01664377828340868
+    }
+  ],
+  "production_ready": false,
+  "target_achieved": false
+}

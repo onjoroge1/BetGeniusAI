@@ -1,0 +1,112 @@
+{
+  "timestamp": "20250730_142140",
+  "phase": "advanced_1a_enhancement",
+  "baseline_accuracy": 0.501,
+  "target_accuracy": 0.55,
+  "models": {
+    "optimized_random_forest": {
+      "accuracy": 0.49076517150395776,
+      "log_loss": 0.9006575343297815,
+      "brier_score": 0.5779598766777256,
+      "model": "CalibratedClassifierCV(cv=3,\n                       estimator=RandomForestClassifier(class_weight='balanced',\n                                                        max_depth=10,\n                                                        min_samples_leaf=6,\n                                                        min_samples_split=12,\n                                                        n_estimators=300,\n                                                        n_jobs=-1,\n                                                        random_state=42),\n                       method='isotonic')"
+    },
+    "gradient_boosting": {
+      "accuracy": 0.47493403693931396,
+      "log_loss": 0.8750232262760425,
+      "brier_score": 0.5606037370293167,
+      "model": "CalibratedClassifierCV(cv=3,\n                       estimator=GradientBoostingClassifier(max_depth=6,\n                                                            n_estimators=200,\n                                                            random_state=42,\n                                                            subsample=0.8),\n                       method='isotonic')"
+    },
+    "voting_ensemble": {
+      "accuracy": 0.48021108179419525,
+      "log_loss": 0.8973367370883605,
+      "brier_score": 0.579427418621277,
+      "model": "CalibratedClassifierCV(cv=3,\n                       estimator=VotingClassifier(estimators=[('rf',\n                                                               RandomForestClassifier(class_weight='balanced',\n                                                                                      max_depth=10,\n                                                                                      min_samples_leaf=6,\n                                                                                      min_samples_split=12,\n                                                                                      n_estimators=300,\n                                                                                      n_jobs=-1,\n                                                                                      random_state=42)),\n                                                              ('gb',\n                                                               GradientBoostingClassifier(max_depth=6,\n                                                                                          n_estimators=200,\n                                                                                          random_state=42,\n                                                                                          subsample=0.8))],\n                                                  voting='soft'),\n                       method='isotonic')"
+    }
+  },
+  "results": {
+    "optimized_random_forest": {
+      "accuracy": 0.49076517150395776,
+      "improvement": -2.042879939329788,
+      "status": "\u26a0\ufe0f NO IMPROVEMENT",
+      "log_loss": 0.9006575343297815,
+      "brier_score": 0.5779598766777256
+    },
+    "gradient_boosting": {
+      "accuracy": 0.47493403693931396,
+      "improvement": -5.202787038061086,
+      "status": "\u26a0\ufe0f NO IMPROVEMENT",
+      "log_loss": 0.8750232262760425,
+      "brier_score": 0.5606037370293167
+    },
+    "voting_ensemble": {
+      "accuracy": 0.48021108179419525,
+      "improvement": -4.149484671817316,
+      "status": "\u26a0\ufe0f NO IMPROVEMENT",
+      "log_loss": 0.8973367370883605,
+      "brier_score": 0.579427418621277
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "competitiveness_indicator",
+      "importance": 0.22104637499646373
+    },
+    {
+      "feature": "advanced_home_xg_diff_advanced_away_xg",
+      "importance": 0.03745640051778863
+    },
+    {
+      "feature": "advanced_xg_diff",
+      "importance": 0.03651238738029051
+    },
+    {
+      "feature": "expected_away_prob",
+      "importance": 0.03379239978687493
+    },
+    {
+      "feature": "expected_home_prob",
+      "importance": 0.028953456149249615
+    },
+    {
+      "feature": "advanced_home_xg",
+      "importance": 0.02838890422368768
+    },
+    {
+      "feature": "home_gpg_historical",
+      "importance": 0.027289102037401775
+    },
+    {
+      "feature": "home_ppg_recent_diff_away_ppg_recent",
+      "importance": 0.026735407516925182
+    },
+    {
+      "feature": "league_home_advantage",
+      "importance": 0.02558160718958772
+    },
+    {
+      "feature": "away_gapg_historical",
+      "importance": 0.024798164272596186
+    },
+    {
+      "feature": "home_gpg_recent",
+      "importance": 0.022697384890475836
+    },
+    {
+      "feature": "advanced_away_xg",
+      "importance": 0.022357635642939713
+    },
+    {
+      "feature": "away_gpg_historical",
+      "importance": 0.021860974896411693
+    },
+    {
+      "feature": "away_gapg_recent",
+      "importance": 0.02174805383140128
+    },
+    {
+      "feature": "away_home_away_split",
+      "importance": 0.020975523198036968
+    }
+  ],
+  "features_used": 50
+}

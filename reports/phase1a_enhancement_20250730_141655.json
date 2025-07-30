@@ -1,0 +1,207 @@
+{
+  "timestamp": "20250730_141655",
+  "phase": "1A_feature_enhancement",
+  "baseline_accuracy": 0.488,
+  "target_accuracy": 0.55,
+  "models": {
+    "enhanced_random_forest": {
+      "accuracy": 0.5013192612137203,
+      "log_loss": 0.8433249783703776,
+      "brier_score": 0.5354225520008828,
+      "model": "CalibratedClassifierCV(cv=3,\n                       estimator=RandomForestClassifier(class_weight='balanced',\n                                                        max_depth=8,\n                                                        min_samples_leaf=8,\n                                                        min_samples_split=15,\n                                                        n_estimators=200,\n                                                        random_state=42),\n                       method='isotonic')",
+      "features_used": [
+        "season_stage",
+        "recency_score",
+        "training_weight",
+        "competition_tier",
+        "foundation_value",
+        "match_importance",
+        "regional_intensity",
+        "tactical_relevance",
+        "african_market_flag",
+        "european_tier1_flag",
+        "south_american_flag",
+        "league_home_advantage",
+        "premier_league_weight",
+        "developing_market_flag",
+        "league_competitiveness",
+        "prediction_reliability",
+        "tactical_style_encoding",
+        "competitiveness_indicator",
+        "cross_league_applicability",
+        "enh_ppg",
+        "enh_gpg",
+        "enh_gapg",
+        "enh_goal_diff_pg",
+        "enh_recent_form",
+        "enh_win_pct",
+        "enh_draw_pct",
+        "enh_matches_played",
+        "enh_h2h_home_wins",
+        "enh_h2h_draws",
+        "enh_h2h_away_wins",
+        "enh_h2h_total_matches",
+        "enh_h2h_avg_goals",
+        "enh_h2h_home_advantage",
+        "enh_league_tier",
+        "enh_league_home_advantage",
+        "enh_season_phase",
+        "enh_match_importance",
+        "enh_league_avg_goals",
+        "enh_home_xg",
+        "enh_away_xg",
+        "enh_xg_difference",
+        "enh_total_xg"
+      ]
+    },
+    "enhanced_logistic_regression": {
+      "accuracy": 0.43535620052770446,
+      "log_loss": 1.9217025490948814,
+      "brier_score": 0.95658762382646,
+      "model": "LogisticRegression(C=0.5, class_weight='balanced', max_iter=1000,\n                   multi_class='multinomial', random_state=42)",
+      "scaler": "StandardScaler()",
+      "features_used": [
+        "season_stage",
+        "recency_score",
+        "training_weight",
+        "competition_tier",
+        "foundation_value",
+        "match_importance",
+        "regional_intensity",
+        "tactical_relevance",
+        "african_market_flag",
+        "european_tier1_flag",
+        "south_american_flag",
+        "league_home_advantage",
+        "premier_league_weight",
+        "developing_market_flag",
+        "league_competitiveness",
+        "prediction_reliability",
+        "tactical_style_encoding",
+        "competitiveness_indicator",
+        "cross_league_applicability",
+        "enh_ppg",
+        "enh_gpg",
+        "enh_gapg",
+        "enh_goal_diff_pg",
+        "enh_recent_form",
+        "enh_win_pct",
+        "enh_draw_pct",
+        "enh_matches_played",
+        "enh_h2h_home_wins",
+        "enh_h2h_draws",
+        "enh_h2h_away_wins",
+        "enh_h2h_total_matches",
+        "enh_h2h_avg_goals",
+        "enh_h2h_home_advantage",
+        "enh_league_tier",
+        "enh_league_home_advantage",
+        "enh_season_phase",
+        "enh_match_importance",
+        "enh_league_avg_goals",
+        "enh_home_xg",
+        "enh_away_xg",
+        "enh_xg_difference",
+        "enh_total_xg"
+      ]
+    }
+  },
+  "results": {
+    "enhanced_random_forest": {
+      "accuracy": 0.5013192612137203,
+      "improvement": 2.7293568060902236,
+      "status": "\u2705 IMPROVED",
+      "log_loss": 0.8433249783703776,
+      "brier_score": 0.5354225520008828
+    },
+    "enhanced_logistic_regression": {
+      "accuracy": 0.43535620052770446,
+      "improvement": -10.787663826290068,
+      "status": "\u26a0\ufe0f NO IMPROVEMENT",
+      "log_loss": 1.9217025490948814,
+      "brier_score": 0.95658762382646
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "competitiveness_indicator",
+      "importance": 0.30789479361169825
+    },
+    {
+      "feature": "enh_home_xg",
+      "importance": 0.07640725803632173
+    },
+    {
+      "feature": "enh_xg_difference",
+      "importance": 0.07562530600188758
+    },
+    {
+      "feature": "enh_away_xg",
+      "importance": 0.05439504853298645
+    },
+    {
+      "feature": "enh_goal_diff_pg",
+      "importance": 0.05250629847628295
+    },
+    {
+      "feature": "enh_gpg",
+      "importance": 0.039500627269291766
+    },
+    {
+      "feature": "enh_total_xg",
+      "importance": 0.03737460831791059
+    },
+    {
+      "feature": "enh_ppg",
+      "importance": 0.03655499370795338
+    },
+    {
+      "feature": "enh_gapg",
+      "importance": 0.03509862344243114
+    },
+    {
+      "feature": "enh_league_avg_goals",
+      "importance": 0.03301097411268328
+    },
+    {
+      "feature": "enh_win_pct",
+      "importance": 0.030284636186517208
+    },
+    {
+      "feature": "enh_matches_played",
+      "importance": 0.028095635218856215
+    },
+    {
+      "feature": "enh_recent_form",
+      "importance": 0.026752458295840914
+    },
+    {
+      "feature": "enh_draw_pct",
+      "importance": 0.024735951451581733
+    },
+    {
+      "feature": "cross_league_applicability",
+      "importance": 0.014658985144497873
+    },
+    {
+      "feature": "enh_league_home_advantage",
+      "importance": 0.011636188504486139
+    },
+    {
+      "feature": "enh_h2h_avg_goals",
+      "importance": 0.010204143306509794
+    },
+    {
+      "feature": "foundation_value",
+      "importance": 0.010191450881911899
+    },
+    {
+      "feature": "south_american_flag",
+      "importance": 0.009999304784998215
+    },
+    {
+      "feature": "prediction_reliability",
+      "importance": 0.009972327050917678
+    }
+  ]
+}
