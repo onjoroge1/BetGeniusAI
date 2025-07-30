@@ -1,0 +1,430 @@
+{
+  "analysis": {
+    "overall": {
+      "total_matches": 1893,
+      "leagues": 10,
+      "seasons": 3,
+      "with_features": 1893,
+      "earliest": "2023-08-11 19:00:00",
+      "latest": "2025-06-12 00:02:38.035213"
+    },
+    "per_league": [
+      {
+        "league_id": 39,
+        "matches": 960,
+        "seasons": 3,
+        "with_features": 960,
+        "earliest": "2023-08-11 19:00:00",
+        "latest": "2025-06-10 16:36:39.281491"
+      },
+      {
+        "league_id": 140,
+        "matches": 220,
+        "seasons": 2,
+        "with_features": 220,
+        "earliest": "2025-06-11 03:31:20.536302",
+        "latest": "2025-06-12 00:02:38.035213"
+      },
+      {
+        "league_id": 78,
+        "matches": 120,
+        "seasons": 1,
+        "with_features": 120,
+        "earliest": "2025-06-11 03:32:34.976547",
+        "latest": "2025-06-11 03:32:34.981626"
+      },
+      {
+        "league_id": 135,
+        "matches": 120,
+        "seasons": 1,
+        "with_features": 120,
+        "earliest": "2025-06-11 03:40:33.727440",
+        "latest": "2025-06-11 03:40:33.730369"
+      },
+      {
+        "league_id": 88,
+        "matches": 100,
+        "seasons": 1,
+        "with_features": 100,
+        "earliest": "2025-06-11 23:50:33.924797",
+        "latest": "2025-06-11 23:50:33.926827"
+      },
+      {
+        "league_id": 61,
+        "matches": 100,
+        "seasons": 1,
+        "with_features": 100,
+        "earliest": "2025-06-11 03:44:53.259884",
+        "latest": "2025-06-11 03:44:53.261973"
+      },
+      {
+        "league_id": 143,
+        "matches": 90,
+        "seasons": 1,
+        "with_features": 90,
+        "earliest": "2025-06-11 23:59:00.074384",
+        "latest": "2025-06-11 23:59:00.078379"
+      },
+      {
+        "league_id": 203,
+        "matches": 90,
+        "seasons": 1,
+        "with_features": 90,
+        "earliest": "2025-06-11 23:51:48.270380",
+        "latest": "2025-06-11 23:51:48.272051"
+      },
+      {
+        "league_id": 179,
+        "matches": 70,
+        "seasons": 1,
+        "with_features": 70,
+        "earliest": "2025-06-11 23:53:26.479390",
+        "latest": "2025-06-11 23:53:26.482387"
+      },
+      {
+        "league_id": 399,
+        "matches": 23,
+        "seasons": 1,
+        "with_features": 23,
+        "earliest": "2023-09-30 15:00:00",
+        "latest": "2023-10-15 15:00:00"
+      }
+    ],
+    "sample_features": [
+      {
+        "season_stage": 1.0,
+        "recency_score": 1.0,
+        "goal_expectancy": 2.0,
+        "training_weight": 1.1,
+        "competition_tier": 3,
+        "foundation_value": 0.6900000000000001,
+        "match_importance": 0.6,
+        "phase1a_enhanced": true,
+        "data_quality_score": 0.9666666666666667,
+        "regional_intensity": 0.8,
+        "tactical_relevance": 0.6666666666666666,
+        "african_market_flag": 0,
+        "enhancement_version": "1.0",
+        "european_tier1_flag": 0,
+        "south_american_flag": 0,
+        "enhancement_timestamp": "2025-07-22T14:05:30.906022",
+        "league_home_advantage": 0.7,
+        "premier_league_weight": 1.2,
+        "developing_market_flag": 1,
+        "league_competitiveness": 0.65,
+        "prediction_reliability": 0.65,
+        "tactical_style_encoding": 0.8,
+        "venue_advantage_realized": 0,
+        "competitiveness_indicator": 0.4,
+        "cross_league_applicability": 0.8
+      },
+      {
+        "season_stage": 1.0,
+        "recency_score": 1.0,
+        "goal_expectancy": 2.5,
+        "training_weight": 1.0,
+        "competition_tier": 1,
+        "foundation_value": 0.9500000000000001,
+        "match_importance": 0.8,
+        "phase1a_enhanced": true,
+        "data_quality_score": 1.0,
+        "regional_intensity": 0.9,
+        "tactical_relevance": 1.0,
+        "african_market_flag": 0,
+        "enhancement_version": "1.0",
+        "european_tier1_flag": 1,
+        "south_american_flag": 0,
+        "enhancement_timestamp": "2025-07-22T14:06:01.923634",
+        "league_home_advantage": 0.6,
+        "premier_league_weight": 1.2,
+        "developing_market_flag": 0,
+        "league_competitiveness": 0.85,
+        "prediction_reliability": 0.85,
+        "tactical_style_encoding": 0.9,
+        "venue_advantage_realized": 1,
+        "competitiveness_indicator": 0.0,
+        "cross_league_applicability": 0.9
+      },
+      {
+        "season_stage": 1.0,
+        "recency_score": 1.0,
+        "goal_expectancy": 2.0,
+        "training_weight": 1.0,
+        "competition_tier": 1,
+        "foundation_value": 0.9500000000000001,
+        "match_importance": 0.8,
+        "phase1a_enhanced": true,
+        "data_quality_score": 1.0,
+        "regional_intensity": 0.9,
+        "tactical_relevance": 1.0,
+        "african_market_flag": 0,
+        "enhancement_version": "1.0",
+        "european_tier1_flag": 1,
+        "south_american_flag": 0,
+        "enhancement_timestamp": "2025-07-22T14:06:01.981825",
+        "league_home_advantage": 0.6,
+        "premier_league_weight": 1.2,
+        "developing_market_flag": 0,
+        "league_competitiveness": 0.85,
+        "prediction_reliability": 0.85,
+        "tactical_style_encoding": 0.9,
+        "venue_advantage_realized": 0,
+        "competitiveness_indicator": 0.8,
+        "cross_league_applicability": 0.9
+      }
+    ]
+  },
+  "strategy": {
+    "current_status": {
+      "existing_matches": 1893,
+      "leagues_covered": 10,
+      "primary_league": "Premier League (960 matches)",
+      "feature_richness": "JSONB features column available"
+    },
+    "core_data_layers": {
+      "1_match_basics": {
+        "description": "Basic match outcome data",
+        "fields": [
+          "match_id",
+          "league_id",
+          "season",
+          "match_date",
+          "home_team",
+          "away_team",
+          "home_goals",
+          "away_goals",
+          "outcome",
+          "venue",
+          "referee",
+          "attendance"
+        ],
+        "status": "\u2705 HAVE",
+        "coverage": "1,893 matches across 10 leagues"
+      },
+      "2_team_performance": {
+        "description": "Team strength and recent form metrics",
+        "fields": [
+          "home_elo",
+          "away_elo",
+          "elo_difference",
+          "home_form_pts",
+          "away_form_pts",
+          "form_difference",
+          "home_attack_rating",
+          "away_attack_rating",
+          "home_defense_rating",
+          "away_defense_rating",
+          "home_win_pct",
+          "away_win_pct",
+          "h2h_record"
+        ],
+        "status": "\ud83d\udd04 PARTIAL",
+        "coverage": "Basic features in JSONB, need enhancement"
+      },
+      "3_tactical_context": {
+        "description": "Playing style and tactical setup",
+        "fields": [
+          "home_formation",
+          "away_formation",
+          "home_playing_style",
+          "away_playing_style",
+          "possession_tendency",
+          "attacking_tendency",
+          "pressing_intensity",
+          "defensive_line_height"
+        ],
+        "status": "\u274c MISSING",
+        "coverage": "Need tactical analysis integration"
+      },
+      "4_player_availability": {
+        "description": "Key player injuries and suspensions",
+        "fields": [
+          "home_key_players_out",
+          "away_key_players_out",
+          "home_injury_severity",
+          "away_injury_severity",
+          "home_suspension_count",
+          "away_suspension_count",
+          "home_player_value_missing",
+          "away_player_value_missing"
+        ],
+        "status": "\u274c MISSING",
+        "coverage": "Critical for real-world accuracy"
+      },
+      "5_match_context": {
+        "description": "Situational and motivational factors",
+        "fields": [
+          "league_position_home",
+          "league_position_away",
+          "points_gap",
+          "relegation_pressure",
+          "title_pressure",
+          "european_qualification_pressure",
+          "derby_flag",
+          "rest_days_difference",
+          "fixture_congestion",
+          "season_phase",
+          "weather_conditions"
+        ],
+        "status": "\ud83d\udd04 PARTIAL",
+        "coverage": "Some context in features, need expansion"
+      },
+      "6_market_intelligence": {
+        "description": "Betting market and public sentiment",
+        "fields": [
+          "opening_odds_home",
+          "opening_odds_draw",
+          "opening_odds_away",
+          "closing_odds_home",
+          "closing_odds_draw",
+          "closing_odds_away",
+          "line_movement",
+          "betting_volume",
+          "public_sentiment",
+          "sharp_money_indicators",
+          "market_efficiency_score"
+        ],
+        "status": "\u274c MISSING",
+        "coverage": "Would significantly improve predictions"
+      },
+      "7_expected_performance": {
+        "description": "Pre-match performance expectations",
+        "fields": [
+          "home_xg_avg",
+          "away_xg_avg",
+          "xg_difference",
+          "home_xga_avg",
+          "away_xga_avg",
+          "xga_difference",
+          "expected_possession",
+          "expected_shots",
+          "expected_corners",
+          "expected_cards"
+        ],
+        "status": "\ud83d\udd04 PARTIAL",
+        "coverage": "Basic xG in features, need enhancement"
+      }
+    },
+    "data_sources_needed": {
+      "primary_apis": [
+        "RapidAPI Football (match data, team stats)",
+        "Football-Data.org (historical results)",
+        "API-Sports (comprehensive stats)",
+        "FiveThirtyEight (team ratings, predictions)"
+      ],
+      "supplementary_sources": [
+        "TransferMarkt (player values, injuries)",
+        "SofaScore (detailed match stats)",
+        "Opta/Stats Perform (advanced metrics)",
+        "Betting APIs (odds data)",
+        "Weather APIs (match conditions)"
+      ],
+      "manual_curation": [
+        "Tactical analysis from expert sources",
+        "Derby/rivalry classifications",
+        "Manager style classifications",
+        "Stadium atmosphere ratings"
+      ]
+    },
+    "target_dataset_size": {
+      "european_leagues": {
+        "target_matches_per_league": 1500,
+        "leagues": 5,
+        "total_matches": 7500,
+        "feature_completeness": "90%+"
+      },
+      "african_leagues": {
+        "target_matches_per_league": 500,
+        "leagues": 4,
+        "total_matches": 2000,
+        "feature_completeness": "70%+"
+      },
+      "total_comprehensive_dataset": 9500
+    },
+    "quality_requirements": {
+      "minimum_features_per_match": 25,
+      "maximum_missing_data_percentage": 10,
+      "temporal_coverage": "2019-2024 (5 years)",
+      "validation_methodology": "Time-series split with 6-month holdout",
+      "feature_leakage_prevention": "T-24h cutoff for all features"
+    }
+  },
+  "phases": [
+    {
+      "phase": "Phase 1A: Enhance Existing Data",
+      "priority": "HIGH",
+      "timeline": "1-2 weeks",
+      "description": "Enhance existing 1,893 matches with missing features",
+      "tasks": [
+        "Extract and standardize existing JSONB features",
+        "Calculate missing team strength metrics",
+        "Add league context and seasonal factors",
+        "Compute head-to-head records",
+        "Add match importance scoring"
+      ],
+      "expected_improvement": "15-20% accuracy gain",
+      "feasibility": "HIGH - uses existing data"
+    },
+    {
+      "phase": "Phase 1B: Historical Backfill",
+      "priority": "HIGH",
+      "timeline": "2-3 weeks",
+      "description": "Expand to 5,000+ matches with RapidAPI",
+      "tasks": [
+        "Collect 3-5 seasons per European league",
+        "Backfill African league data",
+        "Standardize team and venue data",
+        "Calculate rolling team metrics",
+        "Build comprehensive match database"
+      ],
+      "expected_improvement": "10-15% accuracy gain",
+      "feasibility": "MEDIUM - API rate limits"
+    },
+    {
+      "phase": "Phase 2: Player & Injury Intelligence",
+      "priority": "MEDIUM",
+      "timeline": "3-4 weeks",
+      "description": "Add player availability and impact scoring",
+      "tasks": [
+        "Integrate injury/suspension APIs",
+        "Build key player identification system",
+        "Calculate player impact scores",
+        "Track lineup changes and rotations",
+        "Model player absence effects"
+      ],
+      "expected_improvement": "8-12% accuracy gain",
+      "feasibility": "MEDIUM - data complexity"
+    },
+    {
+      "phase": "Phase 3: Market Intelligence",
+      "priority": "MEDIUM",
+      "timeline": "4-6 weeks",
+      "description": "Integrate betting market data and sentiment",
+      "tasks": [
+        "Collect historical odds data",
+        "Track line movements and volume",
+        "Build market efficiency indicators",
+        "Integrate public sentiment metrics",
+        "Create market-anchored features"
+      ],
+      "expected_improvement": "5-8% accuracy gain",
+      "feasibility": "LOW - expensive data sources"
+    },
+    {
+      "phase": "Phase 4: Advanced Context",
+      "priority": "LOW",
+      "timeline": "6-8 weeks",
+      "description": "Add tactical analysis and situational context",
+      "tasks": [
+        "Tactical formation analysis",
+        "Weather condition integration",
+        "Stadium atmosphere modeling",
+        "Manager style classification",
+        "Psychological pressure indicators"
+      ],
+      "expected_improvement": "3-5% accuracy gain",
+      "feasibility": "LOW - manual curation needed"
+    }
+  ],
+  "timestamp": "20250730_125938"
+}
