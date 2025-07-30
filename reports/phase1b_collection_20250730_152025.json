@@ -1,0 +1,67 @@
+{
+  "start_total": 1893,
+  "target": 5000,
+  "leagues_collected": {
+    "140": {
+      "name": "La Liga",
+      "seasons": [
+        2023,
+        2024
+      ],
+      "matches_collected": 0
+    },
+    "135": {
+      "name": "Serie A",
+      "seasons": [
+        2022,
+        2023,
+        2024
+      ],
+      "matches_collected": 0
+    },
+    "78": {
+      "name": "Bundesliga",
+      "seasons": [
+        2022,
+        2023,
+        2024
+      ],
+      "matches_collected": 0
+    },
+    "61": {
+      "name": "Ligue 1",
+      "seasons": [
+        2022,
+        2023,
+        2024
+      ],
+      "matches_collected": 0
+    },
+    "144": {
+      "name": "Jupiler Pro League",
+      "seasons": [
+        2023,
+        2024
+      ],
+      "matches_collected": 0
+    },
+    "88": {
+      "name": "Eredivisie",
+      "seasons": [
+        2024
+      ],
+      "matches_collected": 0
+    },
+    "94": {
+      "name": "Primeira Liga",
+      "seasons": [
+        2023,
+        2024
+      ],
+      "matches_collected": 0
+    }
+  },
+  "total_new_matches": 0,
+  "errors": [],
+  "final_total": 1893
+}
