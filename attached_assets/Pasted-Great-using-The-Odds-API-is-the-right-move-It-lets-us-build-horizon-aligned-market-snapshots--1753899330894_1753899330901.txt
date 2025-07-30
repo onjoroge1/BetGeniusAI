@@ -1,0 +1,205 @@
+Great—using **The Odds API** is the right move. It lets us build **horizon‑aligned market snapshots** (e.g., **T‑72h / T‑120h**) so we can:
+
+1. add a **Market‑T$H$** baseline in the harness, and
+2. train a **Residual‑on‑Market** head that typically buys **0.005–0.015 LogLoss**, **0.003–0.010 Brier**, and **+3–8pp Top‑2** over your current clean stack.
+
+Below is exactly **what to ask the agent to do**, in order. It’s written to drop into a ticket/PR checklist.
+
+---
+
+## 0) What changes because we’re using The Odds API?
+
+* We can now align odds **to the same prediction horizon** we publish (start with **T‑72h**; add **T‑120h** later).
+* Closing odds remain a **reporting baseline only** (not a model feature).
+* The horizon snapshots (T‑72h/T‑120h) become **features** and a **prior** inside the **Residual‑on‑Market** modeling head.
+
+---
+
+## 1) Data model & mappings (build once)
+
+**Ask the agent to:**
+
+1. **Create mapping tables**
+
+   * `league_map(theodds_sport_key → league_id)`
+   * `team_name_xwalk(provider_name → canonical_team_id)`
+     (Include historical aliases; normalize case/accents.)
+
+2. **Create snapshot tables** (SQL)
+
+```sql
+-- time-stamped 3-way odds snapshots (one row per outcome)
+CREATE TABLE IF NOT EXISTS odds_snapshots (
+  match_id BIGINT,
+  league_id INT,
+  book_id  VARCHAR(64),
+  market   VARCHAR(32),               -- e.g., '1x2' or provider's name for 3-way
+  ts_snapshot TIMESTAMP,              -- provider timestamp (UTC)
+  secs_to_kickoff INT,                -- computed vs our KO
+  outcome CHAR(1) CHECK (outcome IN ('H','D','A')),
+  odds_decimal DOUBLE PRECISION,
+  implied_prob DOUBLE PRECISION,      -- margin-adjusted per book/snapshot
+  market_margin DOUBLE PRECISION,     -- overround
+  PRIMARY KEY(match_id, book_id, ts_snapshot, outcome)
+);
+
+-- daily consensus per horizon window (optional materialization for speed)
+CREATE TABLE IF NOT EXISTS odds_consensus (
+  match_id BIGINT,
+  horizon_hours INT,                  -- 72, 120, etc.
+  ts_effective TIMESTAMP,             -- the chosen snapshot timestamp
+  pH_cons DOUBLE PRECISION,
+  pD_cons DOUBLE PRECISION,
+  pA_cons DOUBLE PRECISION,
+  dispH   DOUBLE PRECISION,           -- dispersion/iqr/std across books
+  dispD   DOUBLE PRECISION,
+  dispA   DOUBLE PRECISION,
+  n_books INT,
+  PRIMARY KEY (match_id, horizon_hours)
+);
+```
+
+3. **Market key**
+
+   * Use the **3‑way full‑time result** market (often called **“1X2”** or sometimes “H2H” on APIs; confirm it includes **Draw**).
+   * Store everything as **decimal odds** and UTC timestamps.
+
+---
+
+## 2) Odds ingestion (backfill + ongoing)
+
+**Ask the agent to:**
+
+1. **Backfill**: For each league (EPL, La Liga, Serie A, Bundesliga, Ligue 1) and for each historical match in `training_matches`, fetch odds snapshots **before KO**.
+
+   * If The Odds API exposes **historical snapshots** at arbitrary timestamps, pull **all snapshots** within **\[KO−168h, KO)**.
+   * If it returns “latest” only, schedule **rolling fetches** for future matches and backfill with any historical endpoint they offer.
+
+2. **Select the horizon snapshot**
+
+   * For a chosen horizon $H = 72$ hours: pick the **latest snapshot with `secs_to_kickoff ≥ H*3600`** (i.e., closest *prior* to H).
+   * If no snapshot exists prior to H within a tolerance (e.g., ±12h), **fallback to the nearest earlier** snapshot and record `horizon_hours_effective`.
+
+3. **Convert to implied probabilities** per book per snapshot
+
+   * `q_raw = [1/odd_H, 1/odd_D, 1/odd_A]`
+   * `overround = sum(q_raw)`
+   * `q_adj = q_raw / overround` → store `implied_prob` and `market_margin = overround − 1`.
+
+4. **Consensus + dispersion** per match & horizon
+
+   * `p_cons` = **median** across books for each outcome; re‑normalize to sum to 1.
+   * Dispersion: **IQR** or **std** across books for H/D/A; store `dispH/dispD/dispA` and `n_books`.
+
+5. **Quality filters**
+
+   * Drop books with missing any of H/D/A.
+   * Drop snapshots with `market_margin > 1.10` (example threshold) or stale timestamps (provider‑specific).
+   * Sanity: if `pH_cons+pD_cons+pA_cons` ≠ 1 ± 1e‑6, renormalize.
+
+6. **Rate-limit & caching**
+
+   * Persist raw JSON + a hash in object storage; respect API quotas; backoff on 429/5xx.
+   * Log request\_id, quota remaining, and ETag (if provided) for idempotency.
+
+---
+
+## 3) Join odds to your matches
+
+**Ask the agent to:**
+
+* Build a robust join: `(league_id, KO date, canonical_home_id, canonical_away_id)` → `match_id`.
+* Add unit tests for tricky team names (e.g., “Ath Bilbao” vs “Athletic Bilbao”).
+* Persist horizon‑consensus into `odds_consensus` and keep `odds_snapshots` as the raw feed.
+
+---
+
+## 4) Harness changes (metrics & gates)
+
+**Ask the agent to:**
+
+1. Extend the unified harness to output **four baselines** per league + overall:
+
+   * **Uniform**
+   * **Frequency prior** (league×season empirical)
+   * **Market‑Closing** (from Football‑Data, optional comparison only)
+   * **Market‑T72** (consensus from The Odds API at your horizon)
+
+2. **Gating (per league, N\_test ≥ 300):**
+
+   * `LogLoss(model) ≤ min(LL_freq, LL_market_T72) − 0.010`
+   * `Brier ≤ 0.202` (tighten to ≤0.200 later)
+   * `Top‑2 ≥ 92–95%`
+
+3. **Reports**
+
+   * `METRICS_TABLE.csv` (LL/Brier/RPS/Top‑2 for all baselines + each head + stack).
+   * `CALIBRATION_REPORT.html` with **per‑league** reliability (ECE/MCE) and **Brier decomposition**.
+   * `ABLATION_RESULTS.csv` (ΔLL removing market features, dispersion, Poisson λ, diffs, recency).
+
+---
+
+## 5) Modeling: add **Residual‑on‑Market** head & stack
+
+**Ask the agent to:**
+
+1. Build a **Residual‑on‑Market (T‑72h)** head:
+
+   * Inputs: `logit(q_cons)` for H/D/A, **dispersion** features, plus your enriched structural features (Elo/form diffs, attack/defense ratios, λ/xG proxy from Poisson/DC, rest, phase).
+   * Model: small **multinomial logistic** or **CatBoost**; predict **delta logits** $g(x)$.
+   * Compose: `logit(p) = logit(q_cons) + g(x)`; **re‑normalize** to sum to 1; **OOF‑calibrate per league**.
+
+2. Keep your existing heads:
+
+   * **CatBoost multiclass** (feature‑only)
+   * **Poisson / Dixon‑Coles** (export λ\_HOME, λ\_AWAY)
+   * **Goal‑diff regression** (optional)
+   * Produce **OOF predictions** for each.
+
+3. **Stacking:**
+
+   * **Logit‑average** or **meta‑LR** on OOF logits of:
+     `Residual‑on‑Market`, `CatBoost`, `Poisson/DC`, (`Goal‑diff` if kept).
+   * **Re‑calibrate** stacked output **per league** (OOF‑only).
+
+4. **CI tests:**
+
+   * Leakage: verify every odds snapshot used has `ts_snapshot ≤ KO − 72h`.
+   * Metric parity: Brier implementation equals reference (uniform ≈ 0.222).
+   * Gating: fail if `LL_model ≥ LL_freq` or (once Market‑T72 exists) `LL_model ≥ LL_market_T72`.
+   * Inference parity: offline vs API ≤ 1e‑6 on a frozen batch.
+
+---
+
+## 6) Edge cases & gotchas (tell the agent to handle)
+
+* **Market selection:** ensure it’s the **3‑way FT result** (H/D/A). Some APIs label soccer 3‑way as “1X2”; confirm Draw exists.
+* **Postponed/void** matches: exclude from training/eval.
+* **Multiple books per operator family:** dedupe or treat as distinct if they truly differ.
+* **Timezone alignment:** provider timestamps are UTC; your KO times should be UTC; compute `secs_to_kickoff` robustly.
+* **Team renames/promotions:** keep the crosswalk versioned; assert both sides map to the same `team_id` across seasons.
+* **Outliers:** cap probs at \[0.02, 0.96] before logits to avoid infinite values.
+
+---
+
+## 7) What to ask the agent to deliver (artifacts)
+
+* **Data:** `odds_snapshots.parquet`, `odds_consensus.parquet`, `team_name_xwalk.csv`.
+* **Models:** per league → `{residual_market.joblib, catboost.joblib, poisson_dc.pkl, stack.joblib, calibrator.pkl}`.
+* **Reports:** `METRICS_TABLE.csv`, `CALIBRATION_REPORT.html`, `ABLATION_RESULTS.csv`, `MODEL_CARD.md`.
+* **CI:** green on leakage/contract/baseline gates; reproducible runs (data/code hashes).
+
+---
+
+## 8) What if snapshots are sparse?
+
+If The Odds API cannot give you many true **T‑72h** snapshots for older seasons, implement a **nearest‑prior policy**:
+
+* Use the **latest snapshot ≥ 72h before KO**; if none, use the latest **≥ 96h**; otherwise **flag as missing** and fall back to **Residual‑on‑Frequency** for that match.
+* Record `horizon_hours_effective` so analysis remains honest.
+
+---
+
+### Bottom line
+
+Nothing fundamental in the plan changes—**it gets better**: with The Odds API you can build **horizon‑aligned market priors** and the **Residual‑on‑Market** head. Ask the agent to **ingest snapshots, compute consensus + dispersion, add the residual head, stack, calibrate per league, and gate promotion against Market‑T72**. That’s the cleanest path to meaningful gains in **LogLoss, Brier, and Top‑2** over your current baseline.

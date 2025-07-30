@@ -1,0 +1,142 @@
+What we just verified from your odds file
+I loaded your SP1.csv (La Liga) and confirmed the classic Football‑Data columns:
+Date, HomeTeam, AwayTeam, FTR, B365H/B365D/B365A, PSH/PSD/PSA, WHH/WHD/WHA, VCH/VCD/VCA…
+
+I computed margin‑adjusted implied probabilities per bookmaker and a consensus (median across books) for each match. Here’s what we’re doing for every row:
+
+Raw implied: q_raw = [1/odd_H, 1/odd_D, 1/odd_A]
+
+Overround: r = q_raw.sum()
+
+Margin‑adjusted: q_adj = q_raw / r
+
+Consensus: median of {q_adj^book} per outcome across available books; then re‑normalize so pH+pD+pA = 1.
+
+✅ This gives you a Market (Closing) Baseline for LogLoss/Brier in La Liga.
+⚠️ Do not use closing odds as a feature for an earlier prediction horizon (e.g., T‑72h); that would leak information. Use closing odds only as a baseline until we have time‑stamped pre‑match snapshots.
+
+2) How to integrate odds without reintroducing leakage
+A) Today (with Football‑Data closing odds)
+Use as baselines only: add “Market‑Closing” to your harness next to Uniform and Frequency (per league).
+
+Report per‑league and overall LogLoss/Brier/Top‑2 for:
+
+Uniform, Frequency, Market‑Closing, and Your Model.
+
+This tells you where you stand vs a strong but not horizon‑aligned prior.
+
+B) Next (with a paid API that has historical snapshots)
+Capture T‑72h or T‑120h odds snapshots (per book).
+
+Build an odds_snapshots table (schema below).
+
+Derive consensus T‑72h implied probabilities and:
+
+Use them as a baseline for T‑72h.
+
+Add a Residual‑on‑Market head (safe, horizon‑aligned):
+logit(p) = logit(q_market_T72) + g(x_enrichment) → re‑normalize → calibrate OOF.
+
+Odds schema (ready to copy):
+
+sql
+Copy
+Edit
+CREATE TABLE IF NOT EXISTS odds_snapshots (
+  match_id BIGINT,
+  league_id INT,
+  book_id VARCHAR(32),
+  ts_snapshot TIMESTAMP,
+  secs_to_kickoff INT,
+  outcome CHAR(1) CHECK (outcome IN ('H','D','A')),
+  odds_decimal DOUBLE PRECISION,
+  implied_prob DOUBLE PRECISION,   -- margin-adjusted
+  market_margin DOUBLE PRECISION,
+  PRIMARY KEY(match_id, book_id, ts_snapshot, outcome)
+);
+3) Updated acceptance gates (post‑Phase 1B, pre‑odds‑snapshots)
+Per league (EPL, La Liga, Serie A, Bundesliga, Ligue 1), with N_test ≥ 300:
+
+LogLoss(model) ≤ LogLoss(freq prior) − 0.010
+
+Brier ≤ 0.205 (you’re at ~0.205 now → aim for ≤ 0.202–0.204 to get margin)
+
+Top‑2 ≥ 90–94% (realistic without market features; we’ll raise later)
+
+Add the Market‑Closing baseline to reports, but do not gate against it yet (it’s not horizon‑aligned).
+
+4) One‑week sprint plan (concrete tasks for the agent)
+Day 1–2 — Odds ingestion + baselines
+ Ingest SP1.csv (and equivalents E0, I1, D1, F1) for recent seasons.
+
+ Compute bookwise implied → margin‑adjust → consensus (median).
+
+ Normalize team names to your IDs (create a team_name_xwalk table; resolve historical aliases like “Ath Bilbao” ↔ “Athletic Bilbao”).
+
+ Join odds to training_matches via (league, date, home, away) → then to your match_id.
+
+ Extend the harness to output Market‑Closing baselines (LogLoss/Brier/Top‑2) per league.
+
+Day 3–5 — Model tightening on 5,151 matches
+ Enforce feature safelist (exclude process/meta keys; use sample weights only).
+
+ Add/verify team‑derived diffs & ratios:
+
+elo_pre_diff, form_pts_l5_diff, gf_l5_diff, ga_l5_diff, rest_days_diff
+
+home_attack_vs_away_defense, away_attack_vs_home_defense
+
+Recency weighting (γ≈0.85) for form/H2H
+
+ Train CatBoost multiclass + Poisson/DC → export λ features; add Goal‑diff regression head.
+
+ Stack + OOF‑calibrate per league.
+
+ Add RPS and Brier decomposition (Reliability/Resolution/Uncertainty) to the report.
+
+ Ablations: drop (diffs, ratios, recency, phase, λ/xG proxy) and show ΔLogLoss.
+
+Target by week’s end (per league):
+
+LogLoss(stacked) ≤ LogLoss(freq) − 0.010
+
+Brier ≤ 0.204–0.205 (i.e., tighten a few thousandths)
+
+Top‑2 ≥ 90–92%
+
+5) When to buy odds snapshots (and from whom)
+If you want T‑72h forecasts (the plan you favored), pick a provider with historical time‑stamped odds:
+OddsAPI / TheOddsAPI / Pinnacle Historical / Betfair Historical (paid).
+
+Minimum viable: one sharp book + one recreational to compute a robust median and dispersion (predictive of uncertainty).
+
+Why it’s worth it: once you have T‑72h snapshots, Residual‑on‑Market typically buys 0.005–0.015 LogLoss over your current stack, and stabilizes calibration.
+
+6) Notes on your current results
+48.8% accuracy, LogLoss ~1.018, Brier 0.205 (clean features):
+
+This is much more defendable than 50.6% with mixed/uncertain features.
+
+With the added diffs/ratios + CatBoost + Poisson/DC + stacking, you should see 0.01–0.03 LL improvement and 0.003–0.01 Brier improvement on the 5,151‑match corpus.
+
+Top‑2 = 78.6%: this is low; two reasons:
+
+Probabilities likely too flat (sharpness). Poisson/DC and better calibration help.
+
+No market prior yet. Once we add Residual‑on‑Market (T‑72h), Top‑2 usually jumps materially.
+
+7) Artifacts to produce each run (single source of truth)
+METRICS_TABLE.csv — per league + overall: N, LL_uniform, LL_freq, LL_market_closing, LL_model (per head + stacked), Brier, RPS, Top‑2, Accuracy.
+
+CALIBRATION_REPORT.html — reliability curves (ECE/MCE), Brier decomposition.
+
+ABLATION_RESULTS.csv — ΔLogLoss by feature family.
+
+MODEL_CARD.md — data slice, splits, features, metrics vs baselines, calibration method, known limits.
+
+Artifacts per league: model.joblib, calibrator.pkl, feature_order.json, train_metadata.json.
+
+8) Quick caution on your enhanced features dump
+Any key containing reliability, realized, enhancement_*, *_weight should not be in the model feature matrix. Keep them for weights/audit only.
+
+Confirm enh_home_xg, enh_away_xg, enh_xg_difference, enh_total_xg are pre‑match expectations (not post‑match xG). If uncertain, drop from X and instead use Poisson/DC λs as your xG proxy.

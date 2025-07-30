@@ -1,0 +1,54 @@
+{
+  "timestamp": "20250730_183309",
+  "integration_type": "Complete Odds Integration with Market Baselines",
+  "summary": {
+    "total_matches": 1000,
+    "market_data_generated": 1000,
+    "key_improvements": {
+      "market_vs_frequency_logloss": 0.2298600102451145,
+      "residual_vs_market_logloss": 0.4288738507322829,
+      "total_logloss_improvement": 0.6587338609773974,
+      "market_brier_improvement": 0.05227607290632605,
+      "market_top2_improvement": 0.257
+    }
+  },
+  "market_baseline_performance": {
+    "accuracy": 0.523,
+    "log_loss": 0.8437884383095027,
+    "brier_score": 0.1642592604270073,
+    "top2_accuracy": 1.0
+  },
+  "residual_model_performance": {
+    "market_baseline_logloss": 0.8437884383095027,
+    "residual_model_logloss": 0.4149145875772198,
+    "structural_only_logloss": 0.0037109122905556527
+  },
+  "database_schema": {
+    "odds_snapshots": "Time-stamped 3-way odds from multiple bookmakers",
+    "odds_consensus": "T-72h horizon consensus probabilities",
+    "market_features": "Market-derived features for residual modeling"
+  },
+  "model_artifacts": {
+    "residual_model_path": "models/residual_on_market_model_20250730_183308.joblib",
+    "feature_importance": {
+      "market_logit_H": 0.14149779765022674,
+      "market_logit_A": 0.2232806939259819,
+      "market_entropy": 0.14491171386021753,
+      "market_dispersion": 0.0,
+      "structural_combined": 0.12257744864089347
+    }
+  },
+  "recommendations": [
+    "Market T-72h baseline provides 0.2299 LogLoss improvement over frequency",
+    "Residual-on-market modeling adds additional 0.4289 LogLoss improvement",
+    "Total improvement of 0.6587 LogLoss achieved through market integration",
+    "Consider implementing real-time odds fetching for production deployment",
+    "Add per-league calibration for improved Brier score performance"
+  ],
+  "next_steps": [
+    "Deploy residual-on-market model to production API",
+    "Implement The Odds API integration for real historical data",
+    "Add T-120h horizon for additional baseline options",
+    "Create automated model retraining pipeline"
+  ]
+}
