@@ -1,0 +1,69 @@
+{
+  "timestamp": "20250730_164508",
+  "evaluation_type": "clean_features_policy",
+  "dataset_size": 5151,
+  "safe_features_count": 36,
+  "quarantined_features_count": 12,
+  "validation_results": {
+    "cv_mean_accuracy": 0.4878787878787879,
+    "cv_mean_logloss": 1.0175980130185711,
+    "cv_mean_brier": 0.20459981104910688,
+    "cv_mean_top2": 0.786013986013986,
+    "cv_results": [
+      {
+        "fold": 1,
+        "accuracy": 0.4568764568764569,
+        "log_loss": 1.0565122992081466,
+        "brier_normalized": 0.21220775295324915,
+        "top2_accuracy": 0.7645687645687645,
+        "n_samples": 858
+      },
+      {
+        "fold": 2,
+        "accuracy": 0.486013986013986,
+        "log_loss": 1.0297268029349596,
+        "brier_normalized": 0.2067498318037311,
+        "top2_accuracy": 0.7773892773892774,
+        "n_samples": 858
+      },
+      {
+        "fold": 3,
+        "accuracy": 0.48484848484848486,
+        "log_loss": 1.0437029499483612,
+        "brier_normalized": 0.20884494821868146,
+        "top2_accuracy": 0.7645687645687645,
+        "n_samples": 858
+      },
+      {
+        "fold": 4,
+        "accuracy": 0.5151515151515151,
+        "log_loss": 1.0074492332218012,
+        "brier_normalized": 0.20113179754676402,
+        "top2_accuracy": 0.7680652680652681,
+        "n_samples": 858
+      },
+      {
+        "fold": 5,
+        "accuracy": 0.4965034965034965,
+        "log_loss": 0.9505987797795862,
+        "brier_normalized": 0.1940647247231086,
+        "top2_accuracy": 0.8554778554778555,
+        "n_samples": 858
+      }
+    ],
+    "quality_gates": {
+      "brier_pass": "True",
+      "top2_pass": "False",
+      "overall_pass": "False"
+    }
+  },
+  "feature_policy_compliance": true,
+  "recommendations_implemented": [
+    "quarantined_unsafe_features",
+    "sample_weights_from_process_scores",
+    "normalized_multiclass_brier",
+    "correct_top2_implementation",
+    "time_based_validation",
+    "high_leverage_features_added"
+  ]
+}

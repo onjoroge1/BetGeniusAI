@@ -1,0 +1,108 @@
+1) Feature policy — remove meta/process fields, keep true pre‑match signal
+From the feature list you showed, these are not safe model inputs (they either encode pipeline state, are post‑match, or risk leakage). Keep them out of X, but you may use some for sample weights (see §2):
+
+Quarantine (do not model):
+
+prediction_reliability, venue_advantage_realized (post‑match/derived)
+
+phase1a_enhanced, enhancement_version, enhancement_timestamp (ETL/process)
+
+premier_league_weight, foundation_value, tactical_relevance, cross_league_applicability (process/weighting)
+
+Region redundancies: reduce african_market_flag, european_tier1_flag, south_american_flag → a single region categorical + competition_tier.
+
+Keep as candidate inputs (pre‑match context):
+
+season_stage (or {early,mid,late} + numeric), competition_tier, league_home_advantage,
+
+league_competitiveness or competitiveness_indicator (choose one),
+
+match_importance, tactical_style_encoding (if genuinely pre‑match).
+
+Team/match features you added (good direction—verify they are pre‑match):
+
+enh_ppg, enh_gpg, enh_gapg, enh_goal_diff_pg, enh_recent_form, enh_win_pct, enh_draw_pct, enh_matches_played
+
+enh_h2h_*, enh_league_avg_goals,
+
+enh_home_xg, enh_away_xg, enh_xg_difference, enh_total_xg (must be pre‑match expected, not post‑match xG)
+
+Action: implement a safelist for training columns. Unit test: any feature matching (reliab|realized|enhancement|timestamp|version|weight|applicability) is excluded from X.
+
+2) Use process scores as sample weights, not features
+Build a bounded weight:
+w = clip(training_weight * data_quality_score * premier_league_weight, 0.5, 1.5)
+Pass sample_weight=w into CatBoost/RF; do not include these columns in X.
+
+3) Fix Brier + Top‑2 implementations (single source of truth)
+Your “Brier 0.535 / 0.956” indicates the unnormalized variant (sum over classes, no divide by K). Use the normalized multiclass Brier:
+
+python
+Copy
+Edit
+def brier_multiclass(y_true, proba, labels=('Home','Draw','Away')):
+    import numpy as np
+    y = np.eye(len(labels))[np.array([labels.index(t) for t in y_true])]
+    # normalized: average across classes (K) and samples (N)
+    return ((proba - y)**2).mean()
+For uniform 33/33/33, normalized Brier ≈ 0.222.
+
+Gate remains Brier ≤ 0.205.
+
+Top‑2 (correct implementation):
+
+python
+Copy
+Edit
+def top2_acc(y_true, proba, labels=('Home','Draw','Away')):
+    import numpy as np
+    top2 = np.argsort(-proba, axis=1)[:, :2]
+    idx  = np.array([labels.index(t) for t in y_true])
+    return ((top2[:,0] == idx) | (top2[:,1] == idx)).mean()
+4) Re-run with time-based CV + OOF calibration, per league
+Walk‑forward splits by date/season; no random KFold.
+
+Isotonic/temperature calibration per league on OOF only; apply to test.
+
+Report per league + overall: LogLoss, normalized Brier, RPS, Top‑2, accuracy, with N and baselines (uniform, frequency; add market when you have it).
+
+Stop‑ship gates (each league, N_test ≥ 300):
+
+LogLoss(model) ≤ min(LogLoss(freq), LogLoss(market_if_any)) − 0.010
+
+Brier ≤ 0.205
+
+Top‑2 ≥ 95%
+
+5) Add the high‑leverage features that move LogLoss
+Make sure you compute for both teams, then add diffs (home − away). All must use data strictly before the match.
+
+Team strength & form: elo_pre_*, elo_trend5_*, form_pts_l5_*, gf_avg_l5_*, ga_avg_l5_* → diffs.
+
+Attack vs defense ratios (validated in your run):
+
+home_attack_vs_away_defense = gf_avg_l5_home / max(ga_avg_l5_away, ε)
+
+away_attack_vs_home_defense = gf_avg_l5_away / max(ga_avg_l5_home, ε)
+
+Season phase / must‑win: derived from season_stage, table rank & points gap.
+
+Rest & congestion: rest_days_diff, three_in_seven_flag.
+
+Expected goals proxy: from Poisson/DC λs (see §6), keep λ_home, λ_away, λ_diff, λ_sum.
+
+6) Model suite (parallel), then stack + calibrate
+Train with sample weights and walk‑forward CV; optimize LogLoss.
+
+CatBoost multiclass (3‑way) — strong calibrated baseline for tabular data.
+
+Poisson / Dixon‑Coles head — fit attack/defense + home advantage; convert λ→H/D/A via Skellam/DC. Export λs as features for other heads.
+
+Goal‑difference regression — predict (HomeGoals−AwayGoals), map to H/D/A.
+
+(Two‑stage only if it actually helps on your real data—your synthetic said it didn’t.)
+
+Stacking: collect OOF predictions from the heads, logit‑average or meta‑LR (on logits); re‑calibrate per league.
+
+Ablations: drop each feature family (diffs, ratios, recency, phase, xG proxy) and report ΔLogLoss (paired bootstrap CI) to prove signal.
+
