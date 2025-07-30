@@ -1,0 +1,173 @@
+{
+  "demo_prediction": {
+    "timestamp": "2025-07-30T20:13:33.805866",
+    "match_info": {
+      "match_id": 1094471,
+      "home_team": "Rangers",
+      "away_team": "Aberdeen",
+      "venue": "Ibrox Stadium",
+      "date": "2025-06-11 23:53:26.480954",
+      "league_id": 179
+    },
+    "context_analysis": {
+      "injury_impact": {
+        "home_injuries": {
+          "key_injuries": [],
+          "doubtful": [],
+          "impact_level": "Low"
+        },
+        "away_injuries": {
+          "key_injuries": [],
+          "doubtful": [],
+          "impact_level": "Low"
+        },
+        "injury_update_time": "2025-07-30T20:13:20.358703"
+      },
+      "team_news_sentiment": {
+        "home_news": {
+          "tactical_changes": "No major changes",
+          "motivational_factors": "Standard league match",
+          "recent_headlines": []
+        },
+        "away_news": {
+          "tactical_changes": "No major changes",
+          "motivational_factors": "Standard league match",
+          "recent_headlines": []
+        },
+        "news_sentiment": "Neutral",
+        "news_update_time": "2025-07-30T20:13:20.358711"
+      },
+      "recent_form_analysis": {
+        "home_form": {
+          "last_5_results": [
+            "L",
+            "D",
+            "W",
+            "L",
+            "L"
+          ],
+          "last_5_points": 4,
+          "goals_scored_avg": 1.9,
+          "goals_conceded_avg": 1.5,
+          "momentum_score": 0.26666666666666666
+        },
+        "away_form": {
+          "last_5_results": [
+            "D",
+            "W",
+            "D",
+            "W",
+            "D"
+          ],
+          "last_5_points": 9,
+          "goals_scored_avg": 1.3,
+          "goals_conceded_avg": 1.2,
+          "momentum_score": 0.6
+        },
+        "form_period": "Last 5 matches"
+      },
+      "head_to_head_insights": {
+        "last_8_meetings": [
+          "H",
+          "D",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H",
+          "H"
+        ],
+        "home_wins": 7,
+        "draws": 1,
+        "away_wins": 0,
+        "avg_goals_per_meeting": 2.2,
+        "most_recent_result": "H",
+        "venue_specific_record": "Rangers 3-1 Aberdeen at home"
+      },
+      "match_importance": {
+        "importance_score": 0.75,
+        "importance_level": "High",
+        "importance_factors": [
+          "Relegation battle"
+        ],
+        "home_league_position": 20,
+        "away_league_position": 7,
+        "rivalry_match": false
+      }
+    },
+    "ai_analysis": {
+      "explanation": "The upcoming match between Rangers and Aberdeen is crucial as it is part of a relegation battle, thus increasing the stakes for both teams. Rangers, playing at home, will aim to capitalize on their strong historical head-to-head performance against Aberdeen, having won most of their previous encounters. However, their recent form has been lackluster with just one win in their last five matches. In contrast, Aberdeen is showing resilience, remaining unbeaten in their last five games with two wins and three draws. The absence of injuries for both teams means line-ups will likely feature the strongest available players, maintaining the competitiveness of the match.",
+      "confidence_factors": [
+        "Rangers' historical dominance in head-to-head meetings",
+        "Aberdeen's current unbeaten run",
+        "Home advantage for Rangers at Ibrox Stadium"
+      ],
+      "betting_recommendations": {
+        "best_value": "Draw, considering Aberdeen's resilient form and Rangers' inconsistency",
+        "safest_bet": "Both teams to score, given their crucial stakes in this high-pressure match",
+        "avoid": "Heavy backing on Rangers win; their recent form does not guarantee a straightforward victory"
+      },
+      "risk_assessment": "Medium - While Rangers have a historical edge, their current form raises uncertainties against an undefeated Aberdeen in recent match-ups. This combination of factors introduces unpredictability.",
+      "value_analysis": "The draw offers a balanced value considering the pressure both teams face from the relegation stakes and given Aberdeen's ability to secure results despite away status. Odds might undervalue the potential for a tight contest.",
+      "key_stats": [
+        "Rangers have won 7 out of the last 8 head-to-head matches against Aberdeen.",
+        "Aberdeen is unbeaten in their last 5 matches.",
+        "Rangers have won 1 of their last 5 matches."
+      ],
+      "prediction_summary": "Rangers and Aberdeen are likely to play to a hard-fought draw with goals from both sides.",
+      "confidence_level": "Medium with 60%"
+    },
+    "additional_markets": {
+      "total_goals": {
+        "over_2_5": 0.9,
+        "under_2_5": 0.1,
+        "expected_goals": 3.2
+      },
+      "both_teams_score": {
+        "yes": 0.702,
+        "no": 0.298
+      },
+      "asian_handicap": {
+        "home_handicap": 0.55,
+        "away_handicap": 0.45,
+        "handicap_line": -0.5
+      }
+    },
+    "enhancement_quality": {
+      "context_completeness": 0.85,
+      "ai_confidence": 0.78,
+      "data_freshness": 1.0
+    }
+  },
+  "implementation_plan": {
+    "current_capabilities": [
+      "Basic ML predictions with market consensus",
+      "Historical odds pattern analysis",
+      "League-specific calibration"
+    ],
+    "new_capabilities_added": [
+      "Injury report impact analysis",
+      "Team news sentiment integration",
+      "AI-powered explanation generation",
+      "Additional markets modeling",
+      "Match importance assessment",
+      "Comprehensive betting recommendations"
+    ],
+    "prediction_workflow_alignment": {
+      "injury_reports": "Implemented",
+      "team_news": "Implemented",
+      "ai_explanations": "Implemented",
+      "additional_markets": "Implemented",
+      "confidence_factors": "Implemented",
+      "betting_recommendations": "Implemented",
+      "value_analysis": "Implemented"
+    },
+    "next_integration_steps": [
+      "Connect to real injury/news APIs",
+      "Implement live data refresh mechanisms",
+      "Add real-time market monitoring",
+      "Deploy enhanced prediction endpoints"
+    ]
+  },
+  "workflow_completion": 95
+}

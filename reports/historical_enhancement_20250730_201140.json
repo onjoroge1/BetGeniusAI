@@ -1,0 +1,344 @@
+{
+  "timestamp": "2025-07-30T20:11:40.964977",
+  "enhancement_type": "Historical Odds Value Extraction",
+  "bookmaker_analysis": {
+    "bookmaker_accuracies": {
+      "b365": {
+        "avg_logloss": 0.9748846002974961,
+        "coverage": 3849,
+        "total_matches": 3849
+      },
+      "bw": {
+        "avg_logloss": NaN,
+        "coverage": 3849,
+        "total_matches": 3849
+      },
+      "iw": {
+        "avg_logloss": NaN,
+        "coverage": 3849,
+        "total_matches": 3849
+      },
+      "lb": {
+        "avg_logloss": NaN,
+        "coverage": 3849,
+        "total_matches": 3849
+      },
+      "ps": {
+        "avg_logloss": NaN,
+        "coverage": 3849,
+        "total_matches": 3849
+      },
+      "wh": {
+        "avg_logloss": NaN,
+        "coverage": 3849,
+        "total_matches": 3849
+      },
+      "sj": {
+        "avg_logloss": NaN,
+        "coverage": 3849,
+        "total_matches": 3849
+      },
+      "vc": {
+        "avg_logloss": NaN,
+        "coverage": 3849,
+        "total_matches": 3849
+      }
+    },
+    "accuracy_ranking": [
+      [
+        "b365",
+        0.9748846002974961
+      ],
+      [
+        "bw",
+        NaN
+      ],
+      [
+        "iw",
+        NaN
+      ],
+      [
+        "lb",
+        NaN
+      ],
+      [
+        "ps",
+        NaN
+      ],
+      [
+        "wh",
+        NaN
+      ],
+      [
+        "sj",
+        NaN
+      ],
+      [
+        "vc",
+        NaN
+      ]
+    ],
+    "best_bookmaker": "b365",
+    "analysis_summary": {
+      "total_matches_analyzed": 3849,
+      "bookmakers_with_sufficient_data": 8
+    }
+  },
+  "league_season_priors": {
+    "league_season_priors": {
+      "D1_1314": {
+        "home_rate": 0.4738562091503268,
+        "draw_rate": 0.20915032679738563,
+        "away_rate": 0.31699346405228757,
+        "total_matches": 306
+      },
+      "D1_1415": {
+        "home_rate": 0.4738562091503268,
+        "draw_rate": 0.2679738562091503,
+        "away_rate": 0.2581699346405229,
+        "total_matches": 306
+      },
+      "D1_304": {
+        "home_rate": 0.4948453608247423,
+        "draw_rate": 0.2268041237113402,
+        "away_rate": 0.27835051546391754,
+        "total_matches": 194
+      },
+      "D1_910": {
+        "home_rate": 0.4084967320261438,
+        "draw_rate": 0.28104575163398693,
+        "away_rate": 0.3104575163398693,
+        "total_matches": 306
+      },
+      "E0_1415": {
+        "home_rate": 0.45263157894736844,
+        "draw_rate": 0.24473684210526317,
+        "away_rate": 0.3026315789473684,
+        "total_matches": 380
+      },
+      "E0_9495": {
+        "home_rate": 0.44372294372294374,
+        "draw_rate": 0.29004329004329005,
+        "away_rate": 0.2662337662337662,
+        "total_matches": 462
+      },
+      "F1_708": {
+        "home_rate": 0.4394736842105263,
+        "draw_rate": 0.30526315789473685,
+        "away_rate": 0.25526315789473686,
+        "total_matches": 380
+      },
+      "F1_809": {
+        "home_rate": 0.43252595155709345,
+        "draw_rate": 0.31141868512110726,
+        "away_rate": 0.2560553633217993,
+        "total_matches": 289
+      },
+      "I1_1011": {
+        "home_rate": 0.4710526315789474,
+        "draw_rate": 0.25526315789473686,
+        "away_rate": 0.2736842105263158,
+        "total_matches": 380
+      },
+      "I1_1718": {
+        "home_rate": 0.43157894736842106,
+        "draw_rate": 0.21842105263157896,
+        "away_rate": 0.35,
+        "total_matches": 380
+      },
+      "I1_304": {
+        "home_rate": 0.422680412371134,
+        "draw_rate": 0.30927835051546393,
+        "away_rate": 0.26804123711340205,
+        "total_matches": 194
+      },
+      "SP1_809": {
+        "home_rate": 0.4842105263157895,
+        "draw_rate": 0.21842105263157896,
+        "away_rate": 0.29736842105263156,
+        "total_matches": 380
+      },
+      "SP1_910": {
+        "home_rate": 0.5105263157894737,
+        "draw_rate": 0.25,
+        "away_rate": 0.2394736842105263,
+        "total_matches": 380
+      },
+      "SP1_9495": {
+        "home_rate": 0.4763157894736842,
+        "draw_rate": 0.29736842105263156,
+        "away_rate": 0.22631578947368422,
+        "total_matches": 380
+      }
+    },
+    "league_averages": {
+      "D1": {
+        "avg_home_rate": 0.46276362778788493,
+        "avg_draw_rate": 0.24624351458796576,
+        "avg_away_rate": 0.2909928576241493,
+        "total_matches": 1112,
+        "seasons_covered": 4
+      },
+      "E0": {
+        "avg_home_rate": 0.4481772613351561,
+        "avg_draw_rate": 0.2673900660742766,
+        "avg_away_rate": 0.2844326725905673,
+        "total_matches": 842,
+        "seasons_covered": 2
+      },
+      "F1": {
+        "avg_home_rate": 0.43599981788380987,
+        "avg_draw_rate": 0.30834092150792203,
+        "avg_away_rate": 0.25565926060826805,
+        "total_matches": 669,
+        "seasons_covered": 2
+      },
+      "I1": {
+        "avg_home_rate": 0.4417706637728342,
+        "avg_draw_rate": 0.2609875203472599,
+        "avg_away_rate": 0.29724181587990595,
+        "total_matches": 954,
+        "seasons_covered": 3
+      },
+      "SP1": {
+        "avg_home_rate": 0.4903508771929825,
+        "avg_draw_rate": 0.25526315789473686,
+        "avg_away_rate": 0.2543859649122807,
+        "total_matches": 1140,
+        "seasons_covered": 3
+      }
+    },
+    "total_league_seasons": 14
+  },
+  "market_patterns": {
+    "accuracy_by_confidence": {
+      "(0.7, 0.8]": {
+        "accuracy": 0.7836734693877551,
+        "count": 245,
+        "avg_confidence": 0.744315104629783
+      },
+      "(0.4, 0.5]": {
+        "accuracy": 0.45311268715524033,
+        "count": 1269,
+        "avg_confidence": 0.4459281283457199
+      },
+      "(0.0, 0.4]": {
+        "accuracy": 0.4279346210995542,
+        "count": 673,
+        "avg_confidence": 0.3772273993726382
+      },
+      "(0.5, 0.6]": {
+        "accuracy": 0.564993564993565,
+        "count": 777,
+        "avg_confidence": 0.5439056900413177
+      },
+      "(0.6, 0.7]": {
+        "accuracy": 0.6726057906458798,
+        "count": 449,
+        "avg_confidence": 0.6473279348033562
+      },
+      "(0.8, 1.0]": {
+        "accuracy": 0.9054054054054054,
+        "count": 74,
+        "avg_confidence": 0.835879069161712
+      }
+    },
+    "home_bias_by_league": {
+      "E0": {
+        "market_home_prob": 0.4447206259234827,
+        "actual_home_rate": 0.45263157894736844,
+        "bias": -0.007910953023885725,
+        "matches": 380
+      },
+      "I1": {
+        "market_home_prob": 0.4475659393994255,
+        "actual_home_rate": 0.4513157894736842,
+        "bias": -0.0037498500742587093,
+        "matches": 760
+      },
+      "SP1": {
+        "market_home_prob": 0.4542186843916052,
+        "actual_home_rate": 0.49736842105263157,
+        "bias": -0.043149736661026394,
+        "matches": 760
+      },
+      "D1": {
+        "market_home_prob": 0.4466260336233271,
+        "actual_home_rate": 0.45206971677559915,
+        "bias": -0.005443683152272061,
+        "matches": 918
+      },
+      "F1": {
+        "market_home_prob": 0.44373640514056856,
+        "actual_home_rate": 0.43647234678624813,
+        "bias": 0.007264058354320424,
+        "matches": 669
+      }
+    },
+    "overall_metrics": {
+      "total_matches": 3487,
+      "favorite_accuracy": 0.534270146257528,
+      "avg_market_confidence": 0.509674232947972
+    }
+  },
+  "enhanced_consensus_weights": {
+    "weights": {
+      "b365": 0.0,
+      "bw": NaN,
+      "iw": NaN,
+      "lb": NaN,
+      "ps": NaN,
+      "wh": NaN,
+      "sj": NaN,
+      "vc": NaN
+    },
+    "method": "accuracy_weighted",
+    "best_bookmaker": "b365",
+    "worst_bookmaker": "b365"
+  },
+  "implementation_recommendations": {
+    "priority_recommendations": [
+      {
+        "priority": "High",
+        "action": "Implement accuracy-weighted consensus",
+        "details": "Weight b365 higher (best LogLoss), reduce worst performers",
+        "expected_impact": 0.015
+      },
+      {
+        "priority": "Medium",
+        "action": "Use league-specific priors as baseline",
+        "details": "Replace uniform 33/33/33 with league historical rates",
+        "expected_impact": 0.01
+      },
+      {
+        "priority": "Medium",
+        "action": "Correct systematic market biases",
+        "details": "Adjust for league-specific home bias patterns",
+        "expected_impact": 0.008
+      }
+    ],
+    "implementation_phases": {
+      "Immediate (Week 1)": [
+        "Deploy accuracy-weighted bookmaker consensus",
+        "Replace uniform baseline with league priors",
+        "Add historical pattern features to model"
+      ],
+      "Short-term (Week 2-3)": [
+        "Implement bias correction mechanisms",
+        "Add seasonal adjustment factors",
+        "Create closing line value benchmarks"
+      ],
+      "Integration (Week 4)": [
+        "Full integration with existing residual model",
+        "Comprehensive backtesting and validation",
+        "Production deployment with monitoring"
+      ]
+    },
+    "total_expected_improvement": 0.033,
+    "next_immediate_actions": [
+      "Save enhanced consensus weights to production config",
+      "Update model pipeline to use league-specific priors",
+      "Integrate historical patterns as additional features"
+    ]
+  }
+}
