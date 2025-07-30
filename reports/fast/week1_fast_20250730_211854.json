@@ -1,0 +1,70 @@
+{
+  "timestamp": "2025-07-30T21:18:54.086392",
+  "bookmaker_analysis": {
+    "performance": {
+      "b365": 0.9633996261520121,
+      "bw": 0.9654089706734346,
+      "wh": 0.9645636203336405
+    },
+    "optimal_weights": {
+      "b365": 0.33369907836992024,
+      "bw": 0.3330045370560369,
+      "wh": 0.33329638457404287
+    },
+    "sample_size": 1627
+  },
+  "league_priors": {
+    "D1": {
+      "home_rate": 0.45722937168811506,
+      "draw_rate": 0.2505677517032551,
+      "away_rate": 0.2922028766086298,
+      "sample_size": "2642",
+      "home_advantage": 0.16502649507948525
+    },
+    "E0": {
+      "home_rate": 0.4683038263849229,
+      "draw_rate": 0.24671616219303255,
+      "away_rate": 0.28498001142204454,
+      "sample_size": "3502",
+      "home_advantage": 0.18332381496287836
+    },
+    "F1": {
+      "home_rate": 0.45789473684210524,
+      "draw_rate": 0.30451127819548873,
+      "away_rate": 0.23759398496240602,
+      "sample_size": "2660",
+      "home_advantage": 0.22030075187969925
+    },
+    "I1": {
+      "home_rate": 0.4446620959843291,
+      "draw_rate": 0.2820763956904995,
+      "away_rate": 0.2732615083251714,
+      "sample_size": "3063",
+      "home_advantage": 0.1714005876591577
+    },
+    "SP1": {
+      "home_rate": 0.48233082706766917,
+      "draw_rate": 0.25977443609022555,
+      "away_rate": 0.2578947368421053,
+      "sample_size": "2660",
+      "home_advantage": 0.2244360902255639
+    }
+  },
+  "consensus_performance": {
+    "sample_size": 686,
+    "equal_weight_logloss": 0.9596269798652124,
+    "weighted_logloss": 0.9596257016091659,
+    "improvement": 1.2782560464552617e-06,
+    "weights_used": {
+      "b365": 0.33369907836992024,
+      "bw": 0.3330045370560369,
+      "wh": 0.33329638457404287
+    }
+  },
+  "summary": {
+    "best_bookmaker": "b365",
+    "consensus_improvement": 1.2782560464552617e-06,
+    "total_leagues": 5,
+    "avg_home_advantage": 0.19289754796135689
+  }
+}

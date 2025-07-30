@@ -1,0 +1,3681 @@
+{
+  "era_priors": {
+    "D1_1998-2002": {
+      "league": "D1",
+      "era": "1998-2002",
+      "sample_size": 306,
+      "home_rate": 0.4673202614379085,
+      "draw_rate": 0.28431372549019607,
+      "away_rate": 0.24836601307189543,
+      "home_advantage": 0.21895424836601307,
+      "avg_home_goals": 1.7124183006535947,
+      "avg_away_goals": 1.1797385620915033,
+      "avg_total_goals": 2.892156862745098
+    },
+    "D1_2003-2007": {
+      "league": "D1",
+      "era": "2003-2007",
+      "sample_size": 194,
+      "home_rate": 0.4948453608247423,
+      "draw_rate": 0.2268041237113402,
+      "away_rate": 0.27835051546391754,
+      "home_advantage": 0.21649484536082475,
+      "avg_home_goals": 1.731958762886598,
+      "avg_away_goals": 1.2164948453608246,
+      "avg_total_goals": 2.948453608247423
+    },
+    "D1_2008-2012": {
+      "league": "D1",
+      "era": "2008-2012",
+      "sample_size": 612,
+      "home_rate": 0.4444444444444444,
+      "draw_rate": 0.26143790849673204,
+      "away_rate": 0.29411764705882354,
+      "home_advantage": 0.15032679738562088,
+      "avg_home_goals": 1.6062091503267975,
+      "avg_away_goals": 1.2696078431372548,
+      "avg_total_goals": 2.8758169934640523
+    },
+    "D1_2013-2017": {
+      "league": "D1",
+      "era": "2013-2017",
+      "sample_size": 918,
+      "home_rate": 0.46296296296296297,
+      "draw_rate": 0.23638344226579522,
+      "away_rate": 0.3006535947712418,
+      "home_advantage": 0.16230936819172115,
+      "avg_home_goals": 1.6339869281045751,
+      "avg_away_goals": 1.2810457516339868,
+      "avg_total_goals": 2.915032679738562
+    },
+    "D1_2018-2022": {
+      "league": "D1",
+      "era": "2018-2022",
+      "sample_size": 306,
+      "home_rate": 0.45098039215686275,
+      "draw_rate": 0.238562091503268,
+      "away_rate": 0.3104575163398693,
+      "home_advantage": 0.14052287581699346,
+      "avg_home_goals": 1.7908496732026145,
+      "avg_away_goals": 1.3888888888888888,
+      "avg_total_goals": 3.1797385620915035
+    },
+    "D1_2023-2024": {
+      "league": "D1",
+      "era": "2023-2024",
+      "sample_size": 306,
+      "home_rate": 0.43790849673202614,
+      "draw_rate": 0.2647058823529412,
+      "away_rate": 0.2973856209150327,
+      "home_advantage": 0.14052287581699346,
+      "avg_home_goals": 1.8071895424836601,
+      "avg_away_goals": 1.411764705882353,
+      "avg_total_goals": 3.218954248366013
+    },
+    "E0_1993-1997": {
+      "league": "E0",
+      "era": "1993-1997",
+      "sample_size": 842,
+      "home_rate": 0.4643705463182898,
+      "draw_rate": 0.2755344418052256,
+      "away_rate": 0.26009501187648454,
+      "home_advantage": 0.20427553444180524,
+      "avg_home_goals": 1.5166270783847982,
+      "avg_away_goals": 1.0760095011876485,
+      "avg_total_goals": 2.5926365795724466
+    },
+    "E0_1998-2002": {
+      "league": "E0",
+      "era": "1998-2002",
+      "sample_size": 589,
+      "home_rate": 0.4906621392190153,
+      "draw_rate": 0.24787775891341257,
+      "away_rate": 0.2614601018675722,
+      "home_advantage": 0.22920203735144312,
+      "avg_home_goals": 1.5942275042444822,
+      "avg_away_goals": 1.0848896434634974,
+      "avg_total_goals": 2.67911714770798
+    },
+    "E0_2003-2007": {
+      "league": "E0",
+      "era": "2003-2007",
+      "sample_size": 750,
+      "home_rate": 0.49333333333333335,
+      "draw_rate": 0.22,
+      "away_rate": 0.2866666666666667,
+      "home_advantage": 0.20666666666666667,
+      "avg_home_goals": 1.5186666666666666,
+      "avg_away_goals": 1.1146666666666667,
+      "avg_total_goals": 2.6333333333333333
+    },
+    "E0_2008-2012": {
+      "league": "E0",
+      "era": "2008-2012",
+      "sample_size": 181,
+      "home_rate": 0.4585635359116022,
+      "draw_rate": 0.26519337016574585,
+      "away_rate": 0.27624309392265195,
+      "home_advantage": 0.18232044198895025,
+      "avg_home_goals": 1.4530386740331491,
+      "avg_away_goals": 1.0497237569060773,
+      "avg_total_goals": 2.5027624309392262
+    },
+    "E0_2013-2017": {
+      "league": "E0",
+      "era": "2013-2017",
+      "sample_size": 380,
+      "home_rate": 0.45263157894736844,
+      "draw_rate": 0.24473684210526317,
+      "away_rate": 0.3026315789473684,
+      "home_advantage": 0.15000000000000002,
+      "avg_home_goals": 1.4736842105263157,
+      "avg_away_goals": 1.0921052631578947,
+      "avg_total_goals": 2.5657894736842106
+    },
+    "E0_2018-2022": {
+      "league": "E0",
+      "era": "2018-2022",
+      "sample_size": 760,
+      "home_rate": 0.4407894736842105,
+      "draw_rate": 0.23684210526315788,
+      "away_rate": 0.3223684210526316,
+      "home_advantage": 0.11842105263157893,
+      "avg_home_goals": 1.5144736842105264,
+      "avg_away_goals": 1.2552631578947369,
+      "avg_total_goals": 2.7697368421052633
+    },
+    "F1_1993-1997": {
+      "league": "F1",
+      "era": "1993-1997",
+      "sample_size": 760,
+      "home_rate": 0.5078947368421053,
+      "draw_rate": 0.30657894736842106,
+      "away_rate": 0.18552631578947368,
+      "home_advantage": 0.32236842105263164,
+      "avg_home_goals": 1.5078947368421052,
+      "avg_away_goals": 0.8644736842105263,
+      "avg_total_goals": 2.3723684210526317
+    },
+    "F1_2003-2007": {
+      "league": "F1",
+      "era": "2003-2007",
+      "sample_size": 569,
+      "home_rate": 0.46572934973637964,
+      "draw_rate": 0.30404217926186294,
+      "away_rate": 0.23022847100175747,
+      "home_advantage": 0.23550087873462217,
+      "avg_home_goals": 1.3057996485061512,
+      "avg_away_goals": 0.9156414762741653,
+      "avg_total_goals": 2.2214411247803163
+    },
+    "F1_2008-2012": {
+      "league": "F1",
+      "era": "2008-2012",
+      "sample_size": 951,
+      "home_rate": 0.42586750788643535,
+      "draw_rate": 0.3175604626708728,
+      "away_rate": 0.2565720294426919,
+      "home_advantage": 0.16929547844374343,
+      "avg_home_goals": 1.334384858044164,
+      "avg_away_goals": 0.9863301787592008,
+      "avg_total_goals": 2.3207150368033647
+    },
+    "F1_2018-2022": {
+      "league": "F1",
+      "era": "2018-2022",
+      "sample_size": 380,
+      "home_rate": 0.4263157894736842,
+      "draw_rate": 0.26842105263157895,
+      "away_rate": 0.30526315789473685,
+      "home_advantage": 0.12105263157894736,
+      "avg_home_goals": 1.581578947368421,
+      "avg_away_goals": 1.2263157894736842,
+      "avg_total_goals": 2.807894736842105
+    },
+    "I1_1993-1997": {
+      "league": "I1",
+      "era": "1993-1997",
+      "sample_size": 117,
+      "home_rate": 0.4444444444444444,
+      "draw_rate": 0.26495726495726496,
+      "away_rate": 0.2905982905982906,
+      "home_advantage": 0.1538461538461538,
+      "avg_home_goals": 1.6837606837606838,
+      "avg_away_goals": 1.3162393162393162,
+      "avg_total_goals": 3.0
+    },
+    "I1_1998-2002": {
+      "league": "I1",
+      "era": "1998-2002",
+      "sample_size": 323,
+      "home_rate": 0.4613003095975232,
+      "draw_rate": 0.2724458204334365,
+      "away_rate": 0.26625386996904027,
+      "home_advantage": 0.19504643962848295,
+      "avg_home_goals": 1.5325077399380804,
+      "avg_away_goals": 1.0959752321981424,
+      "avg_total_goals": 2.628482972136223
+    },
+    "I1_2003-2007": {
+      "league": "I1",
+      "era": "2003-2007",
+      "sample_size": 890,
+      "home_rate": 0.449438202247191,
+      "draw_rate": 0.31685393258426964,
+      "away_rate": 0.23370786516853934,
+      "home_advantage": 0.21573033707865166,
+      "avg_home_goals": 1.5280898876404494,
+      "avg_away_goals": 1.102247191011236,
+      "avg_total_goals": 2.630337078651685
+    },
+    "I1_2008-2012": {
+      "league": "I1",
+      "era": "2008-2012",
+      "sample_size": 593,
+      "home_rate": 0.4822934232715008,
+      "draw_rate": 0.24957841483979765,
+      "away_rate": 0.26812816188870153,
+      "home_advantage": 0.2141652613827993,
+      "avg_home_goals": 1.4536256323777403,
+      "avg_away_goals": 1.0674536256323777,
+      "avg_total_goals": 2.521079258010118
+    },
+    "I1_2013-2017": {
+      "league": "I1",
+      "era": "2013-2017",
+      "sample_size": 568,
+      "home_rate": 0.40492957746478875,
+      "draw_rate": 0.28169014084507044,
+      "away_rate": 0.31338028169014087,
+      "home_advantage": 0.09154929577464788,
+      "avg_home_goals": 1.4894366197183098,
+      "avg_away_goals": 1.221830985915493,
+      "avg_total_goals": 2.711267605633803
+    },
+    "I1_2018-2022": {
+      "league": "I1",
+      "era": "2018-2022",
+      "sample_size": 192,
+      "home_rate": 0.4479166666666667,
+      "draw_rate": 0.22395833333333334,
+      "away_rate": 0.328125,
+      "home_advantage": 0.11979166666666669,
+      "avg_home_goals": 1.4427083333333333,
+      "avg_away_goals": 1.1666666666666667,
+      "avg_total_goals": 2.609375
+    },
+    "I1_2023-2024": {
+      "league": "I1",
+      "era": "2023-2024",
+      "sample_size": 380,
+      "home_rate": 0.41842105263157897,
+      "draw_rate": 0.29473684210526313,
+      "away_rate": 0.2868421052631579,
+      "home_advantage": 0.13157894736842107,
+      "avg_home_goals": 1.4342105263157894,
+      "avg_away_goals": 1.1763157894736842,
+      "avg_total_goals": 2.610526315789474
+    },
+    "SP1_1993-1997": {
+      "league": "SP1",
+      "era": "1993-1997",
+      "sample_size": 760,
+      "home_rate": 0.4855263157894737,
+      "draw_rate": 0.2881578947368421,
+      "away_rate": 0.22631578947368422,
+      "home_advantage": 0.25921052631578945,
+      "avg_home_goals": 1.5671052631578948,
+      "avg_away_goals": 1.0039473684210527,
+      "avg_total_goals": 2.5710526315789473
+    },
+    "SP1_1998-2002": {
+      "league": "SP1",
+      "era": "1998-2002",
+      "sample_size": 380,
+      "home_rate": 0.4789473684210526,
+      "draw_rate": 0.29473684210526313,
+      "away_rate": 0.22631578947368422,
+      "home_advantage": 0.25263157894736843,
+      "avg_home_goals": 1.5736842105263158,
+      "avg_away_goals": 1.055263157894737,
+      "avg_total_goals": 2.628947368421053
+    },
+    "SP1_2003-2007": {
+      "league": "SP1",
+      "era": "2003-2007",
+      "sample_size": 550,
+      "home_rate": 0.45454545454545453,
+      "draw_rate": 0.25272727272727274,
+      "away_rate": 0.2927272727272727,
+      "home_advantage": 0.1618181818181818,
+      "avg_home_goals": 1.48,
+      "avg_away_goals": 1.1672727272727272,
+      "avg_total_goals": 2.6472727272727274
+    },
+    "SP1_2008-2012": {
+      "league": "SP1",
+      "era": "2008-2012",
+      "sample_size": 970,
+      "home_rate": 0.49690721649484537,
+      "draw_rate": 0.22783505154639175,
+      "away_rate": 0.2752577319587629,
+      "home_advantage": 0.22164948453608246,
+      "avg_home_goals": 1.6257731958762887,
+      "avg_away_goals": 1.1701030927835052,
+      "avg_total_goals": 2.7958762886597937
+    }
+  },
+  "season_phase_priors": {
+    "D1_1998-2002": {
+      "early": {
+        "sample_size": 90,
+        "home_rate": 0.4777777777777778,
+        "draw_rate": 0.3,
+        "away_rate": 0.2222222222222222,
+        "avg_home_goals": 1.6777777777777778,
+        "avg_away_goals": 1.0444444444444445,
+        "avg_total_goals": 2.7222222222222223
+      },
+      "mid": {
+        "sample_size": 108,
+        "home_rate": 0.4722222222222222,
+        "draw_rate": 0.2777777777777778,
+        "away_rate": 0.25,
+        "avg_home_goals": 1.7777777777777777,
+        "avg_away_goals": 1.1388888888888888,
+        "avg_total_goals": 2.9166666666666665
+      },
+      "late": {
+        "sample_size": 108,
+        "home_rate": 0.4537037037037037,
+        "draw_rate": 0.2777777777777778,
+        "away_rate": 0.26851851851851855,
+        "avg_home_goals": 1.6759259259259258,
+        "avg_away_goals": 1.3333333333333333,
+        "avg_total_goals": 3.009259259259259
+      }
+    },
+    "D1_2003-2007": {
+      "early": {
+        "sample_size": 58,
+        "home_rate": 0.4827586206896552,
+        "draw_rate": 0.20689655172413793,
+        "away_rate": 0.3103448275862069,
+        "avg_home_goals": 1.6896551724137931,
+        "avg_away_goals": 1.3103448275862069,
+        "avg_total_goals": 3.0
+      },
+      "mid": {
+        "sample_size": 60,
+        "home_rate": 0.48333333333333334,
+        "draw_rate": 0.25,
+        "away_rate": 0.26666666666666666,
+        "avg_home_goals": 1.6166666666666667,
+        "avg_away_goals": 1.2333333333333334,
+        "avg_total_goals": 2.85
+      },
+      "late": {
+        "sample_size": 76,
+        "home_rate": 0.5131578947368421,
+        "draw_rate": 0.2236842105263158,
+        "away_rate": 0.2631578947368421,
+        "avg_home_goals": 1.855263157894737,
+        "avg_away_goals": 1.131578947368421,
+        "avg_total_goals": 2.986842105263158
+      }
+    },
+    "D1_2008-2012": {
+      "early": {
+        "sample_size": 188,
+        "home_rate": 0.4308510638297872,
+        "draw_rate": 0.2712765957446808,
+        "away_rate": 0.2978723404255319,
+        "avg_home_goals": 1.6063829787234043,
+        "avg_away_goals": 1.2765957446808511,
+        "avg_total_goals": 2.882978723404255
+      },
+      "mid": {
+        "sample_size": 223,
+        "home_rate": 0.4439461883408072,
+        "draw_rate": 0.2914798206278027,
+        "away_rate": 0.2645739910313901,
+        "avg_home_goals": 1.5650224215246638,
+        "avg_away_goals": 1.2690582959641257,
+        "avg_total_goals": 2.8340807174887894
+      },
+      "late": {
+        "sample_size": 201,
+        "home_rate": 0.4577114427860697,
+        "draw_rate": 0.21890547263681592,
+        "away_rate": 0.32338308457711445,
+        "avg_home_goals": 1.6517412935323383,
+        "avg_away_goals": 1.263681592039801,
+        "avg_total_goals": 2.9154228855721396
+      }
+    },
+    "D1_2013-2017": {
+      "early": {
+        "sample_size": 269,
+        "home_rate": 0.44981412639405205,
+        "draw_rate": 0.25650557620817843,
+        "away_rate": 0.2936802973977695,
+        "avg_home_goals": 1.6468401486988848,
+        "avg_away_goals": 1.2973977695167287,
+        "avg_total_goals": 2.9442379182156135
+      },
+      "mid": {
+        "sample_size": 342,
+        "home_rate": 0.45321637426900585,
+        "draw_rate": 0.2309941520467836,
+        "away_rate": 0.3157894736842105,
+        "avg_home_goals": 1.5994152046783625,
+        "avg_away_goals": 1.280701754385965,
+        "avg_total_goals": 2.8801169590643276
+      },
+      "late": {
+        "sample_size": 307,
+        "home_rate": 0.48534201954397393,
+        "draw_rate": 0.2247557003257329,
+        "away_rate": 0.2899022801302932,
+        "avg_home_goals": 1.6612377850162867,
+        "avg_away_goals": 1.267100977198697,
+        "avg_total_goals": 2.9283387622149837
+      }
+    },
+    "D1_2018-2022": {
+      "early": {
+        "sample_size": 81,
+        "home_rate": 0.43209876543209874,
+        "draw_rate": 0.2716049382716049,
+        "away_rate": 0.2962962962962963,
+        "avg_home_goals": 1.7530864197530864,
+        "avg_away_goals": 1.3580246913580247,
+        "avg_total_goals": 3.111111111111111
+      },
+      "mid": {
+        "sample_size": 126,
+        "home_rate": 0.42857142857142855,
+        "draw_rate": 0.24603174603174602,
+        "away_rate": 0.3253968253968254,
+        "avg_home_goals": 1.6349206349206349,
+        "avg_away_goals": 1.3968253968253967,
+        "avg_total_goals": 3.0317460317460316
+      },
+      "late": {
+        "sample_size": 99,
+        "home_rate": 0.494949494949495,
+        "draw_rate": 0.20202020202020202,
+        "away_rate": 0.30303030303030304,
+        "avg_home_goals": 2.0202020202020203,
+        "avg_away_goals": 1.404040404040404,
+        "avg_total_goals": 3.4242424242424243
+      }
+    },
+    "D1_2023-2024": {
+      "early": {
+        "sample_size": 81,
+        "home_rate": 0.49382716049382713,
+        "draw_rate": 0.18518518518518517,
+        "away_rate": 0.32098765432098764,
+        "avg_home_goals": 2.123456790123457,
+        "avg_away_goals": 1.5432098765432098,
+        "avg_total_goals": 3.666666666666667
+      },
+      "mid": {
+        "sample_size": 126,
+        "home_rate": 0.42063492063492064,
+        "draw_rate": 0.3333333333333333,
+        "away_rate": 0.24603174603174602,
+        "avg_home_goals": 1.6428571428571428,
+        "avg_away_goals": 1.1746031746031746,
+        "avg_total_goals": 2.817460317460317
+      },
+      "late": {
+        "sample_size": 99,
+        "home_rate": 0.41414141414141414,
+        "draw_rate": 0.24242424242424243,
+        "away_rate": 0.3434343434343434,
+        "avg_home_goals": 1.7575757575757576,
+        "avg_away_goals": 1.606060606060606,
+        "avg_total_goals": 3.3636363636363633
+      }
+    },
+    "E0_1993-1997": {
+      "early": {
+        "sample_size": 242,
+        "home_rate": 0.47107438016528924,
+        "draw_rate": 0.23553719008264462,
+        "away_rate": 0.29338842975206614,
+        "avg_home_goals": 1.56198347107438,
+        "avg_away_goals": 1.1446280991735538,
+        "avg_total_goals": 2.706611570247934
+      },
+      "mid": {
+        "sample_size": 351,
+        "home_rate": 0.45584045584045585,
+        "draw_rate": 0.29914529914529914,
+        "away_rate": 0.245014245014245,
+        "avg_home_goals": 1.5242165242165242,
+        "avg_away_goals": 1.0626780626780628,
+        "avg_total_goals": 2.586894586894587
+      },
+      "late": {
+        "sample_size": 249,
+        "home_rate": 0.46987951807228917,
+        "draw_rate": 0.28112449799196787,
+        "away_rate": 0.24899598393574296,
+        "avg_home_goals": 1.461847389558233,
+        "avg_away_goals": 1.0281124497991967,
+        "avg_total_goals": 2.4899598393574296
+      }
+    },
+    "E0_1998-2002": {
+      "early": {
+        "sample_size": 235,
+        "home_rate": 0.502127659574468,
+        "draw_rate": 0.20851063829787234,
+        "away_rate": 0.28936170212765955,
+        "avg_home_goals": 1.5702127659574467,
+        "avg_away_goals": 1.1106382978723404,
+        "avg_total_goals": 2.6808510638297873
+      },
+      "mid": {
+        "sample_size": 232,
+        "home_rate": 0.4827586206896552,
+        "draw_rate": 0.29310344827586204,
+        "away_rate": 0.22413793103448276,
+        "avg_home_goals": 1.5689655172413792,
+        "avg_away_goals": 1.0387931034482758,
+        "avg_total_goals": 2.607758620689655
+      },
+      "late": {
+        "sample_size": 122,
+        "home_rate": 0.48360655737704916,
+        "draw_rate": 0.23770491803278687,
+        "away_rate": 0.2786885245901639,
+        "avg_home_goals": 1.6885245901639345,
+        "avg_away_goals": 1.1229508196721312,
+        "avg_total_goals": 2.8114754098360657
+      }
+    },
+    "E0_2003-2007": {
+      "early": {
+        "sample_size": 213,
+        "home_rate": 0.460093896713615,
+        "draw_rate": 0.24413145539906103,
+        "away_rate": 0.29577464788732394,
+        "avg_home_goals": 1.403755868544601,
+        "avg_away_goals": 1.0610328638497653,
+        "avg_total_goals": 2.464788732394366
+      },
+      "mid": {
+        "sample_size": 323,
+        "home_rate": 0.49226006191950467,
+        "draw_rate": 0.2260061919504644,
+        "away_rate": 0.28173374613003094,
+        "avg_home_goals": 1.5603715170278638,
+        "avg_away_goals": 1.1393188854489165,
+        "avg_total_goals": 2.6996904024767803
+      },
+      "late": {
+        "sample_size": 214,
+        "home_rate": 0.5280373831775701,
+        "draw_rate": 0.18691588785046728,
+        "away_rate": 0.2850467289719626,
+        "avg_home_goals": 1.5700934579439252,
+        "avg_away_goals": 1.1308411214953271,
+        "avg_total_goals": 2.7009345794392523
+      }
+    },
+    "E0_2008-2012": {
+      "mid": {
+        "sample_size": 69,
+        "home_rate": 0.4492753623188406,
+        "draw_rate": 0.2753623188405797,
+        "away_rate": 0.2753623188405797,
+        "avg_home_goals": 1.2608695652173914,
+        "avg_away_goals": 0.9420289855072463,
+        "avg_total_goals": 2.2028985507246377
+      },
+      "late": {
+        "sample_size": 112,
+        "home_rate": 0.4642857142857143,
+        "draw_rate": 0.25892857142857145,
+        "away_rate": 0.2767857142857143,
+        "avg_home_goals": 1.5714285714285714,
+        "avg_away_goals": 1.1160714285714286,
+        "avg_total_goals": 2.6875
+      }
+    },
+    "E0_2013-2017": {
+      "early": {
+        "sample_size": 90,
+        "home_rate": 0.4,
+        "draw_rate": 0.3111111111111111,
+        "away_rate": 0.28888888888888886,
+        "avg_home_goals": 1.6222222222222222,
+        "avg_away_goals": 1.2555555555555555,
+        "avg_total_goals": 2.8777777777777778
+      },
+      "mid": {
+        "sample_size": 176,
+        "home_rate": 0.4375,
+        "draw_rate": 0.26136363636363635,
+        "away_rate": 0.30113636363636365,
+        "avg_home_goals": 1.3409090909090908,
+        "avg_away_goals": 1.0625,
+        "avg_total_goals": 2.403409090909091
+      },
+      "late": {
+        "sample_size": 114,
+        "home_rate": 0.5175438596491229,
+        "draw_rate": 0.16666666666666666,
+        "away_rate": 0.3157894736842105,
+        "avg_home_goals": 1.5614035087719298,
+        "avg_away_goals": 1.0087719298245614,
+        "avg_total_goals": 2.5701754385964914
+      }
+    },
+    "E0_2018-2022": {
+      "early": {
+        "sample_size": 199,
+        "home_rate": 0.39195979899497485,
+        "draw_rate": 0.27638190954773867,
+        "away_rate": 0.3316582914572864,
+        "avg_home_goals": 1.5025125628140703,
+        "avg_away_goals": 1.3366834170854272,
+        "avg_total_goals": 2.8391959798994977
+      },
+      "mid": {
+        "sample_size": 333,
+        "home_rate": 0.44144144144144143,
+        "draw_rate": 0.24324324324324326,
+        "away_rate": 0.3153153153153153,
+        "avg_home_goals": 1.4924924924924925,
+        "avg_away_goals": 1.2192192192192193,
+        "avg_total_goals": 2.711711711711712
+      },
+      "late": {
+        "sample_size": 228,
+        "home_rate": 0.4824561403508772,
+        "draw_rate": 0.19298245614035087,
+        "away_rate": 0.32456140350877194,
+        "avg_home_goals": 1.5570175438596492,
+        "avg_away_goals": 1.236842105263158,
+        "avg_total_goals": 2.7938596491228074
+      }
+    },
+    "F1_1993-1997": {
+      "early": {
+        "sample_size": 270,
+        "home_rate": 0.4962962962962963,
+        "draw_rate": 0.32592592592592595,
+        "away_rate": 0.17777777777777778,
+        "avg_home_goals": 1.4962962962962962,
+        "avg_away_goals": 0.837037037037037,
+        "avg_total_goals": 2.333333333333333
+      },
+      "mid": {
+        "sample_size": 250,
+        "home_rate": 0.496,
+        "draw_rate": 0.312,
+        "away_rate": 0.192,
+        "avg_home_goals": 1.42,
+        "avg_away_goals": 0.832,
+        "avg_total_goals": 2.252
+      },
+      "late": {
+        "sample_size": 240,
+        "home_rate": 0.5333333333333333,
+        "draw_rate": 0.2791666666666667,
+        "away_rate": 0.1875,
+        "avg_home_goals": 1.6125,
+        "avg_away_goals": 0.9291666666666667,
+        "avg_total_goals": 2.541666666666667
+      }
+    },
+    "F1_2003-2007": {
+      "early": {
+        "sample_size": 228,
+        "home_rate": 0.4868421052631579,
+        "draw_rate": 0.2719298245614035,
+        "away_rate": 0.2412280701754386,
+        "avg_home_goals": 1.355263157894737,
+        "avg_away_goals": 0.9868421052631579,
+        "avg_total_goals": 2.3421052631578947
+      },
+      "mid": {
+        "sample_size": 221,
+        "home_rate": 0.43891402714932126,
+        "draw_rate": 0.3212669683257919,
+        "away_rate": 0.2398190045248869,
+        "avg_home_goals": 1.248868778280543,
+        "avg_away_goals": 0.8914027149321267,
+        "avg_total_goals": 2.1402714932126696
+      },
+      "late": {
+        "sample_size": 120,
+        "home_rate": 0.475,
+        "draw_rate": 0.3333333333333333,
+        "away_rate": 0.19166666666666668,
+        "avg_home_goals": 1.3166666666666667,
+        "avg_away_goals": 0.825,
+        "avg_total_goals": 2.1416666666666666
+      }
+    },
+    "F1_2008-2012": {
+      "early": {
+        "sample_size": 218,
+        "home_rate": 0.40825688073394495,
+        "draw_rate": 0.3256880733944954,
+        "away_rate": 0.26605504587155965,
+        "avg_home_goals": 1.2522935779816513,
+        "avg_away_goals": 1.0045871559633028,
+        "avg_total_goals": 2.2568807339449544
+      },
+      "mid": {
+        "sample_size": 357,
+        "home_rate": 0.4565826330532213,
+        "draw_rate": 0.3165266106442577,
+        "away_rate": 0.226890756302521,
+        "avg_home_goals": 1.3585434173669468,
+        "avg_away_goals": 0.9355742296918768,
+        "avg_total_goals": 2.2941176470588234
+      },
+      "late": {
+        "sample_size": 376,
+        "home_rate": 0.40691489361702127,
+        "draw_rate": 0.31382978723404253,
+        "away_rate": 0.27925531914893614,
+        "avg_home_goals": 1.3590425531914894,
+        "avg_away_goals": 1.023936170212766,
+        "avg_total_goals": 2.382978723404255
+      }
+    },
+    "F1_2018-2022": {
+      "early": {
+        "sample_size": 120,
+        "home_rate": 0.44166666666666665,
+        "draw_rate": 0.325,
+        "away_rate": 0.23333333333333334,
+        "avg_home_goals": 1.6666666666666667,
+        "avg_away_goals": 1.2,
+        "avg_total_goals": 2.8666666666666667
+      },
+      "mid": {
+        "sample_size": 140,
+        "home_rate": 0.38571428571428573,
+        "draw_rate": 0.25,
+        "away_rate": 0.36428571428571427,
+        "avg_home_goals": 1.4285714285714286,
+        "avg_away_goals": 1.1857142857142857,
+        "avg_total_goals": 2.6142857142857143
+      },
+      "late": {
+        "sample_size": 120,
+        "home_rate": 0.4583333333333333,
+        "draw_rate": 0.23333333333333334,
+        "away_rate": 0.30833333333333335,
+        "avg_home_goals": 1.675,
+        "avg_away_goals": 1.3,
+        "avg_total_goals": 2.975
+      }
+    },
+    "I1_1993-1997": {
+      "early": {
+        "sample_size": 54,
+        "home_rate": 0.4074074074074074,
+        "draw_rate": 0.25925925925925924,
+        "away_rate": 0.3333333333333333,
+        "avg_home_goals": 1.5555555555555556,
+        "avg_away_goals": 1.3703703703703705,
+        "avg_total_goals": 2.925925925925926
+      },
+      "mid": {
+        "sample_size": 63,
+        "home_rate": 0.47619047619047616,
+        "draw_rate": 0.2698412698412698,
+        "away_rate": 0.25396825396825395,
+        "avg_home_goals": 1.7936507936507937,
+        "avg_away_goals": 1.2698412698412698,
+        "avg_total_goals": 3.0634920634920633
+      }
+    },
+    "I1_1998-2002": {
+      "early": {
+        "sample_size": 54,
+        "home_rate": 0.46296296296296297,
+        "draw_rate": 0.24074074074074073,
+        "away_rate": 0.2962962962962963,
+        "avg_home_goals": 1.5740740740740742,
+        "avg_away_goals": 1.2037037037037037,
+        "avg_total_goals": 2.7777777777777777
+      },
+      "mid": {
+        "sample_size": 164,
+        "home_rate": 0.4451219512195122,
+        "draw_rate": 0.2804878048780488,
+        "away_rate": 0.27439024390243905,
+        "avg_home_goals": 1.4451219512195121,
+        "avg_away_goals": 1.0731707317073171,
+        "avg_total_goals": 2.5182926829268295
+      },
+      "late": {
+        "sample_size": 105,
+        "home_rate": 0.4857142857142857,
+        "draw_rate": 0.2761904761904762,
+        "away_rate": 0.23809523809523808,
+        "avg_home_goals": 1.6476190476190475,
+        "avg_away_goals": 1.0761904761904761,
+        "avg_total_goals": 2.723809523809524
+      }
+    },
+    "I1_2003-2007": {
+      "early": {
+        "sample_size": 247,
+        "home_rate": 0.42105263157894735,
+        "draw_rate": 0.3117408906882591,
+        "away_rate": 0.26720647773279355,
+        "avg_home_goals": 1.4979757085020242,
+        "avg_away_goals": 1.1821862348178138,
+        "avg_total_goals": 2.6801619433198383
+      },
+      "mid": {
+        "sample_size": 349,
+        "home_rate": 0.4469914040114613,
+        "draw_rate": 0.31805157593123207,
+        "away_rate": 0.2349570200573066,
+        "avg_home_goals": 1.489971346704871,
+        "avg_away_goals": 1.0286532951289398,
+        "avg_total_goals": 2.518624641833811
+      },
+      "late": {
+        "sample_size": 294,
+        "home_rate": 0.47619047619047616,
+        "draw_rate": 0.3197278911564626,
+        "away_rate": 0.20408163265306123,
+        "avg_home_goals": 1.598639455782313,
+        "avg_away_goals": 1.1224489795918366,
+        "avg_total_goals": 2.7210884353741496
+      }
+    },
+    "I1_2008-2012": {
+      "early": {
+        "sample_size": 90,
+        "home_rate": 0.4444444444444444,
+        "draw_rate": 0.3,
+        "away_rate": 0.25555555555555554,
+        "avg_home_goals": 1.3,
+        "avg_away_goals": 0.9444444444444444,
+        "avg_total_goals": 2.2444444444444445
+      },
+      "mid": {
+        "sample_size": 263,
+        "home_rate": 0.49809885931558934,
+        "draw_rate": 0.24714828897338403,
+        "away_rate": 0.25475285171102663,
+        "avg_home_goals": 1.4486692015209126,
+        "avg_away_goals": 1.0418250950570342,
+        "avg_total_goals": 2.490494296577947
+      },
+      "late": {
+        "sample_size": 240,
+        "home_rate": 0.4791666666666667,
+        "draw_rate": 0.23333333333333334,
+        "away_rate": 0.2875,
+        "avg_home_goals": 1.5166666666666666,
+        "avg_away_goals": 1.1416666666666666,
+        "avg_total_goals": 2.658333333333333
+      }
+    },
+    "I1_2013-2017": {
+      "early": {
+        "sample_size": 199,
+        "home_rate": 0.457286432160804,
+        "draw_rate": 0.21105527638190955,
+        "away_rate": 0.3316582914572864,
+        "avg_home_goals": 1.5376884422110553,
+        "avg_away_goals": 1.2010050251256281,
+        "avg_total_goals": 2.7386934673366836
+      },
+      "mid": {
+        "sample_size": 229,
+        "home_rate": 0.34934497816593885,
+        "draw_rate": 0.3406113537117904,
+        "away_rate": 0.31004366812227074,
+        "avg_home_goals": 1.4061135371179039,
+        "avg_away_goals": 1.2314410480349345,
+        "avg_total_goals": 2.6375545851528384
+      },
+      "late": {
+        "sample_size": 140,
+        "home_rate": 0.42142857142857143,
+        "draw_rate": 0.2857142857142857,
+        "away_rate": 0.29285714285714287,
+        "avg_home_goals": 1.5571428571428572,
+        "avg_away_goals": 1.2357142857142858,
+        "avg_total_goals": 2.7928571428571427
+      }
+    },
+    "I1_2018-2022": {
+      "mid": {
+        "sample_size": 71,
+        "home_rate": 0.4647887323943662,
+        "draw_rate": 0.19718309859154928,
+        "away_rate": 0.3380281690140845,
+        "avg_home_goals": 1.4366197183098592,
+        "avg_away_goals": 1.1830985915492958,
+        "avg_total_goals": 2.619718309859155
+      },
+      "late": {
+        "sample_size": 121,
+        "home_rate": 0.4380165289256198,
+        "draw_rate": 0.2396694214876033,
+        "away_rate": 0.32231404958677684,
+        "avg_home_goals": 1.4462809917355373,
+        "avg_away_goals": 1.1570247933884297,
+        "avg_total_goals": 2.603305785123967
+      }
+    },
+    "I1_2023-2024": {
+      "early": {
+        "sample_size": 100,
+        "home_rate": 0.43,
+        "draw_rate": 0.27,
+        "away_rate": 0.3,
+        "avg_home_goals": 1.4,
+        "avg_away_goals": 1.16,
+        "avg_total_goals": 2.5599999999999996
+      },
+      "mid": {
+        "sample_size": 160,
+        "home_rate": 0.475,
+        "draw_rate": 0.2625,
+        "away_rate": 0.2625,
+        "avg_home_goals": 1.55,
+        "avg_away_goals": 1.15,
+        "avg_total_goals": 2.7
+      },
+      "late": {
+        "sample_size": 120,
+        "home_rate": 0.3333333333333333,
+        "draw_rate": 0.35833333333333334,
+        "away_rate": 0.30833333333333335,
+        "avg_home_goals": 1.3083333333333333,
+        "avg_away_goals": 1.225,
+        "avg_total_goals": 2.533333333333333
+      }
+    },
+    "SP1_1993-1997": {
+      "early": {
+        "sample_size": 180,
+        "home_rate": 0.48333333333333334,
+        "draw_rate": 0.2722222222222222,
+        "away_rate": 0.24444444444444444,
+        "avg_home_goals": 1.5,
+        "avg_away_goals": 0.9833333333333333,
+        "avg_total_goals": 2.4833333333333334
+      },
+      "mid": {
+        "sample_size": 310,
+        "home_rate": 0.47419354838709676,
+        "draw_rate": 0.3258064516129032,
+        "away_rate": 0.2,
+        "avg_home_goals": 1.564516129032258,
+        "avg_away_goals": 0.9516129032258065,
+        "avg_total_goals": 2.5161290322580645
+      },
+      "late": {
+        "sample_size": 270,
+        "home_rate": 0.5,
+        "draw_rate": 0.25555555555555554,
+        "away_rate": 0.24444444444444444,
+        "avg_home_goals": 1.614814814814815,
+        "avg_away_goals": 1.0777777777777777,
+        "avg_total_goals": 2.6925925925925926
+      }
+    },
+    "SP1_1998-2002": {
+      "early": {
+        "sample_size": 100,
+        "home_rate": 0.54,
+        "draw_rate": 0.25,
+        "away_rate": 0.21,
+        "avg_home_goals": 1.69,
+        "avg_away_goals": 1.03,
+        "avg_total_goals": 2.7199999999999998
+      },
+      "mid": {
+        "sample_size": 160,
+        "home_rate": 0.50625,
+        "draw_rate": 0.3,
+        "away_rate": 0.19375,
+        "avg_home_goals": 1.6625,
+        "avg_away_goals": 1.0875,
+        "avg_total_goals": 2.75
+      },
+      "late": {
+        "sample_size": 120,
+        "home_rate": 0.39166666666666666,
+        "draw_rate": 0.325,
+        "away_rate": 0.2833333333333333,
+        "avg_home_goals": 1.3583333333333334,
+        "avg_away_goals": 1.0333333333333334,
+        "avg_total_goals": 2.3916666666666666
+      }
+    },
+    "SP1_2003-2007": {
+      "early": {
+        "sample_size": 187,
+        "home_rate": 0.47593582887700536,
+        "draw_rate": 0.25133689839572193,
+        "away_rate": 0.2727272727272727,
+        "avg_home_goals": 1.5133689839572193,
+        "avg_away_goals": 1.0909090909090908,
+        "avg_total_goals": 2.6042780748663104
+      },
+      "mid": {
+        "sample_size": 243,
+        "home_rate": 0.43621399176954734,
+        "draw_rate": 0.25925925925925924,
+        "away_rate": 0.3045267489711934,
+        "avg_home_goals": 1.4238683127572016,
+        "avg_away_goals": 1.176954732510288,
+        "avg_total_goals": 2.6008230452674894
+      },
+      "late": {
+        "sample_size": 120,
+        "home_rate": 0.4583333333333333,
+        "draw_rate": 0.24166666666666667,
+        "away_rate": 0.3,
+        "avg_home_goals": 1.5416666666666667,
+        "avg_away_goals": 1.2666666666666666,
+        "avg_total_goals": 2.8083333333333336
+      }
+    },
+    "SP1_2008-2012": {
+      "early": {
+        "sample_size": 164,
+        "home_rate": 0.47560975609756095,
+        "draw_rate": 0.24390243902439024,
+        "away_rate": 0.2804878048780488,
+        "avg_home_goals": 1.5548780487804879,
+        "avg_away_goals": 1.0914634146341464,
+        "avg_total_goals": 2.6463414634146343
+      },
+      "mid": {
+        "sample_size": 398,
+        "home_rate": 0.4949748743718593,
+        "draw_rate": 0.23366834170854273,
+        "away_rate": 0.271356783919598,
+        "avg_home_goals": 1.600502512562814,
+        "avg_away_goals": 1.193467336683417,
+        "avg_total_goals": 2.7939698492462313
+      },
+      "late": {
+        "sample_size": 408,
+        "home_rate": 0.5073529411764706,
+        "draw_rate": 0.21568627450980393,
+        "away_rate": 0.2769607843137255,
+        "avg_home_goals": 1.678921568627451,
+        "avg_away_goals": 1.178921568627451,
+        "avg_total_goals": 2.857843137254902
+      }
+    }
+  },
+  "shrinkage_parameters": {
+    "F1": {
+      "evolution": [
+        {
+          "matches_played": 10,
+          "home_advantage": 0.30000000000000004,
+          "sample_size": 10
+        },
+        {
+          "matches_played": 15,
+          "home_advantage": 0.4666666666666667,
+          "sample_size": 15
+        },
+        {
+          "matches_played": 20,
+          "home_advantage": 0.45000000000000007,
+          "sample_size": 20
+        },
+        {
+          "matches_played": 25,
+          "home_advantage": 0.4,
+          "sample_size": 25
+        },
+        {
+          "matches_played": 30,
+          "home_advantage": 0.43333333333333335,
+          "sample_size": 30
+        },
+        {
+          "matches_played": 35,
+          "home_advantage": 0.4571428571428571,
+          "sample_size": 35
+        },
+        {
+          "matches_played": 40,
+          "home_advantage": 0.47500000000000003,
+          "sample_size": 40
+        },
+        {
+          "matches_played": 45,
+          "home_advantage": 0.37777777777777777,
+          "sample_size": 45
+        },
+        {
+          "matches_played": 50,
+          "home_advantage": 0.38,
+          "sample_size": 50
+        },
+        {
+          "matches_played": 55,
+          "home_advantage": 0.36363636363636365,
+          "sample_size": 55
+        },
+        {
+          "matches_played": 60,
+          "home_advantage": 0.31666666666666665,
+          "sample_size": 60
+        },
+        {
+          "matches_played": 65,
+          "home_advantage": 0.3076923076923077,
+          "sample_size": 65
+        },
+        {
+          "matches_played": 70,
+          "home_advantage": 0.34285714285714286,
+          "sample_size": 70
+        },
+        {
+          "matches_played": 75,
+          "home_advantage": 0.32,
+          "sample_size": 75
+        },
+        {
+          "matches_played": 80,
+          "home_advantage": 0.3375,
+          "sample_size": 80
+        },
+        {
+          "matches_played": 85,
+          "home_advantage": 0.3529411764705882,
+          "sample_size": 85
+        },
+        {
+          "matches_played": 90,
+          "home_advantage": 0.3555555555555555,
+          "sample_size": 90
+        },
+        {
+          "matches_played": 95,
+          "home_advantage": 0.35789473684210527,
+          "sample_size": 95
+        },
+        {
+          "matches_played": 100,
+          "home_advantage": 0.36,
+          "sample_size": 100
+        },
+        {
+          "matches_played": 105,
+          "home_advantage": 0.3333333333333333,
+          "sample_size": 105
+        },
+        {
+          "matches_played": 110,
+          "home_advantage": 0.32727272727272727,
+          "sample_size": 110
+        },
+        {
+          "matches_played": 115,
+          "home_advantage": 0.33913043478260874,
+          "sample_size": 115
+        },
+        {
+          "matches_played": 120,
+          "home_advantage": 0.3666666666666667,
+          "sample_size": 120
+        },
+        {
+          "matches_played": 125,
+          "home_advantage": 0.368,
+          "sample_size": 125
+        },
+        {
+          "matches_played": 130,
+          "home_advantage": 0.3615384615384616,
+          "sample_size": 130
+        },
+        {
+          "matches_played": 135,
+          "home_advantage": 0.3481481481481481,
+          "sample_size": 135
+        },
+        {
+          "matches_played": 140,
+          "home_advantage": 0.35,
+          "sample_size": 140
+        },
+        {
+          "matches_played": 145,
+          "home_advantage": 0.33793103448275863,
+          "sample_size": 145
+        },
+        {
+          "matches_played": 150,
+          "home_advantage": 0.35333333333333333,
+          "sample_size": 150
+        },
+        {
+          "matches_played": 155,
+          "home_advantage": 0.3677419354838709,
+          "sample_size": 155
+        },
+        {
+          "matches_played": 160,
+          "home_advantage": 0.36875,
+          "sample_size": 160
+        },
+        {
+          "matches_played": 165,
+          "home_advantage": 0.3696969696969697,
+          "sample_size": 165
+        },
+        {
+          "matches_played": 170,
+          "home_advantage": 0.3411764705882353,
+          "sample_size": 170
+        },
+        {
+          "matches_played": 175,
+          "home_advantage": 0.34285714285714286,
+          "sample_size": 175
+        },
+        {
+          "matches_played": 180,
+          "home_advantage": 0.33333333333333337,
+          "sample_size": 180
+        },
+        {
+          "matches_played": 185,
+          "home_advantage": 0.32972972972972975,
+          "sample_size": 185
+        },
+        {
+          "matches_played": 190,
+          "home_advantage": 0.34210526315789475,
+          "sample_size": 190
+        },
+        {
+          "matches_played": 195,
+          "home_advantage": 0.34871794871794876,
+          "sample_size": 195
+        },
+        {
+          "matches_played": 200,
+          "home_advantage": 0.35,
+          "sample_size": 200
+        },
+        {
+          "matches_played": 205,
+          "home_advantage": 0.35121951219512193,
+          "sample_size": 205
+        },
+        {
+          "matches_played": 210,
+          "home_advantage": 0.34285714285714286,
+          "sample_size": 210
+        },
+        {
+          "matches_played": 215,
+          "home_advantage": 0.3395348837209302,
+          "sample_size": 215
+        },
+        {
+          "matches_played": 220,
+          "home_advantage": 0.34090909090909094,
+          "sample_size": 220
+        },
+        {
+          "matches_played": 225,
+          "home_advantage": 0.33777777777777773,
+          "sample_size": 225
+        },
+        {
+          "matches_played": 230,
+          "home_advantage": 0.3391304347826087,
+          "sample_size": 230
+        },
+        {
+          "matches_played": 235,
+          "home_advantage": 0.33191489361702126,
+          "sample_size": 235
+        },
+        {
+          "matches_played": 240,
+          "home_advantage": 0.32499999999999996,
+          "sample_size": 240
+        },
+        {
+          "matches_played": 245,
+          "home_advantage": 0.326530612244898,
+          "sample_size": 245
+        },
+        {
+          "matches_played": 250,
+          "home_advantage": 0.33199999999999996,
+          "sample_size": 250
+        },
+        {
+          "matches_played": 255,
+          "home_advantage": 0.3294117647058823,
+          "sample_size": 255
+        },
+        {
+          "matches_played": 260,
+          "home_advantage": 0.32692307692307687,
+          "sample_size": 260
+        },
+        {
+          "matches_played": 265,
+          "home_advantage": 0.31320754716981136,
+          "sample_size": 265
+        },
+        {
+          "matches_played": 270,
+          "home_advantage": 0.3222222222222222,
+          "sample_size": 270
+        },
+        {
+          "matches_played": 275,
+          "home_advantage": 0.32727272727272727,
+          "sample_size": 275
+        },
+        {
+          "matches_played": 280,
+          "home_advantage": 0.31785714285714284,
+          "sample_size": 280
+        },
+        {
+          "matches_played": 285,
+          "home_advantage": 0.32982456140350874,
+          "sample_size": 285
+        },
+        {
+          "matches_played": 290,
+          "home_advantage": 0.33448275862068966,
+          "sample_size": 290
+        },
+        {
+          "matches_played": 295,
+          "home_advantage": 0.33898305084745767,
+          "sample_size": 295
+        },
+        {
+          "matches_played": 300,
+          "home_advantage": 0.3433333333333333,
+          "sample_size": 300
+        },
+        {
+          "matches_played": 305,
+          "home_advantage": 0.34098360655737703,
+          "sample_size": 305
+        },
+        {
+          "matches_played": 310,
+          "home_advantage": 0.3419354838709677,
+          "sample_size": 310
+        },
+        {
+          "matches_played": 315,
+          "home_advantage": 0.33650793650793653,
+          "sample_size": 315
+        },
+        {
+          "matches_played": 320,
+          "home_advantage": 0.334375,
+          "sample_size": 320
+        },
+        {
+          "matches_played": 325,
+          "home_advantage": 0.33538461538461534,
+          "sample_size": 325
+        },
+        {
+          "matches_played": 330,
+          "home_advantage": 0.34242424242424246,
+          "sample_size": 330
+        },
+        {
+          "matches_played": 335,
+          "home_advantage": 0.34029850746268653,
+          "sample_size": 335
+        },
+        {
+          "matches_played": 340,
+          "home_advantage": 0.3382352941176471,
+          "sample_size": 340
+        },
+        {
+          "matches_played": 345,
+          "home_advantage": 0.3420289855072464,
+          "sample_size": 345
+        },
+        {
+          "matches_played": 350,
+          "home_advantage": 0.3371428571428571,
+          "sample_size": 350
+        },
+        {
+          "matches_played": 355,
+          "home_advantage": 0.3408450704225352,
+          "sample_size": 355
+        },
+        {
+          "matches_played": 360,
+          "home_advantage": 0.3388888888888889,
+          "sample_size": 360
+        },
+        {
+          "matches_played": 365,
+          "home_advantage": 0.32876712328767127,
+          "sample_size": 365
+        },
+        {
+          "matches_played": 370,
+          "home_advantage": 0.327027027027027,
+          "sample_size": 370
+        },
+        {
+          "matches_played": 375,
+          "home_advantage": 0.32799999999999996,
+          "sample_size": 375
+        },
+        {
+          "matches_played": 10,
+          "home_advantage": 0.0,
+          "sample_size": 10
+        },
+        {
+          "matches_played": 15,
+          "home_advantage": 0.0,
+          "sample_size": 15
+        },
+        {
+          "matches_played": 20,
+          "home_advantage": 0.0,
+          "sample_size": 20
+        },
+        {
+          "matches_played": 25,
+          "home_advantage": 0.16000000000000003,
+          "sample_size": 25
+        },
+        {
+          "matches_played": 30,
+          "home_advantage": 0.16666666666666669,
+          "sample_size": 30
+        },
+        {
+          "matches_played": 35,
+          "home_advantage": 0.19999999999999998,
+          "sample_size": 35
+        },
+        {
+          "matches_played": 40,
+          "home_advantage": 0.2,
+          "sample_size": 40
+        },
+        {
+          "matches_played": 45,
+          "home_advantage": 0.2,
+          "sample_size": 45
+        },
+        {
+          "matches_played": 50,
+          "home_advantage": 0.26,
+          "sample_size": 50
+        },
+        {
+          "matches_played": 55,
+          "home_advantage": 0.2727272727272727,
+          "sample_size": 55
+        },
+        {
+          "matches_played": 60,
+          "home_advantage": 0.2833333333333333,
+          "sample_size": 60
+        },
+        {
+          "matches_played": 65,
+          "home_advantage": 0.29230769230769227,
+          "sample_size": 65
+        },
+        {
+          "matches_played": 70,
+          "home_advantage": 0.2857142857142857,
+          "sample_size": 70
+        },
+        {
+          "matches_played": 75,
+          "home_advantage": 0.29333333333333333,
+          "sample_size": 75
+        },
+        {
+          "matches_played": 80,
+          "home_advantage": 0.25,
+          "sample_size": 80
+        },
+        {
+          "matches_played": 85,
+          "home_advantage": 0.23529411764705882,
+          "sample_size": 85
+        },
+        {
+          "matches_played": 90,
+          "home_advantage": 0.24444444444444446,
+          "sample_size": 90
+        },
+        {
+          "matches_played": 95,
+          "home_advantage": 0.23157894736842102,
+          "sample_size": 95
+        },
+        {
+          "matches_played": 100,
+          "home_advantage": 0.22000000000000003,
+          "sample_size": 100
+        },
+        {
+          "matches_played": 105,
+          "home_advantage": 0.2,
+          "sample_size": 105
+        },
+        {
+          "matches_played": 110,
+          "home_advantage": 0.20909090909090908,
+          "sample_size": 110
+        },
+        {
+          "matches_played": 115,
+          "home_advantage": 0.20869565217391303,
+          "sample_size": 115
+        },
+        {
+          "matches_played": 120,
+          "home_advantage": 0.19166666666666668,
+          "sample_size": 120
+        },
+        {
+          "matches_played": 125,
+          "home_advantage": 0.216,
+          "sample_size": 125
+        },
+        {
+          "matches_played": 130,
+          "home_advantage": 0.23846153846153847,
+          "sample_size": 130
+        },
+        {
+          "matches_played": 135,
+          "home_advantage": 0.24444444444444446,
+          "sample_size": 135
+        },
+        {
+          "matches_played": 140,
+          "home_advantage": 0.2571428571428571,
+          "sample_size": 140
+        },
+        {
+          "matches_played": 145,
+          "home_advantage": 0.2689655172413793,
+          "sample_size": 145
+        },
+        {
+          "matches_played": 150,
+          "home_advantage": 0.28,
+          "sample_size": 150
+        },
+        {
+          "matches_played": 155,
+          "home_advantage": 0.27741935483870966,
+          "sample_size": 155
+        },
+        {
+          "matches_played": 160,
+          "home_advantage": 0.28750000000000003,
+          "sample_size": 160
+        },
+        {
+          "matches_played": 165,
+          "home_advantage": 0.296969696969697,
+          "sample_size": 165
+        },
+        {
+          "matches_played": 170,
+          "home_advantage": 0.3,
+          "sample_size": 170
+        },
+        {
+          "matches_played": 175,
+          "home_advantage": 0.29714285714285715,
+          "sample_size": 175
+        },
+        {
+          "matches_played": 180,
+          "home_advantage": 0.30000000000000004,
+          "sample_size": 180
+        },
+        {
+          "matches_played": 185,
+          "home_advantage": 0.3081081081081081,
+          "sample_size": 185
+        },
+        {
+          "matches_played": 190,
+          "home_advantage": 0.2947368421052632,
+          "sample_size": 190
+        },
+        {
+          "matches_played": 195,
+          "home_advantage": 0.29230769230769227,
+          "sample_size": 195
+        },
+        {
+          "matches_played": 200,
+          "home_advantage": 0.285,
+          "sample_size": 200
+        },
+        {
+          "matches_played": 205,
+          "home_advantage": 0.2926829268292683,
+          "sample_size": 205
+        },
+        {
+          "matches_played": 210,
+          "home_advantage": 0.28095238095238095,
+          "sample_size": 210
+        },
+        {
+          "matches_played": 215,
+          "home_advantage": 0.2837209302325581,
+          "sample_size": 215
+        },
+        {
+          "matches_played": 220,
+          "home_advantage": 0.2863636363636364,
+          "sample_size": 220
+        },
+        {
+          "matches_played": 225,
+          "home_advantage": 0.2844444444444444,
+          "sample_size": 225
+        },
+        {
+          "matches_played": 230,
+          "home_advantage": 0.3,
+          "sample_size": 230
+        },
+        {
+          "matches_played": 235,
+          "home_advantage": 0.3063829787234042,
+          "sample_size": 235
+        },
+        {
+          "matches_played": 240,
+          "home_advantage": 0.3125,
+          "sample_size": 240
+        },
+        {
+          "matches_played": 245,
+          "home_advantage": 0.3061224489795918,
+          "sample_size": 245
+        },
+        {
+          "matches_played": 250,
+          "home_advantage": 0.308,
+          "sample_size": 250
+        },
+        {
+          "matches_played": 255,
+          "home_advantage": 0.2980392156862745,
+          "sample_size": 255
+        },
+        {
+          "matches_played": 260,
+          "home_advantage": 0.30769230769230765,
+          "sample_size": 260
+        },
+        {
+          "matches_played": 265,
+          "home_advantage": 0.30566037735849055,
+          "sample_size": 265
+        },
+        {
+          "matches_played": 270,
+          "home_advantage": 0.30370370370370364,
+          "sample_size": 270
+        },
+        {
+          "matches_played": 275,
+          "home_advantage": 0.31636363636363635,
+          "sample_size": 275
+        },
+        {
+          "matches_played": 280,
+          "home_advantage": 0.3071428571428571,
+          "sample_size": 280
+        },
+        {
+          "matches_played": 285,
+          "home_advantage": 0.3017543859649123,
+          "sample_size": 285
+        },
+        {
+          "matches_played": 290,
+          "home_advantage": 0.30689655172413793,
+          "sample_size": 290
+        },
+        {
+          "matches_played": 295,
+          "home_advantage": 0.31186440677966104,
+          "sample_size": 295
+        },
+        {
+          "matches_played": 300,
+          "home_advantage": 0.3133333333333333,
+          "sample_size": 300
+        },
+        {
+          "matches_played": 305,
+          "home_advantage": 0.3114754098360656,
+          "sample_size": 305
+        },
+        {
+          "matches_played": 310,
+          "home_advantage": 0.30967741935483867,
+          "sample_size": 310
+        },
+        {
+          "matches_played": 315,
+          "home_advantage": 0.3142857142857143,
+          "sample_size": 315
+        },
+        {
+          "matches_played": 320,
+          "home_advantage": 0.3125,
+          "sample_size": 320
+        },
+        {
+          "matches_played": 325,
+          "home_advantage": 0.3046153846153846,
+          "sample_size": 325
+        },
+        {
+          "matches_played": 330,
+          "home_advantage": 0.30606060606060603,
+          "sample_size": 330
+        },
+        {
+          "matches_played": 335,
+          "home_advantage": 0.30447761194029854,
+          "sample_size": 335
+        },
+        {
+          "matches_played": 340,
+          "home_advantage": 0.30882352941176466,
+          "sample_size": 340
+        },
+        {
+          "matches_played": 345,
+          "home_advantage": 0.3014492753623189,
+          "sample_size": 345
+        },
+        {
+          "matches_played": 350,
+          "home_advantage": 0.3057142857142857,
+          "sample_size": 350
+        },
+        {
+          "matches_played": 355,
+          "home_advantage": 0.30985915492957744,
+          "sample_size": 355
+        },
+        {
+          "matches_played": 360,
+          "home_advantage": 0.3138888888888889,
+          "sample_size": 360
+        },
+        {
+          "matches_played": 365,
+          "home_advantage": 0.3178082191780822,
+          "sample_size": 365
+        },
+        {
+          "matches_played": 370,
+          "home_advantage": 0.3135135135135135,
+          "sample_size": 370
+        },
+        {
+          "matches_played": 375,
+          "home_advantage": 0.31999999999999995,
+          "sample_size": 375
+        },
+        {
+          "matches_played": 10,
+          "home_advantage": 0.0,
+          "sample_size": 10
+        },
+        {
+          "matches_played": 15,
+          "home_advantage": -0.13333333333333336,
+          "sample_size": 15
+        },
+        {
+          "matches_played": 20,
+          "home_advantage": 0.04999999999999999,
+          "sample_size": 20
+        },
+        {
+          "matches_played": 25,
+          "home_advantage": 0.12,
+          "sample_size": 25
+        },
+        {
+          "matches_played": 30,
+          "home_advantage": 0.09999999999999998,
+          "sample_size": 30
+        },
+        {
+          "matches_played": 35,
+          "home_advantage": 0.11428571428571432,
+          "sample_size": 35
+        },
+        {
+          "matches_played": 40,
+          "home_advantage": 0.22499999999999998,
+          "sample_size": 40
+        },
+        {
+          "matches_played": 45,
+          "home_advantage": 0.26666666666666666,
+          "sample_size": 45
+        },
+        {
+          "matches_played": 50,
+          "home_advantage": 0.26,
+          "sample_size": 50
+        },
+        {
+          "matches_played": 55,
+          "home_advantage": 0.2181818181818182,
+          "sample_size": 55
+        },
+        {
+          "matches_played": 60,
+          "home_advantage": 0.16666666666666669,
+          "sample_size": 60
+        },
+        {
+          "matches_played": 65,
+          "home_advantage": 0.2,
+          "sample_size": 65
+        },
+        {
+          "matches_played": 70,
+          "home_advantage": 0.21428571428571427,
+          "sample_size": 70
+        },
+        {
+          "matches_played": 75,
+          "home_advantage": 0.2533333333333333,
+          "sample_size": 75
+        },
+        {
+          "matches_played": 80,
+          "home_advantage": 0.275,
+          "sample_size": 80
+        },
+        {
+          "matches_played": 85,
+          "home_advantage": 0.2941176470588236,
+          "sample_size": 85
+        },
+        {
+          "matches_played": 90,
+          "home_advantage": 0.29999999999999993,
+          "sample_size": 90
+        },
+        {
+          "matches_played": 95,
+          "home_advantage": 0.3052631578947369,
+          "sample_size": 95
+        },
+        {
+          "matches_played": 100,
+          "home_advantage": 0.31000000000000005,
+          "sample_size": 100
+        },
+        {
+          "matches_played": 105,
+          "home_advantage": 0.3142857142857143,
+          "sample_size": 105
+        },
+        {
+          "matches_played": 110,
+          "home_advantage": 0.3454545454545454,
+          "sample_size": 110
+        },
+        {
+          "matches_played": 115,
+          "home_advantage": 0.33043478260869563,
+          "sample_size": 115
+        },
+        {
+          "matches_played": 120,
+          "home_advantage": 0.31666666666666665,
+          "sample_size": 120
+        },
+        {
+          "matches_played": 125,
+          "home_advantage": 0.32000000000000006,
+          "sample_size": 125
+        },
+        {
+          "matches_played": 130,
+          "home_advantage": 0.3153846153846154,
+          "sample_size": 130
+        },
+        {
+          "matches_played": 135,
+          "home_advantage": 0.2962962962962963,
+          "sample_size": 135
+        },
+        {
+          "matches_played": 140,
+          "home_advantage": 0.3142857142857143,
+          "sample_size": 140
+        },
+        {
+          "matches_played": 145,
+          "home_advantage": 0.31724137931034485,
+          "sample_size": 145
+        },
+        {
+          "matches_played": 150,
+          "home_advantage": 0.3133333333333333,
+          "sample_size": 150
+        },
+        {
+          "matches_played": 155,
+          "home_advantage": 0.3161290322580645,
+          "sample_size": 155
+        },
+        {
+          "matches_played": 160,
+          "home_advantage": 0.31250000000000006,
+          "sample_size": 160
+        },
+        {
+          "matches_played": 165,
+          "home_advantage": 0.2969696969696969,
+          "sample_size": 165
+        },
+        {
+          "matches_played": 170,
+          "home_advantage": 0.3,
+          "sample_size": 170
+        },
+        {
+          "matches_played": 175,
+          "home_advantage": 0.30857142857142855,
+          "sample_size": 175
+        },
+        {
+          "matches_played": 180,
+          "home_advantage": 0.31111111111111106,
+          "sample_size": 180
+        },
+        {
+          "matches_played": 185,
+          "home_advantage": 0.3081081081081081,
+          "sample_size": 185
+        },
+        {
+          "matches_played": 190,
+          "home_advantage": 0.3,
+          "sample_size": 190
+        },
+        {
+          "matches_played": 195,
+          "home_advantage": 0.3128205128205128,
+          "sample_size": 195
+        },
+        {
+          "matches_played": 200,
+          "home_advantage": 0.29000000000000004,
+          "sample_size": 200
+        },
+        {
+          "matches_played": 205,
+          "home_advantage": 0.2878048780487805,
+          "sample_size": 205
+        },
+        {
+          "matches_played": 210,
+          "home_advantage": 0.2761904761904762,
+          "sample_size": 210
+        },
+        {
+          "matches_played": 215,
+          "home_advantage": 0.2558139534883721,
+          "sample_size": 215
+        },
+        {
+          "matches_played": 220,
+          "home_advantage": 0.26363636363636367,
+          "sample_size": 220
+        },
+        {
+          "matches_played": 225,
+          "home_advantage": 0.27555555555555555,
+          "sample_size": 225
+        },
+        {
+          "matches_played": 230,
+          "home_advantage": 0.26521739130434785,
+          "sample_size": 230
+        },
+        {
+          "matches_played": 235,
+          "home_advantage": 0.276595744680851,
+          "sample_size": 235
+        },
+        {
+          "matches_played": 240,
+          "home_advantage": 0.2791666666666667,
+          "sample_size": 240
+        },
+        {
+          "matches_played": 245,
+          "home_advantage": 0.26530612244897955,
+          "sample_size": 245
+        },
+        {
+          "matches_played": 250,
+          "home_advantage": 0.256,
+          "sample_size": 250
+        },
+        {
+          "matches_played": 255,
+          "home_advantage": 0.25098039215686274,
+          "sample_size": 255
+        },
+        {
+          "matches_played": 260,
+          "home_advantage": 0.25,
+          "sample_size": 260
+        },
+        {
+          "matches_played": 265,
+          "home_advantage": 0.2490566037735849,
+          "sample_size": 265
+        },
+        {
+          "matches_played": 270,
+          "home_advantage": 0.24074074074074076,
+          "sample_size": 270
+        },
+        {
+          "matches_played": 275,
+          "home_advantage": 0.24000000000000002,
+          "sample_size": 275
+        },
+        {
+          "matches_played": 280,
+          "home_advantage": 0.23571428571428574,
+          "sample_size": 280
+        },
+        {
+          "matches_played": 285,
+          "home_advantage": 0.23508771929824562,
+          "sample_size": 285
+        },
+        {
+          "matches_played": 290,
+          "home_advantage": 0.24137931034482757,
+          "sample_size": 290
+        },
+        {
+          "matches_played": 295,
+          "home_advantage": 0.23728813559322035,
+          "sample_size": 295
+        },
+        {
+          "matches_played": 300,
+          "home_advantage": 0.22666666666666668,
+          "sample_size": 300
+        },
+        {
+          "matches_played": 305,
+          "home_advantage": 0.22622950819672133,
+          "sample_size": 305
+        },
+        {
+          "matches_played": 310,
+          "home_advantage": 0.22903225806451613,
+          "sample_size": 310
+        },
+        {
+          "matches_played": 315,
+          "home_advantage": 0.22857142857142856,
+          "sample_size": 315
+        },
+        {
+          "matches_played": 320,
+          "home_advantage": 0.23437499999999997,
+          "sample_size": 320
+        },
+        {
+          "matches_played": 325,
+          "home_advantage": 0.24307692307692305,
+          "sample_size": 325
+        },
+        {
+          "matches_played": 330,
+          "home_advantage": 0.2424242424242424,
+          "sample_size": 330
+        },
+        {
+          "matches_played": 335,
+          "home_advantage": 0.2298507462686567,
+          "sample_size": 335
+        },
+        {
+          "matches_played": 340,
+          "home_advantage": 0.23823529411764707,
+          "sample_size": 340
+        },
+        {
+          "matches_played": 345,
+          "home_advantage": 0.24347826086956523,
+          "sample_size": 345
+        },
+        {
+          "matches_played": 350,
+          "home_advantage": 0.2457142857142857,
+          "sample_size": 350
+        },
+        {
+          "matches_played": 355,
+          "home_advantage": 0.2563380281690141,
+          "sample_size": 355
+        },
+        {
+          "matches_played": 360,
+          "home_advantage": 0.25277777777777777,
+          "sample_size": 360
+        },
+        {
+          "matches_played": 365,
+          "home_advantage": 0.2547945205479452,
+          "sample_size": 365
+        },
+        {
+          "matches_played": 370,
+          "home_advantage": 0.25675675675675674,
+          "sample_size": 370
+        },
+        {
+          "matches_played": 375,
+          "home_advantage": 0.256,
+          "sample_size": 375
+        },
+        {
+          "matches_played": 10,
+          "home_advantage": 0.4,
+          "sample_size": 10
+        },
+        {
+          "matches_played": 15,
+          "home_advantage": 0.4,
+          "sample_size": 15
+        },
+        {
+          "matches_played": 20,
+          "home_advantage": 0.3,
+          "sample_size": 20
+        },
+        {
+          "matches_played": 25,
+          "home_advantage": 0.24,
+          "sample_size": 25
+        },
+        {
+          "matches_played": 30,
+          "home_advantage": 0.3333333333333333,
+          "sample_size": 30
+        },
+        {
+          "matches_played": 35,
+          "home_advantage": 0.2571428571428571,
+          "sample_size": 35
+        },
+        {
+          "matches_played": 40,
+          "home_advantage": 0.27499999999999997,
+          "sample_size": 40
+        },
+        {
+          "matches_played": 45,
+          "home_advantage": 0.26666666666666666,
+          "sample_size": 45
+        },
+        {
+          "matches_played": 50,
+          "home_advantage": 0.27999999999999997,
+          "sample_size": 50
+        },
+        {
+          "matches_played": 55,
+          "home_advantage": 0.16363636363636364,
+          "sample_size": 55
+        },
+        {
+          "matches_played": 60,
+          "home_advantage": 0.16666666666666669,
+          "sample_size": 60
+        },
+        {
+          "matches_played": 65,
+          "home_advantage": 0.2,
+          "sample_size": 65
+        },
+        {
+          "matches_played": 70,
+          "home_advantage": 0.17142857142857143,
+          "sample_size": 70
+        },
+        {
+          "matches_played": 75,
+          "home_advantage": 0.18666666666666665,
+          "sample_size": 75
+        },
+        {
+          "matches_played": 80,
+          "home_advantage": 0.1875,
+          "sample_size": 80
+        },
+        {
+          "matches_played": 85,
+          "home_advantage": 0.1647058823529412,
+          "sample_size": 85
+        },
+        {
+          "matches_played": 90,
+          "home_advantage": 0.1444444444444445,
+          "sample_size": 90
+        },
+        {
+          "matches_played": 95,
+          "home_advantage": 0.15789473684210525,
+          "sample_size": 95
+        },
+        {
+          "matches_played": 100,
+          "home_advantage": 0.13,
+          "sample_size": 100
+        },
+        {
+          "matches_played": 105,
+          "home_advantage": 0.16190476190476194,
+          "sample_size": 105
+        },
+        {
+          "matches_played": 110,
+          "home_advantage": 0.18181818181818182,
+          "sample_size": 110
+        },
+        {
+          "matches_played": 115,
+          "home_advantage": 0.17391304347826086,
+          "sample_size": 115
+        },
+        {
+          "matches_played": 120,
+          "home_advantage": 0.1333333333333333,
+          "sample_size": 120
+        },
+        {
+          "matches_played": 125,
+          "home_advantage": 0.136,
+          "sample_size": 125
+        },
+        {
+          "matches_played": 130,
+          "home_advantage": 0.15384615384615385,
+          "sample_size": 130
+        },
+        {
+          "matches_played": 135,
+          "home_advantage": 0.15555555555555556,
+          "sample_size": 135
+        },
+        {
+          "matches_played": 140,
+          "home_advantage": 0.15714285714285714,
+          "sample_size": 140
+        },
+        {
+          "matches_played": 145,
+          "home_advantage": 0.16551724137931034,
+          "sample_size": 145
+        },
+        {
+          "matches_played": 150,
+          "home_advantage": 0.17333333333333334,
+          "sample_size": 150
+        },
+        {
+          "matches_played": 155,
+          "home_advantage": 0.16129032258064513,
+          "sample_size": 155
+        },
+        {
+          "matches_played": 160,
+          "home_advantage": 0.175,
+          "sample_size": 160
+        },
+        {
+          "matches_played": 165,
+          "home_advantage": 0.19393939393939397,
+          "sample_size": 165
+        },
+        {
+          "matches_played": 170,
+          "home_advantage": 0.18823529411764706,
+          "sample_size": 170
+        },
+        {
+          "matches_played": 175,
+          "home_advantage": 0.17142857142857143,
+          "sample_size": 175
+        },
+        {
+          "matches_played": 180,
+          "home_advantage": 0.17777777777777776,
+          "sample_size": 180
+        },
+        {
+          "matches_played": 185,
+          "home_advantage": 0.1837837837837838,
+          "sample_size": 185
+        },
+        {
+          "matches_played": 190,
+          "home_advantage": 0.1894736842105263,
+          "sample_size": 190
+        },
+        {
+          "matches_played": 195,
+          "home_advantage": 0.18461538461538463,
+          "sample_size": 195
+        },
+        {
+          "matches_played": 200,
+          "home_advantage": 0.195,
+          "sample_size": 200
+        },
+        {
+          "matches_played": 205,
+          "home_advantage": 0.1902439024390244,
+          "sample_size": 205
+        },
+        {
+          "matches_played": 210,
+          "home_advantage": 0.20476190476190476,
+          "sample_size": 210
+        },
+        {
+          "matches_played": 215,
+          "home_advantage": 0.21860465116279068,
+          "sample_size": 215
+        },
+        {
+          "matches_played": 220,
+          "home_advantage": 0.21363636363636365,
+          "sample_size": 220
+        },
+        {
+          "matches_played": 225,
+          "home_advantage": 0.2222222222222222,
+          "sample_size": 225
+        },
+        {
+          "matches_played": 230,
+          "home_advantage": 0.22608695652173913,
+          "sample_size": 230
+        },
+        {
+          "matches_played": 235,
+          "home_advantage": 0.2297872340425532,
+          "sample_size": 235
+        },
+        {
+          "matches_played": 240,
+          "home_advantage": 0.22500000000000003,
+          "sample_size": 240
+        },
+        {
+          "matches_played": 245,
+          "home_advantage": 0.23265306122448978,
+          "sample_size": 245
+        },
+        {
+          "matches_played": 250,
+          "home_advantage": 0.23999999999999996,
+          "sample_size": 250
+        },
+        {
+          "matches_played": 255,
+          "home_advantage": 0.23137254901960783,
+          "sample_size": 255
+        },
+        {
+          "matches_played": 260,
+          "home_advantage": 0.21923076923076926,
+          "sample_size": 260
+        },
+        {
+          "matches_played": 265,
+          "home_advantage": 0.2188679245283019,
+          "sample_size": 265
+        },
+        {
+          "matches_played": 270,
+          "home_advantage": 0.2222222222222222,
+          "sample_size": 270
+        },
+        {
+          "matches_played": 275,
+          "home_advantage": 0.21454545454545457,
+          "sample_size": 275
+        },
+        {
+          "matches_played": 280,
+          "home_advantage": 0.21428571428571427,
+          "sample_size": 280
+        },
+        {
+          "matches_played": 285,
+          "home_advantage": 0.2105263157894737,
+          "sample_size": 285
+        },
+        {
+          "matches_played": 290,
+          "home_advantage": 0.20689655172413793,
+          "sample_size": 290
+        },
+        {
+          "matches_played": 295,
+          "home_advantage": 0.19322033898305083,
+          "sample_size": 295
+        },
+        {
+          "matches_played": 300,
+          "home_advantage": 0.2033333333333333,
+          "sample_size": 300
+        },
+        {
+          "matches_played": 305,
+          "home_advantage": 0.19344262295081965,
+          "sample_size": 305
+        },
+        {
+          "matches_played": 310,
+          "home_advantage": 0.19032258064516133,
+          "sample_size": 310
+        },
+        {
+          "matches_played": 315,
+          "home_advantage": 0.18412698412698414,
+          "sample_size": 315
+        },
+        {
+          "matches_played": 320,
+          "home_advantage": 0.190625,
+          "sample_size": 320
+        },
+        {
+          "matches_played": 325,
+          "home_advantage": 0.1938461538461539,
+          "sample_size": 325
+        },
+        {
+          "matches_played": 330,
+          "home_advantage": 0.19090909090909092,
+          "sample_size": 330
+        },
+        {
+          "matches_played": 335,
+          "home_advantage": 0.19402985074626866,
+          "sample_size": 335
+        },
+        {
+          "matches_played": 340,
+          "home_advantage": 0.18529411764705878,
+          "sample_size": 340
+        },
+        {
+          "matches_played": 345,
+          "home_advantage": 0.18840579710144928,
+          "sample_size": 345
+        },
+        {
+          "matches_played": 350,
+          "home_advantage": 0.18571428571428572,
+          "sample_size": 350
+        },
+        {
+          "matches_played": 355,
+          "home_advantage": 0.1859154929577465,
+          "sample_size": 355
+        },
+        {
+          "matches_played": 360,
+          "home_advantage": 0.18333333333333335,
+          "sample_size": 360
+        },
+        {
+          "matches_played": 365,
+          "home_advantage": 0.18082191780821916,
+          "sample_size": 365
+        },
+        {
+          "matches_played": 370,
+          "home_advantage": 0.1837837837837838,
+          "sample_size": 370
+        },
+        {
+          "matches_played": 375,
+          "home_advantage": 0.1893333333333333,
+          "sample_size": 375
+        },
+        {
+          "matches_played": 10,
+          "home_advantage": 0.39999999999999997,
+          "sample_size": 10
+        },
+        {
+          "matches_played": 15,
+          "home_advantage": 0.5333333333333333,
+          "sample_size": 15
+        },
+        {
+          "matches_played": 20,
+          "home_advantage": 0.5,
+          "sample_size": 20
+        },
+        {
+          "matches_played": 25,
+          "home_advantage": 0.52,
+          "sample_size": 25
+        },
+        {
+          "matches_played": 30,
+          "home_advantage": 0.43333333333333335,
+          "sample_size": 30
+        },
+        {
+          "matches_played": 35,
+          "home_advantage": 0.45714285714285713,
+          "sample_size": 35
+        },
+        {
+          "matches_played": 40,
+          "home_advantage": 0.35,
+          "sample_size": 40
+        },
+        {
+          "matches_played": 45,
+          "home_advantage": 0.35555555555555557,
+          "sample_size": 45
+        },
+        {
+          "matches_played": 50,
+          "home_advantage": 0.34,
+          "sample_size": 50
+        },
+        {
+          "matches_played": 55,
+          "home_advantage": 0.3454545454545454,
+          "sample_size": 55
+        },
+        {
+          "matches_played": 60,
+          "home_advantage": 0.3166666666666667,
+          "sample_size": 60
+        },
+        {
+          "matches_played": 65,
+          "home_advantage": 0.3230769230769231,
+          "sample_size": 65
+        },
+        {
+          "matches_played": 70,
+          "home_advantage": 0.2857142857142857,
+          "sample_size": 70
+        },
+        {
+          "matches_played": 75,
+          "home_advantage": 0.25333333333333335,
+          "sample_size": 75
+        },
+        {
+          "matches_played": 80,
+          "home_advantage": 0.275,
+          "sample_size": 80
+        },
+        {
+          "matches_played": 85,
+          "home_advantage": 0.2941176470588235,
+          "sample_size": 85
+        },
+        {
+          "matches_played": 90,
+          "home_advantage": 0.26666666666666666,
+          "sample_size": 90
+        },
+        {
+          "matches_played": 95,
+          "home_advantage": 0.2736842105263158,
+          "sample_size": 95
+        },
+        {
+          "matches_played": 100,
+          "home_advantage": 0.24000000000000002,
+          "sample_size": 100
+        },
+        {
+          "matches_played": 105,
+          "home_advantage": 0.20952380952380956,
+          "sample_size": 105
+        },
+        {
+          "matches_played": 110,
+          "home_advantage": 0.19999999999999998,
+          "sample_size": 110
+        },
+        {
+          "matches_played": 115,
+          "home_advantage": 0.19999999999999998,
+          "sample_size": 115
+        },
+        {
+          "matches_played": 120,
+          "home_advantage": 0.21666666666666667,
+          "sample_size": 120
+        },
+        {
+          "matches_played": 125,
+          "home_advantage": 0.20800000000000002,
+          "sample_size": 125
+        },
+        {
+          "matches_played": 130,
+          "home_advantage": 0.1769230769230769,
+          "sample_size": 130
+        },
+        {
+          "matches_played": 135,
+          "home_advantage": 0.1925925925925926,
+          "sample_size": 135
+        },
+        {
+          "matches_played": 140,
+          "home_advantage": 0.2,
+          "sample_size": 140
+        },
+        {
+          "matches_played": 145,
+          "home_advantage": 0.19310344827586207,
+          "sample_size": 145
+        },
+        {
+          "matches_played": 150,
+          "home_advantage": 0.19999999999999996,
+          "sample_size": 150
+        },
+        {
+          "matches_played": 155,
+          "home_advantage": 0.19354838709677424,
+          "sample_size": 155
+        },
+        {
+          "matches_played": 160,
+          "home_advantage": 0.1875,
+          "sample_size": 160
+        },
+        {
+          "matches_played": 165,
+          "home_advantage": 0.2,
+          "sample_size": 165
+        },
+        {
+          "matches_played": 170,
+          "home_advantage": 0.2058823529411765,
+          "sample_size": 170
+        },
+        {
+          "matches_played": 175,
+          "home_advantage": 0.19428571428571428,
+          "sample_size": 175
+        },
+        {
+          "matches_played": 180,
+          "home_advantage": 0.18888888888888888,
+          "sample_size": 180
+        },
+        {
+          "matches_played": 185,
+          "home_advantage": 0.1783783783783784,
+          "sample_size": 185
+        },
+        {
+          "matches_played": 190,
+          "home_advantage": 0.17368421052631577,
+          "sample_size": 190
+        },
+        {
+          "matches_played": 195,
+          "home_advantage": 0.15897435897435896,
+          "sample_size": 195
+        },
+        {
+          "matches_played": 200,
+          "home_advantage": 0.16499999999999998,
+          "sample_size": 200
+        },
+        {
+          "matches_played": 205,
+          "home_advantage": 0.17073170731707316,
+          "sample_size": 205
+        },
+        {
+          "matches_played": 210,
+          "home_advantage": 0.17142857142857143,
+          "sample_size": 210
+        },
+        {
+          "matches_played": 215,
+          "home_advantage": 0.17209302325581394,
+          "sample_size": 215
+        },
+        {
+          "matches_played": 220,
+          "home_advantage": 0.17272727272727273,
+          "sample_size": 220
+        },
+        {
+          "matches_played": 225,
+          "home_advantage": 0.18222222222222223,
+          "sample_size": 225
+        },
+        {
+          "matches_played": 230,
+          "home_advantage": 0.16956521739130437,
+          "sample_size": 230
+        },
+        {
+          "matches_played": 235,
+          "home_advantage": 0.17021276595744683,
+          "sample_size": 235
+        },
+        {
+          "matches_played": 240,
+          "home_advantage": 0.16666666666666663,
+          "sample_size": 240
+        },
+        {
+          "matches_played": 245,
+          "home_advantage": 0.14693877551020407,
+          "sample_size": 245
+        },
+        {
+          "matches_played": 250,
+          "home_advantage": 0.14799999999999996,
+          "sample_size": 250
+        },
+        {
+          "matches_played": 255,
+          "home_advantage": 0.1568627450980392,
+          "sample_size": 255
+        },
+        {
+          "matches_played": 260,
+          "home_advantage": 0.1576923076923077,
+          "sample_size": 260
+        },
+        {
+          "matches_played": 265,
+          "home_advantage": 0.15849056603773587,
+          "sample_size": 265
+        },
+        {
+          "matches_played": 270,
+          "home_advantage": 0.1703703703703704,
+          "sample_size": 270
+        },
+        {
+          "matches_played": 275,
+          "home_advantage": 0.17454545454545456,
+          "sample_size": 275
+        },
+        {
+          "matches_played": 280,
+          "home_advantage": 0.17142857142857143,
+          "sample_size": 280
+        },
+        {
+          "matches_played": 285,
+          "home_advantage": 0.16842105263157897,
+          "sample_size": 285
+        },
+        {
+          "matches_played": 290,
+          "home_advantage": 0.17931034482758618,
+          "sample_size": 290
+        },
+        {
+          "matches_played": 295,
+          "home_advantage": 0.16610169491525423,
+          "sample_size": 295
+        },
+        {
+          "matches_played": 300,
+          "home_advantage": 0.17000000000000004,
+          "sample_size": 300
+        },
+        {
+          "matches_played": 305,
+          "home_advantage": 0.17049180327868857,
+          "sample_size": 305
+        },
+        {
+          "matches_played": 310,
+          "home_advantage": 0.1774193548387097,
+          "sample_size": 310
+        },
+        {
+          "matches_played": 315,
+          "home_advantage": 0.17777777777777776,
+          "sample_size": 315
+        },
+        {
+          "matches_played": 320,
+          "home_advantage": 0.17812499999999998,
+          "sample_size": 320
+        },
+        {
+          "matches_played": 325,
+          "home_advantage": 0.16923076923076924,
+          "sample_size": 325
+        },
+        {
+          "matches_played": 330,
+          "home_advantage": 0.16969696969696968,
+          "sample_size": 330
+        },
+        {
+          "matches_played": 335,
+          "home_advantage": 0.17014925373134326,
+          "sample_size": 335
+        },
+        {
+          "matches_played": 340,
+          "home_advantage": 0.16764705882352943,
+          "sample_size": 340
+        },
+        {
+          "matches_played": 345,
+          "home_advantage": 0.16521739130434782,
+          "sample_size": 345
+        },
+        {
+          "matches_played": 350,
+          "home_advantage": 0.16285714285714287,
+          "sample_size": 350
+        },
+        {
+          "matches_played": 355,
+          "home_advantage": 0.16619718309859155,
+          "sample_size": 355
+        },
+        {
+          "matches_played": 360,
+          "home_advantage": 0.15833333333333338,
+          "sample_size": 360
+        },
+        {
+          "matches_played": 365,
+          "home_advantage": 0.16164383561643836,
+          "sample_size": 365
+        },
+        {
+          "matches_played": 370,
+          "home_advantage": 0.16216216216216217,
+          "sample_size": 370
+        },
+        {
+          "matches_played": 375,
+          "home_advantage": 0.16266666666666663,
+          "sample_size": 375
+        },
+        {
+          "matches_played": 10,
+          "home_advantage": 0.2,
+          "sample_size": 10
+        },
+        {
+          "matches_played": 15,
+          "home_advantage": 0.13333333333333336,
+          "sample_size": 15
+        },
+        {
+          "matches_played": 20,
+          "home_advantage": 0.04999999999999999,
+          "sample_size": 20
+        },
+        {
+          "matches_played": 25,
+          "home_advantage": 0.16000000000000003,
+          "sample_size": 25
+        },
+        {
+          "matches_played": 30,
+          "home_advantage": 0.09999999999999998,
+          "sample_size": 30
+        },
+        {
+          "matches_played": 35,
+          "home_advantage": 0.05714285714285716,
+          "sample_size": 35
+        },
+        {
+          "matches_played": 40,
+          "home_advantage": 0.07499999999999996,
+          "sample_size": 40
+        },
+        {
+          "matches_played": 45,
+          "home_advantage": 0.06666666666666671,
+          "sample_size": 45
+        },
+        {
+          "matches_played": 50,
+          "home_advantage": 0.06,
+          "sample_size": 50
+        },
+        {
+          "matches_played": 55,
+          "home_advantage": 0.054545454545454564,
+          "sample_size": 55
+        },
+        {
+          "matches_played": 60,
+          "home_advantage": 0.06666666666666665,
+          "sample_size": 60
+        },
+        {
+          "matches_played": 65,
+          "home_advantage": 0.046153846153846156,
+          "sample_size": 65
+        },
+        {
+          "matches_played": 70,
+          "home_advantage": 0.07142857142857145,
+          "sample_size": 70
+        },
+        {
+          "matches_played": 75,
+          "home_advantage": 0.053333333333333344,
+          "sample_size": 75
+        },
+        {
+          "matches_played": 80,
+          "home_advantage": 0.08750000000000002,
+          "sample_size": 80
+        },
+        {
+          "matches_played": 85,
+          "home_advantage": 0.07058823529411762,
+          "sample_size": 85
+        },
+        {
+          "matches_played": 90,
+          "home_advantage": 0.1111111111111111,
+          "sample_size": 90
+        },
+        {
+          "matches_played": 95,
+          "home_advantage": 0.10526315789473684,
+          "sample_size": 95
+        },
+        {
+          "matches_played": 100,
+          "home_advantage": 0.06,
+          "sample_size": 100
+        },
+        {
+          "matches_played": 105,
+          "home_advantage": 0.08571428571428569,
+          "sample_size": 105
+        },
+        {
+          "matches_played": 110,
+          "home_advantage": 0.08181818181818185,
+          "sample_size": 110
+        },
+        {
+          "matches_played": 115,
+          "home_advantage": 0.08695652173913043,
+          "sample_size": 115
+        },
+        {
+          "matches_played": 120,
+          "home_advantage": 0.10000000000000003,
+          "sample_size": 120
+        },
+        {
+          "matches_played": 125,
+          "home_advantage": 0.10399999999999998,
+          "sample_size": 125
+        },
+        {
+          "matches_played": 130,
+          "home_advantage": 0.12307692307692308,
+          "sample_size": 130
+        },
+        {
+          "matches_played": 135,
+          "home_advantage": 0.12592592592592594,
+          "sample_size": 135
+        },
+        {
+          "matches_played": 140,
+          "home_advantage": 0.12142857142857144,
+          "sample_size": 140
+        },
+        {
+          "matches_played": 145,
+          "home_advantage": 0.13103448275862073,
+          "sample_size": 145
+        },
+        {
+          "matches_played": 150,
+          "home_advantage": 0.12,
+          "sample_size": 150
+        },
+        {
+          "matches_played": 155,
+          "home_advantage": 0.1225806451612903,
+          "sample_size": 155
+        },
+        {
+          "matches_played": 160,
+          "home_advantage": 0.14375,
+          "sample_size": 160
+        },
+        {
+          "matches_played": 165,
+          "home_advantage": 0.14545454545454545,
+          "sample_size": 165
+        },
+        {
+          "matches_played": 170,
+          "home_advantage": 0.13529411764705884,
+          "sample_size": 170
+        },
+        {
+          "matches_played": 175,
+          "home_advantage": 0.1428571428571429,
+          "sample_size": 175
+        },
+        {
+          "matches_played": 180,
+          "home_advantage": 0.14444444444444443,
+          "sample_size": 180
+        },
+        {
+          "matches_played": 185,
+          "home_advantage": 0.15675675675675677,
+          "sample_size": 185
+        },
+        {
+          "matches_played": 190,
+          "home_advantage": 0.16842105263157894,
+          "sample_size": 190
+        },
+        {
+          "matches_played": 195,
+          "home_advantage": 0.17435897435897435,
+          "sample_size": 195
+        },
+        {
+          "matches_played": 200,
+          "home_advantage": 0.185,
+          "sample_size": 200
+        },
+        {
+          "matches_played": 205,
+          "home_advantage": 0.19512195121951217,
+          "sample_size": 205
+        },
+        {
+          "matches_played": 210,
+          "home_advantage": 0.2,
+          "sample_size": 210
+        },
+        {
+          "matches_played": 215,
+          "home_advantage": 0.2,
+          "sample_size": 215
+        },
+        {
+          "matches_played": 220,
+          "home_advantage": 0.20454545454545453,
+          "sample_size": 220
+        },
+        {
+          "matches_played": 225,
+          "home_advantage": 0.19999999999999998,
+          "sample_size": 225
+        },
+        {
+          "matches_played": 230,
+          "home_advantage": 0.20434782608695654,
+          "sample_size": 230
+        },
+        {
+          "matches_played": 235,
+          "home_advantage": 0.21276595744680848,
+          "sample_size": 235
+        },
+        {
+          "matches_played": 240,
+          "home_advantage": 0.20416666666666666,
+          "sample_size": 240
+        },
+        {
+          "matches_played": 245,
+          "home_advantage": 0.2,
+          "sample_size": 245
+        },
+        {
+          "matches_played": 250,
+          "home_advantage": 0.2,
+          "sample_size": 250
+        },
+        {
+          "matches_played": 255,
+          "home_advantage": 0.19607843137254904,
+          "sample_size": 255
+        },
+        {
+          "matches_played": 260,
+          "home_advantage": 0.18846153846153849,
+          "sample_size": 260
+        },
+        {
+          "matches_played": 265,
+          "home_advantage": 0.19245283018867926,
+          "sample_size": 265
+        },
+        {
+          "matches_played": 270,
+          "home_advantage": 0.1814814814814815,
+          "sample_size": 270
+        },
+        {
+          "matches_played": 275,
+          "home_advantage": 0.1781818181818182,
+          "sample_size": 275
+        },
+        {
+          "matches_played": 280,
+          "home_advantage": 0.175,
+          "sample_size": 280
+        },
+        {
+          "matches_played": 285,
+          "home_advantage": 0.16842105263157892,
+          "sample_size": 285
+        },
+        {
+          "matches_played": 290,
+          "home_advantage": 0.16551724137931034,
+          "sample_size": 290
+        },
+        {
+          "matches_played": 295,
+          "home_advantage": 0.16271186440677965,
+          "sample_size": 295
+        },
+        {
+          "matches_played": 300,
+          "home_advantage": 0.16666666666666666,
+          "sample_size": 300
+        },
+        {
+          "matches_played": 305,
+          "home_advantage": 0.16721311475409834,
+          "sample_size": 305
+        },
+        {
+          "matches_played": 310,
+          "home_advantage": 0.16129032258064518,
+          "sample_size": 310
+        },
+        {
+          "matches_played": 315,
+          "home_advantage": 0.16507936507936505,
+          "sample_size": 315
+        },
+        {
+          "matches_played": 320,
+          "home_advantage": 0.16874999999999998,
+          "sample_size": 320
+        },
+        {
+          "matches_played": 325,
+          "home_advantage": 0.17230769230769233,
+          "sample_size": 325
+        },
+        {
+          "matches_played": 330,
+          "home_advantage": 0.16969696969696968,
+          "sample_size": 330
+        },
+        {
+          "matches_played": 335,
+          "home_advantage": 0.16417910447761194,
+          "sample_size": 335
+        },
+        {
+          "matches_played": 340,
+          "home_advantage": 0.16470588235294117,
+          "sample_size": 340
+        },
+        {
+          "matches_played": 345,
+          "home_advantage": 0.16521739130434784,
+          "sample_size": 345
+        },
+        {
+          "matches_played": 350,
+          "home_advantage": 0.17428571428571432,
+          "sample_size": 350
+        },
+        {
+          "matches_played": 355,
+          "home_advantage": 0.17183098591549298,
+          "sample_size": 355
+        },
+        {
+          "matches_played": 360,
+          "home_advantage": 0.18055555555555558,
+          "sample_size": 360
+        },
+        {
+          "matches_played": 365,
+          "home_advantage": 0.1726027397260274,
+          "sample_size": 365
+        },
+        {
+          "matches_played": 370,
+          "home_advantage": 0.17297297297297295,
+          "sample_size": 370
+        },
+        {
+          "matches_played": 375,
+          "home_advantage": 0.176,
+          "sample_size": 375
+        },
+        {
+          "matches_played": 10,
+          "home_advantage": -0.4,
+          "sample_size": 10
+        },
+        {
+          "matches_played": 15,
+          "home_advantage": -0.19999999999999998,
+          "sample_size": 15
+        },
+        {
+          "matches_played": 20,
+          "home_advantage": 0.0,
+          "sample_size": 20
+        },
+        {
+          "matches_played": 25,
+          "home_advantage": -0.040000000000000036,
+          "sample_size": 25
+        },
+        {
+          "matches_played": 30,
+          "home_advantage": -0.033333333333333326,
+          "sample_size": 30
+        },
+        {
+          "matches_played": 35,
+          "home_advantage": 0.05714285714285716,
+          "sample_size": 35
+        },
+        {
+          "matches_played": 40,
+          "home_advantage": 0.07500000000000001,
+          "sample_size": 40
+        },
+        {
+          "matches_played": 45,
+          "home_advantage": 0.11111111111111113,
+          "sample_size": 45
+        },
+        {
+          "matches_played": 50,
+          "home_advantage": 0.040000000000000036,
+          "sample_size": 50
+        },
+        {
+          "matches_played": 55,
+          "home_advantage": 0.036363636363636376,
+          "sample_size": 55
+        },
+        {
+          "matches_played": 60,
+          "home_advantage": 0.06666666666666665,
+          "sample_size": 60
+        },
+        {
+          "matches_played": 65,
+          "home_advantage": 0.06153846153846154,
+          "sample_size": 65
+        },
+        {
+          "matches_played": 70,
+          "home_advantage": 0.10000000000000003,
+          "sample_size": 70
+        },
+        {
+          "matches_played": 75,
+          "home_advantage": 0.053333333333333344,
+          "sample_size": 75
+        },
+        {
+          "matches_played": 80,
+          "home_advantage": 0.0625,
+          "sample_size": 80
+        },
+        {
+          "matches_played": 85,
+          "home_advantage": 0.09411764705882353,
+          "sample_size": 85
+        },
+        {
+          "matches_played": 90,
+          "home_advantage": 0.13333333333333336,
+          "sample_size": 90
+        },
+        {
+          "matches_played": 95,
+          "home_advantage": 0.16842105263157892,
+          "sample_size": 95
+        },
+        {
+          "matches_played": 100,
+          "home_advantage": 0.16999999999999998,
+          "sample_size": 100
+        },
+        {
+          "matches_played": 105,
+          "home_advantage": 0.19047619047619047,
+          "sample_size": 105
+        },
+        {
+          "matches_played": 110,
+          "home_advantage": 0.1909090909090909,
+          "sample_size": 110
+        },
+        {
+          "matches_played": 115,
+          "home_advantage": 0.21739130434782608,
+          "sample_size": 115
+        },
+        {
+          "matches_played": 120,
+          "home_advantage": 0.20833333333333331,
+          "sample_size": 120
+        },
+        {
+          "matches_played": 125,
+          "home_advantage": 0.2,
+          "sample_size": 125
+        },
+        {
+          "matches_played": 130,
+          "home_advantage": 0.19230769230769232,
+          "sample_size": 130
+        },
+        {
+          "matches_played": 135,
+          "home_advantage": 0.1925925925925926,
+          "sample_size": 135
+        },
+        {
+          "matches_played": 140,
+          "home_advantage": 0.19285714285714284,
+          "sample_size": 140
+        },
+        {
+          "matches_played": 145,
+          "home_advantage": 0.1724137931034483,
+          "sample_size": 145
+        },
+        {
+          "matches_played": 150,
+          "home_advantage": 0.15333333333333332,
+          "sample_size": 150
+        },
+        {
+          "matches_played": 155,
+          "home_advantage": 0.15483870967741936,
+          "sample_size": 155
+        },
+        {
+          "matches_played": 160,
+          "home_advantage": 0.1375,
+          "sample_size": 160
+        },
+        {
+          "matches_played": 165,
+          "home_advantage": 0.12121212121212122,
+          "sample_size": 165
+        },
+        {
+          "matches_played": 170,
+          "home_advantage": 0.12352941176470589,
+          "sample_size": 170
+        },
+        {
+          "matches_played": 175,
+          "home_advantage": 0.12,
+          "sample_size": 175
+        },
+        {
+          "matches_played": 180,
+          "home_advantage": 0.10555555555555557,
+          "sample_size": 180
+        },
+        {
+          "matches_played": 185,
+          "home_advantage": 0.10810810810810811,
+          "sample_size": 185
+        },
+        {
+          "matches_played": 190,
+          "home_advantage": 0.10526315789473689,
+          "sample_size": 190
+        },
+        {
+          "matches_played": 195,
+          "home_advantage": 0.09230769230769231,
+          "sample_size": 195
+        },
+        {
+          "matches_played": 200,
+          "home_advantage": 0.10500000000000004,
+          "sample_size": 200
+        },
+        {
+          "matches_played": 205,
+          "home_advantage": 0.09756097560975613,
+          "sample_size": 205
+        },
+        {
+          "matches_played": 210,
+          "home_advantage": 0.09047619047619043,
+          "sample_size": 210
+        },
+        {
+          "matches_played": 215,
+          "home_advantage": 0.10232558139534886,
+          "sample_size": 215
+        },
+        {
+          "matches_played": 220,
+          "home_advantage": 0.11363636363636365,
+          "sample_size": 220
+        },
+        {
+          "matches_played": 225,
+          "home_advantage": 0.12444444444444447,
+          "sample_size": 225
+        },
+        {
+          "matches_played": 230,
+          "home_advantage": 0.13043478260869562,
+          "sample_size": 230
+        },
+        {
+          "matches_played": 235,
+          "home_advantage": 0.12765957446808512,
+          "sample_size": 235
+        },
+        {
+          "matches_played": 240,
+          "home_advantage": 0.12916666666666665,
+          "sample_size": 240
+        },
+        {
+          "matches_played": 245,
+          "home_advantage": 0.13469387755102036,
+          "sample_size": 245
+        },
+        {
+          "matches_played": 250,
+          "home_advantage": 0.128,
+          "sample_size": 250
+        },
+        {
+          "matches_played": 255,
+          "home_advantage": 0.1215686274509804,
+          "sample_size": 255
+        },
+        {
+          "matches_played": 260,
+          "home_advantage": 0.1076923076923077,
+          "sample_size": 260
+        },
+        {
+          "matches_played": 265,
+          "home_advantage": 0.1056603773584906,
+          "sample_size": 265
+        },
+        {
+          "matches_played": 270,
+          "home_advantage": 0.1074074074074074,
+          "sample_size": 270
+        },
+        {
+          "matches_played": 275,
+          "home_advantage": 0.10545454545454541,
+          "sample_size": 275
+        },
+        {
+          "matches_played": 280,
+          "home_advantage": 0.09999999999999998,
+          "sample_size": 280
+        },
+        {
+          "matches_played": 285,
+          "home_advantage": 0.10175438596491226,
+          "sample_size": 285
+        },
+        {
+          "matches_played": 290,
+          "home_advantage": 0.10689655172413792,
+          "sample_size": 290
+        },
+        {
+          "matches_played": 295,
+          "home_advantage": 0.1084745762711864,
+          "sample_size": 295
+        },
+        {
+          "matches_played": 300,
+          "home_advantage": 0.10333333333333333,
+          "sample_size": 300
+        },
+        {
+          "matches_played": 305,
+          "home_advantage": 0.1016393442622951,
+          "sample_size": 305
+        },
+        {
+          "matches_played": 310,
+          "home_advantage": 0.10967741935483871,
+          "sample_size": 310
+        },
+        {
+          "matches_played": 315,
+          "home_advantage": 0.10793650793650794,
+          "sample_size": 315
+        },
+        {
+          "matches_played": 320,
+          "home_advantage": 0.11250000000000004,
+          "sample_size": 320
+        },
+        {
+          "matches_played": 325,
+          "home_advantage": 0.11076923076923079,
+          "sample_size": 325
+        },
+        {
+          "matches_played": 330,
+          "home_advantage": 0.12424242424242427,
+          "sample_size": 330
+        },
+        {
+          "matches_played": 335,
+          "home_advantage": 0.12238805970149252,
+          "sample_size": 335
+        },
+        {
+          "matches_played": 340,
+          "home_advantage": 0.1264705882352941,
+          "sample_size": 340
+        },
+        {
+          "matches_played": 345,
+          "home_advantage": 0.12753623188405794,
+          "sample_size": 345
+        },
+        {
+          "matches_played": 350,
+          "home_advantage": 0.12571428571428572,
+          "sample_size": 350
+        },
+        {
+          "matches_played": 355,
+          "home_advantage": 0.12394366197183099,
+          "sample_size": 355
+        },
+        {
+          "matches_played": 360,
+          "home_advantage": 0.125,
+          "sample_size": 360
+        },
+        {
+          "matches_played": 365,
+          "home_advantage": 0.12054794520547946,
+          "sample_size": 365
+        },
+        {
+          "matches_played": 370,
+          "home_advantage": 0.12432432432432433,
+          "sample_size": 370
+        },
+        {
+          "matches_played": 375,
+          "home_advantage": 0.12000000000000005,
+          "sample_size": 375
+        }
+      ],
+      "stability_analysis": {
+        

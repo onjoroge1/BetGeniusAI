@@ -1,0 +1,48 @@
+{
+  "overall": {
+    "sample_size": 5000,
+    "weighted_logloss": 0.9726935446104468,
+    "equal_logloss": 0.972693544610447,
+    "improvement": 2.220446049250313e-16,
+    "avg_n_books": 6.5674,
+    "avg_dispersion": 0.008260640763506256
+  },
+  "by_league": [
+    {
+      "league": "I1",
+      "sample_size": 1520,
+      "weighted_logloss": 0.9685833299029784,
+      "equal_logloss": 0.9685833299029784,
+      "improvement": 0.0,
+      "avg_n_books": 6.604605263157895,
+      "avg_dispersion": 0.009063315121508809
+    },
+    {
+      "league": "D1",
+      "sample_size": 1540,
+      "weighted_logloss": 0.9663503033422661,
+      "equal_logloss": 0.9663503033422662,
+      "improvement": 1.1102230246251565e-16,
+      "avg_n_books": 6.702597402597402,
+      "avg_dispersion": 0.008485682345115422
+    },
+    {
+      "league": "E0",
+      "sample_size": 1140,
+      "weighted_logloss": 0.9603266543488379,
+      "equal_logloss": 0.9603266543488379,
+      "improvement": 0.0,
+      "avg_n_books": 6.367543859649123,
+      "avg_dispersion": 0.0069185246830720795
+    },
+    {
+      "league": "F1",
+      "sample_size": 760,
+      "weighted_logloss": 1.0200220865951142,
+      "equal_logloss": 1.0200220865951142,
+      "improvement": 0.0,
+      "avg_n_books": 6.496052631578947,
+      "avg_dispersion": 0.008089142868821212
+    }
+  ]
+}

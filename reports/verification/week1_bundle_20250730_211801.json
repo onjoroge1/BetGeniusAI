@@ -1,0 +1,86 @@
+{
+  "timestamp": "2025-07-30T21:18:01.663752",
+  "verification_type": "Week 1 Historical Odds Enhancement",
+  "metrics_table": {
+    "overall_metrics": {
+      "uniform": {
+        "logloss": 1.0986122886681096,
+        "sample_size": 1627
+      },
+      "frequency": {
+        "logloss": 1.075697534975984,
+        "sample_size": 1627
+      },
+      "market_close": {
+        "logloss": 0.9633996261520121,
+        "sample_size": 1627
+      },
+      "market_t72_equal": {
+        "logloss": 0.9642693123951402,
+        "sample_size": 1627
+      }
+    },
+    "league_metrics": {
+      "I1": {
+        "sample_size": 380,
+        "frequency_logloss": 1.0828434608755784,
+        "market_logloss": 0.966777013244679
+      },
+      "D1": {
+        "sample_size": 306,
+        "frequency_logloss": 1.0740781417728937,
+        "market_logloss": 0.9463586530469434
+      },
+      "E0": {
+        "sample_size": 561,
+        "frequency_logloss": 1.0657140282297355,
+        "market_logloss": 0.946112381710558
+      },
+      "F1": {
+        "sample_size": 380,
+        "frequency_logloss": 1.0787125805336415,
+        "market_logloss": 0.9992661388009421
+      }
+    },
+    "evaluation_period": "2020-01-01 to 2024-06-02",
+    "total_matches": 1627
+  },
+  "horizon_audit": {
+    "total_snapshots": 100,
+    "compliant_snapshots": 100,
+    "compliance_rate": 1.0,
+    "avg_hours_before_kickoff": 72.0,
+    "min_hours_before_kickoff": 72.0,
+    "coverage_by_league": {
+      "D1": {
+        "match_count": 126,
+        "b365_coverage": 126,
+        "bw_coverage": 126,
+        "wh_coverage": 126
+      },
+      "I1": {
+        "match_count": 154,
+        "b365_coverage": 154,
+        "bw_coverage": 154,
+        "wh_coverage": 154
+      }
+    }
+  },
+  "ablation_analysis": {
+    "baseline_equal_weight": 0.955059312196842,
+    "bet365_only": 0.9538866388068753,
+    "william_hill_only": 0.9555824938532773,
+    "sample_size": 1000,
+    "delta_bet365": -0.0011726733899667385,
+    "delta_william_hill": 0.0005231816564352787
+  },
+  "summary": {
+    "dataset_size": 1627,
+    "leagues_analyzed": 4,
+    "frequency_to_market_improvement": 0.11229790882397195,
+    "t72_market_degradation": 0.0008696862431281094,
+    "horizon_compliance_rate": 1.0,
+    "ablation_best_single_book": 0.9538866388068753,
+    "ready_for_week2": true
+  }
+}

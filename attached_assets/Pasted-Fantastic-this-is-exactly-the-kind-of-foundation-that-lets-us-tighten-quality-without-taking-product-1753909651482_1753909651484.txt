@@ -1,0 +1,159 @@
+Fantastic—this is exactly the kind of foundation that lets us tighten quality without taking product risk. With **14,527 historical odds rows (1993–2024)** and a **verified core model** (LL = **0.8157**, **+0.028** vs Market‑T72; Brier = **0.1586**), here’s an updated, execution‑ready plan that (1) extracts immediate value from the new historical data, (2) re‑trains the residual‑on‑market stack the right way, and (3) realigns the API to the original prediction workflow—**still fully offline** (no user exposure) until gates pass.
+
+---
+
+## What’s new in your inputs (and how we’ll use it)
+
+* **Historical odds expanded** to **14,527** rows (3.1×).
+* **Coverage 1993–2024** across the 5 major Euro leagues.
+* Multi‑book data (≥4 books) with strong completeness.
+
+**We’ll convert this into lift via**:
+
+1. **Book‑weighted consensus** (per league × era)
+2. **Era/season priors** (draw, home advantage; early‑season shrinkage)
+3. **Dispersion‑aware calibration** and **residual‑on‑market** retrain
+
+**Expected, realistic stepwise gains** (not strictly additive):
+
+* Book weighting: **−0.005 to −0.010** LogLoss
+* League/era priors + calibration: **−0.003 to −0.008**
+* Dispersion‑aware residuals + re‑stack: **−0.005 to −0.015**
+* **Total target** after this round: **−0.015 to −0.030** LL vs your current 0.8157 (i.e., ≈ **0.79–0.80**).
+  (*The agent’s +0.045 projection is possible but aggressive; we’ll prove it incrementally with CIs.*)
+
+---
+
+## Week‑by‑week plan (no user impact)
+
+### **Week 1 — Historical odds value extraction (immediate lift)**
+
+**A. Learn book weights (per league × era)**
+
+* **Era binning:** 5‑year bins (e.g., 1993–97, 1998–02, …, 2019–23, 2024+) to get enough samples.
+* **Metric:** out‑of‑time LogLoss per book using **closing implied probabilities** vs outcomes.
+* **Weights:** solve a constrained optimization (non‑negative, sum‑to‑1). Two options:
+
+  * **Simple**: softmax of negative LL per book (temperature‑scaled).
+  * **Exact**: minimize LL of the **weighted consensus** on a validation era (scipy `SLSQP`), with `w≥0, Σw=1`.
+* **Safeguards:** minimum coverage per book; fallback to equal‑weights if sparse.
+* **Output:** `BOOK_WEIGHTS_{league}_{era}.csv`.
+
+**B. Weighted T‑72 consensus (at feature time)**
+
+* For each eval match at **T‑72**:
+
+  * Compute margin‑adjusted 3‑way implied per book;
+  * Combine with **learned weights** for that league/era;
+  * Store `pH_cons_w`, `pD_cons_w`, `pA_cons_w`, plus **dispersion** (IQR/std) and `n_books`.
+* This replaces the equal‑weight median we used before.
+
+**C. Era & season priors**
+
+* From historical odds: estimate **draw rate** and **home‑advantage** by **league × era**.
+* Add **season‑phase** prior (early/mid/late) with **shrinkage** early in season (pool to era prior until N matches increases).
+* Use priors **only** as inputs to the calibration layer and residual head (safe; no leakage).
+
+**D. Verification (blockers)**
+
+* Re‑run metrics **on the same evaluation slice** as your 0.8157 result:
+
+  * Show LL/Brier/Top‑2 for **Market‑T72 (equal)** vs **Market‑T72 (weighted)** vs **Model (feature‑only)** vs **Model (residual‑on‑market)**.
+* **Paired bootstrap CIs** for ΔLL (weighted vs equal; model vs weighted).
+* **Horizon audit**: all snapshots used as features must satisfy `ts_snapshot ≤ KO−72h`.
+
+---
+
+### **Week 2 — Residual‑on‑market re‑train + API realignment (still offline)**
+
+**A. Retrain the residual‑on‑market head**
+
+* Inputs: `logit(q_cons_w_T72)` (weighted), **dispersion**, `n_books`, **structural features** (team diffs, attack/defense ratios, Poisson/DC λ features, rest, season phase).
+* Model: CatBoost or small multinomial logistic predicting **delta‑logits**, i.e.,
+  `logit(p) = logit(q_cons_w) + g(x)` → normalize → **OOF per‑league calibration**.
+
+**B. Re‑stack** with your existing heads
+
+* Heads: **Residual‑on‑Market**, **CatBoost multiclass** (feature‑only), **Poisson/DC**, (**Goal‑diff regression** if kept).
+* Stack via **logit‑average** or meta‑LR on OOF logits.
+* Re‑calibrate **per league** (OOF‑only).
+
+**C. Verification bundle (same slice)**
+
+* **METRICS\_TABLE.csv**: N, LL\_uniform, LL\_freq, LL\_mkt\_close, LL\_mkt\_T72\_equal, **LL\_mkt\_T72\_weighted**, LL\_heads, LL\_stacked; Brier, Top‑2, RPS (per league + overall).
+* **TOP2\_AUDIT.csv**: miss counts (we still expect <100%, but prove if it’s 100% again).
+* **PTRUE\_HIST.csv + DECILE\_LL.csv**: show p\_true distribution & decile LL.
+* **HORIZON\_AUDIT.csv**: snapshot timestamps & secs\_to\_kickoff distribution.
+* **ABLATIONS\_DeltaLL.csv**:
+
+  * no‑odds;
+  * no‑dispersion;
+  * **Market‑T72 weighted only**;
+  * no Poissonλ.
+* **CALIBRATION\_REPORT.html**: ECE/MCE & reliability per outcome.
+
+**D. API contract alignment (offline)**
+
+* Ensure `/matches/upcoming`, `/matches/search`, `POST /predict` match the original **PREDICTION\_WORKFLOW\.md** (request/response shapes).
+* In the **`analysis`** section, populate **explanation**, **confidence\_factors**, **value\_analysis**, **risk\_assessment** using your existing OpenAI scaffolding (behind a feature flag).
+* **Additional markets** (OU 2.5, BTTS, AH) computed from Poisson/DC λ’s with OOF calibration; include in `additional_markets`.
+* Add schema tests that fail if keys differ from the spec.
+
+---
+
+## Promotion gates (internal “green light” to schedule a canary later)
+
+**Per league (N ≥ 300 on the eval slice):**
+
+* `LL(model_stacked) ≤ LL(Market‑T72_weighted) − 0.005` and 95% CI excludes 0.
+* `Brier ≤ 0.202` (plan to tighten to ≤0.200 after the next round).
+* `Top‑2 ≥ 92–95%` (our production target; perfect 100% in offline runs should be re‑audited but isn’t required).
+* **Horizon audit clean**; feature safelist enforced (no process/meta fields in X).
+* **Parity tests**: offline vs API max |Δprob| ≤ 1e‑6; rerun metric deltas ≤ 0.001.
+
+*(We’ll still remain offline after Week‑2; these gates simply determine whether we schedule a canary later.)*
+
+---
+
+## Concrete tasks for the agent (copy/paste)
+
+**Historical odds**
+
+* [ ] `train/learn_book_weights.py` — learn per‑league × era weights (non‑neg., sum‑to‑1), persist CSV + tests.
+* [ ] `consensus/weighted_consensus.py` — apply weights to T‑72 snapshots; compute dispersion + n\_books.
+* [ ] `calibration/build_era_priors.py` — draw/home‑adv priors by league × era; season‑phase shrinkage.
+
+**Modeling**
+
+* [ ] `models/train_residual_market.py` — delta‑logits head using weighted consensus + enrichment; OOF per‑league calibration.
+* [ ] `models/stack_and_calibrate.py` — recombine heads; OOF calibration.
+
+**Verification**
+
+* [ ] `reports/run_verification_bundle.py` — emits METRICS\_TABLE.csv, TOP2\_AUDIT.csv, HORIZON\_AUDIT.csv, ABLATIONS\_DeltaLL.csv, CALIBRATION\_REPORT.html; computes bootstrap CIs.
+
+**API alignment (offline)**
+
+* [ ] Implement endpoints to **exact** spec (request/response).
+* [ ] Wire “analysis” (OpenAI scaffolding) behind a flag; populate fields deterministically for tests.
+* [ ] Compute additional markets via Poisson/DC and add to response.
+* [ ] Add schema contract tests that compare against the workflow examples.
+
+---
+
+## A few implementation nudges
+
+* **Weights regularization:** temperature on the softmax or L2 on weights to avoid over‑fitting sparse eras.
+* **Fallbacks:** if book coverage <2 or era sparse, use equal‑weights; record a flag in the features.
+* **Probability caps:** clip inputs to logits in \[0.02, 0.98] to avoid infinities.
+* **Era assignment at prediction time:** map current season to the nearest learned era; if outside range (e.g., 2025+), use most recent era.
+
+---
+
+## What “good” will look like after Week‑2 (still offline)
+
+* **LL**: \~**0.79–0.80** overall (from 0.8157), **Brier** closer to **0.150–0.155**.
+* **Per‑league tables** showing consistent ΔLL vs Market‑T72 (weighted).
+* **API** outputs that match the original workflow (including **analysis** and **additional markets**), ready to flip on later.
+
+When the Week‑2 artifacts are green, we’ll plan a **shadow→canary** schedule—but only after a final offline sign‑off. If you want, I can also supply a **MODEL\_CARD.md** template and a **contract test** file that validates `/predict` matches the workflow schema byte‑for‑byte.
