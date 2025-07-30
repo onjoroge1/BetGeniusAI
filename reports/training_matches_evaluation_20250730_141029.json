@@ -1,0 +1,207 @@
+{
+  "timestamp": "20250730_141029",
+  "dataset_info": {
+    "total_matches": 1893,
+    "date_range": "2023-08-11 19:00:00 to 2025-06-12 00:02:38.035213",
+    "leagues": 10,
+    "outcome_distribution": {
+      "Home": 826,
+      "Away": 620,
+      "Draw": 447
+    },
+    "features_extracted": 25
+  },
+  "baselines": {
+    "uniform": {
+      "accuracy": 0.23613312202852615,
+      "log_loss": 1.0986122886681093,
+      "brier_score": 0.6666666666666666,
+      "description": "Uniform 33.33% probability for each outcome"
+    },
+    "frequency": {
+      "accuracy": 0.4363444268357105,
+      "log_loss": 1.0682757575987267,
+      "brier_score": 0.6465737338524981,
+      "description": "Historical frequencies: ['43.6%', '23.6%', '32.8%']"
+    },
+    "random": {
+      "accuracy": 0.34918119387216057,
+      "log_loss": 1.4978053398482096,
+      "brier_score": 0.8234777554522644,
+      "description": "Random predictions with Dirichlet probabilities"
+    }
+  },
+  "models": {
+    "random_forest": {
+      "accuracy": 1.0,
+      "log_loss": 0.0007628841523838385,
+      "brier_score": 2.3628300035534125e-05,
+      "model": "CalibratedClassifierCV(cv=3,\n                       estimator=RandomForestClassifier(class_weight='balanced',\n                                                        max_depth=10,\n                                                        min_samples_leaf=5,\n                                                        min_samples_split=10,\n                                                        n_estimators=200,\n                                                        random_state=42),\n                       method='isotonic')",
+      "features_used": [
+        "african_market_flag",
+        "competition_tier",
+        "competitiveness_indicator",
+        "cross_league_applicability",
+        "developing_market_flag",
+        "european_tier1_flag",
+        "foundation_value",
+        "goal_expectancy",
+        "league_competitiveness",
+        "league_home_advantage",
+        "match_importance",
+        "prediction_reliability",
+        "premier_league_weight",
+        "recency_score",
+        "regional_intensity",
+        "season_stage",
+        "south_american_flag",
+        "tactical_relevance",
+        "tactical_style_encoding",
+        "training_weight",
+        "venue_advantage_realized",
+        "goal_difference",
+        "total_goals",
+        "league_id",
+        "season"
+      ],
+      "description": "Random Forest with 25 features + isotonic calibration"
+    },
+    "logistic_regression": {
+      "accuracy": 1.0,
+      "log_loss": 0.013255299460422636,
+      "brier_score": 0.001595705696393511,
+      "model": "LogisticRegression(class_weight='balanced', max_iter=1000,\n                   multi_class='multinomial', random_state=42)",
+      "scaler": "StandardScaler()",
+      "features_used": [
+        "african_market_flag",
+        "competition_tier",
+        "competitiveness_indicator",
+        "cross_league_applicability",
+        "developing_market_flag",
+        "european_tier1_flag",
+        "foundation_value",
+        "goal_expectancy",
+        "league_competitiveness",
+        "league_home_advantage",
+        "match_importance",
+        "prediction_reliability",
+        "premier_league_weight",
+        "recency_score",
+        "regional_intensity",
+        "season_stage",
+        "south_american_flag",
+        "tactical_relevance",
+        "tactical_style_encoding",
+        "training_weight",
+        "venue_advantage_realized",
+        "goal_difference",
+        "total_goals",
+        "league_id",
+        "season"
+      ],
+      "description": "Logistic Regression with scaling and 25 features"
+    }
+  },
+  "comparison": {
+    "random_forest": {
+      "accuracy": 1.0,
+      "log_loss": 0.0007628841523838385,
+      "brier_score": 2.3628300035534125e-05,
+      "uniform_acc_improvement": 323.48993288590606,
+      "freq_acc_improvement": 129.1767554479419,
+      "uniform_logloss_improvement": 99.93055929191283,
+      "freq_logloss_improvement": 99.92858733833869
+    },
+    "logistic_regression": {
+      "accuracy": 1.0,
+      "log_loss": 0.013255299460422636,
+      "brier_score": 0.001595705696393511,
+      "uniform_acc_improvement": 323.48993288590606,
+      "freq_acc_improvement": 129.1767554479419,
+      "uniform_logloss_improvement": 98.79345064704377,
+      "freq_logloss_improvement": 98.75918746951461
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "goal_difference",
+      "importance": 0.5054604226498912
+    },
+    {
+      "feature": "venue_advantage_realized",
+      "importance": 0.25564381896697447
+    },
+    {
+      "feature": "competitiveness_indicator",
+      "importance": 0.11548620512352863
+    },
+    {
+      "feature": "total_goals",
+      "importance": 0.05449042140915404
+    },
+    {
+      "feature": "goal_expectancy",
+      "importance": 0.053001006022719344
+    },
+    {
+      "feature": "cross_league_applicability",
+      "importance": 0.002618379022988322
+    },
+    {
+      "feature": "south_american_flag",
+      "importance": 0.0023468214403839444
+    },
+    {
+      "feature": "training_weight",
+      "importance": 0.0015777137808217698
+    },
+    {
+      "feature": "league_home_advantage",
+      "importance": 0.001286060367666743
+    },
+    {
+      "feature": "regional_intensity",
+      "importance": 0.0012361668675501109
+    },
+    {
+      "feature": "foundation_value",
+      "importance": 0.0011890165562441798
+    },
+    {
+      "feature": "tactical_style_encoding",
+      "importance": 0.001049114361649687
+    },
+    {
+      "feature": "prediction_reliability",
+      "importance": 0.0008840379560804639
+    },
+    {
+      "feature": "league_id",
+      "importance": 0.0008030953622932148
+    },
+    {
+      "feature": "league_competitiveness",
+      "importance": 0.0007449136814030585
+    },
+    {
+      "feature": "tactical_relevance",
+      "importance": 0.0005731789281945589
+    },
+    {
+      "feature": "season",
+      "importance": 0.0003398437278145447
+    },
+    {
+      "feature": "competition_tier",
+      "importance": 0.00026750317969289407
+    },
+    {
+      "feature": "season_stage",
+      "importance": 0.00025562598821829386
+    },
+    {
+      "feature": "african_market_flag",
+      "importance": 0.00024351776606958294
+    }
+  ]
+}

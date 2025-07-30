@@ -1,0 +1,117 @@
+{
+  "timestamp": "20250730_141255",
+  "evaluation_type": "clean_features_only",
+  "data_leakage_status": "REMOVED",
+  "baselines": {
+    "uniform": {
+      "accuracy": 0.23613312202852615,
+      "log_loss": 1.0986122886681093,
+      "brier_score": 0.6666666666666666
+    },
+    "frequency": {
+      "accuracy": 0.4363444268357105,
+      "log_loss": 1.0682757575987267,
+      "brier_score": 0.6465737338524981
+    }
+  },
+  "model_results": {
+    "random_forest": {
+      "accuracy": 0.48812664907651715,
+      "log_loss": 0.8584235044083481,
+      "brier_score": 0.5435865820079322,
+      "improvement": 106.71672185723646,
+      "status": "\ud83c\udfaf EXCELLENT"
+    },
+    "logistic_regression": {
+      "accuracy": 0.40897097625329815,
+      "log_loss": 1.1022147646695788,
+      "brier_score": 0.7007480783992005,
+      "improvement": 73.1950912857927,
+      "status": "\u2705 GOOD"
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "competitiveness_indicator",
+      "importance": 0.8030991281851848
+    },
+    {
+      "feature": "south_american_flag",
+      "importance": 0.027528063310257145
+    },
+    {
+      "feature": "cross_league_applicability",
+      "importance": 0.020732402413101283
+    },
+    {
+      "feature": "regional_intensity",
+      "importance": 0.018858426422378637
+    },
+    {
+      "feature": "league_competitiveness",
+      "importance": 0.017204667096597438
+    },
+    {
+      "feature": "training_weight",
+      "importance": 0.016411661390906412
+    },
+    {
+      "feature": "foundation_value",
+      "importance": 0.01538342582541816
+    },
+    {
+      "feature": "league_home_advantage",
+      "importance": 0.015243745126554955
+    },
+    {
+      "feature": "prediction_reliability",
+      "importance": 0.013441627957059676
+    },
+    {
+      "feature": "tactical_style_encoding",
+      "importance": 0.011497643980398639
+    },
+    {
+      "feature": "tactical_relevance",
+      "importance": 0.009541575629212751
+    },
+    {
+      "feature": "season_stage",
+      "importance": 0.005519538977102015
+    },
+    {
+      "feature": "recency_score",
+      "importance": 0.0043694633617062315
+    },
+    {
+      "feature": "league_tier",
+      "importance": 0.00419498694961952
+    },
+    {
+      "feature": "match_importance",
+      "importance": 0.004107281605147438
+    }
+  ],
+  "features_used": [
+    "season_stage",
+    "recency_score",
+    "training_weight",
+    "competition_tier",
+    "foundation_value",
+    "match_importance",
+    "regional_intensity",
+    "tactical_relevance",
+    "african_market_flag",
+    "european_tier1_flag",
+    "south_american_flag",
+    "league_home_advantage",
+    "premier_league_weight",
+    "developing_market_flag",
+    "league_competitiveness",
+    "prediction_reliability",
+    "tactical_style_encoding",
+    "competitiveness_indicator",
+    "cross_league_applicability",
+    "league_tier"
+  ]
+}
