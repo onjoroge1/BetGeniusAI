@@ -1,0 +1,162 @@
+Great that the odds pipeline is wired up — but the numbers you’re quoting (**“61.4% LogLoss improvement”** and **“0.415 LogLoss”**) are **far outside** what we (or the literature/market practice) would expect for 3‑way football at scale. That doesn’t mean it’s wrong; it means we need to **prove it carefully** before we ship.
+
+Here’s a crisp verification plan you can hand to the agent, plus the gates I’d require before deployment.
+
+---
+
+## Why these results trigger a sanity check
+
+* Typical **uniform** LogLoss (3‑way) ≈ **1.0986**.
+* Typical **market** LogLoss (properly horizon‑aligned) is often ≈ **1.05–1.08**.
+* A model LogLoss of **0.415** implies average true‑class probability $\exp(-0.415)\approx 0.66$ across **1,000 matches** — i.e., the model is confidently “right” two‑thirds of the time. That’s **extraordinary** for soccer unless there’s leakage, wrong horizon, or a metric bug.
+
+---
+
+## 0) One-screen reality check (define & recompute LogLoss/Brier)
+
+Have the agent re‑compute metrics with one shared reference:
+
+```python
+import numpy as np
+
+def logloss_mc(y_true_idx, P, eps=1e-15):
+    # y_true_idx: int labels {0,1,2} for H/D/A
+    # P: Nx3 predicted probs, rows sum to 1
+    p_true = np.clip(P[np.arange(len(P)), y_true_idx], eps, 1-eps)
+    return float(-np.log(p_true).mean())
+
+def brier_mc(y_true_idx, P):
+    Y = np.eye(3)[y_true_idx]
+    return float(((P - Y)**2).mean())  # normalized (avg over classes and samples)
+```
+
+**Percent improvement** must be reported as
+$(\text{LL}_{\text{baseline}} - \text{LL}_{\text{model}}) / \text{LL}_{\text{baseline}}$.
+Have them print the **raw** baselines and model LL, not just the percent.
+
+---
+
+## 1) Horizon & leakage audit (blocker)
+
+**Confirm, per match**, that the odds snapshots used in training/eval satisfy:
+
+* `ts_snapshot ≤ KO − 72h` (or your chosen H).
+* Show the **distribution of `secs_to_kickoff`** actually used; report the % within ±12h of 72h, and the fallback policy (nearest‑prior) rate.
+* Verify **no closing odds** or post‑KO snapshots were used as features.
+* Re-run the model **without any odds features** → you should see a big LL increase. If not, a feature other than odds is leaking outcome.
+
+**Also confirm your feature safelist is still on:**
+
+* **Excluded from X**: `prediction_reliability`, `venue_advantage_realized`, any `enhancement_*`, any `*_weight`, any timestamps/versions/process flags.
+* **Sample weights** (if used) come from those process scores but are **not features**.
+
+---
+
+## 2) Baselines — show all four side by side
+
+For the **exact same 1,000‑match sample**, print per‑league and overall:
+
+* **Uniform**
+* **Frequency prior** (league×season empirical H/D/A)
+* **Market‑Closing** *(reporting baseline only)*
+* **Market‑T72** *(consensus from The Odds API)*
+
+Then list your model heads:
+
+* **Residual‑on‑Market (T‑72h)**
+* **CatBoost multiclass** (feature‑only)
+* **Poisson/Dixon–Coles**
+* **Stacked + OOF‑calibrated**
+
+Metrics to print: **N, LogLoss, Brier (normalized), Top‑2, Accuracy, RPS**.
+
+> Reality check: if **Residual‑on‑Market** beats **Market‑T72** by **\~0.005–0.015 LL**, that’s plausible.
+> If it beats it by **0.60+** LL (e.g., 1.03 → 0.41), that’s a red flag.
+
+---
+
+## 3) Distribution diagnostics (prove the 0.415 claim)
+
+Ask the agent to output for the same evaluation set:
+
+* **Histogram of $p_{\text{true}}$** (the predicted probability assigned to the realized outcome).
+
+  * Median, mean, 10th/90th percentiles.
+  * A 0.415 LL implies mean $p_{\text{true}}$ ≈ **0.66** — show it.
+* **Decile logloss**: bucket matches by predicted max‑prob deciles; report LL/Brier per bucket (sharper buckets should have lower LL).
+* **Reliability curves** (ECE/MCE) per outcome (H/D/A).
+* **Per‑league** breakdown (LL & Brier). Soccer markets vary by league; huge gains should replicate across leagues, not just one.
+
+---
+
+## 4) Ablations (should move the metrics sensibly)
+
+* **Remove odds features** → LL should worsen towards your feature‑only stack.
+* **Remove dispersion features** → small LL rise.
+* **Remove Poisson/DC λ features** → small LL rise.
+* **Only Market‑T72** (as a model that just outputs the consensus) → LL near your Market‑T72 baseline.
+
+If any ablation **doesn’t** move the metric as expected, something is off.
+
+---
+
+## 5) Statistical significance
+
+* **Paired bootstrap** ΔLogLoss vs **Market‑T72** and vs **Frequency** per league and overall.
+* Report 95% CIs; require they **exclude 0** before saying “beats market.”
+
+---
+
+## 6) Inference parity & reproducibility
+
+* **Inference parity**: run the same 1,000 matches through the **API** and the **offline harness**; max |Δprob| ≤ **1e−6**.
+* **Repro**: rerun same data/seed; deltas on LL/Brier ≤ **0.001**.
+* **Seed leakage test**: shuffle seeds/folds; results shouldn’t collapse.
+
+---
+
+## 7) Go/No‑Go gates (update)
+
+We can **canary** only if all of the below hold **per league** (N ≥ 300 in the eval slice):
+
+* `LogLoss(Residual‑on‑Market+Stack) ≤ LogLoss(Market‑T72) − 0.005` (and CI excludes 0).
+* **Brier ≤ 0.202** (we’ll tighten to ≤0.200 later).
+* **Top‑2 ≥ 92–95%**.
+* Horizon audit clean (no snapshots inside 72h; closing odds not used as features).
+* Ablations behave as expected.
+
+If the claimed **0.415 LL** is real and passes these gates, fantastic — we’ll canary. If not, we fix whatever the audit turns up (most commonly: wrong logloss formula, accidental use of closing odds, or a feature that slipped past the safelist).
+
+---
+
+## Exact asks for the agent (copy/paste)
+
+1. **Print metrics table (CSV) for the same 1,000 matches:**
+   `league, N, LL_uniform, LL_freq, LL_mkt_close, LL_mkt_T72, LL_resid, LL_catboost, LL_poisson, LL_stack, brier_resid, top2_resid, acc_resid, rps_resid`.
+
+2. **Emit horizon audit CSV:**
+   `match_id, ts_snapshot, secs_to_kickoff, horizon_target=72h, horizon_effective, used_in_model=1/0`.
+
+3. **Dump distribution diagnostics:**
+
+   * CSV of `p_true` for each match and model head.
+   * Decile logloss table by predicted max‑prob deciles.
+   * Reliability plots (per outcome) to `CALIBRATION_REPORT.html`.
+
+4. **Run ablations:**
+
+   * No‑odds features; No‑dispersion; No‑Poissonλ; Market‑T72 only.
+   * Report ΔLL vs full Residual‑on‑Market stack.
+
+5. **Bootstrap CIs for ΔLogLoss** vs Market‑T72 (per league + overall).
+
+6. **Parity tests:** offline vs API probabilities (max |Δ|) and reproducibility Δ metrics.
+
+---
+
+## Bottom line
+
+* **If** the 0.415 LogLoss stands up to these checks, you’ve built something exceptional — we ship a **canary** with tight monitoring.
+* **If not**, these steps will isolate whether it’s a **metric bug**, **horizon leak**, or an **errant feature**. Either way, we end with a trustworthy number and a model we can defend.
+
+Want me to generate a tiny verification script stub the agent can drop into the repo to run all of the above and write `VERIFICATION_REPORT.md` + artifacts? I can draft it now.

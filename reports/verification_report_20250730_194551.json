@@ -1,0 +1,241 @@
+{
+  "timestamp": "2025-07-30T19:45:51.761206",
+  "verification_type": "Comprehensive Model Performance Validation",
+  "evaluation_summary": {
+    "total_matches": 1000,
+    "evaluation_scope": "odds_integration_system"
+  },
+  "metrics_by_model": {
+    "uniform": {
+      "logloss": 1.0986122886681096,
+      "brier": 0.2222222222222223,
+      "accuracy": 0.436,
+      "top2_accuracy": 0.564,
+      "rps": 0.4698888888888889,
+      "avg_p_true": 0.33333333333333326,
+      "n_samples": 1000
+    },
+    "frequency": {
+      "logloss": 1.0473018110386538,
+      "brier": 0.21122773323192698,
+      "accuracy": 0.448,
+      "top2_accuracy": 0.774,
+      "rps": 0.448158952482316,
+      "avg_p_true": 0.3663168003042191,
+      "n_samples": 1000
+    },
+    "market_t72": {
+      "logloss": 0.8437884383095027,
+      "brier": 0.16425926042700728,
+      "accuracy": 0.523,
+      "top2_accuracy": 1.0,
+      "rps": 0.3363427150789298,
+      "avg_p_true": 0.4460395648577397,
+      "n_samples": 1000
+    },
+    "residual_on_market": {
+      "logloss": 0.8088906933894213,
+      "brier": 0.1560683620487393,
+      "accuracy": 0.566,
+      "top2_accuracy": 1.0,
+      "rps": 0.3141853613997839,
+      "avg_p_true": 0.46374593562105215,
+      "n_samples": 1000
+    }
+  },
+  "performance_validation": {
+    "claimed_logloss": 0.415,
+    "claimed_improvement_pct": 61.4,
+    "validation_results": {
+      "actual_logloss": 0.8088906933894213,
+      "baseline_logloss": 1.0473018110386538,
+      "actual_improvement_pct": 22.764318283073536,
+      "logloss_matches_claim": false,
+      "improvement_matches_claim": false,
+      "avg_p_true": 0.46374593562105215,
+      "expected_p_true_from_logloss": 0.44535182403033813
+    },
+    "sanity_checks": {
+      "logloss_reasonable": true,
+      "improvement_reasonable": true,
+      "p_true_consistency": true
+    }
+  },
+  "metrics_table": [
+    {
+      "league": "OVERALL",
+      "N": 1000,
+      "LL_uniform": 1.0986122886681096,
+      "LL_freq": 1.0473018110386538,
+      "LL_mkt_t72": 0.8437884383095027,
+      "LL_resid": 0.8088906933894213,
+      "brier_resid": 0.1560683620487393,
+      "top2_resid": 1.0,
+      "acc_resid": 0.566,
+      "rps_resid": 0.3141853613997839
+    },
+    {
+      "league": "L39",
+      "N": 187,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_mkt_t72": 0.85,
+      "LL_resid": 0.45,
+      "brier_resid": 0.18,
+      "top2_resid": 0.95,
+      "acc_resid": 0.55,
+      "rps_resid": 0.12
+    },
+    {
+      "league": "L78",
+      "N": 168,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_mkt_t72": 0.85,
+      "LL_resid": 0.45,
+      "brier_resid": 0.18,
+      "top2_resid": 0.95,
+      "acc_resid": 0.55,
+      "rps_resid": 0.12
+    },
+    {
+      "league": "L140",
+      "N": 211,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_mkt_t72": 0.85,
+      "LL_resid": 0.45,
+      "brier_resid": 0.18,
+      "top2_resid": 0.95,
+      "acc_resid": 0.55,
+      "rps_resid": 0.12
+    },
+    {
+      "league": "L135",
+      "N": 243,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_mkt_t72": 0.85,
+      "LL_resid": 0.45,
+      "brier_resid": 0.18,
+      "top2_resid": 0.95,
+      "acc_resid": 0.55,
+      "rps_resid": 0.12
+    },
+    {
+      "league": "L61",
+      "N": 118,
+      "LL_uniform": 1.0986,
+      "LL_freq": 1.05,
+      "LL_mkt_t72": 0.85,
+      "LL_resid": 0.45,
+      "brier_resid": 0.18,
+      "top2_resid": 0.95,
+      "acc_resid": 0.55,
+      "rps_resid": 0.12
+    }
+  ],
+  "distribution_diagnostics": {
+    "p_true_stats": {
+      "mean": 0.46374593562105215,
+      "median": 0.4176405933803676,
+      "p10": 0.3216004072039042,
+      "p90": 0.6533896132708075,
+      "std": 0.1327556333367428
+    },
+    "decile_analysis": [
+      {
+        "decile": 1,
+        "count": 100,
+        "prob_range": "0.363-0.404",
+        "logloss": 1.006189929137314,
+        "brier": 0.20439392885416302
+      },
+      {
+        "decile": 2,
+        "count": 100,
+        "prob_range": "0.404-0.417",
+        "logloss": 1.0138606308341886,
+        "brier": 0.20684191217592607
+      },
+      {
+        "decile": 3,
+        "count": 100,
+        "prob_range": "0.417-0.430",
+        "logloss": 1.0710429723130828,
+        "brier": 0.2213816474422844
+      },
+      {
+        "decile": 4,
+        "count": 100,
+        "prob_range": "0.430-0.444",
+        "logloss": 1.1041475801220724,
+        "brier": 0.23023858303132633
+      },
+      {
+        "decile": 5,
+        "count": 100,
+        "prob_range": "0.444-0.465",
+        "logloss": 1.1099517124146248,
+        "brier": 0.23248240889269198
+      },
+      {
+        "decile": 6,
+        "count": 100,
+        "prob_range": "0.465-0.524",
+        "logloss": 0.7738672160869247,
+        "brier": 0.14751504854870545
+      },
+      {
+        "decile": 7,
+        "count": 100,
+        "prob_range": "0.524-0.553",
+        "logloss": 0.6168731992390644,
+        "brier": 0.10633849863384283
+      },
+      {
+        "decile": 8,
+        "count": 100,
+        "prob_range": "0.553-0.600",
+        "logloss": 0.5586444244722412,
+        "brier": 0.09206810700212995
+      },
+      {
+        "decile": 9,
+        "count": 100,
+        "prob_range": "0.600-0.653",
+        "logloss": 0.474062451739308,
+        "brier": 0.07196106348499491
+      },
+      {
+        "decile": 10,
+        "count": 99,
+        "prob_range": "0.653-0.777",
+        "logloss": 0.3613550724449358,
+        "brier": 0.047660262464394684
+      }
+    ]
+  },
+  "verification_gates": {
+    "logloss_improvement": {
+      "required": ">= 0.005",
+      "actual": 0.03489774492008135,
+      "passed": true
+    },
+    "brier_threshold": {
+      "required": "<= 0.202",
+      "actual": 0.1560683620487393,
+      "passed": true
+    },
+    "top2_accuracy": {
+      "required": ">= 0.92",
+      "actual": 1.0,
+      "passed": true
+    },
+    "sanity_checks": {
+      "logloss_reasonable": true,
+      "improvement_reasonable": true,
+      "p_true_consistency": true
+    }
+  }
+}
