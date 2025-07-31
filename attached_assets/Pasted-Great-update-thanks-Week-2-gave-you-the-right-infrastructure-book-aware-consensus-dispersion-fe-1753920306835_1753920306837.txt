@@ -1,0 +1,150 @@
+Great update—thanks. Week 2 gave you the right *infrastructure* (book-aware consensus, dispersion features, era analysis) but also exposed two truths:
+
+1. **Market-T72 is very efficient.** A naïve residual model can easily make things worse.
+2. **Your current residual head + RF normalization isn’t the right tool** (instability, small or negative gains), and the weighted consensus didn’t move the needle—likely coverage/implementation issues rather than the idea itself.
+
+Below is a **focused recovery plan** that keeps everything offline (no user impact), fixes the residual formulation, and turns your new 31-year bookmaker intelligence into measurable LogLoss/Brier gains.
+
+---
+
+## What the Week 2 results are telling us
+
+* **Pinnacle is the sharp leader.** Good—this validates the weighting direction.
+* **Weighted consensus == equal-weight in your run.** That usually means one of:
+
+  * The *effective* weight vector collapsed to uniform (regularization or coverage rules), **or**
+  * You’re still using the **median** after computing weights (i.e., weights not actually applied), **or**
+  * **Per-match book availability** forced a fallback to 1–2 books so equal ≈ weighted.
+* **Residual RF on probabilities** yielded **instability/underperformance.** Direct probs in RF are hard to constrain; small errors can break calibration even after a normalization step.
+
+---
+
+## Fix the residual head (the main lever)
+
+### 1) Use a **constrained delta-logit** head (not RF on probs)
+
+Model *adjustments* to market, not absolute probabilities:
+
+$$
+\textbf{z} = \operatorname{logit}(\textbf{q}_\text{market}), \quad
+\Delta = f_\theta(x), \quad
+\hat{\textbf{p}}=\operatorname{softmax}\big(\textbf{z} + \lambda\cdot \mathrm{clip}(\Delta, [-c,c])\big)
+$$
+
+* **$\lambda$** small (e.g., 0.5–1.0), learnable per league or set via CV.
+* **Clip** Δ to $[-c,c]$ with $c \in [0.5, 1.5]$ to prevent runaway corrections.
+* **L2-regularize** $f_\theta$ and penalize $\|\Delta\|_2^2$.
+* **Model choices:** multinomial logistic regression (ridge), CatBoost-multiclass, or gradient-boosted softmax that outputs Δ-logits directly (not probabilities).
+* **Numerics:** cap market probs inside $[0.02, 0.98]$ before logit.
+
+This preserves market wisdom, makes small, safe corrections, and avoids the instability you saw when modeling probabilities directly.
+
+### 2) Make the correction **data-dependent** (trust market when it looks strong)
+
+Let $\lambda$ depend on **dispersion** and **n\_books**:
+
+* Low dispersion & many books → **small $\lambda$** (stay close to market).
+* High dispersion or low coverage → **larger $\lambda$** (allow stronger corrections).
+
+Implement $\lambda(x)=\lambda_\text{max}\cdot\sigma(a_0+a_1\,\text{disp}+a_2\,n_\text{books})$ and learn $a_i$ with ridge.
+
+### 3) Calibrate **after** the correction
+
+OOF, per-league **isotonic or temperature scaling** on $\hat{\textbf{p}}$. Use normalized multiclass Brier (uniform ≈ 0.222) as an auxiliary selection criterion.
+
+---
+
+## Make the weighted consensus *actually* matter
+
+### 4) Recheck the weight application
+
+Quick QA you can run on the same evaluation slice:
+
+* Matches with ≥3 books: **median absolute difference** $|q_\text{weighted}-q_\text{equal}|$ per outcome should have a **non-zero** distribution (plot it).
+* Print **% of matches** where weighted and equal are exactly identical. If >30–40% with ≥3 books, you’re not applying weights (or always falling back).
+* Record **book coverage** per match and the **era bucket** used. If Pinnacle coverage at T-72 is low, your theoretical Pinnacle edge won’t appear—consider a **sharp-first fallback** (when a sharp book is present, up-weight it even more; otherwise use learned weights).
+
+### 5) Learn **mixing weights in a meta-learner**, not just a fixed table
+
+Replace “handed-down weights” with a **simple constrained meta-learner**:
+
+* Features: per-book logits $\operatorname{logit}(q^{\text{book}})$, dispersion, n\_books, overround, league, era, season-phase.
+* Model: **multinomial LR** whose coefficients on each book’s logits are **non-negative** and **L1-regularized** (sparsify).
+* This yields an *instance-wise* weight for each book (function of context), outperforming static era tables while keeping interpretability.
+
+---
+
+## Add the signals that markets don’t fully price (but help ranking)
+
+### 6) **Multi-timepoint movement** features (high ROI)
+
+For matches where you have T-168/T-120/T-72:
+
+* $\Delta$logits per outcome (opening→T-72), slopes, and volatility.
+* Interact movement with dispersion and with your structural diffs (e.g., movement agrees with Elo\_diff vs disagrees).
+* These features help rank and improve Top-2 without wrecking calibration.
+
+### 7) Keep the **structural head** in the stack
+
+* Poisson/Dixon-Coles λ’s (and λ-diff, λ-sum), attack/defense ratios, rest, season-phase.
+* These features fill gaps when markets are thin (low n\_books / high dispersion).
+
+---
+
+## Verification bundle to run (same 1,000-match slice)
+
+1. **Consensus QA:**
+
+   * Distribution of $|q_\text{weighted}-q_\text{equal}|$, % identical, n\_books histogram, Pinnacle-present vs absent splits.
+
+2. **Residual head audit:**
+
+   * Δ-logit norm distribution, min/max Δ per outcome, proportion of predictions where $\|\Delta\|>c$ (should be 0 due to clipping).
+   * **Ablations:** (a) no-odds, (b) no-dispersion, (c) market-only (equal), (d) market-only (weighted), (e) no Poissonλ.
+   * **Paired bootstrap CIs** for ΔLL vs **Market-T72 (weighted)** and vs **equal**.
+
+3. **Metrics table (per league + overall):**
+
+   * LL\_uniform, LL\_freq, LL\_market\_close, LL\_market\_T72\_equal, LL\_market\_T72\_weighted, LL\_residual (Δ-logit), LL\_stack; Brier, Top-2, RPS, **mean p\_true**.
+   * Expect **LL(model) ≤ LL(Market-T72\_weighted) − 0.005** if the fixes took.
+
+4. **Reliability & ranking:**
+
+   * ECE/MCE per outcome; decile-LL by max-prob deciles.
+   * Top-2 miss counts (we expect to move away from the suspicious 100% while staying ≥ 92–95%).
+
+---
+
+## Implementation checklist (what to assign now)
+
+**Residual head:**
+
+* [ ] Replace RF-on-probs with **multinomial LR (ridge)** or **CatBoost-multiclass** that outputs **Δ-logits**, then compose with market logits (clip + $\lambda$).
+* [ ] Learn **$\lambda(x)$** from dispersion & n\_books; cap Δ in $[-c,c]$.
+* [ ] OOF **per-league calibration** post-composition.
+
+**Consensus & weights:**
+
+* [ ] Assert weights are **used** (no median fallback) whenever ≥2 eligible books.
+* [ ] Add **sharp-first fallback**: if a sharp book (e.g., Pinnacle) is present, bias toward it (e.g., add +β to its log-weight).
+* [ ] Implement **constrained meta-learner** over book logits for instance-wise mixing (non-neg + L1).
+
+**Movement features (if you have multiple snapshots):**
+
+* [ ] Compute opening→T-72 **Δlogits** + slope/volatility features; add to residual head.
+
+**Verification:**
+
+* [ ] Produce the four CSVs + `CALIBRATION_REPORT.html` above; add CI gates to CI/CD (build fails if `LL_model ≥ LL_market_T72_weighted`).
+
+---
+
+## Targets after fixes (still offline)
+
+* **LL**: from **0.8157** → **0.79–0.80** (stepwise; some leagues will move more than others).
+* **Brier**: **≤ 0.152–0.156** with dispersion-aware calibration.
+* **Top-2**: **≥ 92–95%** (robust across leagues; no need to chase 100%).
+
+When these are green on the same evaluation slice (and stable across folds/bootstraps), we’ll schedule a **shadow run** (still no user exposure) followed by a **canary** only after a final sign-off.
+
+If you want, I can draft a short **Δ-logit residual trainer stub** and the **consensus QA notebook** so the agent can plug them in directly.

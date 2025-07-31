@@ -1,0 +1,290 @@
+{
+  "timestamp": "2025-07-31T00:14:08.313860",
+  "consensus_qa": {
+    "total_matches": 1627,
+    "identical_triplet_count": "1627",
+    "identical_triplet_pct": 100.0,
+    "mean_abs_diff_overall": 0.0,
+    "median_abs_diff_overall": 0.0,
+    "max_abs_diff_overall": 0.0,
+    "std_abs_diff_overall": 0.0,
+    "by_n_books": {
+      "5": {
+        "count": 383,
+        "identical_pct": 100.0,
+        "mean_abs_diff": 0.0,
+        "max_abs_diff": 0.0
+      },
+      "6": {
+        "count": 1244,
+        "identical_pct": 100.0,
+        "mean_abs_diff": 0.0,
+        "max_abs_diff": 0.0
+      }
+    },
+    "by_league": {
+      "D1": {
+        "count": 306,
+        "identical_pct": 100.0,
+        "mean_abs_diff": 0.0,
+        "max_abs_diff": 0.0
+      },
+      "E0": {
+        "count": 561,
+        "identical_pct": 100.0,
+        "mean_abs_diff": 0.0,
+        "max_abs_diff": 0.0
+      },
+      "F1": {
+        "count": 380,
+        "identical_pct": 100.0,
+        "mean_abs_diff": 0.0,
+        "max_abs_diff": 0.0
+      },
+      "I1": {
+        "count": 380,
+        "identical_pct": 100.0,
+        "mean_abs_diff": 0.0,
+        "max_abs_diff": 0.0
+      }
+    },
+    "by_sharp_book": {
+      "without_pinnacle": {
+        "count": 0,
+        "identical_pct": 0,
+        "mean_abs_diff": 0,
+        "max_abs_diff": 0
+      },
+      "with_pinnacle": {
+        "count": 1627,
+        "identical_pct": 100.0,
+        "mean_abs_diff": 0.0,
+        "max_abs_diff": 0.0
+      }
+    },
+    "multi_book_analysis": {
+      "count": 1627,
+      "identical_pct": 100.0,
+      "mean_abs_diff": 0.0,
+      "should_show_differences": "False"
+    }
+  },
+  "training_results": {
+    "all_results": [
+      {
+        "params": {
+          "lambda": 0.5,
+          "clip": 0.8,
+          "l2": 0.001,
+          "lr": 0.05
+        },
+        "uncalibrated_metrics": {
+          "model_logloss": 0.9856638125751241,
+          "market_logloss": 0.984024989939789,
+          "logloss_improvement": -0.001638822635335102,
+          "model_brier": 0.5868407230867455,
+          "market_brier": 0.5855166494740617,
+          "brier_improvement": -0.0013240736126838293,
+          "model_accuracy": 0.5296523517382413,
+          "market_accuracy": 0.523517382413088,
+          "model_top2": 0.7709611451942741,
+          "market_top2": 0.7648261758691206,
+          "model_p_true": 0.41483948733842313,
+          "market_p_true": 0.41552176877831265
+        },
+        "calibrated_metrics": {
+          "model_logloss": 0.9855897994331162,
+          "market_logloss": 0.984024989939789,
+          "logloss_improvement": -0.0015648094933271572,
+          "model_brier": 0.5868063149870886,
+          "market_brier": 0.5855166494740617,
+          "brier_improvement": -0.0012896655130268941,
+          "model_accuracy": 0.5296523517382413,
+          "market_accuracy": 0.523517382413088,
+          "model_top2": 0.7709611451942741,
+          "market_top2": 0.7648261758691206,
+          "model_p_true": 0.41165880642335484,
+          "market_p_true": 0.41552176877831265
+        },
+        "temperature": 1.0481131341546852,
+        "trainer": "<residual_delta_logit_trainer.DeltaLogitResidualTrainer object at 0x7f39b3a8ff50>"
+      },
+      {
+        "params": {
+          "lambda": 0.7,
+          "clip": 1.0,
+          "l2": 0.001,
+          "lr": 0.05
+        },
+        "uncalibrated_metrics": {
+          "model_logloss": 0.9874698851030512,
+          "market_logloss": 0.984024989939789,
+          "logloss_improvement": -0.003444895163262185,
+          "model_brier": 0.5881690658143469,
+          "market_brier": 0.5855166494740617,
+          "brier_improvement": -0.002652416340285235,
+          "model_accuracy": 0.5173824130879345,
+          "market_accuracy": 0.523517382413088,
+          "model_top2": 0.7811860940695297,
+          "market_top2": 0.7648261758691206,
+          "model_p_true": 0.4143879093618643,
+          "market_p_true": 0.41552176877831265
+        },
+        "calibrated_metrics": {
+          "model_logloss": 0.9872650676087785,
+          "market_logloss": 0.984024989939789,
+          "logloss_improvement": -0.003240077668989483,
+          "model_brier": 0.5880655263332052,
+          "market_brier": 0.5855166494740617,
+          "brier_improvement": -0.002548876859143512,
+          "model_accuracy": 0.5173824130879345,
+          "market_accuracy": 0.523517382413088,
+          "model_top2": 0.7811860940695297,
+          "market_top2": 0.7648261758691206,
+          "model_p_true": 0.4112522023458854,
+          "market_p_true": 0.41552176877831265
+        },
+        "temperature": 1.0481131341546852
+      },
+      {
+        "params": {
+          "lambda": 0.8,
+          "clip": 1.2,
+          "l2": 0.002,
+          "lr": 0.03
+        },
+        "uncalibrated_metrics": {
+          "model_logloss": 0.9866403820925109,
+          "market_logloss": 0.984024989939789,
+          "logloss_improvement": -0.002615392152721885,
+          "model_brier": 0.5875791246464998,
+          "market_brier": 0.5855166494740617,
+          "brier_improvement": -0.002062475172438072,
+          "model_accuracy": 0.5214723926380368,
+          "market_accuracy": 0.523517382413088,
+          "model_top2": 0.7750511247443763,
+          "market_top2": 0.7648261758691206,
+          "model_p_true": 0.4145135074456418,
+          "market_p_true": 0.41552176877831265
+        },
+        "calibrated_metrics": {
+          "model_logloss": 0.9865024444861312,
+          "market_logloss": 0.984024989939789,
+          "logloss_improvement": -0.0024774545463421838,
+          "model_brier": 0.5875130456352258,
+          "market_brier": 0.5855166494740617,
+          "brier_improvement": -0.0019963961611640935,
+          "model_accuracy": 0.5214723926380368,
+          "market_accuracy": 0.523517382413088,
+          "model_top2": 0.7750511247443763,
+          "market_top2": 0.7648261758691206,
+          "model_p_true": 0.4113603288417067,
+          "market_p_true": 0.41552176877831265
+        },
+        "temperature": 1.0481131341546852
+      },
+      {
+        "params": {
+          "lambda": 0.6,
+          "clip": 0.9,
+          "l2": 0.001,
+          "lr": 0.07
+        },
+        "uncalibrated_metrics": {
+          "model_logloss": 0.9874472432295381,
+          "market_logloss": 0.984024989939789,
+          "logloss_improvement": -0.0034222532897491,
+          "model_brier": 0.5881322516943919,
+          "market_brier": 0.5855166494740617,
+          "brier_improvement": -0.002615602220330193,
+          "model_accuracy": 0.5153374233128835,
+          "market_accuracy": 0.523517382413088,
+          "model_top2": 0.7791411042944786,
+          "market_top2": 0.7648261758691206,
+          "model_p_true": 0.41441998580298456,
+          "market_p_true": 0.41552176877831265
+        },
+        "calibrated_metrics": {
+          "model_logloss": 0.9872419221681442,
+          "market_logloss": 0.984024989939789,
+          "logloss_improvement": -0.003216932228355174,
+          "model_brier": 0.5880298438456318,
+          "market_brier": 0.5855166494740617,
+          "brier_improvement": -0.00251319437157016,
+          "model_accuracy": 0.5153374233128835,
+          "market_accuracy": 0.523517382413088,
+          "model_top2": 0.7791411042944786,
+          "market_top2": 0.7648261758691206,
+          "model_p_true": 0.41128210610495336,
+          "market_p_true": 0.41552176877831265
+        },
+        "temperature": 1.0481131341546852
+      }
+    ],
+    "best_result": {
+      "params": {
+        "lambda": 0.5,
+        "clip": 0.8,
+        "l2": 0.001,
+        "lr": 0.05
+      },
+      "uncalibrated_metrics": {
+        "model_logloss": 0.9856638125751241,
+        "market_logloss": 0.984024989939789,
+        "logloss_improvement": -0.001638822635335102,
+        "model_brier": 0.5868407230867455,
+        "market_brier": 0.5855166494740617,
+        "brier_improvement": -0.0013240736126838293,
+        "model_accuracy": 0.5296523517382413,
+        "market_accuracy": 0.523517382413088,
+        "model_top2": 0.7709611451942741,
+        "market_top2": 0.7648261758691206,
+        "model_p_true": 0.41483948733842313,
+        "market_p_true": 0.41552176877831265
+      },
+      "calibrated_metrics": {
+        "model_logloss": 0.9855897994331162,
+        "market_logloss": 0.984024989939789,
+        "logloss_improvement": -0.0015648094933271572,
+        "model_brier": 0.5868063149870886,
+        "market_brier": 0.5855166494740617,
+        "brier_improvement": -0.0012896655130268941,
+        "model_accuracy": 0.5296523517382413,
+        "market_accuracy": 0.523517382413088,
+        "model_top2": 0.7709611451942741,
+        "market_top2": 0.7648261758691206,
+        "model_p_true": 0.41165880642335484,
+        "market_p_true": 0.41552176877831265
+      },
+      "temperature": 1.0481131341546852,
+      "trainer": "<residual_delta_logit_trainer.DeltaLogitResidualTrainer object at 0x7f39b3a8ff50>"
+    },
+    "training_data_info": {
+      "total_samples": 1627,
+      "train_samples": 1138,
+      "val_samples": 489,
+      "feature_count": 14,
+      "feature_names": [
+        "feat_league_tier",
+        "feat_total_dispersion",
+        "feat_max_dispersion",
+        "feat_market_confidence",
+        "feat_book_coverage",
+        "feat_month",
+        "feat_is_weekend",
+        "feat_season_phase",
+        "feat_disp_x_books",
+        "feat_conf_x_tier",
+        "dispH",
+        "dispD",
+        "dispA",
+        "n_books"
+      ]
+    }
+  },
+  "data_info": {
+    "total_matches": 1627,
+    "leagues": 4,
+    "date_range": "2020-01-01 to 2024-06-02"
+  }
+}

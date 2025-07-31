@@ -1,0 +1,120 @@
+Done. I drafted and smoke-tested two drop-in tools your agent can run offline to recover Week-2 and harden verification.
+
+---
+
+## 1) Δ-logit residual trainer (with clipping + calibration)
+
+**File:** `residual_delta_logit_trainer.py`
+**Download:** [residual\_delta\_logit\_trainer.py](sandbox:/mnt/data/residual_delta_logit_trainer.py)
+
+**What it does**
+
+* Implements the **safe residual formulation** you wanted:
+
+  $$
+  \text{logit}(\hat p)=\text{logit}(q_{\text{market}})+\lambda\cdot\mathrm{clip}(\Delta,[-c,c]),
+  \quad \Delta=XW+b
+  $$
+* Trains $W,b$ by minimizing multiclass NLL (NumPy mini-batch gradient descent) with **L2** regularization.
+* **Clips** Δ in $[-c,c]$ and scales by $\lambda$ to avoid the numerical instability that broke Week-2.
+* Reports **LogLoss, normalized Brier, Top-2, Accuracy, mean p(true)**.
+* Optional **temperature scaling** (single scalar) for post-hoc calibration on the validation split.
+* Writes artifacts: `metrics_*.json`, `W_*.npy`, `b_*.npy`, `feat_cols_*.npy`.
+
+**Expected input CSV (one row per match)**
+
+* Required:
+  `y` (labels 0/1/2 for H/D/A), `pH_mkt`, `pD_mkt`, `pA_mkt` (market consensus probs at T-72 or chosen horizon)
+* Optional features:
+  any columns prefixed `feat_…` (structural features), plus `dispH`, `dispD`, `dispA`, `n_books`.
+
+> The script auto-selects features: all `feat_*` plus dispersion/n\_books if present.
+
+**Usage**
+
+```bash
+python residual_delta_logit_trainer.py \
+  --data /path/to/train_eval_slice.csv \
+  --val_ratio 0.2 \
+  --lambda 0.7 \
+  --clip 1.0 \
+  --l2 0.001 \
+  --lr 0.05 \
+  --epochs 400 \
+  --calibrate \
+  --outdir ./residual_artifacts
+```
+
+**Smoke test**
+If `--data` is omitted, it generates a synthetic dataset and completes a training run (already verified in this environment).
+
+---
+
+## 2) Consensus QA (weighted vs equal, coverage, sharp-book splits)
+
+**File:** `consensus_qa.py`
+**Download:** [consensus\_qa.py](sandbox:/mnt/data/consensus_qa.py)
+
+**What it checks**
+
+* Confirms **weights are actually applied** (not falling back to median):
+  computes per-match $|q_{\text{weighted}}-q_{\text{equal}}|$ across H/D/A.
+* Reports **% identical** triplets (should be low when ≥2 books are present).
+* Histograms of **mean absolute difference** and **n\_books**.
+* **League breakdown** and **sharp-book split** (e.g., `has_pinnacle=1` vs `0`).
+
+**Expected input CSV**
+
+* `league`, `n_books`, `has_pinnacle` (0/1),
+* `pH_equal`, `pD_equal`, `pA_equal`,
+* `pH_weighted`, `pD_weighted`, `pA_weighted`.
+
+**Outputs** (in `./consensus_qa_artifacts/`)
+
+* `SUMMARY_*.csv`
+* `DIFFS_BY_LEAGUE_*.csv`
+* `SHARP_SPLIT_*.csv`
+* `HIST_DIFFS_*.png`, `NBOOKS_HIST_*.png`
+
+**Usage**
+
+```bash
+python consensus_qa.py --data /path/to/consensus_eval.csv
+```
+
+As with the trainer, it will generate a synthetic dataset if you don’t pass `--data`, so you can validate the pipeline wiring immediately.
+
+---
+
+## How to plug these into your Week-3 plan (offline only)
+
+1. **Rebuild your evaluation slice** (same 1,000 matches you used for the 0.8157 result):
+
+   * Create `/path/to/train_eval_slice.csv` with columns:
+
+     * `y`, `pH_mkt`, `pD_mkt`, `pA_mkt`, any `feat_*`, optionally `dispH/D/A`, `n_books`.
+   * Create `/path/to/consensus_eval.csv` with the equal vs weighted consensus for those matches.
+
+2. **QA the consensus**
+
+   * Run `consensus_qa.py` and review `SUMMARY.csv` and histograms.
+   * If **identical\_triplet\_pct** is high (e.g., >30% with n\_books≥2), your weighted consensus isn’t getting applied or coverage forces a fallback. Fix before modeling.
+
+3. **Train the Δ-logit residual**
+
+   * Start with `--lambda 0.6–0.8` and `--clip 0.8–1.2`; pick via small grid search.
+   * Turn on `--calibrate` and record LL/Brier.
+   * Compare **LL(model)** to **LL(Market-T72 weighted)**; expect ≥ **0.005** absolute improvement per league to consider promotion.
+
+4. **Record artifacts into your verification bundle**
+
+   * Promote the resulting metrics JSON and calibration temperature into your weekly model card + internal gate checks.
+
+---
+
+## Notes & options
+
+* **Instance-wise book mixing:** once the QA shows weights have effect, consider replacing static weights with a **constrained meta-learner** (non-negative L1 on per-book logits). That’s a separate module; this trainer already consumes the merged consensus (so you can slot that in later).
+* **Movement features:** if you add multi-snapshot (opening/T-120/T-72) deltas, just push them as additional `feat_*` columns; the trainer will use them automatically.
+
+If you want, I can also produce a tiny **grid runner** (`run_grid_residual.sh`) to sweep `--lambda` and `--clip` and summarize the best LL/Brier automatically.
