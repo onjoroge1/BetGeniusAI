@@ -1,0 +1,26 @@
+[
+  {
+    "label": "equal_geom",
+    "logloss": 0.9636734299244957,
+    "brier": 0.1909623486784783,
+    "top2": 0.798
+  },
+  {
+    "label": "static_weighted_geom",
+    "logloss": 0.963671654799264,
+    "brier": 0.19096199612629655,
+    "top2": 0.798
+  },
+  {
+    "label": "learned_mix_geom",
+    "logloss": 0.9634478850225493,
+    "brier": 0.1909181988735208,
+    "top2": 0.7993333333333333
+  },
+  {
+    "label": "improvements",
+    "static_vs_equal": 1.7751252316955402e-06,
+    "learned_vs_equal": 0.0002255449019463729,
+    "learned_vs_static": 0.00022376977671467735
+  }
+]

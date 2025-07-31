@@ -1,0 +1,20 @@
+[
+  {
+    "label": "equal_geom",
+    "logloss": 0.987681496489598,
+    "brier": 0.19655777954120807,
+    "top2": 0.8305
+  },
+  {
+    "label": "static_weighted_geom",
+    "logloss": 0.9874076557847966,
+    "brier": 0.19653497367935285,
+    "top2": 0.8305
+  },
+  {
+    "label": "learned_mix_geom",
+    "logloss": 0.978507374952949,
+    "brier": 0.19582308391198908,
+    "top2": 0.824
+  }
+]

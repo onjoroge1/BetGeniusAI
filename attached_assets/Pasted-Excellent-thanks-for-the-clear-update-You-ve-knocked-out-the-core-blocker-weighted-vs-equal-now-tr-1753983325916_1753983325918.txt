@@ -1,0 +1,144 @@
+Excellent—thanks for the clear update. You’ve knocked out the core blocker (weighted vs equal now truly different), and the Δ-logit residual is stable. Given:
+
+* **Weighted consensus improvement is tiny** (ΔLL ≈ **−0.0002** on 1,500 matches),
+* **Residual model still under baseline** (−0.0069, but stable),
+
+the best next step is to **add signal where the market is weaker** and **learn context-dependent book weights** rather than static ones. I’ve drafted two production-ready tools you (or the agent) can run offline right away.
+
+---
+
+## New tools you can run now
+
+### 1) **Instance-wise book mixing (softmax gating)**
+
+**File:** `book_mixer_trainer.py`
+**Download:** [book\_mixer\_trainer.py](sandbox:/mnt/data/book_mixer_trainer.py)
+
+**What it does**
+
+* Learns **per-match weights** $w_b(x)$ for each bookmaker via a **softmax gating** model using your **context features** (e.g., dispersion, n\_books, overround, has\_pinnacle, league/phase).
+* Blends books with a **geometric mixture**:
+
+  $$
+  p_{\text{mix}}(o)\ \propto\ \prod_b p_b(o)^{w_b(x)}\quad\Longleftrightarrow\quad
+  \log p_{\text{mix}}=\sum_b w_b(x)\,\log p_b
+  $$
+* Optimizes **multiclass NLL**, outputs:
+
+  * **Metrics** vs equal-geom and static weighted baselines (LogLoss, Brier, Top-2).
+  * **Per-match learned weights** and mixed consensus `pH_mix/pD_mix/pA_mix`.
+
+**Input CSV format (wide)**
+
+* `y` in {0,1,2} (H/D/A).
+* For each book b: `pH_b, pD_b, pA_b` (implied probs at horizon; script normalizes).
+* Optional context features: any columns prefixed `ctx_…` (e.g., `ctx_dispersion`, `ctx_n_books`, `ctx_overround`, `ctx_has_pinnacle`, `ctx_league_id_*`, `ctx_season_phase_*`).
+
+**Usage**
+
+```bash
+python book_mixer_trainer.py \
+  --data /path/to/per_match_books.csv \
+  --epochs 400 --lr 0.05 --l2 1e-3 \
+  --outdir ./book_mixer_artifacts
+```
+
+*Smoke tests pass with synthetic data if `--data` is omitted.*
+
+---
+
+### 2) **Multi-timepoint movement features**
+
+**File:** `movement_feature_builder.py`
+**Download:** [movement\_feature\_builder.py](sandbox:/mnt/data/movement_feature_builder.py)
+
+**What it does**
+
+* From **odds snapshots** (e.g., Opening/T-168/T-120/T-72), builds **movement features**:
+
+  * `feat_dlogit_*_168_72`, `feat_dlogit_*_120_72` (logit changes),
+  * `feat_slope_*` (per-hour movement),
+  * `feat_vol_*` (volatility across snapshots).
+* Emits a **per-match CSV** with these `feat_*` columns and the **T-72 consensus** (`pH_mkt/pD_mkt/pA_mkt`) ready to feed into your Δ-logit residual trainer.
+
+**Input CSV format (long)**
+`match_id, league_id, book_id, ts_snapshot, secs_to_kickoff, outcome(H/D/A), odds_decimal, implied_prob, market_margin`
+
+**Usage**
+
+```bash
+python movement_feature_builder.py \
+  --data /path/to/odds_snapshots_long.csv \
+  --out ./movement_features.csv
+```
+
+*Runs with synthetic snapshots if `--data` is omitted.*
+
+---
+
+## How to wire this into your current pipeline (offline)
+
+1. **Export a training/eval slice** with per-book implied probs at T-72 and context:
+
+   * Create `/data/per_match_books.csv` with columns like:
+
+     * `y`, `pH_PIN`, `pD_PIN`, `pA_PIN`, `pH_B365`, …
+     * `ctx_dispersion`, `ctx_n_books`, `ctx_overround`, `ctx_has_pinnacle`, and optional league/phase one-hots (`ctx_league_id_*`, `ctx_season_phase_*`).
+
+2. **Learn instance-wise mixing** and compare:
+
+   ```bash
+   python book_mixer_trainer.py --data /data/per_match_books.csv --epochs 400 --outdir ./book_mixer_artifacts
+   ```
+
+   * Check `metrics_*.json`: verify **ΔLL (learned\_mix vs equal/static\_weighted)** and keep if **≤ −0.003** overall (paired bootstrap later for CI).
+
+3. **Build movement features** (if you have multiple snapshots per match):
+
+   ```bash
+   python movement_feature_builder.py --data /data/odds_snapshots_long.csv --out ./movement_features.csv
+   ```
+
+   * Join `movement_features.csv` to your existing training CSV as extra `feat_*` columns.
+
+4. **Retrain the Δ-logit residual** using the fixed prior and new features:
+
+   * Ensure your training CSV has:
+
+     * `y`, `pH_mkt, pD_mkt, pA_mkt` (now the **best** consensus you choose: learned-mix or weighted),
+     * `feat_*` columns (movement + structural), plus `dispH/dispD/dispA` and `n_books` if you have them.
+   * Run:
+
+     ```bash
+     python residual_delta_logit_trainer.py \
+       --data /data/train_eval_slice.csv \
+       --val_ratio 0.2 \
+       --lambda 0.6 --clip 1.0 \
+       --l2 0.001 --lr 0.05 --epochs 400 \
+       --calibrate \
+       --outdir ./residual_artifacts
+     ```
+
+---
+
+## Acceptance gates (unchanged)
+
+* **Per-league** (N≥300):
+
+  * `LL(residual) ≤ LL(Market-T72_bestConsensus) − 0.005` with 95% CI excluding 0;
+  * `Brier ≤ 0.202`;
+  * `Top-2 ≥ 92–95%`;
+  * Horizon audit clean; feature safelist clean.
+
+If learned mixing or movement features don’t beat your current T-72 weighted baseline **by ≥0.003–0.005 LL**, keep the simpler baseline and move on—markets are efficient; we’ll invest where lift exists.
+
+---
+
+## Quick rationale on expected lift
+
+* **Instance-wise mixing**: when Pinnacle is present and dispersion is low, the gate will **up-weight sharp**; when coverage is thin or books disagree, it adapts. This typically yields a **consistent but small** LL reduction vs static weights.
+* **Movement**: markets don’t instantly price all information. Opening→T-72 deltas (especially *direction-consistent* with structural signals) improve ranking and small calibration edges. Expect **−0.002 to −0.006 LL** if you have decent multi-snapshot coverage.
+
+---
+
+If you want, I can also supply a short **bootstrap significance script** that takes two probability matrices (baseline vs candidate) + labels and outputs ΔLL with 95% CIs per league and overall. That makes “keep or revert” decisions automatic in CI.

@@ -1,0 +1,20 @@
+[
+  {
+    "label": "equal_geom",
+    "logloss": NaN,
+    "brier": NaN,
+    "top2": 0.7973333333333333
+  },
+  {
+    "label": "static_weighted_geom",
+    "logloss": NaN,
+    "brier": NaN,
+    "top2": 0.6926666666666667
+  },
+  {
+    "label": "learned_mix_geom",
+    "logloss": NaN,
+    "brier": NaN,
+    "top2": 0.798
+  }
+]
