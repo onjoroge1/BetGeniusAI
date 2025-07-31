@@ -6,7 +6,7 @@ BetGenius AI is a sports prediction platform providing intelligent football matc
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 Production Model Decision: Use simple weighted consensus based on performance comparison showing 0.031549 LogLoss improvement over complex model.
-Model Performance Analysis: Model rating 7.1/10 (B+ Grade) with 54.3% 3-way accuracy and 62.4% 2-way accuracy suitable for commercial use.
+Model Performance Analysis: Model rating 6.3/10 (B Grade) with 54.3% 3-way accuracy and 62.4% 2-way accuracy. Rating corrected after fixing Brier score normalization issue (0.191 vs incorrectly reported 0.573).
 Improvement Priority: Focus on enhanced feature engineering and gradient boosting ensemble methods for immediate gains, with deep learning and reinforcement learning as longer-term research directions.
 
 ## System Architecture
@@ -21,7 +21,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Production Model**: Simple Weighted Consensus using quality weights from 31-year bookmaker analysis.
 - **Quality Weights**: Pinnacle (35%), Bet365 (25%), Betway (22%), William Hill (18%) based on historical LogLoss performance.
 - **Performance**: 0.963475 LogLoss, outperforming complex models by 0.031549 LogLoss.
-- **Model Rating**: 7.1/10 (B+ Grade - Very Good Model) with 54.3% 3-way accuracy and 62.4% 2-way accuracy.
+- **Model Rating**: 6.3/10 (B Grade - Good Model) with 54.3% 3-way accuracy and 62.4% 2-way accuracy.
 - **Robust Architecture**: Market-efficient consensus at T-72h with dispersion-based confidence scoring.
 - **Real Data Integration**: Enhanced data collector with injuries, team news, recent form, and head-to-head records from RapidAPI.
 - **Research Infrastructure**: Advanced features available for research; roadmap includes gradient boosting, deep learning (LSTM, attention networks), and reinforcement learning approaches.

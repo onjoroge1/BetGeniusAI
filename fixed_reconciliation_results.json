@@ -1,0 +1,45 @@
+{
+  "validation_results": {
+    "metrics": {
+      "equal": {
+        "logloss": 0.903608569330929,
+        "brier_raw": 0.545229591463297,
+        "brier_normalized": 0.18174319715443232,
+        "accuracy_3way": 0.5566666666666666,
+        "accuracy_2way_remove_draws": 0.6784452296819788,
+        "accuracy_2way_collapse_draws": 0.6693333333333333,
+        "calibration": {
+          "expected_calibration_error": 0.012230292371045412,
+          "reliability_assessed": true
+        },
+        "sample_size": 1500
+      },
+      "weighted": {
+        "logloss": 0.9041402288601463,
+        "brier_raw": 0.5455559782417813,
+        "brier_normalized": 0.1818519927472604,
+        "accuracy_3way": 0.5586666666666666,
+        "accuracy_2way_remove_draws": 0.681095406360424,
+        "accuracy_2way_collapse_draws": 0.6693333333333333,
+        "calibration": {
+          "expected_calibration_error": 0.011429583433147065,
+          "reliability_assessed": true
+        },
+        "sample_size": 1500
+      },
+      "comparison": {
+        "logloss_improvement": -0.0005316595292172988,
+        "brier_improvement": -0.00010879559282808704,
+        "accuracy_improvement": 0.0020000000000000018
+      }
+    },
+    "reported": {
+      "logloss": 0.963475,
+      "brier": 0.572791,
+      "accuracy_3way": 0.543,
+      "accuracy_2way": 0.624,
+      "market_advantage": 0.008663
+    },
+    "discrepancies": {
+      "brier_issue": "MAJOR - Reported Brier 0.573 should be ~0.191 (\u00f73 normalization)",
+      "metrics_validated": 

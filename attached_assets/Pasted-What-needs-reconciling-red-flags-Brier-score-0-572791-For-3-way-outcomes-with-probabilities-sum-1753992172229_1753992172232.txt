@@ -1,0 +1,92 @@
+What needs reconciling (red flags)
+Brier score = 0.572791
+
+For 3-way outcomes with probabilities summing to 1, Brier should typically be ~0.15–0.25.
+
+Likely cause: you’re summing squared errors across the 3 classes but not dividing by 3.
+
+Fix: Brier = mean over samples of 
+∑
+𝑘
+=
+1
+3
+(
+𝑝
+𝑘
+−
+𝑦
+𝑘
+)
+2
+/
+3
+∑ 
+k=1
+3
+​
+ (p 
+k
+​
+ −y 
+k
+​
+ ) 
+2
+ /3.
+
+If we divide 0.572791 by 3 → ~0.1909, which is reasonable and consistent with LogLoss ≈ 0.96.
+
+“Outperforming market consensus” by +0.008663 LogLoss
+
+Earlier locked results showed equal 0.963627 and weighted 0.9635, with tiny 0.0002 gain from weighting.
+
+Please confirm what that +0.008663 improvement is relative to (uniform? frequency? equal? weighted?).
+
+Production baseline should be Market-T72 (equal or weighted), not uniform/frequency.
+
+54.3% 3-way accuracy and 62.4% 2-way accuracy
+
+Plausible, but make sure:
+
+Labels are mapped consistently (H/D/A ↔ 0/1/2).
+
+Time-aware split (no leakage from future seasons).
+
+2-way accuracy reported on the same sample and method (e.g., collapsing Draw or removing draw matches—document which).
+
+1-day “Truth Set” verification (copy/paste for the agent)
+Goal: produce a single, defensible set of metrics for the current production forecaster on a locked slice so numbers don’t drift.
+
+A. Freeze the evaluation slice
+
+RUN_ID = EURO_TOP5_T72_2019-2024 (example):
+leagues = EPL/LaLiga/SerieA/Bundesliga/Ligue1, horizon = T-72h, last 5 seasons, exclude postponed.
+
+Export: y.csv, P_equal.csv, P_weighted.csv, and match_ids.csv.
+
+B. Compute metrics with the reference formulas
+
+For each method (equal, weighted, any candidate):
+
+LogLoss (multiclass NLL),
+
+Brier (normalized by 3),
+
+Top-2, Accuracy (argmax).
+
+Produce paired bootstrap 95% CIs for ΔLogLoss vs equal and vs weighted on the same matches.
+
+C. Sanity checks
+
+Reliability (per outcome), ECE/MCE.
+
+Label distribution and confusion matrices (is Draw being treated correctly?).
+
+Horizon audit: all rows within ±1h of T-72.
+
+Consensus QA on the same rows: identical-rate between equal and weighted <10% when n_books≥2.
+
+Output files
+
+METRICS_TABLE.csv, BOOTSTRAP_CI.json, CALIBRATION_REPORT.html, CONSENSUS_QA.csv, HORIZON_AUDIT.csv.

@@ -1,0 +1,157 @@
+{
+  "diagnosis_summary": {
+    "major_issue_found": "Brier score not normalized by number of classes",
+    "corrected_brier": 0.19093033333333334,
+    "impact_on_rating": "Rating adjusted from 7.1 to 6.3",
+    "other_metrics_status": "Accuracy metrics appear reasonable, market advantage needs verification"
+  },
+  "corrected_performance": {
+    "logloss": 0.963475,
+    "brier_score_normalized": 0.19093033333333334,
+    "accuracy_3way": 0.543,
+    "accuracy_2way": 0.624,
+    "model_rating": 6.3,
+    "grade": "B"
+  },
+  "brier_diagnosis": {
+    "issue_identified": "Brier score not normalized by number of classes",
+    "reported_value": 0.572791,
+    "corrected_value": 0.19093033333333334,
+    "explanation": "Reported 0.572791 should be 0.190930 (\u00f73 for 3-way classification)",
+    "consistency_check": {
+      "logloss_vs_brier": "LogLoss ~0.96 is consistent with normalized Brier ~0.19",
+      "reasonable_range": "Corrected Brier 0.191 is in reasonable range [0.15-0.25]",
+      "severity": "CRITICAL - affects model rating calculation"
+    }
+  },
+  "accuracy_validation": {
+    "accuracy_3way": {
+      "reported": 0.543,
+      "assessment": "Reasonable for football prediction",
+      "benchmark_comparison": {
+        "random_baseline": 0.333,
+        "improvement_over_random": 0.6306306306306306,
+        "vs_good_model_target": "55%+ is good performance",
+        "status": "Slightly below good model threshold"
+      }
+    },
+    "accuracy_2way": {
+      "reported": 0.624,
+      "calculation_method": "Likely collapse draws or remove draw matches",
+      "assessment": "Reasonable improvement over 3-way",
+      "expected_relationship": "2-way should be higher than 3-way: 62.4% > 54.3% \u2713"
+    },
+    "consistency_check": {
+      "relationship_valid": true,
+      "magnitude_reasonable": true,
+      "label_mapping_concern": "Ensure H/D/A \u2192 0/1/2 mapping is consistent"
+    }
+  },
+  "market_analysis": {
+    "claimed_improvement": 0.008663,
+    "baseline_unclear": {
+      "issue": "What baseline is this compared to?",
+      "possibilities": [
+        "Uniform consensus (equal weights)",
+        "Frequency-based weights",
+        "Equal consensus",
+        "Market-implied probabilities"
+      ],
+      "recommendation": "Should compare weighted vs equal consensus on same data"
+    },
+    "magnitude_assessment": {
+      "value": 0.008663,
+      "significance": "Small but potentially meaningful for betting",
+      "context": "LogLoss improvements of 0.008 are modest but valuable in sports betting",
+      "concern": "Need statistical significance testing"
+    },
+    "verification_needed": [
+      "Lock evaluation slice (EURO_TOP5_T72_2019-2024)",
+      "Compute paired bootstrap confidence intervals",
+      "Ensure time-aware split (no future leakage)",
+      "Validate horizon compliance (T-72h \u00b12h)"
+    ]
+  },
+  "corrected_rating": {
+    "corrected_rating": {
+      "overall_score": 6.3,
+      "grade": "B",
+      "interpretation": "Good Model"
+    },
+    "rating_factors": {
+      "logloss_rating": 5,
+      "accuracy_rating": 7,
+      "calibration_rating": 7,
+      "robustness_rating": 8,
+      "data_quality_rating": 7
+    },
+    "key_metrics_used": {
+      "logloss": 0.963475,
+      "brier_normalized": 0.19093033333333334,
+      "accuracy_3way": 0.543
+    },
+    "rating_change": {
+      "previous_rating": 7.1,
+      "corrected_rating": 6.3,
+      "change": -0.8,
+      "reason": "Corrected Brier score normalization"
+    }
+  },
+  "truth_set_recommendations": {
+    "immediate_actions": {
+      "freeze_evaluation_slice": {
+        "run_id": "EURO_TOP5_T72_2019_2024_FINAL",
+        "leagues": [
+          "EPL",
+          "LaLiga",
+          "SerieA",
+          "Bundesliga",
+          "Ligue1"
+        ],
+        "horizon": "T-72h \u00b12h",
+        "time_period": "2019-2024 seasons",
+        "exclusions": "Postponed/cancelled matches"
+      },
+      "export_files": [
+        "y_true.csv (actual outcomes)",
+        "P_equal.csv (equal consensus probabilities)",
+        "P_weighted.csv (weighted consensus probabilities)",
+        "match_metadata.csv (IDs, dates, leagues)"
+      ]
+    },
+    "metric_calculations": {
+      "formulas_to_use": {
+        "logloss": "-mean(sum(y_true * log(P_pred)))",
+        "brier_normalized": "mean(sum((P_pred - y_true)^2)) / num_classes",
+        "accuracy_3way": "mean(argmax(P_pred) == argmax(y_true))",
+        "accuracy_2way": "Specify method: remove draws OR collapse draws"
+      },
+      "statistical_tests": [
+        "Paired bootstrap 95% CIs for weighted vs equal",
+        "McNemar test for accuracy differences",
+        "DeLong test for LogLoss comparisons"
+      ]
+    },
+    "quality_assurance": {
+      "sanity_checks": [
+        "Probability matrices sum to 1.0 (\u00b11e-6)",
+        "Label distribution matches expected (H:~45%, D:~27%, A:~28%)",
+        "Horizon audit: all matches within T-72h \u00b12h",
+        "Time-aware split: no future information leakage"
+      ],
+      "calibration_analysis": [
+        "Reliability diagrams per outcome",
+        "Expected Calibration Error (ECE)",
+        "Maximum Calibration Error (MCE)",
+        "Brier skill score vs climatology"
+      ]
+    }
+  },
+  "next_steps": [
+    "Create locked evaluation slice with specified parameters",
+    "Recalculate all metrics using proper formulas",
+    "Generate statistical significance tests",
+    "Produce calibration analysis",
+    "Document final defensible metrics"
+  ]
+}
