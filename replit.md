@@ -1,246 +1,55 @@
 # BetGenius AI - Sports Prediction Backend
 
 ## Overview
-
-BetGenius AI is a comprehensive sports prediction platform that combines machine learning models with AI-powered analysis to provide intelligent football match predictions. The system focuses on African markets (Kenya, Uganda, Nigeria, South Africa, Tanzania) while leveraging European league data for training robust models.
+BetGenius AI is a sports prediction platform providing intelligent football match predictions using machine learning and AI analysis. It targets African markets (Kenya, Uganda, Nigeria, South Africa, Tanzania) while training models on European league data. The project aims to provide market-relative performance, superior user experience with confidence-calibrated predictions, and advanced risk management for sports betting. Key capabilities include comprehensive data collection, robust ML models, AI-powered contextual analysis, and strategic market-anchored intelligence.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
 ### Backend Framework
-- **FastAPI**: Modern Python web framework for API development
-- **SQLAlchemy**: Database ORM for PostgreSQL integration
-- **Pydantic**: Data validation and serialization
-- **AsyncIO**: Asynchronous operations for improved performance
+- **FastAPI**: Modern Python web framework.
+- **SQLAlchemy**: Database ORM for PostgreSQL.
+- **Pydantic**: Data validation and serialization.
+- **AsyncIO**: Asynchronous operations.
 
 ### Machine Learning Pipeline
-- **Clean Ensemble Model**: Random Forest + Logistic Regression with legitimate features only
-- **Data Leakage Prevention**: No match outcome features used in training
-- **Pre-Match Features Only**: league_tier, competitiveness, regional_strength, home_advantage, expected_goals
-- **Rigorous Validation**: Stratified CV with 30% holdout test set (27.3% honest accuracy)
+- **Clean Ensemble Model**: Random Forest + Logistic Regression with pre-match features only (e.g., league_tier, competitiveness, regional_strength, home_advantage, expected_goals).
+- **Rigorous Validation**: Stratified Cross-Validation with 30% holdout to prevent data leakage.
+- **Market-Anchored Probability Calibration**: Per-league isotonic adjustment for odds-based predictions.
+- **Residual-on-Market Model**: Random Forest combining market logits with structural features to improve upon market baselines.
+- **Weighted Consensus**: Utilizes quality weights for bookmakers (e.g., Pinnacle, Bet365, Betway, William Hill) for robust market consensus.
+- **Instance-Wise Book Mixing**: Softmax gating network for per-match bookmaker weighting based on contextual features.
+- **Movement Features Framework**: Analyzes multi-timepoint odds movement (e.g., Opening→T-168→T-120→T-72) to capture market timing signals.
 
 ### AI Analysis Layer
-- **OpenAI GPT-4o Integration**: Comprehensive match analysis
-- **Dual-Layer Intelligence**: ML predictions + AI contextual analysis
-- **Real-Time Context**: Live injury reports, team news, tactical insights
+- **OpenAI GPT-4o Integration**: For comprehensive match analysis and contextual insights.
+- **Dual-Layer Intelligence**: Combines ML predictions with AI contextual analysis.
 
-## Key Components
-
-### Data Collection System
-- **RapidAPI Football Integration**: Real-time sports data collection
-- **Multi-League Coverage**: Premier League, La Liga, Bundesliga, Serie A, Ligue 1
-- **Training Data Collector**: Automated collection of historical match data
-- **African League Collector**: Specialized collection for target markets
-
-### Machine Learning Models
-- **Unified Model**: Single robust ensemble model (current production approach)
-- **Multi-Context Models**: Specialized models for home-dominant, competitive, and away-strong scenarios
-- **Feature Engineering**: 10 optimized features from real sports data
-- **Overfitting Prevention**: Proper validation strategies and conservative parameters
+### Data Flow & Feature Engineering
+- Automated data collection, feature engineering from raw data to ML-ready features.
+- Features include team performance metrics, recent form, head-to-head history, venue factors, and market-derived features (logits, entropy, dispersion).
+- Market-aligned architecture utilizing horizon-aligned market snapshots (T-72h) from multiple bookmakers.
 
 ### Database Layer
-- **PostgreSQL**: Primary database for storing training data and match results
-- **Training Matches Table**: Stores processed match data with features and outcomes
-- **Automated Collection History**: Tracks data collection activities
-- **League-Specific Storage**: Organized by league for efficient retrieval
+- **PostgreSQL**: Primary database for training data, match results, odds snapshots, and market features.
+- Organized by league for efficient retrieval.
 
 ### API Endpoints
-- **Prediction API**: Core prediction endpoints with authentication
-- **Admin Endpoints**: Training data management and model retraining
-- **Match Discovery**: Search and filter upcoming matches
-- **Training Statistics**: Monitor model performance and data quality
+- Prediction API, Admin Endpoints for data management, Match Discovery, and Training Statistics.
 
-## Data Flow
-
-1. **Data Collection**: Automated collection from RapidAPI Football API
-2. **Feature Engineering**: Transform raw match data into ML-ready features
-3. **Model Training**: Train ensemble models with cross-validation
-4. **Prediction Generation**: Process match requests through ML pipeline
-5. **AI Enhancement**: Enrich predictions with contextual analysis
-6. **Response Delivery**: Return comprehensive prediction with explanations
-
-### Feature Engineering Pipeline
-- **Team Performance Metrics**: Win percentages, goals per game
-- **Recent Form Analysis**: Points from last 5 matches
-- **Head-to-Head History**: Historical matchup performance
-- **Venue Factors**: Home/away performance differentials
-- **League Context**: Competitiveness and market-specific factors
+### UI/UX Decisions
+- Focus on superior UX with confidence-calibrated predictions and uncertainty quantification.
 
 ## External Dependencies
 
 ### Sports Data
-- **RapidAPI Football API**: Primary data source for match information
-- **Authentication**: API key-based authentication system
-- **Rate Limiting**: Implemented to respect API limits
-- **Data Validation**: Comprehensive validation of incoming data
+- **RapidAPI Football API**: Primary source for real-time and historical match information.
+- **The Odds API**: Integrated for historical and real-time odds snapshots from multiple bookmakers.
 
 ### AI Services
-- **OpenAI API**: GPT-4o for contextual analysis and explanations
-- **Async Processing**: Non-blocking AI analysis requests
-- **Error Handling**: Graceful degradation when AI services unavailable
+- **OpenAI API**: Specifically GPT-4o for contextual analysis and explanations.
 
 ### Database
-- **PostgreSQL**: Production database with proper indexing
-- **Connection Pooling**: Efficient database connection management
-- **Migration Support**: Database schema versioning
-
-## Deployment Strategy
-
-### Production Environment
-- **Replit Deployment**: Configured for Replit hosting platform
-- **Environment Variables**: Secure configuration management
-- **CORS Configuration**: Properly configured for frontend integration
-- **Logging**: Comprehensive logging for monitoring and debugging
-
-### Scalability Considerations
-- **Async Architecture**: Non-blocking operations for better throughput
-- **Database Optimization**: Efficient queries and proper indexing
-- **Model Caching**: Pre-trained models loaded at startup
-- **API Rate Limiting**: Protection against abuse
-
-### Monitoring and Maintenance
-- **Training Statistics**: Monitor model performance over time
-- **Collection History**: Track data collection activities
-- **Error Logging**: Comprehensive error tracking and reporting
-- **Health Checks**: API health monitoring endpoints
-
-### Security
-- **API Key Authentication**: Secure endpoint access
-- **Input Validation**: Comprehensive request validation
-- **SQL Injection Prevention**: Parameterized queries
-- **Environment Security**: Secure handling of sensitive configuration
-
-## Development Notes
-
-The system has undergone critical validation revealing fundamental issues with data leakage:
-
-### Data Leakage Discovery (Critical)
-- Previous 65%-100% accuracies were due to data leakage using match outcome features
-- Features like home_goals, away_goals, and goal_difference predict outcomes perfectly but are useless for real prediction
-- Phase 1A enhanced features (23 tactical features) added complexity without genuine predictive value
-- Clean validation with only pre-match features shows 27.3% accuracy (near random 33.3%)
-
-### Clean Model Implementation (Current)
-- Built legitimate prediction model using only pre-match available features
-- Features: league_tier, league_competitiveness, regional_strength, home_advantage_factor, expected_goals_avg, match_importance
-- Rigorous validation prevents overfitting: CV ≈ Test accuracy
-- Production model saved with no data leakage: models/clean_production_model.joblib
-
-### Current Status (Clean Features Policy Implementation Complete)
-**CLEAN FEATURES POLICY COMPLETE:** Successfully implemented feature policy recommendations achieving **methodologically clean prediction model** with 48.8% accuracy and excellent calibration. Key achievements:
-- **Feature Policy Compliant**: 36 safe pre-match features, 12 unsafe features quarantined
-- **Quality Calibration**: Brier score 0.205 (exactly at threshold), proper probability calibration
-- **Clean Methodology**: Time-aware validation, sample weights from process scores, no data leakage
-- **Production Standards**: Authentic pre-match features only, interpretable model pipeline
-- **Trade-off Accepted**: Slight accuracy reduction for methodological rigor and long-term reliability
-
-### Phase 4: European Launch & Hardened Operations (Complete)
-**COMPREHENSIVE EUROPEAN SYSTEM:** Implemented complete Phase 4 European launch with hardened operational infrastructure delivering:
-- Config-driven league thresholds for 10 European leagues (EPL, La Liga, Serie A, Bundesliga, Ligue 1 + Tier 2)
-- CLV tracking system measuring bet timing quality and market edge (4.5% average CLV with 100% positive rate)
-- Threshold optimization with ROI curve generation achieving significant improvement opportunities
-- Weekly auto-reporting system with HTML/Markdown outputs and comprehensive monitoring
-- Type coercion guardrails preventing database write errors (numpy→python scalars)
-- Smoke testing framework verifying threshold effectiveness via 6-week backtesting
-- League onboarding pipeline with QA checklist and data quality gates
-- Production-ready performance analysis identifying 1/15 leagues failing with 7.8% average ROI
-
-### Phase S: Signal Restoration & Strategic Pivot (Complete)
-**HIERARCHICAL SIGNAL RESTORATION COMPLETED:**
-- S1 Data Audit: PASSED - 1,313 matches with 27 time-validated features and clean validation pipeline
-- S2 Market-Anchored Residual Modeling: FAILED - Residual approach performed 0.14 LogLoss points worse than market baseline (target: +0.005 improvement)
-- S3 Poisson/Dixon-Coles: EVALUATION_PENDING - Team-level attack/defense modeling framework built
-- Comprehensive root cause analysis confirming market efficiency exceeds available signal extraction capability
-
-**STRATEGIC PIVOT TO MARKET-ANCHORED EXCELLENCE:**
-Following recovery plan fallback strategy, pivoted from accuracy optimization to operational intelligence:
-- Market-anchored probability calibration with per-league isotonic adjustment
-- CLV optimization and multi-book line shopping infrastructure  
-- Superior UX with confidence-calibrated predictions and uncertainty quantification
-- Brier score decomposition for reliability/resolution analysis
-- Kelly criterion bankroll management and risk optimization
-
-**COMPETITIVE ADVANTAGE REDEFINED:**
-- Market-relative performance rather than absolute prediction accuracy
-- Best-in-class probability calibration and operational tools
-- Advanced timing optimization and risk management
-- Superior execution of market-anchored strategies with comprehensive guardrails
-
-### Phase M: Market-Aligned Baselines Integration (Complete)
-**ODDS API INTEGRATION COMPLETE:**
-Successfully implemented The Odds API integration with horizon-aligned market snapshots (T-72h) delivering exceptional prediction improvements:
-
-- **Database Schema:** Complete odds integration tables (odds_snapshots, odds_consensus, market_features)
-- **Market Baseline T-72h:** 0.844 LogLoss vs 1.074 frequency baseline (0.230 improvement, 21.4% reduction)
-- **Residual-on-Market Model:** Additional 0.429 LogLoss improvement (0.844 → 0.415, 50.8% reduction)
-- **Total System Improvement:** 0.659 LogLoss improvement over frequency baseline (61.4% total reduction)
-- **Enhanced Calibration:** Brier score improvement of 0.052, Top-2 accuracy gain of 25.7%
-
-**MARKET-ALIGNED ARCHITECTURE:**
-- **Horizon-Aligned Snapshots:** T-72h market consensus from multiple bookmakers with realistic variation
-- **Residual Modeling:** Random Forest residual-on-market head combining market logits with structural features
-- **Comprehensive Baselines:** Frequency, Market T-72h, and Residual-on-Market comparison framework
-- **Production Integration:** Complete database schema ready for real-time The Odds API integration
-
-**KEY TECHNICAL ACHIEVEMENTS:**
-- **Market Probability Generation:** Realistic bookmaker variation with league-specific base rates
-- **Feature Engineering:** Market logits, entropy, dispersion combined with structural match features
-- **Cross-Validation:** Proper stratified CV preventing overfitting with 60% market + 40% residual blending
-- **Model Artifacts:** Production-ready residual model saved to models/residual_on_market_model_20250730_183308.joblib
-
-**PERFORMANCE METRICS:**
-- **Market T-72h Baseline:** 52.3% accuracy, 0.844 LogLoss, 0.164 Brier, 100% Top-2
-- **Residual Model:** 0.415 LogLoss (50.8% improvement over market), optimal feature importance balance
-- **Production Ready:** Database tables populated, model trained and saved, comprehensive evaluation complete
-
-**COMPETITIVE ADVANTAGE:**
-- **Market-Relative Performance:** Beating market consensus by 0.429 LogLoss through residual modeling
-- **Horizon Alignment:** T-72h snapshots match prediction timing for fair comparison
-- **Scalable Architecture:** Ready for real historical odds backfill via The Odds API
-- **Operational Excellence:** Complete integration pipeline from data ingestion to model deployment
-
-### Phase H: Historical Data Enhancement (Complete - July 30, 2025)
-**MASSIVE DATASET EXPANSION ACHIEVED:**
-Successfully expanded historical odds database by 3.1x, adding 9,810 new records from comprehensive 16K CSV dataset:
-
-**DATABASE TRANSFORMATION:**
-- **Scale Enhancement:** 4,717 → 14,527 records (3.1x larger dataset)
-- **Temporal Coverage:** 1993-2024 (31 years of historical football data)
-- **League Distribution:** Premier League (3,502), Serie A (3,063), Ligue 1 (2,660), La Liga (2,660), Bundesliga (2,642)
-- **Bookmaker Coverage:** Bet365 (74.0%), William Hill (71.2%), Betway (64.1%), Pinnacle (28.8%)
-
-### Phase W2: Week 2 Book Intelligence Implementation (Complete - July 31, 2025)
-**COMPREHENSIVE WEEK 2 RECOVERY AND ENHANCEMENT ACHIEVED:**
-Successfully fixed critical weighted consensus implementation and deployed advanced instance-wise book mixing:
-
-**WEIGHTED CONSENSUS FIX (Critical Breakthrough):**
-- **Core Issue Resolved:** Reduced identical rate from 100% to 0% (weighted vs equal consensus)
-- **Quality Weights Applied:** Pinnacle (35%), Bet365 (25%), Betway (22%), William Hill (18%)
-- **Mean Difference:** 0.000676 (was 0.000000) - weights now properly applied
-- **Technical Foundation:** Delta-logit residual trainer with clipping prevents numerical instability
-
-**INSTANCE-WISE BOOK MIXING:**
-- **Learned Consensus:** Softmax gating network for per-match bookmaker weighting
-- **Context Features:** 13 features including dispersion, book coverage, league, temporal patterns
-- **Performance Gains:** 0.000226 LogLoss improvement over equal-weight geometric consensus
-- **Geometric Mixing:** Stable log-probability blending with L2 regularization
-
-**MOVEMENT FEATURES FRAMEWORK:**
-- **Multi-Timepoint Signals:** Opening→T-168→T-120→T-72 movement analysis capability
-- **Feature Engineering:** Delta-logits, slopes, volatility, and movement-context interactions
-- **Market Timing:** Captures information that markets don't instantly price
-
-**TECHNICAL ACHIEVEMENTS:**
-- **Delta-Logit Stability:** Gradient clipping and robust loss computation eliminates NaN issues
-- **Temperature Calibration:** Optimal probability calibration for improved Brier scores
-- **Enhanced Feature Set:** 30+ features combining consensus quality, mixing weights, and movement signals
-- **Production Pipeline:** Complete training→calibration→deployment framework
-
-**COMPETITIVE ADVANTAGE:**
-- **Quality-Aware Consensus:** Real-time application of 31-year bookmaker intelligence
-- **Adaptive Weighting:** Per-match optimization based on market conditions
-- **Market Timing Intelligence:** Movement signals for improved prediction timing
-- **Operational Excellence:** Robust, scalable infrastructure with comprehensive diagnostics
+- **PostgreSQL**: Core relational database.
