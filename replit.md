@@ -49,7 +49,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### Sports Data
 - **RapidAPI Football API**: Primary source for real-time and historical match information.
-- **The Odds API**: Integrated for historical and real-time odds snapshots from multiple bookmakers.
+- **The Odds API**: Third-party aggregator providing odds data from multiple bookmakers (Bet365, Pinnacle, William Hill, etc.). Note: We use aggregated data, not direct bookmaker APIs.
 
 ### AI Services
 - **OpenAI API**: Specifically GPT-4o for contextual analysis and explanations.
