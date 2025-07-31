@@ -6,12 +6,12 @@
 - **3-Way Accuracy**: 54.3% (Home/Draw/Away predictions)
 - **2-Way Accuracy**: 62.4% (Home/Away only, removing draws)
 - **LogLoss**: 0.963475 (lower is better)
-- **Brier Score**: 0.572791
-- **Overall Rating**: 7.1/10 (B+ Grade - Very Good Model)
+- **Brier Score**: 0.190930 (normalized by number of classes)
+- **Overall Rating**: 6.3/10 (B Grade - Good Model)
 
 ### Model Classification
-**Grade**: B+ (Very Good Model)
-**Assessment**: Above-average performance with commercial potential
+**Grade**: B (Good Model)
+**Assessment**: Solid performance with commercial potential
 **Suitable for**: Professional betting, commercial deployment, informed decision making
 
 ## Performance Context
@@ -137,6 +137,9 @@ Transform betting from static prediction to dynamic strategy optimization:
 3. **Market Dependency**: Relies on bookmaker odds quality
 4. **Horizon Limitation**: T-72h may miss late-breaking information
 
+### Critical Correction Made
+**Brier Score Normalization**: Previously reported Brier score of 0.573 was not normalized by number of classes. Corrected value is 0.191 (÷3 for 3-way classification), which is consistent with LogLoss ~0.96 and indicates reasonable probability calibration.
+
 ### Competitive Advantages
 1. **Proven Performance**: Outperforms complex alternatives
 2. **Real Data Integration**: Comprehensive injury/form/news data
@@ -191,8 +194,9 @@ Transform betting from static prediction to dynamic strategy optimization:
 
 ## Conclusion
 
-BetGenius AI currently achieves solid performance (7.1/10 rating) with room for systematic improvement. The simple weighted consensus approach provides a robust foundation, while enhanced feature engineering and advanced ML methods offer clear paths to significant performance gains. Deep learning and reinforcement learning represent the frontier for transformative improvements, requiring substantial investment but offering revolutionary potential.
+BetGenius AI currently achieves solid performance (6.3/10 rating) with room for systematic improvement. The simple weighted consensus approach provides a robust foundation, while enhanced feature engineering and advanced ML methods offer clear paths to significant performance gains. Deep learning and reinforcement learning represent the frontier for transformative improvements, requiring substantial investment but offering revolutionary potential.
 
 **Current Status**: Production-ready with proven performance  
 **Improvement Potential**: 5-25% system-wide enhancement possible  
-**Commercial Viability**: Strong foundation for professional deployment
+**Commercial Viability**: Strong foundation for professional deployment  
+**Key Correction**: Model rating adjusted from 7.1 to 6.3 due to Brier score normalization fix
