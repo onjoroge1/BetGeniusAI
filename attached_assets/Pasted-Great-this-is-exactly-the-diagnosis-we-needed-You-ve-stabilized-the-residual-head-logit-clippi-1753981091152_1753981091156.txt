@@ -1,0 +1,152 @@
+Great—this is exactly the diagnosis we needed. You’ve stabilized the residual head (Δ-logit + clipping) and your **consensus QA** surfaced the real blocker: **the weighted consensus isn’t actually being applied** (100% identical to equal-weight). Let’s fix that first, then add the smarter mixing and multi-timepoint signals. Below is a tight, step-by-step plan your agent can execute now, with acceptance tests and expected impact—still **fully offline** (no user exposure).
+
+---
+
+## PRIORITY 1 — Fix the weighted-consensus application (blocker)
+
+**Symptom:** 100% identical `weighted == equal` indicates the model is still using a median or unweighted mean, or it’s falling back incorrectly when weights exist.
+
+### A. Implement the actual weighted consensus (per match, per outcome)
+
+For each match snapshot at horizon **H** (e.g., T-72):
+
+1. Convert each book’s H/D/A decimal odds → **margin-adjusted implied probabilities** $q^{(b)}$.
+2. Read **era×league weights** $w_b$ (non-negative; normalized on **available** books only).
+3. Compute weighted consensus:
+
+$$
+q^{\text{wt}}_o \;=\; \frac{\sum_{b \in \mathcal{B}_\text{avail}} w_b \, q^{(b)}_o}{\sum_{b \in \mathcal{B}_\text{avail}} w_b},\quad
+o \in \{H,D,A\}
+$$
+
+4. Re-normalize $q^{\text{wt}}$ to sum to 1.
+
+**Edge cases / fallbacks**
+
+* If fewer than **2** available books → **equal-weight** over the available books (and flag `consensus_fallback=1`).
+* If no weights for a book’s era/league → use the nearest era; if still missing → equal-weight fallback with flag.
+
+### B. Store what you applied (for auditability)
+
+Augment `odds_consensus` with:
+
+* `consensus_method` (e.g., `weighted_v1`),
+* `weights_applied_json` (map `{book_id: effective_weight}` for that match),
+* `consensus_fallback` (0/1), `n_books_used`.
+
+### C. Acceptance tests (must pass)
+
+* **Consensus QA** (`consensus_qa.py`):
+
+  * `identical_triplet_pct` **< 10%** overall when `n_books ≥ 2`.
+  * Mean |weighted–equal| **> 0** in all five Euro leagues.
+  * Split by `has_pinnacle`: diffs should be **larger** when sharp book is present.
+* **Unit test**: for a synthetic row with two books and **distinct weights**, assert `weighted != equal` (within 1e-9).
+
+**Expected impact:** once actually applied, **weighted consensus** typically buys **−0.005 to −0.010 LogLoss** vs equal-weight Market-T72 in major leagues.
+
+---
+
+## PRIORITY 2 — Instance-wise book mixing (learn weights per match)
+
+Static era tables are a good start; **learning per-match weights** is better.
+
+### A. Meta-learner over book logits (constrained, interpretable)
+
+* **Inputs:** for each match, stack each available book’s **logits** $\log(q^{(b)})$, plus context features: `dispersion`, `n_books`, overround, league id, era bin, season phase; optionally book coverage indicators.
+* **Model options:**
+
+  1. **Constrained multinomial LR**: non-negative coefficients on book logits + L1 (sparsify).
+  2. **Softmax gating network**: compute $w_b(x) = \text{softmax}(h(x))$ with $h(x)$ a small linear model; weights are ≥0 and sum to 1 by construction.
+* **Output:** per-match blended prior $q^{\text{mix}}$. Use it **instead of** static weighted $q^{\text{wt}}$ when sufficient books exist.
+
+**Acceptance:** show ΔLogLoss of **mixing** vs **static weighted** on the same offline slice with paired bootstrap CIs. If CI excludes 0 and ΔLL ≤ −0.003 overall, keep it; else fall back to static weights.
+
+---
+
+## PRIORITY 3 — Add multi-timepoint movement features
+
+Markets price some news slowly. Movement adds ranking signal that helps Top-2 and small LL gains.
+
+**If you have multiple snapshots** (e.g., Opening, T-168, T-120, T-72):
+
+* Features per outcome $o$:
+
+  * $\Delta \text{logit}_{o}^{(168\to72)} = \logit(q_o^{72}) - \logit(q_o^{168})$
+  * **slope** (change per hour), **volatility** (std across snapshots)
+* Interactions: movement × `dispersion`, movement × structural diffs (Elo/xG diffs).
+* Add as `feat_*` columns; the **Δ-logit residual trainer** you now have will ingest them automatically.
+
+**Acceptance:** ablation shows **ΔLL ≤ −0.002** vs no-movement features on the same slice.
+
+---
+
+## PRIORITY 4 — Retrain the Δ-logit residual (now that the prior is fixed)
+
+Use the trainer you just integrated:
+
+```bash
+python residual_delta_logit_trainer.py \
+  --data /path/to/offline_eval_slice.csv \
+  --val_ratio 0.2 \
+  --lambda 0.6 \
+  --clip 1.0 \
+  --l2 0.001 \
+  --lr 0.05 \
+  --epochs 400 \
+  --calibrate \
+  --outdir ./residual_artifacts
+```
+
+**Grid sweep** (quick):
+
+* `--lambda` ∈ {0.5, 0.7, 0.9}, `--clip` ∈ {0.8, 1.0, 1.2}; pick per-league by validation LL.
+* Keep **post-composition calibration** (temperature or isotonic OOF).
+
+**Gates (per league, offline):**
+
+* `LL(residual) ≤ LL(Market-T72_weighted) − 0.005` and 95% CI excludes 0,
+* `Brier ≤ 0.202`,
+* `Top-2 ≥ 92–95%`,
+* Horizon audit clean.
+
+---
+
+## What to run & deliver (this week)
+
+**1) Prove the weighted consensus is applied**
+
+* Rerun `consensus_qa.py` on fresh export → expect `identical_triplet_pct < 10%` and non-zero diffs by league; stash outputs in `consensus_qa_artifacts/`.
+
+**2) Retrain residual with the fixed prior**
+
+* Run the Δ-logit trainer; produce `metrics_*.json`.
+* Compare: `LL(Market-T72_equal)`, `LL(Market-T72_weighted)`, `LL(residual)`, **per league + overall**.
+
+**3) (Optional) Instance-wise mixing prototype**
+
+* Train/lightweight gate network over book logits; compute ΔLL vs static weighted with CIs; keep if win is stable.
+
+**4) Movement features**
+
+* If snapshots exist, add features and rerun trainer; report ablation ΔLL.
+
+**5) Bundle for sign-off**
+
+* `METRICS_TABLE.csv` (all baselines + residual)
+* `TOP2_AUDIT.csv` (miss counts)
+* `HORIZON_AUDIT.csv` (secs\_to\_kickoff)
+* `ABLATIONS_DeltaLL.csv` (no-odds / no-dispersion / market-only / no-movement)
+* `CALIBRATION_REPORT.html` (reliability per outcome)
+
+---
+
+## Expected outcomes (realistic)
+
+* Once weights truly apply: **−0.005 to −0.010 LL** vs equal market.
+* With Δ-logit residual and calibration: additional **−0.005 to −0.015 LL**, Brier tightens **0.002–0.006**, Top-2 **+2–5pp**.
+* With movement (if available): **−0.002 to −0.006 LL** more.
+
+Near-term **overall** goal (still offline): move from **0.8157 → \~0.79–0.80 LL**, Brier **≈ 0.152–0.156**, Top-2 **≥ 92–95%** across leagues. When we consistently hit those on multiple slices with CIs, we’ll schedule a **shadow run** (still no users) and keep marching toward canary.
+
+If you want, I can also draft a tiny **grid runner** (bash or Python) that sweeps `--lambda`/`--clip` for each league and outputs a league-ranked table of best configs ready to drop into your training config.

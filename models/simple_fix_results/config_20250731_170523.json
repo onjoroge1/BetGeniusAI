@@ -1,0 +1,24 @@
+{
+  "lambda_param": 0.8,
+  "clip_value": 1.1,
+  "l2_reg": 0.002,
+  "temperature": 1.0481131341546852,
+  "feature_names": [
+    "feat_league_tier",
+    "feat_total_dispersion",
+    "feat_market_confidence",
+    "feat_book_coverage",
+    "feat_has_pinnacle",
+    "feat_consensus_diff",
+    "feat_month",
+    "feat_is_weekend",
+    "feat_season_phase",
+    "feat_disp_x_books",
+    "feat_sharp_x_diff",
+    "dispH",
+    "dispD",
+    "dispA",
+    "n_books"
+  ],
+  "timestamp": "20250731_170523"
+}
