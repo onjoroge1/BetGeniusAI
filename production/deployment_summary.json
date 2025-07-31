@@ -1,0 +1,28 @@
+{
+  "deployment_date": "2025-07-31T18:37:36.562679",
+  "model_info": {
+    "model_type": "simple_weighted_consensus",
+    "performance": {
+      "logloss": 0.963475110205839,
+      "brier": 0.5727906218996129,
+      "accuracy": 0.5426666666666666
+    },
+    "weights": {
+      "pinnacle": 0.35,
+      "bet365": 0.25,
+      "betway": 0.22,
+      "william_hill": 0.18
+    },
+    "sample_size": 1500,
+    "data_path": "consensus/simple_fix/simple_fixed_consensus_20250731_170359.csv"
+  },
+  "files_created": [
+    "production/simple_consensus_predictor.py",
+    "production/DEPLOYMENT_GUIDE.md"
+  ],
+  "performance_comparison": {
+    "simple_consensus": 0.963475110205839,
+    "complex_model": 0.995176,
+    "improvement": 0.03170088979416097
+  }
+}

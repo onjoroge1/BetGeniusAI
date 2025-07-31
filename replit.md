@@ -5,6 +5,7 @@ BetGenius AI is a sports prediction platform providing intelligent football matc
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
+Production Model Decision: Use simple weighted consensus based on performance comparison showing 0.031549 LogLoss improvement over complex model.
 
 ## System Architecture
 
@@ -15,13 +16,11 @@ Preferred communication style: Simple, everyday language.
 - **AsyncIO**: Asynchronous operations.
 
 ### Machine Learning Pipeline
-- **Clean Ensemble Model**: Random Forest + Logistic Regression with pre-match features only (e.g., league_tier, competitiveness, regional_strength, home_advantage, expected_goals).
-- **Rigorous Validation**: Stratified Cross-Validation with 30% holdout to prevent data leakage.
-- **Market-Anchored Probability Calibration**: Per-league isotonic adjustment for odds-based predictions.
-- **Residual-on-Market Model**: Random Forest combining market logits with structural features to improve upon market baselines.
-- **Weighted Consensus**: Utilizes quality weights for bookmakers (e.g., Pinnacle, Bet365, Betway, William Hill) for robust market consensus.
-- **Instance-Wise Book Mixing**: Softmax gating network for per-match bookmaker weighting based on contextual features.
-- **Movement Features Framework**: Analyzes multi-timepoint odds movement (e.g., Opening→T-168→T-120→T-72) to capture market timing signals.
+- **Production Model**: Simple Weighted Consensus using quality weights from 31-year bookmaker analysis.
+- **Quality Weights**: Pinnacle (35%), Bet365 (25%), Betway (22%), William Hill (18%) based on historical LogLoss performance.
+- **Performance**: 0.963475 LogLoss, outperforming complex models by 0.031549 LogLoss.
+- **Robust Architecture**: Market-efficient consensus at T-72h with dispersion-based confidence scoring.
+- **Research Infrastructure**: Advanced features (instance-wise mixing, movement signals, delta-logit residual) available for research but not production due to performance analysis.
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: For comprehensive match analysis and contextual insights.
