@@ -1,0 +1,404 @@
+{
+  "timestamp": "2025-08-05T22:48:47.125493",
+  "test_summary": {
+    "match_data": false,
+    "injury_data": true,
+    "form_data": true,
+    "openai_payload": true,
+    "openai_integration": true
+  },
+  "match_data": {
+    "success": false,
+    "reason": "No matches available"
+  },
+  "injury_data": {
+    "success": true,
+    "source": "RapidAPI Football API (Real)",
+    "total_injuries": 296,
+    "sample_injuries": [
+      {
+        "player": {
+          "id": 153434,
+          "name": "W. Fish",
+          "photo": "https://media.api-sports.io/football/players/153434.png",
+          "type": "Missing Fixture",
+          "reason": "Ankle Injury"
+        },
+        "team": {
+          "id": 33,
+          "name": "Manchester United",
+          "logo": "https://media.api-sports.io/football/teams/33.png"
+        },
+        "fixture": {
+          "id": 1208021,
+          "timezone": "UTC",
+          "date": "2024-08-16T19:00:00+00:00",
+          "timestamp": 1723834800
+        },
+        "league": {
+          "id": 39,
+          "season": 2024,
+          "name": "Premier League",
+          "country": "England",
+          "logo": "https://media.api-sports.io/football/leagues/39.png",
+          "flag": "https://media.api-sports.io/flags/gb-eng.svg"
+        }
+      },
+      {
+        "player": {
+          "id": 288006,
+          "name": "R. Hojlund",
+          "photo": "https://media.api-sports.io/football/players/288006.png",
+          "type": "Missing Fixture",
+          "reason": "Muscle Injury"
+        },
+        "team": {
+          "id": 33,
+          "name": "Manchester United",
+          "logo": "https://media.api-sports.io/football/teams/33.png"
+        },
+        "fixture": {
+          "id": 1208021,
+          "timezone": "UTC",
+          "date": "2024-08-16T19:00:00+00:00",
+          "timestamp": 1723834800
+        },
+        "league": {
+          "id": 39,
+          "season": 2024,
+          "name": "Premier League",
+          "country": "England",
+          "logo": "https://media.api-sports.io/football/leagues/39.png",
+          "flag": "https://media.api-sports.io/flags/gb-eng.svg"
+        }
+      },
+      {
+        "player": {
+          "id": 37145,
+          "name": "T. Malacia",
+          "photo": "https://media.api-sports.io/football/players/37145.png",
+          "type": "Missing Fixture",
+          "reason": "Knee Injury"
+        },
+        "team": {
+          "id": 33,
+          "name": "Manchester United",
+          "logo": "https://media.api-sports.io/football/teams/33.png"
+        },
+        "fixture": {
+          "id": 1208021,
+          "timezone": "UTC",
+          "date": "2024-08-16T19:00:00+00:00",
+          "timestamp": 1723834800
+        },
+        "league": {
+          "id": 39,
+          "season": 2024,
+          "name": "Premier League",
+          "country": "England",
+          "logo": "https://media.api-sports.io/football/leagues/39.png",
+          "flag": "https://media.api-sports.io/flags/gb-eng.svg"
+        }
+      }
+    ]
+  },
+  "form_data": {
+    "success": true,
+    "source": "RapidAPI Football API (Real)",
+    "recent_matches": 5,
+    "sample_matches": [
+      {
+        "fixture": {
+          "id": 1360813,
+          "referee": "Thomas Bramall",
+          "timezone": "UTC",
+          "date": "2025-08-03T21:00:00+00:00",
+          "timestamp": 1754254800,
+          "periods": {
+            "first": 1754254800,
+            "second": 1754258400
+          },
+          "venue": {
+            "id": 1898,
+            "name": "Mercedes-Benz Stadium",
+            "city": "Atlanta, Georgia"
+          },
+          "status": {
+            "long": "Match Finished",
+            "short": "FT",
+            "elapsed": 90,
+            "extra": 4
+          }
+        },
+        "league": {
+          "id": 1022,
+          "name": "Premier League - Summer Series",
+          "country": "England",
+          "logo": "https://media.api-sports.io/football/leagues/1022.png",
+          "flag": "https://media.api-sports.io/flags/gb-eng.svg",
+          "season": 2024,
+          "round": "Regular Season - 3",
+          "standings": false
+        },
+        "teams": {
+          "home": {
+            "id": 33,
+            "name": "Manchester United",
+            "logo": "https://media.api-sports.io/football/teams/33.png",
+            "winner": null
+          },
+          "away": {
+            "id": 45,
+            "name": "Everton",
+            "logo": "https://media.api-sports.io/football/teams/45.png",
+            "winner": null
+          }
+        },
+        "goals": {
+          "home": 2,
+          "away": 2
+        },
+        "score": {
+          "halftime": {
+            "home": 1,
+            "away": 1
+          },
+          "fulltime": {
+            "home": 2,
+            "away": 2
+          },
+          "extratime": {
+            "home": null,
+            "away": null
+          },
+          "penalty": {
+            "home": null,
+            "away": null
+          }
+        }
+      },
+      {
+        "fixture": {
+          "id": 1360811,
+          "referee": "Lewis Smith",
+          "timezone": "UTC",
+          "date": "2025-07-31T01:30:00+00:00",
+          "timestamp": 1753925400,
+          "periods": {
+            "first": 1753925400,
+            "second": 1753929000
+          },
+          "venue": {
+            "id": 1609,
+            "name": "Soldier Field",
+            "city": "Chicago, Illinois"
+          },
+          "status": {
+            "long": "Match Finished",
+            "short": "FT",
+            "elapsed": 90,
+            "extra": 1
+          }
+        },
+        "league": {
+          "id": 1022,
+          "name": "Premier League - Summer Series",
+          "country": "England",
+          "logo": "https://media.api-sports.io/football/leagues/1022.png",
+          "flag": "https://media.api-sports.io/flags/gb-eng.svg",
+          "season": 2024,
+          "round": "Regular Season - 2",
+          "standings": false
+        },
+        "teams": {
+          "home": {
+            "id": 33,
+            "name": "Manchester United",
+            "logo": "https://media.api-sports.io/football/teams/33.png",
+            "winner": true
+          },
+          "away": {
+            "id": 35,
+            "name": "Bournemouth",
+            "logo": "https://media.api-sports.io/football/teams/35.png",
+            "winner": false
+          }
+        },
+        "goals": {
+          "home": 4,
+          "away": 1
+        },
+        "score": {
+          "halftime": {
+            "home": 2,
+            "away": 0
+          },
+          "fulltime": {
+            "home": 4,
+            "away": 1
+          },
+          "extratime": {
+            "home": null,
+            "away": null
+          },
+          "penalty": {
+            "home": null,
+            "away": null
+          }
+        }
+      },
+      {
+        "fixture": {
+          "id": 1360809,
+          "referee": "Thomas Bramall",
+          "timezone": "UTC",
+          "date": "2025-07-26T23:00:00+00:00",
+          "timestamp": 1753570800,
+          "periods": {
+            "first": 1753570800,
+            "second": 1753574400
+          },
+          "venue": {
+            "id": null,
+            "name": "MetLife Stadium",
+            "city": "East Rutherford, New Jersey"
+          },
+          "status": {
+            "long": "Match Finished",
+            "short": "FT",
+            "elapsed": 90,
+            "extra": 6
+          }
+        },
+        "league": {
+          "id": 1022,
+          "name": "Premier League - Summer Series",
+          "country": "England",
+          "logo": "https://media.api-sports.io/football/leagues/1022.png",
+          "flag": "https://media.api-sports.io/flags/gb-eng.svg",
+          "season": 2024,
+          "round": "Regular Season - 1",
+          "standings": false
+        },
+        "teams": {
+          "home": {
+            "id": 33,
+            "name": "Manchester United",
+            "logo": "https://media.api-sports.io/football/teams/33.png",
+            "winner": true
+          },
+          "away": {
+            "id": 48,
+            "name": "West Ham",
+            "logo": "https://media.api-sports.io/football/teams/48.png",
+            "winner": false
+          }
+        },
+        "goals": {
+          "home": 2,
+          "away": 1
+        },
+        "score": {
+          "halftime": {
+            "home": 1,
+            "away": 0
+          },
+          "fulltime": {
+            "home": 2,
+            "away": 1
+          },
+          "extratime": {
+            "home": null,
+            "away": null
+          },
+          "penalty": {
+            "home": null,
+            "away": null
+          }
+        }
+      }
+    ]
+  },
+  "openai_payload": {
+    "model": "gpt-4o",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are BetGenius AI, an expert football analyst. Provide comprehensive, data-driven analysis in JSON format. Be thorough but concise, and always base your analysis on the provided data."
+      },
+      {
+        "role": "user",
+        "content": "You are BetGenius AI, Africa's premier sports prediction expert. Analyze this football match comprehensively using the provided data.\n\n=== MATCH INFORMATION ===\nDate: Unknown\nVenue: Unknown Stadium\nCompetition: Premier League\nHome Team: Unknown\nAway Team: Unknown\n\n=== INJURY REPORTS (REAL DATA) ===\n\u2022 W. Fish (N/A): N/A\n\u2022 R. Hojlund (N/A): N/A\n\u2022 T. Malacia (N/A): N/A\n\n=== RECENT FORM (REAL DATA) ===\n\u2022 Manchester United 2 - 2 Everton\n\u2022 Manchester United 4 - 1 Bournemouth\n\u2022 Manchester United 2 - 1 West Ham\n\n\n\n=== AI MODEL PREDICTION ===\nModel Type: Simple Weighted Consensus (Outperforms complex models)\nHome Win: 45.2%\nDraw: 26.8%\nAway Win: 28.0%\nPredicted Outcome: Home Win\nConfidence Level: 78.3%\nQuality Score: 85.2%\n\n\nPlease provide a comprehensive analysis in JSON format with the following structure:\n{\n    \"match_overview\": \"Brief overview of the match significance and context\",\n    \"key_factors\": [\n        \"List of 3-5 key factors that will influence the match outcome\"\n    ],\n    \"team_analysis\": {\n        \"home_team\": {\n            \"strengths\": [\"List of current strengths\"],\n            \"weaknesses\": [\"List of concerns/weaknesses\"],\n            \"form_assessment\": \"Current form analysis\",\n            \"injury_impact\": \"Impact of injuries on performance\"\n        },\n        \"away_team\": {\n            \"strengths\": [\"List of current strengths\"],\n            \"weaknesses\": [\"List of concerns/weaknesses\"],\n            \"form_assessment\": \"Current form analysis\",\n            \"injury_impact\": \"Impact of injuries on performance\"\n        }\n    },\n    \"prediction_analysis\": {\n        \"model_assessment\": \"Analysis of the AI model's prediction\",\n        \"confidence_factors\": [\"Factors supporting the confidence level\"],\n        \"risk_factors\": [\"Potential risks or uncertainties\"],\n        \"value_assessment\": \"Assessment of betting value based on odds vs probability\"\n    },\n    \"betting_recommendations\": {\n        \"primary_bet\": \"Recommended primary betting option\",\n        \"value_bets\": [\"List of potential value betting opportunities\"],\n        \"risk_level\": \"Low/Medium/High\",\n        \"suggested_stake\": \"Percentage of bankroll recommendation\"\n    },\n    \"summary\": \"Concise summary with clear betting guidance\"\n}\n\nFocus on data-driven insights and provide specific, actionable recommendations."
+      }
+    ],
+    "response_format": {
+      "type": "json_object"
+    },
+    "temperature": 0.3,
+    "max_tokens": 2000
+  },
+  "openai_integration": {
+    "success": true,
+    "response": {
+      "match_overview": "This Premier League match features Manchester United, a team known for its strong attacking capabilities, as evidenced by their recent high-scoring games. The match's significance lies in Manchester United's pursuit of higher league standings, making it crucial for them to secure a win.",
+      "key_factors": [
+        "Manchester United's recent goal-scoring form, with 8 goals in the last 3 matches.",
+        "The absence of key players such as R. Hojlund and T. Malacia due to injuries.",
+        "The AI model's prediction favoring a home win with a high confidence level.",
+        "Manchester United's home advantage, typically a strong factor in their performance.",
+        "Potential tactical adjustments due to injuries, affecting team dynamics."
+      ],
+      "team_analysis": {
+        "home_team": {
+          "strengths": [
+            "Strong attacking lineup with recent high goal-scoring matches.",
+            "Solid home performance record."
+          ],
+          "weaknesses": [
+            "Defensive vulnerabilities, as seen in the 2-2 draw against Everton.",
+            "Injuries to key players affecting squad depth."
+          ],
+          "form_assessment": "Manchester United is in good form, with two wins and a draw in their last three matches, indicating strong offensive capabilities.",
+          "injury_impact": "The absence of R. Hojlund and T. Malacia could impact defensive stability and attacking options, requiring tactical adjustments."
+        },
+        "away_team": {
+          "strengths": [
+            "Potential to capitalize on Manchester United's defensive lapses."
+          ],
+          "weaknesses": [
+            "Facing a high-scoring home team in good form.",
+            "Possible lack of depth compared to Manchester United's squad."
+          ],
+          "form_assessment": "The away team's form is not specified, but they face a challenging match against a high-scoring opponent.",
+          "injury_impact": "No specific injuries reported for the away team, potentially giving them a full squad to choose from."
+        }
+      },
+      "prediction_analysis": {
+        "model_assessment": "The AI model predicts a home win with a 45.2% probability, supported by Manchester United's strong form and home advantage.",
+        "confidence_factors": [
+          "Manchester United's recent goal-scoring form.",
+          "Home advantage typically boosts performance."
+        ],
+        "risk_factors": [
+          "Injuries to key players could disrupt team dynamics.",
+          "Defensive vulnerabilities could be exploited by the opposition."
+        ],
+        "value_assessment": "The predicted home win probability of 45.2% suggests moderate value if odds are favorable, given the confidence level of 78.3%."
+      },
+      "betting_recommendations": {
+        "primary_bet": "Bet on Manchester United to win.",
+        "value_bets": [
+          "Consider betting on over 2.5 goals, given recent high-scoring matches."
+        ],
+        "risk_level": "Medium",
+        "suggested_stake": "5% of bankroll"
+      },
+      "summary": "Based on recent form and the AI model's prediction, betting on a Manchester United win offers moderate value. Consider a secondary bet on over 2.5 goals due to recent scoring trends. Manage risk with a medium stake recommendation."
+    },
+    "usage": {
+      "completion_tokens": 694,
+      "prompt_tokens": 595,
+      "total_tokens": 1289
+    }
+  }
+}
