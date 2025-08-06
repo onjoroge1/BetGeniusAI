@@ -22,7 +22,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Quality Weights**: Pinnacle (35%), Bet365 (25%), Betway (22%), William Hill (18%) based on historical LogLoss performance.
 - **Performance**: 0.963475 LogLoss, outperforming complex models by 0.031549 LogLoss.
 - **Model Rating**: 6.3/10 (B Grade - Good Model) with 54.3% 3-way accuracy and 62.4% 2-way accuracy.
-- **Robust Architecture**: Market-efficient consensus at T-72h with dispersion-based confidence scoring.
+- **Robust Architecture**: Market-efficient consensus at T-72h with dispersion-based confidence scoring. Note: Optimal prediction timing is T-72h (72 hours before kickoff) when market efficiency peaks.
 - **Real Data Integration**: Enhanced data collector with injuries, team news, recent form, and head-to-head records from RapidAPI.
 - **Research Infrastructure**: Advanced features available for research; roadmap includes gradient boosting, deep learning (LSTM, attention networks), and reinforcement learning approaches.
 
