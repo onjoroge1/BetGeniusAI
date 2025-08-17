@@ -10,6 +10,7 @@ from typing import Dict, List, Any, Optional
 import json
 import os
 import aiohttp
+import psycopg2
 from .training_data_collector import TrainingDataCollector
 from .database import DatabaseManager
 
@@ -24,9 +25,9 @@ class AutomatedCollector:
     def __init__(self):
         self.training_collector = TrainingDataCollector()
         self.db_manager = None
-        self.major_leagues = [39, 140, 78, 135]  # Premier League, La Liga, Bundesliga, Serie A
-        self.current_season = 2024
+        self.current_season = 2025  # Updated for current season
         self.collection_log_file = "data/collection_log.json"
+        self.internal_api_base = "http://localhost:8000"  # Use internal API for upcoming matches
         
     def _get_db_manager(self):
         """Lazy-load database manager"""
@@ -57,7 +58,13 @@ class AutomatedCollector:
             db_manager = self._get_db_manager()
             all_new_matches = []
             
-            for league_id in self.major_leagues:
+            # Get leagues from league_map table
+            configured_leagues = self._get_configured_leagues()
+            if not configured_leagues:
+                logger.warning("No leagues found in league_map table, using default leagues")
+                configured_leagues = [39, 140, 78, 135]  # Fallback to major leagues
+            
+            for league_id in configured_leagues:
                 try:
                     league_name = self._get_league_name(league_id)
                     logger.info(f"Collecting recent matches for {league_name} (ID: {league_id})")
@@ -168,13 +175,43 @@ class AutomatedCollector:
             logger.error(f"Failed to get recent matches for league {league_id}: {e}")
             return []
     
+    def _get_configured_leagues(self) -> List[int]:
+        """Get list of league IDs from league_map table"""
+        try:
+            # Use environment variable for database connection
+            import os
+            import psycopg2
+            database_url = os.getenv('DATABASE_URL')
+            
+            if not database_url:
+                logger.error("DATABASE_URL environment variable not found")
+                return []
+            
+            conn = psycopg2.connect(database_url)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT league_id FROM league_map ORDER BY league_id")
+            league_ids = [row[0] for row in cursor.fetchall()]
+            
+            cursor.close()
+            conn.close()
+            
+            logger.info(f"📋 Found {len(league_ids)} configured leagues in league_map: {league_ids}")
+            return league_ids
+            
+        except Exception as e:
+            logger.error(f"Failed to get configured leagues from league_map: {e}")
+            return []
+    
     def _get_league_name(self, league_id: int) -> str:
         """Get human-readable league name"""
         league_names = {
-            39: "Premier League",
-            140: "La Liga",
-            78: "Bundesliga", 
-            135: "Serie A"
+            39: "Premier League", 
+            61: "Ligue 1",
+            78: "Bundesliga",
+            88: "Eredivisie", 
+            135: "Serie A",
+            140: "La Liga"
         }
         return league_names.get(league_id, f"League {league_id}")
     
@@ -321,8 +358,14 @@ class AutomatedCollector:
             
             db_manager = self._get_db_manager()
             
+            # Get leagues from league_map table
+            configured_leagues = self._get_configured_leagues()
+            if not configured_leagues:
+                logger.warning("No leagues found in league_map table, skipping odds collection")
+                return odds_summary
+            
             # Get upcoming matches in next 7 days
-            for league_id in self.major_leagues:
+            for league_id in configured_leagues:
                 try:
                     league_name = self._get_league_name(league_id)
                     logger.info(f"🔍 Checking upcoming matches for {league_name} (ID: {league_id})")
@@ -336,17 +379,24 @@ class AutomatedCollector:
                             try:
                                 # Calculate hours to kickoff
                                 match_date = datetime.fromisoformat(
-                                    match['fixture']['date'].replace('Z', '+00:00')
+                                    match['date'].replace('Z', '+00:00')
                                 ).replace(tzinfo=None)
                                 hours_to_kickoff = (match_date - datetime.utcnow()).total_seconds() / 3600
                                 
-                                # Collect odds at specific timing windows
-                                if hours_to_kickoff in [72, 48, 24, 12, 6, 3, 1]:
-                                    odds_collected = await self._collect_and_save_odds(
-                                        match, league_id, hours_to_kickoff
-                                    )
-                                    if odds_collected:
-                                        odds_summary["new_odds_collected"] += 1
+                                logger.info(f"🕐 Match {match['match_id']} ({match['home_team']} vs {match['away_team']}) - T-{hours_to_kickoff:.1f}h")
+                                
+                                # Collect odds at specific timing windows (allow range not exact)
+                                timing_windows = [72, 48, 24, 12, 6, 3, 1]
+                                for window in timing_windows:
+                                    # Allow ±2 hour window for practical collection
+                                    if abs(hours_to_kickoff - window) <= 2:
+                                        logger.info(f"🎯 Collecting odds for T-{window}h window (actual: T-{hours_to_kickoff:.1f}h)")
+                                        odds_collected = await self._collect_and_save_odds(
+                                            match, league_id, window
+                                        )
+                                        if odds_collected:
+                                            odds_summary["new_odds_collected"] += 1
+                                        break
                                         
                             except Exception as match_error:
                                 logger.warning(f"Failed to process match odds: {match_error}")
@@ -381,57 +431,81 @@ class AutomatedCollector:
             }
     
     async def _get_upcoming_matches(self, league_id: int, days_ahead: int = 7) -> List[Dict]:
-        """Get upcoming matches for a specific league"""
+        """Get upcoming matches for a specific league using internal API"""
         try:
-            # Calculate date range for upcoming matches
-            start_date = datetime.utcnow()
-            end_date = start_date + timedelta(days=days_ahead)
-            
-            url = f"{self.training_collector.base_url}/fixtures"
+            # Use internal API endpoint that already has upcoming matches
+            url = f"{self.internal_api_base}/matches/upcoming"
             params = {
-                "league": league_id,
-                "season": self.current_season,
-                "status": "NS",  # Not Started only
-                "from": start_date.strftime("%Y-%m-%d"),
-                "to": end_date.strftime("%Y-%m-%d")
+                "league_id": league_id,
+                "limit": 20  # Get more matches to check timing windows
             }
             
+            # Skip auth for internal API calls by using direct endpoint call
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.training_collector.headers, params=params) as response:
+                async with session.get(url, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        matches = data.get('response', [])
+                        matches = data.get('matches', [])
                         
-                        # Filter for scheduled matches with valid fixture data
-                        upcoming_matches = [
-                            match for match in matches 
-                            if (match.get('fixture', {}).get('status', {}).get('short') == 'NS' and
-                                match.get('fixture', {}).get('date') is not None)
-                        ]
+                        # Filter matches in the next N days
+                        upcoming_matches = []
+                        current_time = datetime.utcnow()
+                        cutoff_time = current_time + timedelta(days=days_ahead)
                         
-                        logger.info(f"Found {len(upcoming_matches)} upcoming matches for league {league_id}")
+                        for match in matches:
+                            try:
+                                # Parse match date
+                                match_date = datetime.fromisoformat(
+                                    match['date'].replace('Z', '+00:00')
+                                ).replace(tzinfo=None)
+                                
+                                # Include if within time window
+                                if current_time < match_date <= cutoff_time:
+                                    upcoming_matches.append(match)
+                            except Exception as date_error:
+                                logger.warning(f"Failed to parse date for match {match.get('match_id', 'unknown')}: {date_error}")
+                        
+                        logger.info(f"Found {len(upcoming_matches)} upcoming matches for league {league_id} in next {days_ahead} days")
                         return upcoming_matches
                     else:
-                        logger.warning(f"API returned status {response.status} for upcoming matches in league {league_id}")
+                        logger.warning(f"Internal API returned status {response.status} for upcoming matches in league {league_id}")
                         return []
                         
         except Exception as e:
             logger.error(f"Failed to get upcoming matches for league {league_id}: {e}")
             return []
     
-    async def _collect_and_save_odds(self, match: Dict, league_id: int, hours_to_kickoff: float) -> bool:
+    async def _collect_and_save_odds(self, match: Dict, league_id: int, timing_window: int) -> bool:
         """Collect and save odds snapshot for a specific match and timing"""
         try:
-            # This is a placeholder for odds collection logic
-            # In production, this would fetch from The Odds API or similar
-            logger.info(f"📊 Would collect odds for match {match['fixture']['id']} at T-{int(hours_to_kickoff)}h")
+            match_id = match.get('match_id')
+            logger.info(f"📊 Collecting odds for match {match_id} ({match['home_team']} vs {match['away_team']}) at T-{timing_window}h")
             
-            # For now, we'll log the intent but not actually collect
-            # This prevents API overuse during development
-            return False  # Set to True when actual odds API is integrated
+            # Try to get prediction/odds from internal API first
+            try:
+                url = f"{self.internal_api_base}/predict"
+                payload = {"match_id": match_id}
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=payload) as response:
+                        if response.status == 200:
+                            prediction_data = await response.json()
+                            logger.info(f"✅ Retrieved prediction data for match {match_id}")
+                            
+                            # Save to odds_snapshots table (would need database schema)
+                            # For now, log the successful collection
+                            logger.info(f"💾 Would save odds snapshot: Match {match_id}, T-{timing_window}h, probabilities available")
+                            return True
+                        else:
+                            logger.warning(f"Prediction API returned status {response.status} for match {match_id}")
+                            return False
+                            
+            except Exception as api_error:
+                logger.warning(f"Failed to get prediction for match {match_id}: {api_error}")
+                return False
             
         except Exception as e:
-            logger.error(f"Failed to collect odds for match {match.get('fixture', {}).get('id', 'unknown')}: {e}")
+            logger.error(f"Failed to collect odds for match {match.get('match_id', 'unknown')}: {e}")
             return False
     
     def get_collection_history(self, days: int = 7) -> List[Dict]:

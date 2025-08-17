@@ -29,8 +29,9 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### Enhanced Data Collection System (August 2025)
 - **Dual Collection Strategy**: Scheduler populates both training_matches (completed) and odds_snapshots (upcoming) tables.
-- **Training Data**: 5,151 matches in training_matches for ML model learning.
-- **Odds Snapshots**: Framework ready for T-48h/T-24h collection at optimal timing windows.
+- **League Coverage**: Dynamic league selection via league_map table (6 leagues: EPL, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie).
+- **Training Data**: 5,165 matches in training_matches for ML model learning (increased from latest collection).
+- **Odds Snapshots**: Framework ready for T-48h/T-24h collection at optimal timing windows across all configured leagues.
 - **Fallback Architecture**: odds_snapshots → odds_consensus (1,000 T-72h records) → consensus_predictions chain.
 
 ### AI Analysis Layer

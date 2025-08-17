@@ -46,5 +46,55 @@
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T17:06:38.044828",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 39,
+        "league_name": "Premier League",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 140,
+        "league_name": "La Liga",
+        "matches_found": 6,
+        "matches_processed": 6,
+        "matches_saved": 6,
+        "target_table": "training_matches"
+      }
+    ],
+    "new_matches_collected": 14,
+    "total_matches_in_db": 0,
+    "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T17:07:54.088505",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 39,
+        "league_name": "Premier League",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 140,
+        "league_name": "La Liga",
+        "matches_found": 6,
+        "matches_processed": 6,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      }
+    ],
+    "new_matches_collected": 14,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]

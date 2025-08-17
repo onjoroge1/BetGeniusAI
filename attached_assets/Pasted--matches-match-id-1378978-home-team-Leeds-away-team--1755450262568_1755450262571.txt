@@ -1,0 +1,80 @@
+{
+  "matches": [
+    {
+      "match_id": 1378978,
+      "home_team": "Leeds",
+      "away_team": "Everton",
+      "date": "2025-08-18T19:00:00+00:00",
+      "venue": "Elland Road",
+      "league": "Premier League",
+      "status": "Not Started",
+      "status_short": "NS",
+      "is_upcoming": true,
+      "is_finished": false,
+      "prediction_ready": true
+    },
+    {
+      "match_id": 1378988,
+      "home_team": "West Ham",
+      "away_team": "Chelsea",
+      "date": "2025-08-22T19:00:00+00:00",
+      "venue": "London Stadium",
+      "league": "Premier League",
+      "status": "Not Started",
+      "status_short": "NS",
+      "is_upcoming": true,
+      "is_finished": false,
+      "prediction_ready": true
+    },
+    {
+      "match_id": 1378986,
+      "home_team": "Manchester City",
+      "away_team": "Tottenham",
+      "date": "2025-08-23T11:30:00+00:00",
+      "venue": "Etihad Stadium",
+      "league": "Premier League",
+      "status": "Not Started",
+      "status_short": "NS",
+      "is_upcoming": true,
+      "is_finished": false,
+      "prediction_ready": true
+    },
+    {
+      "match_id": 1378980,
+      "home_team": "Bournemouth",
+      "away_team": "Wolves",
+      "date": "2025-08-23T14:00:00+00:00",
+      "venue": "Vitality Stadium",
+      "league": "Premier League",
+      "status": "Not Started",
+      "status_short": "NS",
+      "is_upcoming": true,
+      "is_finished": false,
+      "prediction_ready": true
+    },
+    {
+      "match_id": 1378982,
+      "home_team": "Burnley",
+      "away_team": "Sunderland",
+      "date": "2025-08-23T14:00:00+00:00",
+      "venue": "Turf Moor",
+      "league": "Premier League",
+      "status": "Not Started",
+      "status_short": "NS",
+      "is_upcoming": true,
+      "is_finished": false,
+      "prediction_ready": true
+    }
+  ],
+  "total": 5,
+  "upcoming_count": 5,
+  "finished_count": 0,
+  "league_id": 39,
+  "filters": {
+    "from_date": null,
+    "to_date": null,
+    "exclude_finished": false
+  },
+  "usage_note": "Use match_id from any match to get predictions via POST /predict",
+  "timestamp": "2025-08-17T17:02:37.795865"
+}
