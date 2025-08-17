@@ -74,6 +74,9 @@ class AutomatedCollector:
                         
                         # Save to database if available
                         if db_manager and processed_matches:
+                            logger.info(f"💾 SAVING TO DATABASE: {len(processed_matches)} processed matches from {league_name}")
+                            logger.info(f"🎯 TARGET TABLE: training_matches (TrainingMatch model)")
+                            
                             saved_count = db_manager.save_training_matches_batch(processed_matches)
                             all_new_matches.extend(processed_matches)
                             
@@ -82,10 +85,15 @@ class AutomatedCollector:
                                 "league_name": league_name,
                                 "matches_found": len(recent_matches),
                                 "matches_processed": len(processed_matches),
-                                "matches_saved": saved_count
+                                "matches_saved": saved_count,
+                                "target_table": "training_matches"
                             })
                             
-                            logger.info(f"Saved {saved_count} new matches from {league_name}")
+                            logger.info(f"✅ SAVED: {saved_count} new matches from {league_name} to 'training_matches' table")
+                            
+                            if saved_count != len(processed_matches):
+                                duplicates = len(processed_matches) - saved_count
+                                logger.info(f"⚠️ DUPLICATES SKIPPED: {duplicates} matches already existed in database")
                         else:
                             logger.warning(f"No database available or no matches to save for {league_name}")
                     

@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, time
 from typing import Optional
 import threading
+import json
 from models.automated_collector import AutomatedCollector
 
 logger = logging.getLogger(__name__)
@@ -68,20 +69,28 @@ class BackgroundScheduler:
                 if (last_collection_date != today and 
                     current_time >= self.collection_time):
                     
-                    logger.info("Starting scheduled daily collection cycle")
+                    logger.info(f"🔄 SCHEDULER: Starting daily collection cycle at {current_time.strftime('%H:%M:%S')} UTC")
+                    logger.info(f"📅 Target date: {today}, Last collection: {last_collection_date}")
                     
                     try:
                         results = await self.collector.daily_collection_cycle()
                         
+                        # Enhanced logging with table information
+                        logger.info(f"📊 COLLECTION RESULTS: {json.dumps(results, indent=2)}")
+                        
                         if results.get("new_matches_collected", 0) > 0:
-                            logger.info(f"Scheduled collection completed: {results['new_matches_collected']} new matches")
+                            logger.info(f"✅ Scheduled collection completed: {results['new_matches_collected']} new matches added to database")
+                            logger.info(f"💾 Total matches in DB: {results.get('total_matches_in_db', 'unknown')}")
                         else:
-                            logger.info("Scheduled collection completed: no new matches found")
+                            logger.info("ℹ️ Scheduled collection completed: no new matches found (likely off-season or already collected)")
+                            logger.info(f"📋 Leagues checked: {[league.get('league_name') for league in results.get('leagues_processed', [])]}")
                         
                         last_collection_date = today
                         
                     except Exception as e:
-                        logger.error(f"Scheduled collection failed: {e}")
+                        logger.error(f"❌ Scheduled collection failed: {e}")
+                        import traceback
+                        logger.error(f"📋 Full error traceback: {traceback.format_exc()}")
                 
                 # Sleep for 1 hour before checking again
                 await asyncio.sleep(3600)
