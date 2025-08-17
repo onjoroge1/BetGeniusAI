@@ -6,9 +6,10 @@ Continuous collection of completed matches for training data updates
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import json
 import os
+import aiohttp
 from .training_data_collector import TrainingDataCollector
 from .database import DatabaseManager
 
@@ -250,30 +251,188 @@ class AutomatedCollector:
     
     async def daily_collection_cycle(self):
         """
-        Complete daily collection cycle:
-        1. Collect recent matches
-        2. Auto-retrain if enough new data
-        3. Log results
+        ENHANCED DUAL COLLECTION CYCLE:
+        1. Phase A: Collect recent completed matches → training_matches
+        2. Phase B: Collect upcoming match odds → odds_snapshots  
+        3. Auto-retrain if enough new data
+        4. Log comprehensive results
         """
         try:
-            logger.info("Starting daily automated collection cycle...")
+            logger.info("🔄 Starting ENHANCED dual collection cycle...")
+            logger.info("📋 Phase A: Completed matches → training_matches")
+            logger.info("📋 Phase B: Upcoming matches → odds_snapshots")
             
-            # Collect recent matches (last 3 days to catch any delayed results)
-            collection_results = await self.collect_recent_matches(days_back=3)
+            # Phase A: Collect recent matches (existing functionality)
+            completed_results = await self.collect_recent_matches(days_back=3)
             
-            # Auto-retrain if we have enough new data
-            if collection_results["new_matches_collected"] >= 10:
+            # Phase B: Collect upcoming match odds (NEW)
+            odds_results = await self.collect_upcoming_odds_snapshots()
+            
+            # Combine results
+            total_collection_results = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "phase_a_completed": completed_results,
+                "phase_b_odds": odds_results,
+                "new_matches_collected": completed_results.get("new_matches_collected", 0),
+                "new_odds_collected": odds_results.get("new_odds_collected", 0),
+                "total_new_data_points": (
+                    completed_results.get("new_matches_collected", 0) + 
+                    odds_results.get("new_odds_collected", 0)
+                ),
+                "auto_retrained": False
+            }
+            
+            # Auto-retrain if we have enough new training data
+            if completed_results.get("new_matches_collected", 0) >= 10:
                 retrain_success = await self.auto_retrain_if_needed(min_new_matches=10)
-                collection_results["auto_retrained"] = retrain_success
-            else:
-                collection_results["auto_retrained"] = False
+                total_collection_results["auto_retrained"] = retrain_success
             
-            logger.info(f"Daily collection cycle completed: {collection_results['new_matches_collected']} new matches")
-            return collection_results
+            logger.info(f"✅ DUAL collection completed:")
+            logger.info(f"   • Training matches: {completed_results.get('new_matches_collected', 0)} new")
+            logger.info(f"   • Odds snapshots: {odds_results.get('new_odds_collected', 0)} new")
+            logger.info(f"   • Total data points: {total_collection_results['total_new_data_points']}")
+            
+            return total_collection_results
             
         except Exception as e:
-            logger.error(f"Daily collection cycle failed: {e}")
-            return {"error": str(e), "new_matches_collected": 0}
+            logger.error(f"❌ Dual collection cycle failed: {e}")
+            return {
+                "error": str(e), 
+                "new_matches_collected": 0,
+                "new_odds_collected": 0,
+                "total_new_data_points": 0
+            }
+    
+    async def collect_upcoming_odds_snapshots(self) -> Dict[str, Any]:
+        """
+        NEW: Collect odds snapshots for upcoming matches at optimal timing windows
+        Populates odds_snapshots table for T-48h/T-24h model predictions
+        """
+        try:
+            logger.info("🎯 Starting odds snapshots collection for upcoming matches...")
+            
+            odds_summary = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "leagues_processed": [],
+                "new_odds_collected": 0,
+                "upcoming_matches_found": 0,
+                "errors": []
+            }
+            
+            db_manager = self._get_db_manager()
+            
+            # Get upcoming matches in next 7 days
+            for league_id in self.major_leagues:
+                try:
+                    league_name = self._get_league_name(league_id)
+                    logger.info(f"🔍 Checking upcoming matches for {league_name} (ID: {league_id})")
+                    
+                    upcoming_matches = await self._get_upcoming_matches(league_id, days_ahead=7)
+                    
+                    if upcoming_matches:
+                        logger.info(f"📅 Found {len(upcoming_matches)} upcoming matches in {league_name}")
+                        
+                        for match in upcoming_matches:
+                            try:
+                                # Calculate hours to kickoff
+                                match_date = datetime.fromisoformat(
+                                    match['fixture']['date'].replace('Z', '+00:00')
+                                ).replace(tzinfo=None)
+                                hours_to_kickoff = (match_date - datetime.utcnow()).total_seconds() / 3600
+                                
+                                # Collect odds at specific timing windows
+                                if hours_to_kickoff in [72, 48, 24, 12, 6, 3, 1]:
+                                    odds_collected = await self._collect_and_save_odds(
+                                        match, league_id, hours_to_kickoff
+                                    )
+                                    if odds_collected:
+                                        odds_summary["new_odds_collected"] += 1
+                                        
+                            except Exception as match_error:
+                                logger.warning(f"Failed to process match odds: {match_error}")
+                        
+                        odds_summary["upcoming_matches_found"] += len(upcoming_matches)
+                        odds_summary["leagues_processed"].append({
+                            "league_id": league_id,
+                            "league_name": league_name,
+                            "upcoming_matches": len(upcoming_matches)
+                        })
+                    else:
+                        logger.info(f"📭 No upcoming matches found for {league_name}")
+                    
+                    # Rate limiting
+                    await asyncio.sleep(2)
+                    
+                except Exception as league_error:
+                    error_msg = f"Failed to collect odds for league {league_id}: {league_error}"
+                    logger.error(error_msg)
+                    odds_summary["errors"].append(error_msg)
+            
+            logger.info(f"✅ Odds collection completed: {odds_summary['new_odds_collected']} new snapshots")
+            return odds_summary
+            
+        except Exception as e:
+            logger.error(f"❌ Odds snapshots collection failed: {e}")
+            return {
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e),
+                "new_odds_collected": 0,
+                "upcoming_matches_found": 0
+            }
+    
+    async def _get_upcoming_matches(self, league_id: int, days_ahead: int = 7) -> List[Dict]:
+        """Get upcoming matches for a specific league"""
+        try:
+            # Calculate date range for upcoming matches
+            start_date = datetime.utcnow()
+            end_date = start_date + timedelta(days=days_ahead)
+            
+            url = f"{self.training_collector.base_url}/fixtures"
+            params = {
+                "league": league_id,
+                "season": self.current_season,
+                "status": "NS",  # Not Started only
+                "from": start_date.strftime("%Y-%m-%d"),
+                "to": end_date.strftime("%Y-%m-%d")
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=self.training_collector.headers, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        matches = data.get('response', [])
+                        
+                        # Filter for scheduled matches with valid fixture data
+                        upcoming_matches = [
+                            match for match in matches 
+                            if (match.get('fixture', {}).get('status', {}).get('short') == 'NS' and
+                                match.get('fixture', {}).get('date') is not None)
+                        ]
+                        
+                        logger.info(f"Found {len(upcoming_matches)} upcoming matches for league {league_id}")
+                        return upcoming_matches
+                    else:
+                        logger.warning(f"API returned status {response.status} for upcoming matches in league {league_id}")
+                        return []
+                        
+        except Exception as e:
+            logger.error(f"Failed to get upcoming matches for league {league_id}: {e}")
+            return []
+    
+    async def _collect_and_save_odds(self, match: Dict, league_id: int, hours_to_kickoff: float) -> bool:
+        """Collect and save odds snapshot for a specific match and timing"""
+        try:
+            # This is a placeholder for odds collection logic
+            # In production, this would fetch from The Odds API or similar
+            logger.info(f"📊 Would collect odds for match {match['fixture']['id']} at T-{int(hours_to_kickoff)}h")
+            
+            # For now, we'll log the intent but not actually collect
+            # This prevents API overuse during development
+            return False  # Set to True when actual odds API is integrated
+            
+        except Exception as e:
+            logger.error(f"Failed to collect odds for match {match.get('fixture', {}).get('id', 'unknown')}: {e}")
+            return False
     
     def get_collection_history(self, days: int = 7) -> List[Dict]:
         """Get collection history for monitoring"""

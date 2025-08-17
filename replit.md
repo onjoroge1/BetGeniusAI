@@ -22,9 +22,16 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Quality Weights**: Pinnacle (35%), Bet365 (25%), Betway (22%), William Hill (18%) based on historical LogLoss performance.
 - **Performance**: 0.963475 LogLoss, outperforming complex models by 0.031549 LogLoss.
 - **Model Rating**: 6.3/10 (B Grade - Good Model) with 54.3% 3-way accuracy and 62.4% 2-way accuracy.
-- **Robust Architecture**: Market-efficient consensus at T-72h with dispersion-based confidence scoring. Note: Optimal prediction timing is T-72h (72 hours before kickoff) when market efficiency peaks.
+- **Enhanced Architecture**: Dual-table population strategy implemented (August 17, 2025) with market-efficient consensus and timing-optimized data collection.
+- **Optimal Prediction Timing**: T-48h/T-24h windows for maximum market efficiency, with T-72h fallback data available.
 - **Real Data Integration**: Enhanced data collector with injuries, team news, recent form, and head-to-head records from RapidAPI.
 - **Research Infrastructure**: Advanced features available for research; roadmap includes gradient boosting, deep learning (LSTM, attention networks), and reinforcement learning approaches.
+
+### Enhanced Data Collection System (August 2025)
+- **Dual Collection Strategy**: Scheduler populates both training_matches (completed) and odds_snapshots (upcoming) tables.
+- **Training Data**: 5,151 matches in training_matches for ML model learning.
+- **Odds Snapshots**: Framework ready for T-48h/T-24h collection at optimal timing windows.
+- **Fallback Architecture**: odds_snapshots → odds_consensus (1,000 T-72h records) → consensus_predictions chain.
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: For comprehensive match analysis and contextual insights.

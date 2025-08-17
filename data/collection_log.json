@@ -14,5 +14,37 @@
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T16:57:38.917795",
+    "days_back": 3,
+    "leagues_processed": [],
+    "new_matches_collected": 0,
+    "total_matches_in_db": 0,
+    "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T16:58:03.622418",
+    "days_back": 3,
+    "leagues_processed": [],
+    "new_matches_collected": 0,
+    "total_matches_in_db": 0,
+    "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T16:58:20.461875",
+    "days_back": 3,
+    "leagues_processed": [],
+    "new_matches_collected": 0,
+    "total_matches_in_db": 0,
+    "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T16:59:14.161134",
+    "days_back": 3,
+    "leagues_processed": [],
+    "new_matches_collected": 0,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]
