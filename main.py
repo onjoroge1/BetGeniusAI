@@ -59,6 +59,27 @@ enhanced_data_collector = EnhancedRealDataCollector()
 consensus_predictor = SimpleWeightedConsensusPredictor()
 enhanced_ai_analyzer = EnhancedAIAnalyzer()
 
+# Initialize and start background scheduler
+from utils.scheduler import BackgroundScheduler
+background_scheduler = BackgroundScheduler()
+
+# Startup event to start background scheduler
+@app.on_event("startup")
+async def startup_event():
+    """Start background services when app starts"""
+    logger.info("Starting BetGenius AI Backend - initializing background services...")
+    
+    # Start the 2am daily collection scheduler
+    background_scheduler.start_scheduler()
+    logger.info("✅ Background scheduler started - daily odds collection at 02:00 UTC")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean shutdown of background services"""
+    logger.info("Shutting down background services...")
+    background_scheduler.stop_scheduler()
+    logger.info("✅ Background scheduler stopped")
+
 # Pydantic models for request/response
 class PredictionRequest(BaseModel):
     match_id: int = Field(..., description="Unique match identifier")

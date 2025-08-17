@@ -1,15 +1,7 @@
 [
   {
-    "timestamp": "2025-06-08T21:41:44.211498",
+    "timestamp": "2025-08-17T16:38:38.808814",
     "days_back": 3,
-    "leagues_processed": [],
-    "new_matches_collected": 0,
-    "total_matches_in_db": 0,
-    "errors": []
-  },
-  {
-    "timestamp": "2025-06-09T23:47:11.240350",
-    "days_back": 7,
     "leagues_processed": [],
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
