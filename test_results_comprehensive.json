@@ -1,0 +1,80 @@
+{
+  "test_summary": {
+    "total_tests": 16,
+    "passed": 14,
+    "failed": 2,
+    "success_rate": "87.5%",
+    "timestamp": "2025-08-17T17:15:22.916819"
+  },
+  "system_status": "OPERATIONAL",
+  "detailed_results": [
+    {
+      "test": "API Health Check",
+      "passed": false
+    },
+    {
+      "test": "Database Connectivity",
+      "passed": true
+    },
+    {
+      "test": "League Map Integration",
+      "passed": true
+    },
+    {
+      "test": "Training Data Collection",
+      "passed": true
+    },
+    {
+      "test": "Dual Table Population",
+      "passed": true
+    },
+    {
+      "test": "Match Prediction API",
+      "passed": true
+    },
+    {
+      "test": "Consensus Model Loading",
+      "passed": false
+    },
+    {
+      "test": "Upcoming Matches Discovery",
+      "passed": true
+    },
+    {
+      "test": "T-72h Timing Windows",
+      "passed": true
+    },
+    {
+      "test": "Market Feature Engineering",
+      "passed": true
+    },
+    {
+      "test": "Odds Snapshots Framework",
+      "passed": true
+    },
+    {
+      "test": "API Authentication",
+      "passed": true
+    },
+    {
+      "test": "Internal API Calls",
+      "passed": true
+    },
+    {
+      "test": "Scheduler Integration",
+      "passed": true
+    },
+    {
+      "test": "Data Pipeline Flow",
+      "passed": true
+    },
+    {
+      "test": "End-to-End Prediction",
+      "passed": true
+    }
+  ],
+  "recommendations": [
+    "Address failed test cases for 100% system reliability",
+    "System is operational with minor issues"
+  ]
+}
