@@ -1189,6 +1189,37 @@ async def get_training_stats(api_key: str = Depends(verify_api_key)):
         logger.error(f"Failed to get training stats: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.post("/admin/trigger-collection")
+async def trigger_manual_collection(api_key: str = Depends(verify_api_key)):
+    """Trigger manual collection cycle for testing (bypasses timing restrictions)"""
+    try:
+        logger.info("🔧 MANUAL collection trigger requested")
+        
+        # Use the global scheduler instance
+        success = background_scheduler.trigger_immediate_collection(force=True)
+        
+        if success:
+            logger.info("✅ Manual collection triggered successfully")
+            return {
+                "status": "success",
+                "message": "Manual collection cycle triggered successfully",
+                "note": "Collection running in background - check logs for progress",
+                "timing": "Bypasses normal 02:00-02:30 UTC restriction for testing"
+            }
+        else:
+            logger.error("❌ Failed to trigger manual collection")
+            return {
+                "status": "error",
+                "message": "Failed to trigger manual collection - scheduler not running"
+            }
+        
+    except Exception as e:
+        logger.error(f"Manual collection trigger failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Manual collection trigger failed: {e}"
+        }
+
 @app.post("/admin/collect-recent-matches")
 async def collect_recent_matches(days_back: int = 3, api_key: str = Depends(verify_api_key)):
     """Collect matches completed in the last N days for continuous training data updates"""

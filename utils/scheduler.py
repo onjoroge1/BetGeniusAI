@@ -126,8 +126,12 @@ class BackgroundScheduler:
                 logger.error(f"Scheduler loop error: {e}")
                 await asyncio.sleep(300)  # Wait 5 minutes before retry
     
-    def trigger_immediate_collection(self):
-        """Trigger immediate collection cycle (non-blocking)"""
+    def trigger_immediate_collection(self, force=False):
+        """Trigger immediate collection cycle (non-blocking)
+        
+        Args:
+            force (bool): If True, bypasses timing restrictions for manual testing
+        """
         if not self.is_running:
             logger.warning("Scheduler not running, cannot trigger immediate collection")
             return False
@@ -135,22 +139,36 @@ class BackgroundScheduler:
         # Run collection in background
         threading.Thread(
             target=self._run_immediate_collection,
+            args=(force,),
             daemon=True
         ).start()
         
-        logger.info("Immediate collection cycle triggered")
+        if force:
+            logger.info("🔧 MANUAL collection cycle triggered (bypassing timing restrictions)")
+        else:
+            logger.info("Immediate collection cycle triggered")
         return True
     
-    def _run_immediate_collection(self):
-        """Run immediate collection in separate thread"""
+    def _run_immediate_collection(self, force=False):
+        """Run immediate collection in separate thread
+        
+        Args:
+            force (bool): If True, bypasses timing restrictions for manual testing
+        """
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         try:
             results = loop.run_until_complete(self.collector.daily_collection_cycle())
-            logger.info(f"Immediate collection completed: {results.get('new_matches_collected', 0)} new matches")
+            if force:
+                logger.info(f"🔧 MANUAL collection completed: {results.get('new_matches_collected', 0)} new matches")
+            else:
+                logger.info(f"Immediate collection completed: {results.get('new_matches_collected', 0)} new matches")
         except Exception as e:
-            logger.error(f"Immediate collection failed: {e}")
+            if force:
+                logger.error(f"🔧 MANUAL collection failed: {e}")
+            else:
+                logger.error(f"Immediate collection failed: {e}")
         finally:
             loop.close()
 
@@ -171,6 +189,11 @@ def start_background_scheduler():
         scheduler.start_scheduler()
         return True
     return False
+
+def trigger_manual_collection():
+    """Trigger manual collection cycle for testing (bypasses timing restrictions)"""
+    scheduler = get_scheduler()
+    return scheduler.trigger_immediate_collection(force=True)
 
 def stop_background_scheduler():
     """Stop the background scheduler"""

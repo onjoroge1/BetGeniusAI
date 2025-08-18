@@ -22,7 +22,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Quality Weights**: Pinnacle (35%), Bet365 (25%), Betway (22%), William Hill (18%) based on historical LogLoss performance.
 - **Performance**: 0.963475 LogLoss, outperforming complex models by 0.031549 LogLoss.
 - **Model Rating**: 6.3/10 (B Grade - Good Model) with 54.3% 3-way accuracy and 62.4% 2-way accuracy.
-- **Enhanced Architecture**: Dual-table population strategy implemented and tested (August 17, 2025) with market-efficient consensus, league_map integration, and timing-optimized data collection across 6 major European leagues.
+- **Enhanced Architecture**: Dual-table population strategy implemented and tested (August 18, 2025) with market-efficient consensus, league_map integration, timing-optimized data collection across 6 major European leagues, and manual testing capability bypassing timing restrictions.
 - **Optimal Prediction Timing**: T-48h/T-24h windows for maximum market efficiency, with T-72h fallback data available.
 - **Real Data Integration**: Enhanced data collector with injuries, team news, recent form, and head-to-head records from RapidAPI.
 - **Research Infrastructure**: Advanced features available for research; roadmap includes gradient boosting, deep learning (LSTM, attention networks), and reinforcement learning approaches.
