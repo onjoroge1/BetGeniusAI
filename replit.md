@@ -22,7 +22,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Quality Weights**: Pinnacle (35%), Bet365 (25%), Betway (22%), William Hill (18%) based on historical LogLoss performance.
 - **Performance**: 0.963475 LogLoss, outperforming complex models by 0.031549 LogLoss.
 - **Model Rating**: 6.3/10 (B Grade - Good Model) with 54.3% 3-way accuracy and 62.4% 2-way accuracy.
-- **Enhanced Architecture**: Dual-table population strategy implemented and tested (August 18, 2025) with market-efficient consensus, league_map integration, timing-optimized data collection across 6 major European leagues, and manual testing capability bypassing timing restrictions.
+- **Enhanced Architecture**: Dual-table population strategy implemented and tested (August 18, 2025) with market-efficient consensus, league_map integration, timing-optimized data collection across 6 major European leagues, manual testing capability, and cross-table synchronization ensuring both training_matches and odds_consensus tables are populated consistently.
 - **Optimal Prediction Timing**: T-48h/T-24h windows for maximum market efficiency, with T-72h fallback data available.
 - **Real Data Integration**: Enhanced data collector with injuries, team news, recent form, and head-to-head records from RapidAPI.
 - **Research Infrastructure**: Advanced features available for research; roadmap includes gradient boosting, deep learning (LSTM, attention networks), and reinforcement learning approaches.
@@ -30,7 +30,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 ### Enhanced Data Collection System (August 2025)
 - **Dual Collection Strategy**: Scheduler populates both training_matches (completed) and odds_snapshots (upcoming) tables.
 - **League Coverage**: Dynamic league selection via league_map table (6 leagues: EPL, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie).
-- **Training Data**: 5,165 matches in training_matches for ML model learning (increased from latest collection).
+- **Training Data**: 5,195+ matches in training_matches for ML model learning with synchronized odds_consensus table (26+ recent matches).
 - **Odds Snapshots**: Framework ready for T-48h/T-24h collection at optimal timing windows across all configured leagues.
 - **Fallback Architecture**: odds_snapshots → odds_consensus (1,000 T-72h records) → consensus_predictions chain.
 

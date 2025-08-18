@@ -80,28 +80,38 @@ class AutomatedCollector:
                             recent_matches
                         )
                         
-                        # Save to database if available
+                        # Save to database if available - DUAL TABLE POPULATION
                         if db_manager and processed_matches:
-                            logger.info(f"💾 SAVING TO DATABASE: {len(processed_matches)} processed matches from {league_name}")
-                            logger.info(f"🎯 TARGET TABLE: training_matches (TrainingMatch model)")
+                            logger.info(f"💾 DUAL SAVE: {len(processed_matches)} processed matches from {league_name}")
+                            logger.info(f"🎯 TARGET TABLES: training_matches + odds_consensus")
                             
-                            saved_count = db_manager.save_training_matches_batch(processed_matches)
-                            all_new_matches.extend(processed_matches)
+                            # Save to training_matches table
+                            training_saved = db_manager.save_training_matches_batch(processed_matches)
+                            
+                            # ALSO save to odds_consensus table for cross-table consistency
+                            consensus_saved = db_manager.save_odds_consensus_batch(processed_matches)
+                            
+                            total_saved = max(training_saved, consensus_saved)  # Count unique matches across both tables
+                            all_new_matches.extend(processed_matches[:total_saved])  # Only count actually new matches
                             
                             collection_summary["leagues_processed"].append({
                                 "league_id": league_id,
                                 "league_name": league_name,
                                 "matches_found": len(recent_matches),
                                 "matches_processed": len(processed_matches),
-                                "matches_saved": saved_count,
-                                "target_table": "training_matches"
+                                "matches_saved": total_saved,
+                                "target_tables": ["training_matches", "odds_consensus"],
+                                "training_saved": training_saved,
+                                "consensus_saved": consensus_saved
                             })
                             
-                            logger.info(f"✅ SAVED: {saved_count} new matches from {league_name} to 'training_matches' table")
+                            logger.info(f"✅ DUAL SAVE COMPLETE: {league_name}")
+                            logger.info(f"   • training_matches: {training_saved} new")
+                            logger.info(f"   • odds_consensus: {consensus_saved} new")
                             
-                            if saved_count != len(processed_matches):
-                                duplicates = len(processed_matches) - saved_count
-                                logger.info(f"⚠️ DUPLICATES SKIPPED: {duplicates} matches already existed in database")
+                            if total_saved != len(processed_matches):
+                                duplicates = len(processed_matches) - total_saved
+                                logger.info(f"⚠️ DUPLICATES SKIPPED: {duplicates} matches already existed in both tables")
                         else:
                             logger.warning(f"No database available or no matches to save for {league_name}")
                     
