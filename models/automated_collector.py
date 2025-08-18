@@ -441,72 +441,57 @@ class AutomatedCollector:
             }
     
     async def _get_upcoming_matches(self, league_id: int, days_ahead: int = 7) -> List[Dict]:
-        """Get upcoming matches for a specific league using RapidAPI"""
+        """Get upcoming matches for a specific league using internal API"""
         try:
-            # Use RapidAPI to get fixtures (upcoming matches)
-            rapid_api_key = os.environ.get('RAPIDAPI_KEY')
-            if not rapid_api_key:
-                logger.error("RAPIDAPI_KEY not found in environment")
-                return []
-            
-            # Calculate date range for upcoming matches
-            current_date = datetime.utcnow()
-            end_date = current_date + timedelta(days=days_ahead)
-            
-            url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
-            headers = {
-                'X-RapidAPI-Key': rapid_api_key,
-                'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-            }
-            
+            # Use internal API endpoint that already has upcoming matches
+            url = f"{self.internal_api_base}/matches/upcoming"
             params = {
-                'league': league_id,
-                'season': 2024,  # Current season
-                'status': 'NS',  # Not Started (upcoming)
-                'from': current_date.strftime('%Y-%m-%d'),
-                'to': end_date.strftime('%Y-%m-%d')
+                "league_id": league_id,
+                "limit": 50  # Get more matches to check timing windows
             }
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params) as response:
+                async with session.get(url, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        fixtures = data.get('response', [])
+                        matches = data.get('matches', [])
                         
-                        # Transform to our internal format
+                        # Filter matches in optimal timing windows
                         upcoming_matches = []
-                        for fixture in fixtures:
+                        current_time = datetime.utcnow()
+                        
+                        for match in matches:
                             try:
-                                # Parse match date and check timing windows
-                                match_date_str = fixture.get('fixture', {}).get('date', '')
-                                match_date = datetime.fromisoformat(match_date_str.replace('Z', '+00:00')).replace(tzinfo=None)
+                                # Parse match date
+                                match_date = datetime.fromisoformat(
+                                    match['date'].replace('Z', '+00:00')
+                                ).replace(tzinfo=None)
                                 
                                 # Calculate hours until match
-                                hours_until_match = (match_date - current_date).total_seconds() / 3600
+                                hours_until_match = (match_date - current_time).total_seconds() / 3600
                                 
-                                # Include matches that are within our timing windows (24h-168h ahead)
+                                # Include matches within timing windows (24h-168h ahead) for T-72h/T-48h/T-24h collection
                                 if 24 <= hours_until_match <= 168:  # 1-7 days ahead
                                     match_data = {
-                                        'match_id': fixture['fixture']['id'],
-                                        'date': match_date_str,
-                                        'home_team': fixture['teams']['home']['name'],
-                                        'away_team': fixture['teams']['away']['name'],
-                                        'home_team_id': fixture['teams']['home']['id'],
-                                        'away_team_id': fixture['teams']['away']['id'],
-                                        'venue': fixture.get('fixture', {}).get('venue', {}).get('name', ''),
+                                        'match_id': match['match_id'],
+                                        'date': match['date'],
+                                        'home_team': match['home_team'],
+                                        'away_team': match['away_team'],
+                                        'venue': match.get('venue', ''),
                                         'league_id': league_id,
-                                        'hours_until_match': round(hours_until_match, 1)
+                                        'hours_until_match': round(hours_until_match, 1),
+                                        'status': match.get('status', 'NS'),
+                                        'prediction_ready': match.get('prediction_ready', False)
                                     }
                                     upcoming_matches.append(match_data)
                                     
                             except Exception as date_error:
-                                logger.warning(f"Failed to parse fixture {fixture.get('fixture', {}).get('id', 'unknown')}: {date_error}")
+                                logger.warning(f"Failed to parse date for match {match.get('match_id', 'unknown')}: {date_error}")
                         
-                        logger.info(f"Found {len(upcoming_matches)} upcoming matches for league {league_id} in optimal timing windows")
+                        logger.info(f"Found {len(upcoming_matches)} upcoming matches for league {league_id} in optimal timing windows (24h-168h ahead)")
                         return upcoming_matches
-                        
                     else:
-                        logger.warning(f"RapidAPI returned status {response.status} for upcoming matches in league {league_id}")
+                        logger.warning(f"Internal API returned status {response.status} for upcoming matches in league {league_id}")
                         return []
                         
         except Exception as e:
@@ -522,7 +507,7 @@ class AutomatedCollector:
             # Get real odds data from The Odds API
             odds_api_key = os.environ.get('ODDS_API_KEY')
             if not odds_api_key:
-                logger.warning("ODDS_API_KEY not found - cannot collect real odds data")
+                logger.warning("ODDS_API_KEY not found - cannot collect authentic odds data")
                 return False
             
             try:
@@ -566,14 +551,14 @@ class AutomatedCollector:
                                     break
                             
                             if match_odds:
-                                # Extract bookmaker odds and create consensus
-                                consensus_data = self._create_odds_consensus(match_odds, match_id, timing_window)
+                                # Extract individual bookmaker odds 
+                                individual_odds = self._extract_bookmaker_odds(match_odds, match_id, league_id, timing_window)
                                 
                                 # Save to odds_snapshots table
-                                saved = await self._save_odds_snapshot(consensus_data)
+                                saved = await self._save_odds_snapshot(individual_odds)
                                 
                                 if saved:
-                                    logger.info(f"✅ Saved odds snapshot: Match {match_id}, T-{timing_window}h")
+                                    logger.info(f"✅ Saved odds snapshot: Match {match_id}, T-{timing_window}h ({len(individual_odds)} bookmaker entries)")
                                     return True
                                 else:
                                     logger.warning(f"Failed to save odds snapshot for match {match_id}")
@@ -594,6 +579,8 @@ class AutomatedCollector:
             logger.error(f"Failed to collect odds for match {match.get('match_id', 'unknown')}: {e}")
             return False
     
+
+    
     def _fuzzy_match_team(self, team1: str, team2: str) -> bool:
         """Simple fuzzy matching for team names"""
         if not team1 or not team2:
@@ -601,6 +588,55 @@ class AutomatedCollector:
         # Simple matching - can be enhanced with fuzzy string matching
         return team1.lower().replace(' ', '') in team2.lower().replace(' ', '') or \
                team2.lower().replace(' ', '') in team1.lower().replace(' ', '')
+    
+    def _extract_bookmaker_odds(self, match_odds: Dict, match_id: int, league_id: int, timing_window: int) -> List[Dict]:
+        """Extract individual bookmaker odds for database storage"""
+        bookmakers = match_odds.get('bookmakers', [])
+        
+        if not bookmakers:
+            return []
+        
+        odds_data = []
+        current_time = datetime.utcnow()
+        match_time = datetime.fromisoformat(match_odds.get('commence_time', '').replace('Z', '+00:00')).replace(tzinfo=None)
+        secs_to_kickoff = int((match_time - current_time).total_seconds())
+        
+        for bookmaker in bookmakers:
+            book_name = bookmaker.get('title', 'Unknown')
+            book_id = hash(book_name) % 1000  # Simple ID from name
+            
+            markets = bookmaker.get('markets', [])
+            for market in markets:
+                if market.get('key') == 'h2h':
+                    outcomes = market.get('outcomes', [])
+                    for outcome in outcomes:
+                        odds_decimal = float(outcome.get('price', 1.0))
+                        implied_prob = 1.0 / odds_decimal if odds_decimal > 0 else 0.0
+                        
+                        # Map outcome names to standard format
+                        outcome_name = outcome.get('name', '')
+                        if outcome_name == match_odds.get('home_team'):
+                            outcome_code = 'H'
+                        elif outcome_name == match_odds.get('away_team'):
+                            outcome_code = 'A'
+                        elif 'draw' in outcome_name.lower():
+                            outcome_code = 'D'
+                        else:
+                            continue  # Skip unknown outcomes
+                        
+                        odds_entry = {
+                            'match_id': match_id,
+                            'league_id': league_id,
+                            'book_id': book_id,
+                            'outcome': outcome_code,
+                            'odds_decimal': odds_decimal,
+                            'implied_prob': implied_prob,
+                            'secs_to_kickoff': secs_to_kickoff,
+                            'timestamp': current_time
+                        }
+                        odds_data.append(odds_entry)
+        
+        return odds_data
     
     def _create_odds_consensus(self, match_odds: Dict, match_id: int, timing_window: int) -> Dict:
         """Create consensus from multiple bookmaker odds"""
@@ -652,49 +688,53 @@ class AutomatedCollector:
             'timestamp': datetime.utcnow()
         }
     
-    async def _save_odds_snapshot(self, consensus_data: Dict) -> bool:
-        """Save odds snapshot to database"""
+    async def _save_odds_snapshot(self, odds_data: List[Dict]) -> bool:
+        """Save individual bookmaker odds to database"""
         try:
-            # Use raw SQL to save to odds_snapshots table
             import psycopg2
             database_url = os.environ.get('DATABASE_URL')
             
             with psycopg2.connect(database_url) as conn:
                 cursor = conn.cursor()
                 
-                # Insert into odds_snapshots table (create if needed)
-                insert_sql = """
-                    INSERT INTO odds_snapshots 
-                    (match_id, horizon_hours, ts_effective, ph_cons, pd_cons, pa_cons,
-                     n_books, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (match_id, horizon_hours) DO UPDATE SET
-                    ts_effective = EXCLUDED.ts_effective,
-                    ph_cons = EXCLUDED.ph_cons,
-                    pd_cons = EXCLUDED.pd_cons,
-                    pa_cons = EXCLUDED.pa_cons,
-                    n_books = EXCLUDED.n_books,
-                    created_at = EXCLUDED.created_at
-                """
+                # Insert each bookmaker's odds individually
+                saved_count = 0
+                for book_odds in odds_data:
+                    insert_sql = """
+                        INSERT INTO odds_snapshots 
+                        (match_id, league_id, book_id, market, ts_snapshot, secs_to_kickoff,
+                         outcome, odds_decimal, implied_prob, market_margin, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (match_id, book_id, market, outcome) DO UPDATE SET
+                        odds_decimal = EXCLUDED.odds_decimal,
+                        implied_prob = EXCLUDED.implied_prob,
+                        ts_snapshot = EXCLUDED.ts_snapshot,
+                        secs_to_kickoff = EXCLUDED.secs_to_kickoff
+                    """
+                    
+                    values = (
+                        book_odds['match_id'],
+                        book_odds['league_id'],
+                        book_odds['book_id'],
+                        'h2h',  # Head-to-head market
+                        book_odds['timestamp'],
+                        book_odds['secs_to_kickoff'],
+                        book_odds['outcome'],
+                        book_odds['odds_decimal'],
+                        book_odds['implied_prob'],
+                        book_odds.get('market_margin', 0.05),
+                        book_odds['timestamp']
+                    )
+                    
+                    cursor.execute(insert_sql, values)
+                    saved_count += 1
                 
-                values = (
-                    consensus_data['match_id'],
-                    consensus_data['horizon_hours'],
-                    consensus_data['timestamp'],
-                    consensus_data['ph_cons'],
-                    consensus_data['pd_cons'],
-                    consensus_data['pa_cons'],
-                    consensus_data['n_books'],
-                    consensus_data['timestamp']
-                )
-                
-                cursor.execute(insert_sql, values)
                 conn.commit()
+                logger.info(f"Saved {saved_count} individual bookmaker odds to odds_snapshots")
+                return True
                 
-            return True
-            
         except Exception as e:
-            logger.error(f"Failed to save odds snapshot: {e}")
+            logger.error(f"Failed to save odds snapshots: {e}")
             return False
     
     def get_collection_history(self, days: int = 7) -> List[Dict]:
