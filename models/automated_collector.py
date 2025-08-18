@@ -398,8 +398,8 @@ class AutomatedCollector:
                                 # Collect odds at specific timing windows (allow range not exact)
                                 timing_windows = [72, 48, 24, 12, 6, 3, 1]
                                 for window in timing_windows:
-                                    # Allow ±2 hour window for practical collection
-                                    if abs(hours_to_kickoff - window) <= 2:
+                                    # Allow larger window for practical collection (±6 hours)
+                                    if abs(hours_to_kickoff - window) <= 6:
                                         logger.info(f"🎯 Collecting odds for T-{window}h window (actual: T-{hours_to_kickoff:.1f}h)")
                                         odds_collected = await self._collect_and_save_odds(
                                             match, league_id, window
@@ -450,8 +450,13 @@ class AutomatedCollector:
                 "limit": 50  # Get more matches to check timing windows
             }
             
+            # Add authorization for internal API
+            headers = {
+                'Authorization': 'Bearer betgenius_secure_key_2024'
+            }
+            
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
+                async with session.get(url, params=params, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
                         matches = data.get('matches', [])
@@ -470,8 +475,9 @@ class AutomatedCollector:
                                 # Calculate hours until match
                                 hours_until_match = (match_date - current_time).total_seconds() / 3600
                                 
-                                # Include matches within timing windows (24h-168h ahead) for T-72h/T-48h/T-24h collection
-                                if 24 <= hours_until_match <= 168:  # 1-7 days ahead
+                                # Include matches within practical timing windows for T-72h/T-48h/T-24h collection
+                                # Expand to include closer matches for testing (2h-168h ahead) 
+                                if 2 <= hours_until_match <= 168:  # 2 hours to 7 days ahead
                                     match_data = {
                                         'match_id': match['match_id'],
                                         'date': match['date'],
@@ -526,7 +532,7 @@ class AutomatedCollector:
                 # Use The Odds API to get real bookmaker odds
                 url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds"
                 params = {
-                    'apikey': odds_api_key,  # API key as parameter
+                    'apiKey': odds_api_key,  # API key as parameter (correct case)
                     'regions': 'eu',  # European bookmakers
                     'markets': 'h2h',  # Head-to-head (match winner)
                     'oddsFormat': 'decimal',
