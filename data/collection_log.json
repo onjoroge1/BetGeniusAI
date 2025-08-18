@@ -137,5 +137,128 @@
     "new_matches_collected": 27,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T17:22:25.398221",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 39,
+        "league_name": "Premier League",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 61,
+        "league_name": "Ligue 1",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 3,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 88,
+        "league_name": "Eredivisie",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 140,
+        "league_name": "La Liga",
+        "matches_found": 6,
+        "matches_processed": 6,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      }
+    ],
+    "new_matches_collected": 30,
+    "total_matches_in_db": 0,
+    "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T18:40:12.446787",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 39,
+        "league_name": "Premier League",
+        "matches_found": 9,
+        "matches_processed": 9,
+        "matches_saved": 1,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 61,
+        "league_name": "Ligue 1",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 88,
+        "league_name": "Eredivisie",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 140,
+        "league_name": "La Liga",
+        "matches_found": 6,
+        "matches_processed": 6,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      }
+    ],
+    "new_matches_collected": 31,
+    "total_matches_in_db": 0,
+    "errors": []
+  },
+  {
+    "timestamp": "2025-08-17T22:32:33.281656",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 39,
+        "league_name": "Premier League",
+        "matches_found": 9,
+        "matches_processed": 9,
+        "matches_saved": 0,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 61,
+        "league_name": "Ligue 1",
+        "matches_found": 9,
+        "matches_processed": 9,
+        "matches_saved": 1,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 88,
+        "league_name": "Eredivisie",
+        "matches_found": 9,
+        "matches_processed": 9,
+        "matches_saved": 1,
+        "target_table": "training_matches"
+      },
+      {
+        "league_id": 140,
+        "league_name": "La Liga",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 2,
+        "target_table": "training_matches"
+      }
+    ],
+    "new_matches_collected": 35,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]
