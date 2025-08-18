@@ -1,0 +1,84 @@
+{
+  "test_timestamp": "20250818_173018",
+  "matches_tested": 2,
+  "total_odds_used": 114,
+  "unique_bookmakers": 0,
+  "methods": {
+    "Simple Consensus": {
+      "accuracy": 0.5,
+      "brier_score": 0.13582412544874056,
+      "log_loss": 0.7247486387431447
+    },
+    "Weighted Consensus": {
+      "accuracy": 0.5,
+      "brier_score": 0.13582412544874056,
+      "log_loss": 0.7247486387431447
+    }
+  },
+  "detailed_results": [
+    {
+      "match_id": 1390826,
+      "method": "Simple Consensus",
+      "bookmaker_count": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.024669622396342104,
+      "log_loss": 0.24679388645030254,
+      "predicted_probs": {
+        "H": 0.7813017138061935,
+        "D": 0.14300517237000807,
+        "A": 0.07569311382379838
+      },
+      "actual_prob": 0.7813017138061935
+    },
+    {
+      "match_id": 1390826,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.024669622396342104,
+      "log_loss": 0.24679388645030254,
+      "predicted_probs": {
+        "H": 0.7813017138061935,
+        "D": 0.14300517237000807,
+        "A": 0.07569311382379837
+      },
+      "actual_prob": 0.7813017138061935
+    },
+    {
+      "match_id": 1378978,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.24697862850113902,
+      "log_loss": 1.2027033910359868,
+      "predicted_probs": {
+        "H": 0.4078435341137218,
+        "D": 0.2917754000854687,
+        "A": 0.3003810658008096
+      },
+      "actual_prob": 0.3003810658008096
+    },
+    {
+      "match_id": 1378978,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.24697862850113902,
+      "log_loss": 1.2027033910359868,
+      "predicted_probs": {
+        "H": 0.4078435341137218,
+        "D": 0.29177540008546865,
+        "A": 0.3003810658008096
+      },
+      "actual_prob": 0.3003810658008096
+    }
+  ]
+}
