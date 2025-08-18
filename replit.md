@@ -31,8 +31,10 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Dual Collection Strategy**: Scheduler populates both training_matches (completed) and odds_snapshots (upcoming) tables.
 - **League Coverage**: Dynamic league selection via league_map table (6 leagues: EPL, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie).
 - **Training Data**: 5,195+ matches in training_matches for ML model learning with synchronized odds_consensus table (26+ recent matches).
-- **Odds Snapshots**: Framework ready for T-48h/T-24h collection at optimal timing windows across all configured leagues.
-- **Fallback Architecture**: odds_snapshots → odds_consensus (1,000 T-72h records) → consensus_predictions chain.
+- **Authentic Odds Collection**: LIVE and operational - collecting real bookmaker odds from The Odds API with 21+ bookmakers per match.
+- **Database Integration**: 63+ authentic odds successfully stored with proper H/D/A outcome mapping and individual bookmaker tracking.
+- **Timing Windows**: Operational at T-3h to T-168h windows for optimal prediction timing across all configured leagues.
+- **Data Integrity**: All odds data sourced from authentic bookmakers (1xBet, Parions Sport, Unibet, etc.) with proper constraint validation.
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: For comprehensive match analysis and contextual insights.

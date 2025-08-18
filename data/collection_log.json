@@ -668,5 +668,66 @@
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2025-08-18T17:01:51.480776",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 39,
+        "league_name": "Premier League",
+        "matches_found": 9,
+        "matches_processed": 9,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 61,
+        "league_name": "Ligue 1",
+        "matches_found": 9,
+        "matches_processed": 9,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 88,
+        "league_name": "Eredivisie",
+        "matches_found": 9,
+        "matches_processed": 9,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 140,
+        "league_name": "La Liga",
+        "matches_found": 8,
+        "matches_processed": 8,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      }
+    ],
+    "new_matches_collected": 0,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]
