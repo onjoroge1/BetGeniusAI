@@ -1,0 +1,100 @@
+[
+  {
+    "id": "fa7fbca429e5ad8c7db5c2c7847d4ab3",
+    "sport_key": "soccer_england_league1",
+    "sport_title": "League 1",
+    "commence_time": "2025-08-19T18:45:00Z",
+    "home_team": "Peterborough United",
+    "away_team": "Barnsley",
+    "bookmakers": [
+      {
+        "key": "betrivers",
+        "title": "BetRivers",
+        "last_update": "2025-08-18T16:21:39Z",
+        "markets": [
+          {
+            "key": "h2h",
+            "last_update": "2025-08-18T16:21:39Z",
+            "outcomes": [
+              {
+                "name": "Barnsley",
+                "price": 143
+              },
+              {
+                "name": "Peterborough United",
+                "price": 155
+              },
+              {
+                "name": "Draw",
+                "price": 295
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "betmgm",
+        "title": "BetMGM",
+        "last_update": "2025-08-18T16:21:38Z",
+        "markets": [
+          {
+            "key": "h2h",
+            "last_update": "2025-08-18T16:21:38Z",
+            "outcomes": [
+              {
+                "name": "Barnsley",
+                "price": 130
+              },
+              {
+                "name": "Peterborough United",
+                "price": 175
+              },
+              {
+                "name": "Draw",
+                "price": 260
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "bovada",
+        "title": "Bovada",
+        "last_update": "2025-08-18T16:21:37Z",
+        "markets": [
+          {
+            "key": "h2h",
+            "last_update": "2025-08-18T16:21:37Z",
+            "outcomes": [
+              {
+                "name": "Barnsley",
+                "price": 125
+              },
+              {
+                "name": "Peterborough United",
+                "price": 175
+              },
+              {
+                "name": "Draw",
+                "price": 255
+              }
+            ]
+          },
+          {
+            "key": "spreads",
+            "last_update": "2025-08-18T16:21:37Z",
+            "outcomes": [
+              {
+                "name": "Barnsley",
+                "price": -102,
+                "point": -0.25
+              },
+              {
+                "name": "Peterborough United",
+                "price": -128,
+                "point": 0.25
+              }
+            ]
+          }
+        ]
+      },

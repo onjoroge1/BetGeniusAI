@@ -86,7 +86,7 @@ async def test_odds_api():
     # Test with Premier League
     url = "https://api.the-odds-api.com/v4/sports/soccer_epl/odds"
     params = {
-        'apikey': odds_api_key,
+        'apiKey': odds_api_key,
         'regions': 'eu',
         'markets': 'h2h',
         'oddsFormat': 'decimal',
