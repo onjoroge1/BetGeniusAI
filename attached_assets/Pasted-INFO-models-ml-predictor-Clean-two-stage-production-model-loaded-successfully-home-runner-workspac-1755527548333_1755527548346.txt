@@ -1,0 +1,230 @@
+INFO:models.ml_predictor:Clean two-stage production model loaded successfully
+/home/runner/workspace/main.py:67: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+/home/runner/workspace/main.py:76: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("shutdown")
+INFO:     Will watch for changes in these directories: ['/home/runner/workspace']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [1943] using StatReload
+INFO:models.ml_predictor:Clean two-stage production model loaded successfully
+INFO:models.ml_predictor:Clean two-stage production model loaded successfully
+INFO:     Started server process [1965]
+INFO:     Waiting for application startup.
+INFO:main:Starting BetGenius AI Backend - initializing background services...
+INFO:utils.scheduler:Background scheduler started - daily collection at 02:00 UTC
+INFO:main:✅ Background scheduler started - daily odds collection at 02:00 UTC
+INFO:     Application startup complete.
+INFO:     172.31.86.130:33942 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45274 - "GET / HTTP/1.1" 200 OK
+INFO:     172.31.86.130:47578 - "GET /admin/trigger-collection HTTP/1.1" 405 Method Not Allowed
+INFO:main:🔧 MANUAL collection trigger requested
+INFO:models.automated_collector:🔄 Starting ENHANCED dual collection cycle...
+INFO:models.automated_collector:📋 Phase A: Completed matches → training_matches
+INFO:models.automated_collector:📋 Phase B: Upcoming matches → odds_snapshots
+INFO:utils.scheduler:🔧 MANUAL collection cycle triggered (bypassing timing restrictions)
+INFO:main:✅ Manual collection triggered successfully
+INFO:     127.0.0.1:42754 - "POST /admin/trigger-collection HTTP/1.1" 200 OK
+INFO:models.database:Database tables initialized
+INFO:models.automated_collector:Database manager initialized for automated collection
+INFO:models.automated_collector:📋 Found 6 configured leagues in league_map: [39, 61, 78, 88, 135, 140]
+INFO:models.automated_collector:Collecting recent matches for Premier League (ID: 39)
+INFO:models.automated_collector:Found 9 completed matches for league 39 in last 3 days
+INFO:models.data_collector:Collecting data for match 1378969
+INFO:models.data_collector:Collecting data for match 1378970
+INFO:models.data_collector:Collecting data for match 1378974
+INFO:models.data_collector:Collecting data for match 1378971
+INFO:models.data_collector:Collecting data for match 1378973
+INFO:models.data_collector:Collecting data for match 1378975
+INFO:models.data_collector:Collecting data for match 1378976
+INFO:models.data_collector:Collecting data for match 1378972
+INFO:models.data_collector:Collecting data for match 1378977
+INFO:models.automated_collector:💾 SAVING TO DATABASE: 9 processed matches from Premier League
+INFO:models.automated_collector:🎯 TARGET TABLE: training_matches (TrainingMatch model)
+INFO:models.database:Saved 0 training matches to database
+INFO:models.automated_collector:✅ SAVED: 0 new matches from Premier League to 'training_matches' table
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in database
+INFO:models.automated_collector:Collecting recent matches for Ligue 1 (ID: 61)
+INFO:models.automated_collector:Found 9 completed matches for league 61 in last 3 days
+INFO:models.data_collector:Collecting data for match 1387706
+INFO:models.data_collector:Collecting data for match 1387701
+INFO:models.data_collector:Collecting data for match 1387703
+INFO:models.data_collector:Collecting data for match 1387705
+INFO:models.data_collector:Collecting data for match 1387700
+INFO:models.data_collector:Collecting data for match 1387698
+INFO:models.data_collector:Collecting data for match 1387699
+INFO:models.data_collector:Collecting data for match 1387702
+INFO:models.data_collector:Collecting data for match 1387704
+INFO:models.automated_collector:💾 SAVING TO DATABASE: 9 processed matches from Ligue 1
+INFO:models.automated_collector:🎯 TARGET TABLE: training_matches (TrainingMatch model)
+INFO:models.database:Saved 0 training matches to database
+INFO:models.automated_collector:✅ SAVED: 0 new matches from Ligue 1 to 'training_matches' table
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in database
+INFO:models.automated_collector:Collecting recent matches for Bundesliga (ID: 78)
+INFO:models.automated_collector:Found 0 completed matches for league 78 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for Eredivisie (ID: 88)
+INFO:models.automated_collector:Found 9 completed matches for league 88 in last 3 days
+INFO:models.data_collector:Collecting data for match 1380876
+INFO:models.data_collector:Collecting data for match 1380878
+INFO:models.data_collector:Collecting data for match 1380879
+INFO:models.data_collector:Collecting data for match 1380877
+INFO:models.data_collector:Collecting data for match 1380880
+INFO:models.data_collector:Collecting data for match 1380882
+INFO:models.data_collector:Collecting data for match 1380881
+INFO:models.data_collector:Collecting data for match 1380883
+INFO:models.data_collector:Collecting data for match 1380884
+INFO:models.automated_collector:💾 SAVING TO DATABASE: 9 processed matches from Eredivisie
+INFO:models.automated_collector:🎯 TARGET TABLE: training_matches (TrainingMatch model)
+INFO:models.database:Saved 0 training matches to database
+INFO:models.automated_collector:✅ SAVED: 0 new matches from Eredivisie to 'training_matches' table
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in database
+INFO:models.automated_collector:Collecting recent matches for Serie A (ID: 135)
+INFO:models.automated_collector:Found 0 completed matches for league 135 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for La Liga (ID: 140)
+INFO:models.automated_collector:Found 8 completed matches for league 140 in last 3 days
+INFO:models.data_collector:Collecting data for match 1390824
+INFO:models.data_collector:Collecting data for match 1390828
+INFO:models.data_collector:Collecting data for match 1390825
+INFO:models.data_collector:Collecting data for match 1390827
+INFO:models.data_collector:Collecting data for match 1390819
+INFO:models.data_collector:Collecting data for match 1390821
+INFO:models.data_collector:Collecting data for match 1390820
+INFO:models.data_collector:Collecting data for match 1390823
+INFO:models.automated_collector:💾 SAVING TO DATABASE: 8 processed matches from La Liga
+INFO:models.automated_collector:🎯 TARGET TABLE: training_matches (TrainingMatch model)
+INFO:models.database:Saved 0 training matches to database
+INFO:models.automated_collector:✅ SAVED: 0 new matches from La Liga to 'training_matches' table
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 8 matches already existed in database
+INFO:models.automated_collector:Collection results logged to data/collection_log.json
+INFO:models.automated_collector:🎯 Starting odds snapshots collection for upcoming matches...
+INFO:models.automated_collector:📋 Found 6 configured leagues in league_map: [39, 61, 78, 88, 135, 140]
+INFO:models.automated_collector:🔍 Checking upcoming matches for Premier League (ID: 39)
+INFO:     127.0.0.1:38308 - "GET /matches/upcoming?league_id=39&limit=20 HTTP/1.1" 401 Unauthorized
+WARNING:models.automated_collector:Internal API returned status 401 for upcoming matches in league 39
+INFO:models.automated_collector:📭 No upcoming matches found for Premier League
+INFO:models.automated_collector:🔍 Checking upcoming matches for Ligue 1 (ID: 61)
+INFO:     127.0.0.1:38318 - "GET /matches/upcoming?league_id=61&limit=20 HTTP/1.1" 401 Unauthorized
+WARNING:models.automated_collector:Internal API returned status 401 for upcoming matches in league 61
+INFO:models.automated_collector:📭 No upcoming matches found for Ligue 1
+INFO:models.automated_collector:🔍 Checking upcoming matches for Bundesliga (ID: 78)
+INFO:     127.0.0.1:38328 - "GET /matches/upcoming?league_id=78&limit=20 HTTP/1.1" 401 Unauthorized
+WARNING:models.automated_collector:Internal API returned status 401 for upcoming matches in league 78
+INFO:models.automated_collector:📭 No upcoming matches found for Bundesliga
+INFO:models.automated_collector:🔍 Checking upcoming matches for Eredivisie (ID: 88)
+INFO:     127.0.0.1:53712 - "GET /matches/upcoming?league_id=88&limit=20 HTTP/1.1" 401 Unauthorized
+WARNING:models.automated_collector:Internal API returned status 401 for upcoming matches in league 88
+INFO:models.automated_collector:📭 No upcoming matches found for Eredivisie
+INFO:models.automated_collector:🔍 Checking upcoming matches for Serie A (ID: 135)
+INFO:     127.0.0.1:53726 - "GET /matches/upcoming?league_id=135&limit=20 HTTP/1.1" 401 Unauthorized
+WARNING:models.automated_collector:Internal API returned status 401 for upcoming matches in league 135
+INFO:models.automated_collector:📭 No upcoming matches found for Serie A
+INFO:models.automated_collector:🔍 Checking upcoming matches for La Liga (ID: 140)
+INFO:     127.0.0.1:53742 - "GET /matches/upcoming?league_id=140&limit=20 HTTP/1.1" 401 Unauthorized
+WARNING:models.automated_collector:Internal API returned status 401 for upcoming matches in league 140
+INFO:models.automated_collector:📭 No upcoming matches found for La Liga
+INFO:models.automated_collector:✅ Odds collection completed: 0 new snapshots
+ERROR:models.automated_collector:Auto-retraining failed: 'collected_at'
+INFO:models.automated_collector:✅ DUAL collection completed:
+INFO:models.automated_collector:   • Training matches: 35 new
+INFO:models.automated_collector:   • Odds snapshots: 0 new
+INFO:models.automated_collector:   • Total data points: 35
+INFO:utils.scheduler:🔧 MANUAL collection completed: 35 new matches
+INFO:main:🔧 MANUAL collection trigger requested
+INFO:utils.scheduler:🔧 MANUAL collection cycle triggered (bypassing timing restrictions)
+INFO:main:✅ Manual collection triggered successfully
+INFO:     127.0.0.1:59244 - "POST /admin/trigger-collection HTTP/1.1" 200 OK
+INFO:models.automated_collector:🔄 Starting ENHANCED dual collection cycle...
+INFO:models.automated_collector:📋 Phase A: Completed matches → training_matches
+INFO:models.automated_collector:📋 Phase B: Upcoming matches → odds_snapshots
+INFO:models.automated_collector:📋 Found 6 configured leagues in league_map: [39, 61, 78, 88, 135, 140]
+INFO:models.automated_collector:Collecting recent matches for Premier League (ID: 39)
+INFO:models.automated_collector:Found 9 completed matches for league 39 in last 3 days
+INFO:models.data_collector:Collecting data for match 1378969
+INFO:models.data_collector:Collecting data for match 1378970
+INFO:models.data_collector:Collecting data for match 1378974
+INFO:models.data_collector:Collecting data for match 1378971
+INFO:models.data_collector:Collecting data for match 1378973
+INFO:models.data_collector:Collecting data for match 1378975
+INFO:models.data_collector:Collecting data for match 1378976
+INFO:models.data_collector:Collecting data for match 1378972
+INFO:models.data_collector:Collecting data for match 1378977
+INFO:models.automated_collector:💾 SAVING TO DATABASE: 9 processed matches from Premier League
+INFO:models.automated_collector:🎯 TARGET TABLE: training_matches (TrainingMatch model)
+ERROR:models.database:Error saving training matches batch: (psycopg2.OperationalError) SSL connection has been closed unexpectedly
+
+[SQL: SELECT training_matches.id AS training_matches_id, training_matches.match_id AS training_matches_match_id, training_matches.league_id AS training_matches_league_id, training_matches.season AS training_matches_season, training_matches.home_team AS training_matches_home_team, training_matches.away_team AS training_matches_away_team, training_matches.home_team_id AS training_matches_home_team_id, training_matches.away_team_id AS training_matches_away_team_id, training_matches.match_date AS training_matches_match_date, training_matches.venue AS training_matches_venue, training_matches.outcome AS training_matches_outcome, training_matches.home_goals AS training_matches_home_goals, training_matches.away_goals AS training_matches_away_goals, training_matches.features AS training_matches_features, training_matches.collected_at AS training_matches_collected_at, training_matches.is_processed AS training_matches_is_processed 
+FROM training_matches 
+WHERE training_matches.match_id = %(match_id_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'match_id_1': 1378969, 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+INFO:models.automated_collector:✅ SAVED: 0 new matches from Premier League to 'training_matches' table
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in database
+INFO:models.automated_collector:Collecting recent matches for Ligue 1 (ID: 61)
+INFO:models.automated_collector:Found 9 completed matches for league 61 in last 3 days
+INFO:models.data_collector:Collecting data for match 1387706
+INFO:models.data_collector:Collecting data for match 1387701
+INFO:models.data_collector:Collecting data for match 1387703
+INFO:models.data_collector:Collecting data for match 1387705
+INFO:models.data_collector:Collecting data for match 1387700
+INFO:models.data_collector:Collecting data for match 1387698
+INFO:models.data_collector:Collecting data for match 1387699
+INFO:models.data_collector:Collecting data for match 1387702
+INFO:models.data_collector:Collecting data for match 1387704
+INFO:models.automated_collector:💾 SAVING TO DATABASE: 9 processed matches from Ligue 1
+INFO:models.automated_collector:🎯 TARGET TABLE: training_matches (TrainingMatch model)
+INFO:models.database:Saved 0 training matches to database
+INFO:models.automated_collector:✅ SAVED: 0 new matches from Ligue 1 to 'training_matches' table
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in database
+INFO:models.automated_collector:Collecting recent matches for Bundesliga (ID: 78)
+INFO:models.automated_collector:Found 0 completed matches for league 78 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for Eredivisie (ID: 88)
+INFO:models.automated_collector:Found 9 completed matches for league 88 in last 3 days
+INFO:models.data_collector:Collecting data for match 1380876
+INFO:models.data_collector:Collecting data for match 1380878
+INFO:models.data_collector:Collecting data for match 1380879
+INFO:models.data_collector:Collecting data for match 1380877
+INFO:models.data_collector:Collecting data for match 1380880
+INFO:models.data_collector:Collecting data for match 1380882
+INFO:models.data_collector:Collecting data for match 1380881
+INFO:models.data_collector:Collecting data for match 1380883
+INFO:models.data_collector:Collecting data for match 1380884
+^AINFO:models.automated_collector:💾 SAVING TO DATABASE: 9 processed matches from Eredivisie
+INFO:models.automated_collector:🎯 TARGET TABLE: training_matches (TrainingMatch model)
+INFO:models.database:Saved 0 training matches to database
+INFO:models.automated_collector:✅ SAVED: 0 new matches from Eredivisie to 'training_matches' table
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in database
+INFO:models.automated_collector:Collecting recent matches for Serie A (ID: 135)
+INFO:models.automated_collector:Found 0 completed matches for league 135 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for La Liga (ID: 140)
+INFO:models.automated_collector:Found 8 completed matches for league 140 in last 3 days
+INFO:models.data_collector:Collecting data for match 1390824
+INFO:models.data_collector:Collecting data for match 1390828
+INFO:models.data_collector:Collecting data for match 1390825
+INFO:models.data_collector:Collecting data for match 1390827
+INFO:models.data_collector:Collecting data for match 1390819
+INFO:models.data_collector:Collecting data for match 1390821
+INFO:models.data_collector:Collecting data for match 1390820
+^CINFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:main:Shutting down background services...
+INFO:models.data_collector:Collecting data for match 1390823
+INFO:models.automated_collector:💾 SAVING TO DATABASE: 8 processed matches from La Liga
+INFO:models.automated_collector:🎯 TARGET TABLE: training_matches (TrainingMatch model)
+INFO:models.database:Saved 0 training matches to database
+INFO:models.automated_collector:✅ SAVED: 0 new matches from La Liga to 'training_matches' table
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 8 matches already existed in database
+INFO:utils.scheduler:Background scheduler stopped
+INFO:main:✅ Background scheduler stopped
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1965]
+INFO:     Stopping reloader process [1943]

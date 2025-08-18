@@ -68,7 +68,13 @@ class DatabaseManager:
         if not self.database_url:
             raise ValueError("DATABASE_URL environment variable is required")
         
-        self.engine = create_engine(self.database_url)
+        # Add connection pooling and SSL error handling
+        self.engine = create_engine(
+            self.database_url,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            connect_args={"sslmode": "prefer"}
+        )
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         
         # Create tables if they don't exist
