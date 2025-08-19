@@ -29,7 +29,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### Enhanced Data Collection System (August 2025)
 - **Dual Collection Strategy**: Scheduler populates both training_matches (completed) and odds_snapshots (upcoming) tables.
-- **League Coverage**: Dynamic league selection via league_map table (6 leagues: EPL, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie).
+- **League Coverage**: Dynamic league selection via league_map table (11 leagues: Tier-1: EPL, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie; Tier-2: Championship, LaLiga2, Serie B, 2. Bundesliga, Ligue 2).
 - **Training Data**: 5,195+ matches in training_matches for ML model learning with synchronized odds_consensus table (26+ recent matches).
 - **Authentic Odds Collection**: LIVE and operational - collecting real bookmaker odds from The Odds API with 21+ bookmakers per match.
 - **Database Integration**: 63+ authentic odds successfully stored with proper H/D/A outcome mapping and individual bookmaker tracking.

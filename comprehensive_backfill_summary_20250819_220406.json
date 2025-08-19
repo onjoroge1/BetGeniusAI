@@ -1,0 +1,34 @@
+{
+  "backfill_timestamp": "20250819_220406",
+  "total_cycles_executed": 18,
+  "total_new_matches": 0,
+  "total_new_odds": 0,
+  "leagues_processed": 11,
+  "tier1_leagues": [
+    39,
+    61,
+    78,
+    88,
+    135,
+    140
+  ],
+  "tier2_leagues": [
+    62,
+    72,
+    79,
+    136,
+    141
+  ],
+  "phases_completed": 3,
+  "next_steps": [
+    "Continue daily automated collection at 02:00 UTC",
+    "Build T-72/48/24 consensus in consensus_predictions table",
+    "Monitor data quality across all 11 leagues",
+    "Implement gradual model retraining with expanded dataset"
+  ],
+  "data_coverage": {
+    "training_matches": 960020,
+    "odds_snapshots": 46887,
+    "consensus_records": 1003
+  }
+}

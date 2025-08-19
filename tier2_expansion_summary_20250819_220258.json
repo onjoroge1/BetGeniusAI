@@ -1,0 +1,26 @@
+{
+  "expansion_timestamp": "20250819_220258",
+  "tier1_leagues": [
+    39,
+    61,
+    78,
+    88,
+    135,
+    140
+  ],
+  "tier2_leagues_added": [
+    72,
+    141,
+    136,
+    79,
+    62
+  ],
+  "total_leagues": 11,
+  "expansion_status": "COMPLETED",
+  "next_steps": [
+    "Monitor daily collection across all 11 leagues",
+    "Use manual triggers for backfill acceleration",
+    "Build T-72/48/24 consensus in consensus_predictions table",
+    "Verify Tier-2 league data quality"
+  ]
+}
