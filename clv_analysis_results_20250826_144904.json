@@ -1,0 +1,56 @@
+{
+  "analysis_timestamp": "20250826_144904",
+  "data_period": "Last 7 days",
+  "total_odds_analyzed": 1743,
+  "timing_windows_available": [
+    "Other",
+    "T-48to72h"
+  ],
+  "bookmakers_analyzed": 88,
+  "matches_analyzed": 23,
+  "movements_detected": 69,
+  "clv_system_design": {
+    "data_collection": {
+      "timing_windows": [
+        "T-72h",
+        "T-48h",
+        "T-24h",
+        "T-4h",
+        "T-1h"
+      ],
+      "key_bookmakers": [
+        "151",
+        "186",
+        "738",
+        "748",
+        "6"
+      ],
+      "update_frequency": "Every 4 hours"
+    },
+    "clv_calculation": {
+      "formula": "(Your_Odds - Closing_Line) / Closing_Line * 100",
+      "benchmark": "Pinnacle closing line (when available)",
+      "threshold": "+2% CLV for actionable opportunities"
+    },
+    "tracking_metrics": [
+      "Average CLV per bet",
+      "CLV by timing window",
+      "CLV by bookmaker",
+      "CLV by league",
+      "Monthly CLV trend"
+    ]
+  },
+  "current_capabilities": {
+    "authentic_odds": 1743,
+    "timing_windows": 2,
+    "bookmakers": 88,
+    "matches_tracked": 23,
+    "data_freshness": "Last 7 days"
+  },
+  "next_steps": [
+    "Implement real-time CLV tracking",
+    "Set up automated alerts for +CLV opportunities",
+    "Optimize bet timing based on movement patterns",
+    "Track historical CLV performance"
+  ]
+}
