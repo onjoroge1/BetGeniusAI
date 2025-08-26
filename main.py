@@ -22,6 +22,7 @@ from models.enhanced_real_data_collector import EnhancedRealDataCollector
 from models.simple_consensus_predictor import SimpleWeightedConsensusPredictor
 from models.enhanced_ai_analyzer import EnhancedAIAnalyzer
 from models.response_schemas import FinalPredictionResponse, MatchContext, ComprehensiveAnalysisResponse
+from models.clv_api import CLVMonitorAPI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +59,9 @@ automated_collector = AutomatedCollector()
 enhanced_data_collector = EnhancedRealDataCollector()
 consensus_predictor = SimpleWeightedConsensusPredictor()
 enhanced_ai_analyzer = EnhancedAIAnalyzer()
+
+# Initialize CLV API
+clv_monitor = CLVMonitorAPI()
 
 # Initialize and start background scheduler
 from utils.scheduler import BackgroundScheduler
@@ -1393,3 +1397,97 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     )
+
+
+# ==========================================
+# CLV MONITORING API ENDPOINTS
+# ==========================================
+
+@app.get("/clv/match/{match_id}")
+async def get_match_clv_analysis(
+    match_id: int,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get comprehensive CLV analysis for a specific match"""
+    try:
+        analysis = await clv_monitor.get_match_clv_analysis(match_id)
+        return analysis
+    except Exception as e:
+        logger.error(f"CLV analysis error for match {match_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/clv/alerts")
+async def get_live_clv_alerts(
+    league_ids: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get live CLV alerts for active matches"""
+    try:
+        # Parse league_ids if provided
+        parsed_league_ids = None
+        if league_ids:
+            parsed_league_ids = [int(x.strip()) for x in league_ids.split(",")]
+        
+        alerts = await clv_monitor.get_live_clv_alerts(parsed_league_ids)
+        return {
+            "status": "success",
+            "alerts": alerts,
+            "count": len(alerts),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"CLV alerts error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/clv/dashboard")
+async def get_clv_dashboard(
+    api_key: str = Depends(verify_api_key)
+):
+    """Get comprehensive CLV dashboard data"""
+    try:
+        dashboard_data = await clv_monitor.get_clv_dashboard_data()
+        return dashboard_data
+    except Exception as e:
+        logger.error(f"CLV dashboard error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/clv/opportunities")
+async def get_clv_opportunities(
+    min_clv: float = 2.0,
+    confidence: Optional[str] = None,
+    league_ids: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get filtered CLV opportunities with specific criteria"""
+    try:
+        # Parse parameters
+        parsed_league_ids = None
+        if league_ids:
+            parsed_league_ids = [int(x.strip()) for x in league_ids.split(",")]
+        
+        # Get all alerts and filter
+        all_alerts = await clv_monitor.get_live_clv_alerts(parsed_league_ids)
+        
+        # Apply filters
+        filtered_alerts = []
+        for alert in all_alerts:
+            if alert.clv_percentage >= min_clv:
+                if confidence is None or alert.confidence_level.lower() == confidence.lower():
+                    filtered_alerts.append(alert)
+        
+        return {
+            "status": "success",
+            "opportunities": filtered_alerts,
+            "filters": {
+                "min_clv": min_clv,
+                "confidence": confidence,
+                "league_ids": parsed_league_ids
+            },
+            "count": len(filtered_alerts),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"CLV opportunities error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
