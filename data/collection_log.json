@@ -1395,5 +1395,105 @@
     "new_matches_collected": 1,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2025-08-28T01:40:41.245582",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 39,
+        "league_name": "Premier League",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 62,
+        "league_name": "League 62",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 1,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 1,
+        "consensus_saved": 1
+      },
+      {
+        "league_id": 72,
+        "league_name": "League 72",
+        "matches_found": 2,
+        "matches_processed": 2,
+        "matches_saved": 2,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 2,
+        "consensus_saved": 2
+      },
+      {
+        "league_id": 135,
+        "league_name": "Serie A",
+        "matches_found": 2,
+        "matches_processed": 2,
+        "matches_saved": 2,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 2,
+        "consensus_saved": 2
+      },
+      {
+        "league_id": 136,
+        "league_name": "League 136",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 1,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 1,
+        "consensus_saved": 1
+      },
+      {
+        "league_id": 140,
+        "league_name": "La Liga",
+        "matches_found": 3,
+        "matches_processed": 3,
+        "matches_saved": 3,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 3,
+        "consensus_saved": 3
+      },
+      {
+        "league_id": 141,
+        "league_name": "League 141",
+        "matches_found": 2,
+        "matches_processed": 2,
+        "matches_saved": 2,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 2,
+        "consensus_saved": 2
+      }
+    ],
+    "new_matches_collected": 11,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]
