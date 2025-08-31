@@ -6,7 +6,28 @@
 
 **Formula**: `CLV = (Your Odds - Closing Line Odds) / Closing Line Odds × 100`
 
-## CLV API Endpoints
+## CLV API Endpoints & Calculation Methods
+
+### Average Odds Calculation Method
+
+**Formula**: `AVG(odds_decimal)` - Simple arithmetic mean of all odds from a bookmaker
+
+**Example for Bookmaker 160**:
+- Total odds collected: 66 individual odds
+- Sum of all odds: 238.85
+- Average calculation: 238.85 ÷ 66 = 3.6189393939...
+- **Purpose**: Identifies bookmakers offering consistently higher or lower odds
+
+**Sample odds range**: [1.33, 1.44, 1.45, ..., 7.8, 11.5] across all match outcomes (H/D/A)
+
+### CLV Calculation Method
+
+**Formula**: `CLV% = (Best_Odds - Market_Average) / Market_Average × 100`
+
+**Example**:
+- Best odds found: 11.5 (Bookmaker 160)
+- Market average: 9.672 (average across all bookmakers)
+- CLV = (11.5 - 9.672) / 9.672 × 100 = +18.9% CLV
 
 ### 1. Dashboard Overview
 ```
@@ -15,10 +36,28 @@ Authorization: Bearer betgenius_secure_key_2024
 ```
 
 **Purpose**: Get comprehensive CLV monitoring overview
-- Active matches with CLV opportunities
-- Market movement summary
-- Top performing bookmakers
-- System status indicators
+
+**Response Structure**:
+```json
+{
+  "summary": {
+    "active_matches": 22,           // Matches with recent odds data
+    "positive_clv_opportunities": 20, // CLV opportunities above threshold
+    "significant_movements_6h": 0,   // Major odds changes (>5%)
+    "bookmakers_tracked": 10         // Active bookmakers providing odds
+  },
+  "live_alerts": [...],             // Top 10 current CLV opportunities
+  "top_bookmakers": [               // Bookmakers ranked by average odds
+    {
+      "book_id": "160",             // Internal bookmaker ID
+      "odds_count": 66,             // Total odds provided
+      "avg_odds": 3.6189,           // Average of all odds from this bookmaker
+      "matches": 22,                // Matches covered by this bookmaker
+      "is_premium": false           // Premium bookmaker status
+    }
+  ]
+}
+```
 
 ### 2. Live CLV Alerts
 ```
@@ -27,9 +66,33 @@ Authorization: Bearer betgenius_secure_key_2024
 ```
 
 **Purpose**: Real-time alerts for positive CLV opportunities
-- Filter by specific leagues
-- Automatic opportunity detection
-- Updates every 30 seconds recommended
+
+**Parameters**:
+- `league_ids` (optional): Filter by specific leagues (e.g., 39=Premier League, 140=La Liga)
+- `min_clv` (optional): Minimum CLV percentage threshold (default: 2.0)
+
+**Response Structure**:
+```json
+{
+  "status": "success",
+  "alerts": [
+    {
+      "match_id": 1377877,                    // Unique match identifier
+      "outcome": "A",                         // H=Home Win, D=Draw, A=Away Win
+      "best_odds": 11.5,                      // Highest odds found
+      "best_bookmaker": 160,                  // Bookmaker offering best odds
+      "market_odds": 9.672,                   // Average market odds
+      "clv_percentage": 18.899917287014052,   // CLV percentage
+      "confidence_level": "Medium",           // High/Medium/Low confidence
+      "time_to_kickoff_hours": 16.41,         // Hours until match starts
+      "recommendation": "CONSIDER - Positive CLV but close to kickoff",
+      "created_at": "2025-08-31T02:15:20.353691"
+    }
+  ],
+  "count": 20,                               // Total alerts found
+  "timestamp": "2025-08-31T03:04:28.029292"  // API response timestamp
+}
+```
 
 ### 3. Filtered Opportunities
 ```
@@ -38,10 +101,25 @@ Authorization: Bearer betgenius_secure_key_2024
 ```
 
 **Purpose**: Advanced filtering for specific CLV criteria
-- Minimum CLV threshold (default: 2.0%)
-- Confidence levels: High, Medium, Low
-- League-specific filtering
-- Custom opportunity discovery
+
+**Parameters**:
+- `min_clv` (optional): Minimum CLV percentage (default: 2.0)
+- `confidence` (optional): Filter by confidence level (High/Medium/Low)
+- `league_ids` (optional): Comma-separated league IDs
+
+**Response Structure**: Same as `/clv/alerts` but with applied filters
+```json
+{
+  "status": "success",
+  "opportunities": [...],           // Same structure as alerts
+  "filters": {                      // Applied filter summary
+    "min_clv": 3.0,
+    "confidence": "High",
+    "league_ids": [39, 140]
+  },
+  "count": 5                        // Opportunities matching filters
+}
+```
 
 ### 4. Match-Specific Analysis
 ```
@@ -50,10 +128,72 @@ Authorization: Bearer betgenius_secure_key_2024
 ```
 
 **Purpose**: Detailed CLV analysis for individual matches
-- Comprehensive outcome analysis (H/D/A)
-- Bookmaker comparison
-- Timing recommendations
-- Overall match assessment
+
+**Response Structure**:
+```json
+{
+  "match_id": 1377877,
+  "home_team": "Manchester United",
+  "away_team": "Liverpool", 
+  "league_id": 39,
+  "opportunities": [
+    {
+      "outcome": "A",                    // H/D/A outcome
+      "best_odds": 11.5,
+      "best_bookmaker": 160,
+      "market_odds": 9.672,
+      "clv_percentage": 18.9,
+      "confidence_level": "Medium",
+      "recommendation": "CONSIDER",
+      "bookmaker_spread": 2.1            // Difference between highest/lowest odds
+    }
+  ],
+  "market_summary": {
+    "total_bookmakers": 20,              // Bookmakers offering odds
+    "outcome_coverage": {                // Coverage by outcome
+      "H": 20, "D": 20, "A": 20
+    },
+    "market_efficiency": 0.85            // Market efficiency score (0-1)
+  },
+  "timing_analysis": {
+    "optimal_bet_time": "T-24h",         // Recommended betting window
+    "time_to_kickoff": "16h 25m",
+    "market_maturity": "High"            // Market development stage
+  },
+  "overall_recommendation": "MONITOR - Strong Away CLV opportunity"
+}
+```
+
+## CLV Response Field Definitions
+
+### Core Fields
+- **match_id**: Unique identifier for the football match
+- **outcome**: Betting outcome (H=Home Win, D=Draw, A=Away Win)
+- **best_odds**: Highest decimal odds found across all bookmakers
+- **best_bookmaker**: Bookmaker ID offering the highest odds
+- **market_odds**: Average decimal odds across all tracked bookmakers
+- **clv_percentage**: Calculated CLV as a percentage ((best_odds - market_odds) / market_odds × 100)
+
+### Assessment Fields
+- **confidence_level**: 
+  - "High": Premium bookmaker + large sample size + significant CLV
+  - "Medium": Good bookmaker coverage + moderate CLV
+  - "Low": Limited sample or minimal CLV
+- **recommendation**: 
+  - "STRONG BET": CLV >5%, High confidence
+  - "CONSIDER": CLV 3-5%, Medium+ confidence
+  - "AVOID": CLV <3% or Low confidence
+- **time_to_kickoff_hours**: Hours remaining until match kickoff
+
+### Market Analysis Fields
+- **bookmaker_spread**: Difference between highest and lowest odds (indicates market efficiency)
+- **market_efficiency**: Score from 0-1 (higher = more efficient market, lower CLV opportunities)
+- **total_bookmakers**: Number of bookmakers providing odds for this outcome
+
+### Premium Bookmaker Classifications
+- **Sharp Bookmakers**: [937, 468, 176, 215] - Professional/Pinnacle-style books
+- **Premium Bookmakers**: [148, 894, 710, 6, 748] - High-quality mainstream books
+- **is_premium**: Boolean indicating if bookmaker is classified as premium
 
 ## When to Bet (Positive CLV Strategy)
 
