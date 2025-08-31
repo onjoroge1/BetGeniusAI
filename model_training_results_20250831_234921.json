@@ -1,0 +1,109 @@
+{
+  "timestamp": "2025-08-31T23:49:21.382726",
+  "model_info": {
+    "is_trained": true,
+    "feature_count": 23,
+    "model_count": 3,
+    "scaler_fitted": true
+  },
+  "prediction_tests": [
+    {
+      "scenario": "Balanced Teams",
+      "success": true,
+      "prediction": {
+        "home_win_probability": 0.444,
+        "draw_probability": 0.273,
+        "away_win_probability": 0.283,
+        "confidence_score": 0.65,
+        "recommended_bet": "Draw"
+      },
+      "probability_sum": 1.0,
+      "valid_probabilities": true
+    },
+    {
+      "scenario": "Home Favorite",
+      "success": true,
+      "prediction": {
+        "home_win_probability": 0.444,
+        "draw_probability": 0.273,
+        "away_win_probability": 0.283,
+        "confidence_score": 0.65,
+        "recommended_bet": "Draw"
+      },
+      "probability_sum": 1.0,
+      "valid_probabilities": true
+    },
+    {
+      "scenario": "Away Favorite",
+      "success": true,
+      "prediction": {
+        "home_win_probability": 0.444,
+        "draw_probability": 0.273,
+        "away_win_probability": 0.283,
+        "confidence_score": 0.65,
+        "recommended_bet": "Draw"
+      },
+      "probability_sum": 1.0,
+      "valid_probabilities": true
+    },
+    {
+      "scenario": "All Zeros",
+      "success": true,
+      "prediction": {
+        "home_win_probability": 0.444,
+        "draw_probability": 0.273,
+        "away_win_probability": 0.283,
+        "confidence_score": 0.65,
+        "recommended_bet": "Draw"
+      },
+      "probability_sum": 1.0,
+      "valid_probabilities": true
+    },
+    {
+      "scenario": "High Values",
+      "success": true,
+      "prediction": {
+        "home_win_probability": 0.444,
+        "draw_probability": 0.273,
+        "away_win_probability": 0.283,
+        "confidence_score": 0.65,
+        "recommended_bet": "Draw"
+      },
+      "probability_sum": 1.0,
+      "valid_probabilities": true
+    }
+  ],
+  "model_performance": {},
+  "training_duration_seconds": 15.840899,
+  "feature_names": [
+    "african_market_flag",
+    "competition_tier",
+    "competitiveness_indicator",
+    "cross_league_applicability",
+    "data_quality_score",
+    "developing_market_flag",
+    "european_tier1_flag",
+    "foundation_value",
+    "goal_expectancy",
+    "league_competitiveness",
+    "league_home_advantage",
+    "match_importance",
+    "phase1a_enhanced",
+    "prediction_reliability",
+    "premier_league_weight",
+    "recency_score",
+    "regional_intensity",
+    "season_stage",
+    "south_american_flag",
+    "tactical_relevance",
+    "tactical_style_encoding",
+    "training_weight",
+    "venue_advantage_realized"
+  ],
+  "model_types": [
+    "random_forest",
+    "gradient_boosting",
+    "logistic_regression"
+  ],
+  "training_completed": "2025-08-31T23:49:21.383920"
+}

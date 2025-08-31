@@ -25,6 +25,8 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Enhanced Architecture**: Dual-table population strategy implemented and tested (August 18, 2025) with market-efficient consensus, league_map integration, timing-optimized data collection across 6 major European leagues, manual testing capability, and cross-table synchronization ensuring both training_matches and odds_consensus tables are populated consistently.
 - **Optimal Prediction Timing**: T-48h/T-24h windows for maximum market efficiency, with T-72h fallback data available.
 - **Real Data Integration**: Enhanced data collector with injuries, team news, recent form, and head-to-head records from RapidAPI.
+- **Auto-Retraining System**: Fixed and operational (August 31, 2025) - Models automatically retrain when 50+ matches collected weekly or 10+ matches per session. Training completed successfully with 5,348 matches, 23 numeric features, 3 algorithms (Random Forest, Gradient Boosting, Logistic Regression) in 15.8 seconds. All validation tests passed.
+- **Manual Training Scripts**: `manual_retrain_models.py` for comprehensive retraining with detailed analysis, `trigger_auto_retrain.py` for simulating automatic retraining cycles.
 - **Research Infrastructure**: Advanced features available for research; roadmap includes gradient boosting, deep learning (LSTM, attention networks), and reinforcement learning approaches.
 
 ### Enhanced Data Collection System (August 2025)

@@ -42,6 +42,12 @@ class MLPredictor:
             'league_home_advantage', 'african_market_flag'
         ]
         self.is_trained = False
+        
+        # Initialize ensemble models and scaler for training
+        self._initialize_models()
+        self.scaler = StandardScaler()
+        
+        # Try to load production model
         self._load_unified_model()
     
     def _load_unified_model(self):
@@ -99,13 +105,36 @@ class MLPredictor:
                 if isinstance(features, str):
                     features = json.loads(features)
                 
-                # Establish consistent feature ordering
+                # Establish consistent feature ordering - FILTER OUT NON-NUMERIC KEYS
                 if feature_keys is None:
-                    feature_keys = sorted(features.keys())
+                    # Filter out timestamp and string fields
+                    numeric_keys = []
+                    for key in sorted(features.keys()):
+                        value = features.get(key, 0.0)
+                        if isinstance(value, str) or key in ['collected_at', 'match_date', 'created_at', 'updated_at', 'timestamp']:
+                            continue
+                        try:
+                            float(value) if value is not None else 0.0
+                            numeric_keys.append(key)
+                        except (ValueError, TypeError):
+                            continue
+                    feature_keys = numeric_keys
                 
-                # Extract features in consistent order
-                feature_values = [features.get(key, 0.0) for key in feature_keys]
-                features_list.append(feature_values)
+                # Extract features in consistent order - FILTER OUT NON-NUMERIC
+                feature_values = []
+                for key in feature_keys:
+                    value = features.get(key, 0.0)
+                    # Skip timestamp, string, and non-numeric fields
+                    if isinstance(value, str) or key in ['collected_at', 'match_date', 'created_at', 'updated_at', 'timestamp']:
+                        continue
+                    try:
+                        feature_values.append(float(value) if value is not None else 0.0)
+                    except (ValueError, TypeError):
+                        # Skip non-convertible values
+                        continue
+                
+                if feature_values:  # Only add if we have numeric features
+                    features_list.append(feature_values)
             
             X = np.array(features_list, dtype=np.float32)
             
