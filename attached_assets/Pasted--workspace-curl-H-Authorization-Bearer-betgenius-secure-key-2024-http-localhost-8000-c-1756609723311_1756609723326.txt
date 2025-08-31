@@ -1,0 +1,10 @@
+~/workspace$ curl -H "Authorization: Bearer betgenius_secure_key_2024" \
+  "http://localhost:8000/clv/alerts?league_ids=39,140"
+{"status":"success","alerts":[],"count":0,"timestamp":"2025-08-31T0~/workspace$ curl -H "Authorization: Bearer betgenius_secure_key_2024" \cure_key_2024" \
+  "http://localhost:8000/clv/opportunities?min_clv=3.0&confidence=High"
+{"status":"success","opportunities":[],"filters":{"min_clv":3.0,"confidence":"High","league_ids":null},"count":0,"timestamp":"2025-08-31T03:04:28.029292"}~/workspace$ ^[[200~curl -H "Authorization: Bearer betgenius_secure_key_2024" \
+>   "http://localhost:8000/clv/dashboard"
+curl -H \"Authorization: Bearer betgenius_secure_key_2024\"   \"http://localhost:8000/clv/dashboard\"bash: curl: command not found
+~/workspace$ curl -H "Authorization: Bearer betgenius_secure_key_20
+24"   "http://localhost:8000/clv/dashboard"
+{"summary":{"active_matches":22,"positive_clv_opportunities":0,"significant_movements_6h":0,"bookmakers_tracked":10},"live_alerts":[],"top_bookmakers":[{"book_id":"160","odds_count":66,"avg_odds":3.6189393939393937,"matches":22,"is_premium":false},{"book_id":"854","odds_count":66,"avg_odds":3.5933333333333333,"matches":22,"is_premium":false},{"book_id":"282","odds_count":66,"avg_odds":3.555151515151515,"matches":22,"is_premium":false},{"book_id":"951","odds_count":66,"avg_odds":3.5431818181818184,"matches":22,"is_premium":false},{"book_id":"517","odds_count":66,"avg_odds":3.506212121212122,"matches":22,"is_premium":false},{"book_id":"849","odds_count":24,"avg_odds":3.4925,"matches":8,"is_premium":false},{"book_id":"0","odds_count":48,"avg_odds":3.491041666666666,"matches":16,"is_premium":false},{"book_id":"654","odds_count":66,"avg_odds":3.489242424242425,"matches":22,"is_premium":false},{"book_id":"335","odds_count":66,"avg_odds":3.4884848484848483,"matches":22,"is_premium":false},{"book_id":"910","odds_count":60,"avg_odds":3.4866666666666664,"matches":20,"is_premium":false}],"last_updated":"2025-08-31T03:06:08.512785"}~/workspace$ ^C

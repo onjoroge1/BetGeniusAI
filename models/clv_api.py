@@ -75,7 +75,7 @@ class CLVMonitorAPI:
                         os.created_at
                     FROM odds_snapshots os
                     WHERE os.match_id = %s
-                      AND os.created_at > NOW() - INTERVAL '6 hours'
+                      AND os.created_at > NOW() - INTERVAL '24 hours'
                     ORDER BY os.created_at DESC
                 """, (match_id,))
                 
@@ -205,8 +205,7 @@ class CLVMonitorAPI:
                                 ORDER BY os.created_at DESC
                             ) as rn
                         FROM odds_snapshots os
-                        JOIN training_matches tm ON os.match_id = tm.match_id
-                        WHERE os.created_at > NOW() - INTERVAL '2 hours'
+                        WHERE os.created_at > NOW() - INTERVAL '24 hours'
                           AND os.secs_to_kickoff > 3600  -- At least 1 hour to kickoff
                           {league_filter}
                     ),
