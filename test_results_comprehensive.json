@@ -1,10 +1,10 @@
 {
   "test_summary": {
     "total_tests": 16,
-    "passed": 13,
-    "failed": 3,
-    "success_rate": "81.2%",
-    "timestamp": "2025-08-31T02:12:10.488744"
+    "passed": 14,
+    "failed": 2,
+    "success_rate": "87.5%",
+    "timestamp": "2025-08-31T03:31:32.138681"
   },
   "system_status": "OPERATIONAL",
   "detailed_results": [
@@ -62,7 +62,7 @@
     },
     {
       "test": "Scheduler Integration",
-      "passed": false
+      "passed": true
     },
     {
       "test": "Data Pipeline Flow",

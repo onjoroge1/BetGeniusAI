@@ -93,6 +93,7 @@ Authorization: Bearer betgenius_secure_key_2024
   "timestamp": "2025-08-31T03:04:28.029292"  // API response timestamp
 }
 ```
+H/D/A (Home/Draw/Away) betting outcomes
 
 ### 3. Filtered Opportunities
 ```
@@ -163,37 +164,6 @@ Authorization: Bearer betgenius_secure_key_2024
   "overall_recommendation": "MONITOR - Strong Away CLV opportunity"
 }
 ```
-
-## CLV Response Field Definitions
-
-### Core Fields
-- **match_id**: Unique identifier for the football match
-- **outcome**: Betting outcome (H=Home Win, D=Draw, A=Away Win)
-- **best_odds**: Highest decimal odds found across all bookmakers
-- **best_bookmaker**: Bookmaker ID offering the highest odds
-- **market_odds**: Average decimal odds across all tracked bookmakers
-- **clv_percentage**: Calculated CLV as a percentage ((best_odds - market_odds) / market_odds × 100)
-
-### Assessment Fields
-- **confidence_level**: 
-  - "High": Premium bookmaker + large sample size + significant CLV
-  - "Medium": Good bookmaker coverage + moderate CLV
-  - "Low": Limited sample or minimal CLV
-- **recommendation**: 
-  - "STRONG BET": CLV >5%, High confidence
-  - "CONSIDER": CLV 3-5%, Medium+ confidence
-  - "AVOID": CLV <3% or Low confidence
-- **time_to_kickoff_hours**: Hours remaining until match kickoff
-
-### Market Analysis Fields
-- **bookmaker_spread**: Difference between highest and lowest odds (indicates market efficiency)
-- **market_efficiency**: Score from 0-1 (higher = more efficient market, lower CLV opportunities)
-- **total_bookmakers**: Number of bookmakers providing odds for this outcome
-
-### Premium Bookmaker Classifications
-- **Sharp Bookmakers**: [937, 468, 176, 215] - Professional/Pinnacle-style books
-- **Premium Bookmakers**: [148, 894, 710, 6, 748] - High-quality mainstream books
-- **is_premium**: Boolean indicating if bookmaker is classified as premium
 
 ## When to Bet (Positive CLV Strategy)
 

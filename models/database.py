@@ -129,8 +129,9 @@ class DatabaseManager:
             return False
     
     def save_training_matches_batch(self, matches: List[Dict[str, Any]]) -> int:
-        """Save multiple training matches in batch"""
+        """Save multiple training matches in batch with dual-table population"""
         saved_count = 0
+        new_matches = []
         session = self.SessionLocal()
         
         try:
@@ -161,6 +162,7 @@ class DatabaseManager:
                 )
                 
                 session.add(training_match)
+                new_matches.append(match_data)
                 saved_count += 1
             
             session.commit()
@@ -172,6 +174,11 @@ class DatabaseManager:
             saved_count = 0
         finally:
             session.close()
+        
+        # DUAL-TABLE POPULATION: Also save to odds_consensus
+        if new_matches and saved_count > 0:
+            consensus_saved = self.save_odds_consensus_batch(new_matches)
+            logger.info(f"DUAL-TABLE: Also saved {consensus_saved} matches to odds_consensus")
         
         return saved_count
     
