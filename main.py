@@ -781,7 +781,7 @@ async def predict_match(
         # Step 4: Calculate processing time
         processing_time = (datetime.now() - start_time).total_seconds()
         
-        # Step 5: Build comprehensive response
+        # Step 5: Build comprehensive response with frontend-compatible structure
         predictions = {
             "home_win": round(prediction_result['probabilities']['home'], 3),
             "draw": round(prediction_result['probabilities']['draw'], 3),
@@ -790,6 +790,7 @@ async def predict_match(
             "recommended_bet": prediction_result['prediction'].title()
         }
         
+        # Build response structure compatible with frontend expectations
         response = {
             "match_info": match_info,
             "predictions": predictions,
@@ -812,9 +813,37 @@ async def predict_match(
             "timestamp": datetime.now().isoformat()
         }
         
-        # Add AI analysis if available
+        # Add comprehensive_analysis structure for frontend compatibility
+        comprehensive_analysis = {
+            "ml_prediction": {
+                "confidence": prediction_result['confidence'],
+                "probabilities": {
+                    "home_win": round(prediction_result['probabilities']['home'], 3),
+                    "draw": round(prediction_result['probabilities']['draw'], 3),
+                    "away_win": round(prediction_result['probabilities']['away'], 3)
+                },
+                "model_type": "simple_weighted_consensus"
+            },
+            "ai_verdict": {
+                "recommended_outcome": prediction_result['prediction'].title(),
+                "confidence_level": "High" if prediction_result['confidence'] > 0.6 else "Medium" if prediction_result['confidence'] > 0.4 else "Low",
+                "explanation": ai_analysis.get('explanation', 'Prediction based on market-efficient consensus') if ai_analysis else "Prediction based on market-efficient consensus"
+            }
+        }
+        
+        # Add AI analysis details if available
         if ai_analysis:
+            comprehensive_analysis["ai_verdict"].update({
+                "detailed_analysis": ai_analysis.get('explanation', ''),
+                "confidence_factors": ai_analysis.get('confidence_factors', []),
+                "betting_recommendations": ai_analysis.get('betting_recommendations', {}),
+                "risk_assessment": ai_analysis.get('risk_assessment', 'Medium'),
+                "team_analysis": ai_analysis.get('team_analysis', {}),
+                "prediction_analysis": ai_analysis.get('prediction_analysis', {})
+            })
             response["analysis"] = ai_analysis
+        
+        response["comprehensive_analysis"] = comprehensive_analysis
         
         # Add additional markets using enhanced calculations
         if request.include_additional_markets:
