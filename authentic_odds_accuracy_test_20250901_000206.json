@@ -1,0 +1,2068 @@
+{
+  "test_timestamp": "20250901_000206",
+  "matches_tested": 64,
+  "total_odds_used": 5535,
+  "unique_bookmakers": 0,
+  "methods": {
+    "Simple Consensus": {
+      "accuracy": 0.71875,
+      "brier_score": 0.15740994709932182,
+      "log_loss": 0.8290650137155389
+    },
+    "Weighted Consensus": {
+      "accuracy": 0.71875,
+      "brier_score": 0.15740994709932182,
+      "log_loss": 0.8290650137155389
+    }
+  },
+  "detailed_results": [
+    {
+      "match_id": 1390845,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.051006729035235086,
+      "log_loss": 0.3835264621014774,
+      "predicted_probs": {
+        "H": 0.13911238426639919,
+        "D": 0.17943357062953114,
+        "A": 0.6814540451040698
+      },
+      "actual_prob": 0.6814540451040698
+    },
+    {
+      "match_id": 1390845,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0510067290352351,
+      "log_loss": 0.38352646210147756,
+      "predicted_probs": {
+        "H": 0.13911238426639916,
+        "D": 0.1794335706295311,
+        "A": 0.6814540451040697
+      },
+      "actual_prob": 0.6814540451040697
+    },
+    {
+      "match_id": 1390843,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17763422747386617,
+      "log_loss": 0.9064460914267122,
+      "predicted_probs": {
+        "H": 0.40395730333244084,
+        "D": 0.2991025618868389,
+        "A": 0.29694013478072023
+      },
+      "actual_prob": 0.40395730333244084
+    },
+    {
+      "match_id": 1390843,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17763422747386623,
+      "log_loss": 0.9064460914267124,
+      "predicted_probs": {
+        "H": 0.40395730333244073,
+        "D": 0.299102561886839,
+        "A": 0.29694013478072023
+      },
+      "actual_prob": 0.40395730333244073
+    },
+    {
+      "match_id": 1390841,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.222171828877321,
+      "log_loss": 1.0861611139993879,
+      "predicted_probs": {
+        "H": 0.33750967108974084,
+        "D": 0.2673103039229918,
+        "A": 0.3951800249872675
+      },
+      "actual_prob": 0.33750967108974084
+    },
+    {
+      "match_id": 1390841,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.22217182887732104,
+      "log_loss": 1.086161113999388,
+      "predicted_probs": {
+        "H": 0.3375096710897408,
+        "D": 0.2673103039229918,
+        "A": 0.39518002498726745
+      },
+      "actual_prob": 0.3375096710897408
+    },
+    {
+      "match_id": 1377877,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03775071863560415,
+      "log_loss": 0.31674126241146,
+      "predicted_probs": {
+        "H": 0.7285192260501473,
+        "D": 0.1724789223988916,
+        "A": 0.09900185155096114
+      },
+      "actual_prob": 0.7285192260501473
+    },
+    {
+      "match_id": 1377877,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03775071863560416,
+      "log_loss": 0.31674126241146,
+      "predicted_probs": {
+        "H": 0.7285192260501473,
+        "D": 0.1724789223988917,
+        "A": 0.09900185155096115
+      },
+      "actual_prob": 0.7285192260501473
+    },
+    {
+      "match_id": 1377878,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0705361064804985,
+      "log_loss": 0.4653399710228855,
+      "predicted_probs": {
+        "H": 0.6279215937513267,
+        "D": 0.2304509630909624,
+        "A": 0.14162744315771095
+      },
+      "actual_prob": 0.6279215937513267
+    },
+    {
+      "match_id": 1377878,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0705361064804985,
+      "log_loss": 0.4653399710228855,
+      "predicted_probs": {
+        "H": 0.6279215937513267,
+        "D": 0.2304509630909624,
+        "A": 0.14162744315771095
+      },
+      "actual_prob": 0.6279215937513267
+    },
+    {
+      "match_id": 1377876,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11669997460501029,
+      "log_loss": 0.6563725270604697,
+      "predicted_probs": {
+        "H": 0.20411033164379377,
+        "D": 0.27716006500976526,
+        "A": 0.5187296033464409
+      },
+      "actual_prob": 0.5187296033464409
+    },
+    {
+      "match_id": 1377876,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11669997460501029,
+      "log_loss": 0.6563725270604694,
+      "predicted_probs": {
+        "H": 0.2041103316437938,
+        "D": 0.27716006500976537,
+        "A": 0.518729603346441
+      },
+      "actual_prob": 0.518729603346441
+    },
+    {
+      "match_id": 1377883,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.24354109828633183,
+      "log_loss": 1.1907827211786268,
+      "predicted_probs": {
+        "H": 0.30398323680697137,
+        "D": 0.30348707832243765,
+        "A": 0.3925296848705911
+      },
+      "actual_prob": 0.30398323680697137
+    },
+    {
+      "match_id": 1377883,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.24354109828633172,
+      "log_loss": 1.1907827211786266,
+      "predicted_probs": {
+        "H": 0.3039832368069714,
+        "D": 0.30348707832243765,
+        "A": 0.392529684870591
+      },
+      "actual_prob": 0.3039832368069714
+    },
+    {
+      "match_id": 1380901,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.08130260613548991,
+      "log_loss": 0.5156610850504391,
+      "predicted_probs": {
+        "H": 0.18691914812805313,
+        "D": 0.21597512542933514,
+        "A": 0.5971057264426117
+      },
+      "actual_prob": 0.5971057264426117
+    },
+    {
+      "match_id": 1380901,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.08130260613548988,
+      "log_loss": 0.5156610850504388,
+      "predicted_probs": {
+        "H": 0.18691914812805316,
+        "D": 0.21597512542933514,
+        "A": 0.5971057264426118
+      },
+      "actual_prob": 0.5971057264426118
+    },
+    {
+      "match_id": 1380899,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.2945808503300775,
+      "log_loss": 1.3915346105686324,
+      "predicted_probs": {
+        "H": 0.24869336417668125,
+        "D": 0.23954663284071342,
+        "A": 0.5117600029826054
+      },
+      "actual_prob": 0.24869336417668125
+    },
+    {
+      "match_id": 1380899,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.2945808503300775,
+      "log_loss": 1.3915346105686324,
+      "predicted_probs": {
+        "H": 0.24869336417668125,
+        "D": 0.23954663284071337,
+        "A": 0.5117600029826054
+      },
+      "actual_prob": 0.24869336417668125
+    },
+    {
+      "match_id": 1390845,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.051006729035235086,
+      "log_loss": 0.3835264621014774,
+      "predicted_probs": {
+        "H": 0.13911238426639919,
+        "D": 0.17943357062953114,
+        "A": 0.6814540451040698
+      },
+      "actual_prob": 0.6814540451040698
+    },
+    {
+      "match_id": 1390845,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0510067290352351,
+      "log_loss": 0.38352646210147756,
+      "predicted_probs": {
+        "H": 0.13911238426639916,
+        "D": 0.1794335706295311,
+        "A": 0.6814540451040697
+      },
+      "actual_prob": 0.6814540451040697
+    },
+    {
+      "match_id": 1390843,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17763422747386617,
+      "log_loss": 0.9064460914267122,
+      "predicted_probs": {
+        "H": 0.40395730333244084,
+        "D": 0.2991025618868389,
+        "A": 0.29694013478072023
+      },
+      "actual_prob": 0.40395730333244084
+    },
+    {
+      "match_id": 1390843,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17763422747386623,
+      "log_loss": 0.9064460914267124,
+      "predicted_probs": {
+        "H": 0.40395730333244073,
+        "D": 0.299102561886839,
+        "A": 0.29694013478072023
+      },
+      "actual_prob": 0.40395730333244073
+    },
+    {
+      "match_id": 1390841,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.222171828877321,
+      "log_loss": 1.0861611139993879,
+      "predicted_probs": {
+        "H": 0.33750967108974084,
+        "D": 0.2673103039229918,
+        "A": 0.3951800249872675
+      },
+      "actual_prob": 0.33750967108974084
+    },
+    {
+      "match_id": 1390841,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.22217182887732104,
+      "log_loss": 1.086161113999388,
+      "predicted_probs": {
+        "H": 0.3375096710897408,
+        "D": 0.2673103039229918,
+        "A": 0.39518002498726745
+      },
+      "actual_prob": 0.3375096710897408
+    },
+    {
+      "match_id": 1377877,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03775071863560415,
+      "log_loss": 0.31674126241146,
+      "predicted_probs": {
+        "H": 0.7285192260501473,
+        "D": 0.1724789223988916,
+        "A": 0.09900185155096114
+      },
+      "actual_prob": 0.7285192260501473
+    },
+    {
+      "match_id": 1377877,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03775071863560416,
+      "log_loss": 0.31674126241146,
+      "predicted_probs": {
+        "H": 0.7285192260501473,
+        "D": 0.1724789223988917,
+        "A": 0.09900185155096115
+      },
+      "actual_prob": 0.7285192260501473
+    },
+    {
+      "match_id": 1377878,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3355165269207414,
+      "log_loss": 1.4677171806489895,
+      "predicted_probs": {
+        "H": 0.6279215937513267,
+        "D": 0.2304509630909624,
+        "A": 0.14162744315771095
+      },
+      "actual_prob": 0.2304509630909624
+    },
+    {
+      "match_id": 1377878,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3355165269207414,
+      "log_loss": 1.4677171806489895,
+      "predicted_probs": {
+        "H": 0.6279215937513267,
+        "D": 0.2304509630909624,
+        "A": 0.14162744315771095
+      },
+      "actual_prob": 0.2304509630909624
+    },
+    {
+      "match_id": 1377876,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11669997460501029,
+      "log_loss": 0.6563725270604697,
+      "predicted_probs": {
+        "H": 0.20411033164379377,
+        "D": 0.27716006500976526,
+        "A": 0.5187296033464409
+      },
+      "actual_prob": 0.5187296033464409
+    },
+    {
+      "match_id": 1377876,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11669997460501029,
+      "log_loss": 0.6563725270604694,
+      "predicted_probs": {
+        "H": 0.2041103316437938,
+        "D": 0.27716006500976537,
+        "A": 0.518729603346441
+      },
+      "actual_prob": 0.518729603346441
+    },
+    {
+      "match_id": 1377883,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.24354109828633183,
+      "log_loss": 1.1907827211786268,
+      "predicted_probs": {
+        "H": 0.30398323680697137,
+        "D": 0.30348707832243765,
+        "A": 0.3925296848705911
+      },
+      "actual_prob": 0.30398323680697137
+    },
+    {
+      "match_id": 1377883,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.24354109828633172,
+      "log_loss": 1.1907827211786266,
+      "predicted_probs": {
+        "H": 0.3039832368069714,
+        "D": 0.30348707832243765,
+        "A": 0.392529684870591
+      },
+      "actual_prob": 0.3039832368069714
+    },
+    {
+      "match_id": 1380901,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.08130260613548991,
+      "log_loss": 0.5156610850504391,
+      "predicted_probs": {
+        "H": 0.18691914812805313,
+        "D": 0.21597512542933514,
+        "A": 0.5971057264426117
+      },
+      "actual_prob": 0.5971057264426117
+    },
+    {
+      "match_id": 1380901,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.08130260613548988,
+      "log_loss": 0.5156610850504388,
+      "predicted_probs": {
+        "H": 0.18691914812805316,
+        "D": 0.21597512542933514,
+        "A": 0.5971057264426118
+      },
+      "actual_prob": 0.5971057264426118
+    },
+    {
+      "match_id": 1380899,
+      "method": "Simple Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11920309112612816,
+      "log_loss": 0.6698995080121218,
+      "predicted_probs": {
+        "H": 0.24869336417668125,
+        "D": 0.23954663284071342,
+        "A": 0.5117600029826054
+      },
+      "actual_prob": 0.5117600029826054
+    },
+    {
+      "match_id": 1380899,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11920309112612815,
+      "log_loss": 0.6698995080121218,
+      "predicted_probs": {
+        "H": 0.24869336417668125,
+        "D": 0.23954663284071337,
+        "A": 0.5117600029826054
+      },
+      "actual_prob": 0.5117600029826054
+    },
+    {
+      "match_id": 1380898,
+      "method": "Simple Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.1643631944139697,
+      "log_loss": 0.8498100864829201,
+      "predicted_probs": {
+        "H": 0.3131641140845576,
+        "D": 0.25933977438543093,
+        "A": 0.42749611153001144
+      },
+      "actual_prob": 0.42749611153001144
+    },
+    {
+      "match_id": 1380898,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.16436319441396974,
+      "log_loss": 0.8498100864829202,
+      "predicted_probs": {
+        "H": 0.3131641140845576,
+        "D": 0.25933977438543093,
+        "A": 0.4274961115300114
+      },
+      "actual_prob": 0.4274961115300114
+    },
+    {
+      "match_id": 1388319,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1962067837496334,
+      "log_loss": 0.9825275204524522,
+      "predicted_probs": {
+        "H": 0.3743636901747894,
+        "D": 0.28553113426780363,
+        "A": 0.34010517555740705
+      },
+      "actual_prob": 0.3743636901747894
+    },
+    {
+      "match_id": 1388319,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.19620678374963338,
+      "log_loss": 0.9825275204524522,
+      "predicted_probs": {
+        "H": 0.3743636901747894,
+        "D": 0.2855311342678036,
+        "A": 0.3401051755574071
+      },
+      "actual_prob": 0.3743636901747894
+    },
+    {
+      "match_id": 1388318,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.05133538053305373,
+      "log_loss": 0.3842942925558542,
+      "predicted_probs": {
+        "H": 0.6809310047638288,
+        "D": 0.1850159223980257,
+        "A": 0.13405307283814547
+      },
+      "actual_prob": 0.6809310047638288
+    },
+    {
+      "match_id": 1388318,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.051335380533053726,
+      "log_loss": 0.3842942925558542,
+      "predicted_probs": {
+        "H": 0.6809310047638288,
+        "D": 0.18501592239802564,
+        "A": 0.13405307283814547
+      },
+      "actual_prob": 0.6809310047638288
+    },
+    {
+      "match_id": 1388325,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2712111247054188,
+      "log_loss": 1.2983674134391279,
+      "predicted_probs": {
+        "H": 0.465467089957752,
+        "D": 0.26155582187299636,
+        "A": 0.2729770881692518
+      },
+      "actual_prob": 0.2729770881692518
+    },
+    {
+      "match_id": 1388325,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.27121112470541875,
+      "log_loss": 1.2983674134391276,
+      "predicted_probs": {
+        "H": 0.46546708995775193,
+        "D": 0.26155582187299636,
+        "A": 0.27297708816925187
+      },
+      "actual_prob": 0.27297708816925187
+    },
+    {
+      "match_id": 1387720,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.17867513019845135,
+      "log_loss": 0.9061508628036689,
+      "predicted_probs": {
+        "H": 0.33881699134660986,
+        "D": 0.2571064279563384,
+        "A": 0.40407658069705166
+      },
+      "actual_prob": 0.40407658069705166
+    },
+    {
+      "match_id": 1387720,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.17867513019845138,
+      "log_loss": 0.9061508628036687,
+      "predicted_probs": {
+        "H": 0.3388169913466099,
+        "D": 0.2571064279563385,
+        "A": 0.4040765806970517
+      },
+      "actual_prob": 0.4040765806970517
+    },
+    {
+      "match_id": 1387723,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.32298120761566823,
+      "log_loss": 1.548002559272801,
+      "predicted_probs": {
+        "H": 0.5335144251409655,
+        "D": 0.25381322459280947,
+        "A": 0.212672350266225
+      },
+      "actual_prob": 0.212672350266225
+    },
+    {
+      "match_id": 1387723,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.32298120761566834,
+      "log_loss": 1.5480025592728015,
+      "predicted_probs": {
+        "H": 0.5335144251409656,
+        "D": 0.25381322459280947,
+        "A": 0.2126723502662249
+      },
+      "actual_prob": 0.2126723502662249
+    },
+    {
+      "match_id": 1387717,
+      "method": "Simple Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.1448457107268902,
+      "log_loss": 0.7726778980286159,
+      "predicted_probs": {
+        "H": 0.27106502413652006,
+        "D": 0.26716015065076215,
+        "A": 0.46177482521271784
+      },
+      "actual_prob": 0.46177482521271784
+    },
+    {
+      "match_id": 1387717,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.14484571072689018,
+      "log_loss": 0.7726778980286159,
+      "predicted_probs": {
+        "H": 0.27106502413652006,
+        "D": 0.2671601506507621,
+        "A": 0.46177482521271784
+      },
+      "actual_prob": 0.46177482521271784
+    },
+    {
+      "match_id": 1387721,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.07770381786393861,
+      "log_loss": 0.5005533859096991,
+      "predicted_probs": {
+        "H": 0.6061951070453702,
+        "D": 0.21252315419663295,
+        "A": 0.1812817387579967
+      },
+      "actual_prob": 0.6061951070453702
+    },
+    {
+      "match_id": 1387721,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0777038178639386,
+      "log_loss": 0.5005533859096989,
+      "predicted_probs": {
+        "H": 0.6061951070453703,
+        "D": 0.21252315419663298,
+        "A": 0.18128173875799672
+      },
+      "actual_prob": 0.6061951070453703
+    },
+    {
+      "match_id": 1387716,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.136209120671649,
+      "log_loss": 0.7378017446290193,
+      "predicted_probs": {
+        "H": 0.2520307237127516,
+        "D": 0.26980538890852984,
+        "A": 0.4781638873787187
+      },
+      "actual_prob": 0.4781638873787187
+    },
+    {
+      "match_id": 1387716,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.136209120671649,
+      "log_loss": 0.7378017446290194,
+      "predicted_probs": {
+        "H": 0.25203072371275154,
+        "D": 0.2698053889085298,
+        "A": 0.4781638873787186
+      },
+      "actual_prob": 0.4781638873787186
+    },
+    {
+      "match_id": 1378989,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1176003277575427,
+      "log_loss": 0.662560638477701,
+      "predicted_probs": {
+        "H": 0.5155295580953246,
+        "D": 0.2613868482155881,
+        "A": 0.2230835936890872
+      },
+      "actual_prob": 0.5155295580953246
+    },
+    {
+      "match_id": 1378989,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.11760032775754266,
+      "log_loss": 0.6625606384777007,
+      "predicted_probs": {
+        "H": 0.5155295580953247,
+        "D": 0.2613868482155881,
+        "A": 0.22308359368908723
+      },
+      "actual_prob": 0.5155295580953247
+    },
+    {
+      "match_id": 1378993,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16986191088675984,
+      "log_loss": 0.8738389327307154,
+      "predicted_probs": {
+        "H": 0.41734630561523545,
+        "D": 0.27795259412991846,
+        "A": 0.30470110025484604
+      },
+      "actual_prob": 0.41734630561523545
+    },
+    {
+      "match_id": 1378993,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16986191088675992,
+      "log_loss": 0.8738389327307156,
+      "predicted_probs": {
+        "H": 0.4173463056152354,
+        "D": 0.2779525941299185,
+        "A": 0.30470110025484604
+      },
+      "actual_prob": 0.4173463056152354
+    },
+    {
+      "match_id": 1378990,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.29122424707739086,
+      "log_loss": 1.382179059801526,
+      "predicted_probs": {
+        "H": 0.2510309451996793,
+        "D": 0.24751844204772525,
+        "A": 0.5014506127525956
+      },
+      "actual_prob": 0.2510309451996793
+    },
+    {
+      "match_id": 1378990,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.29122424707739075,
+      "log_loss": 1.382179059801526,
+      "predicted_probs": {
+        "H": 0.2510309451996793,
+        "D": 0.24751844204772525,
+        "A": 0.5014506127525955
+      },
+      "actual_prob": 0.2510309451996793
+    },
+    {
+      "match_id": 1378995,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09073125152335133,
+      "log_loss": 0.5525423456227416,
+      "predicted_probs": {
+        "H": 0.5754848675400905,
+        "D": 0.24286890431629363,
+        "A": 0.18164622814361592
+      },
+      "actual_prob": 0.5754848675400905
+    },
+    {
+      "match_id": 1378995,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09073125152335139,
+      "log_loss": 0.5525423456227418,
+      "predicted_probs": {
+        "H": 0.5754848675400904,
+        "D": 0.24286890431629368,
+        "A": 0.18164622814361595
+      },
+      "actual_prob": 0.5754848675400904
+    },
+    {
+      "match_id": 1390832,
+      "method": "Simple Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.030048007571518206,
+      "log_loss": 0.2787584549063059,
+      "predicted_probs": {
+        "H": 0.09548308320261298,
+        "D": 0.147794253008963,
+        "A": 0.7567226637884241
+      },
+      "actual_prob": 0.7567226637884241
+    },
+    {
+      "match_id": 1390832,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.03004800757151822,
+      "log_loss": 0.278758454906306,
+      "predicted_probs": {
+        "H": 0.09548308320261296,
+        "D": 0.14779425300896296,
+        "A": 0.756722663788424
+      },
+      "actual_prob": 0.756722663788424
+    },
+    {
+      "match_id": 1390833,
+      "method": "Simple Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.20019487331926358,
+      "log_loss": 1.001584224552171,
+      "predicted_probs": {
+        "H": 0.32394020621622954,
+        "D": 0.308762694853038,
+        "A": 0.3672970989307326
+      },
+      "actual_prob": 0.3672970989307326
+    },
+    {
+      "match_id": 1390833,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.20019487331926364,
+      "log_loss": 1.0015842245521713,
+      "predicted_probs": {
+        "H": 0.3239402062162295,
+        "D": 0.3087626948530379,
+        "A": 0.36729709893073254
+      },
+      "actual_prob": 0.36729709893073254
+    },
+    {
+      "match_id": 1377870,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.045384534802635275,
+      "log_loss": 0.35433226500804393,
+      "predicted_probs": {
+        "H": 0.7016417976029399,
+        "D": 0.1854225764837326,
+        "A": 0.11293562591332756
+      },
+      "actual_prob": 0.7016417976029399
+    },
+    {
+      "match_id": 1377870,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.04538453480263529,
+      "log_loss": 0.35433226500804393,
+      "predicted_probs": {
+        "H": 0.7016417976029399,
+        "D": 0.18542257648373262,
+        "A": 0.1129356259133276
+      },
+      "actual_prob": 0.7016417976029399
+    },
+    {
+      "match_id": 1377871,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.15272827937112035,
+      "log_loss": 0.8039915203439549,
+      "predicted_probs": {
+        "H": 0.4475390330653895,
+        "D": 0.2897426656351452,
+        "A": 0.2627183012994654
+      },
+      "actual_prob": 0.4475390330653895
+    },
+    {
+      "match_id": 1377871,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.15272827937112035,
+      "log_loss": 0.8039915203439552,
+      "predicted_probs": {
+        "H": 0.4475390330653894,
+        "D": 0.28974266563514517,
+        "A": 0.2627183012994655
+      },
+      "actual_prob": 0.4475390330653894
+    },
+    {
+      "match_id": 1377872,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0779229652845932,
+      "log_loss": 0.4972845161677927,
+      "predicted_probs": {
+        "H": 0.15417015528785663,
+        "D": 0.23764992254000175,
+        "A": 0.6081799221721417
+      },
+      "actual_prob": 0.6081799221721417
+    },
+    {
+      "match_id": 1377872,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.07792296528459323,
+      "log_loss": 0.49728451616779284,
+      "predicted_probs": {
+        "H": 0.15417015528785652,
+        "D": 0.23764992254000183,
+        "A": 0.6081799221721416
+      },
+      "actual_prob": 0.6081799221721416
+    },
+    {
+      "match_id": 1377867,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.29825411235994076,
+      "log_loss": 1.4477929002688708,
+      "predicted_probs": {
+        "H": 0.4749979061142073,
+        "D": 0.2899135140217949,
+        "A": 0.23508857986399795
+      },
+      "actual_prob": 0.23508857986399795
+    },
+    {
+      "match_id": 1377867,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.29825411235994065,
+      "log_loss": 1.4477929002688708,
+      "predicted_probs": {
+        "H": 0.4749979061142072,
+        "D": 0.28991351402179477,
+        "A": 0.23508857986399798
+      },
+      "actual_prob": 0.23508857986399798
+    },
+    {
+      "match_id": 1380887,
+      "method": "Simple Consensus",
+      "bookmaker_count": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1677860985285676,
+      "log_loss": 0.8618020986327547,
+      "predicted_probs": {
+        "H": 0.42240018921721884,
+        "D": 0.2505508304924737,
+        "A": 0.32704898029030754
+      },
+      "actual_prob": 0.42240018921721884
+    },
+    {
+      "match_id": 1380887,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16778609852856766,
+      "log_loss": 0.8618020986327548,
+      "predicted_probs": {
+        "H": 0.4224001892172188,
+        "D": 0.25055083049247373,
+        "A": 0.3270489802903076
+      },
+      "actual_prob": 0.4224001892172188
+    },
+    {
+      "match_id": 1380886,
+      "method": "Simple Consensus",
+      "bookmaker_count": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.015242087833495128,
+      "log_loss": 0.18900469751256532,
+      "predicted_probs": {
+        "H": 0.8277826181663502,
+        "D": 0.11098863858587885,
+        "A": 0.061228743247770744
+      },
+      "actual_prob": 0.8277826181663502
+    },
+    {
+      "match_id": 1380886,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.01524208783349513,
+      "log_loss": 0.18900469751256532,
+      "predicted_probs": {
+        "H": 0.8277826181663502,
+        "D": 0.11098863858587885,
+        "A": 0.06122874324777076
+      },
+      "actual_prob": 0.8277826181663502
+    },
+    {
+      "match_id": 1380885,
+      "method": "Simple Consensus",
+      "bookmaker_count": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2837757615252197,
+      "log_loss": 1.3697738691964623,
+      "predicted_probs": {
+        "H": 0.46489939497219385,
+        "D": 0.25416442746113577,
+        "A": 0.2809361775666704
+      },
+      "actual_prob": 0.25416442746113577
+    },
+    {
+      "match_id": 1380885,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.28377576152521966,
+      "log_loss": 1.369773869196462,
+      "predicted_probs": {
+        "H": 0.46489939497219385,
+        "D": 0.2541644274611358,
+        "A": 0.28093617756667033
+      },
+      "actual_prob": 0.2541644274611358
+    },
+    {
+      "match_id": 1388315,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.10114681452340894,
+      "log_loss": 0.5962268353891682,
+      "predicted_probs": {
+        "H": 0.20351194248307053,
+        "D": 0.24560175320861846,
+        "A": 0.550886304308311
+      },
+      "actual_prob": 0.550886304308311
+    },
+    {
+      "match_id": 1388315,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.10114681452340894,
+      "log_loss": 0.5962268353891682,
+      "predicted_probs": {
+        "H": 0.2035119424830705,
+        "D": 0.24560175320861852,
+        "A": 0.550886304308311
+      },
+      "actual_prob": 0.550886304308311
+    },
+    {
+      "match_id": 1388311,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3119518097248021,
+      "log_loss": 1.4549835470077195,
+      "predicted_probs": {
+        "H": 0.5481489787355285,
+        "D": 0.23340420406712792,
+        "A": 0.21844681719734366
+      },
+      "actual_prob": 0.23340420406712792
+    },
+    {
+      "match_id": 1388311,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.311951809724802,
+      "log_loss": 1.4549835470077195,
+      "predicted_probs": {
+        "H": 0.5481489787355285,
+        "D": 0.2334042040671279,
+        "A": 0.21844681719734355
+      },
+      "actual_prob": 0.2334042040671279
+    },
+    {
+      "match_id": 1388313,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.248376643252585,
+      "log_loss": 1.1998390620425938,
+      "predicted_probs": {
+        "H": 0.3012426893942787,
+        "D": 0.2695749552935746,
+        "A": 0.42918235531214666
+      },
+      "actual_prob": 0.3012426893942787
+    },
+    {
+      "match_id": 1388313,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.2483766432525849,
+      "log_loss": 1.1998390620425934,
+      "predicted_probs": {
+        "H": 0.3012426893942788,
+        "D": 0.26957495529357467,
+        "A": 0.4291823553121466
+      },
+      "actual_prob": 0.3012426893942788
+    },
+    {
+      "match_id": 1388316,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.13880410368642965,
+      "log_loss": 0.7483242029464059,
+      "predicted_probs": {
+        "H": 0.2693302022177304,
+        "D": 0.2575109909208017,
+        "A": 0.4731588068614679
+      },
+      "actual_prob": 0.4731588068614679
+    },
+    {
+      "match_id": 1388316,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.13880410368642962,
+      "log_loss": 0.7483242029464058,
+      "predicted_probs": {
+        "H": 0.26933020221773046,
+        "D": 0.2575109909208017,
+        "A": 0.47315880686146794
+      },
+      "actual_prob": 0.47315880686146794
+    },
+    {
+      "match_id": 1388312,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.11551491305951646,
+      "log_loss": 0.6540029060439346,
+      "predicted_probs": {
+        "H": 0.5199602534277256,
+        "D": 0.26108526842590674,
+        "A": 0.2189544781463676
+      },
+      "actual_prob": 0.5199602534277256
+    },
+    {
+      "match_id": 1388312,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.11551491305951646,
+      "log_loss": 0.6540029060439346,
+      "predicted_probs": {
+        "H": 0.5199602534277256,
+        "D": 0.26108526842590674,
+        "A": 0.21895447814636754
+      },
+      "actual_prob": 0.5199602534277256
+    },
+    {
+      "match_id": 1387710,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.053923337646965885,
+      "log_loss": 0.39569180807376014,
+      "predicted_probs": {
+        "H": 0.673214143132513,
+        "D": 0.19155778746029595,
+        "A": 0.135228069407191
+      },
+      "actual_prob": 0.673214143132513
+    },
+    {
+      "match_id": 1387710,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.053923337646965906,
+      "log_loss": 0.3956918080737603,
+      "predicted_probs": {
+        "H": 0.6732141431325129,
+        "D": 0.19155778746029595,
+        "A": 0.135228069407191
+      },
+      "actual_prob": 0.6732141431325129
+    },
+    {
+      "match_id": 1387712,
+      "method": "Simple Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08922120908670585,
+      "log_loss": 0.5478607816577393,
+      "predicted_probs": {
+        "H": 0.578185353074033,
+        "D": 0.23055716720536745,
+        "A": 0.1912574797205996
+      },
+      "actual_prob": 0.578185353074033
+    },
+    {
+      "match_id": 1387712,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08922120908670585,
+      "log_loss": 0.5478607816577393,
+      "predicted_probs": {
+        "H": 0.578185353074033,
+        "D": 0.23055716720536745,
+        "A": 0.19125747972059962
+      },
+      "actual_prob": 0.578185353074033
+    },
+    {
+      "match_id": 1387711,
+      "method": "Simple Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.048937430252278646,
+      "log_loss": 0.3713282834541412,
+      "predicted_probs": {
+        "H": 0.6898174487291032,
+        "D": 0.19039331585589583,
+        "A": 0.1197892354150009
+      },
+      "actual_prob": 0.6898174487291032
+    },
+    {
+      "match_id": 1387711,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.048937430252278626,
+      "log_loss": 0.37132828345414104,
+      "predicted_probs": {
+        "H": 0.6898174487291033,
+        "D": 0.19039331585589586,
+        "A": 0.1197892354150009
+      },
+      "actual_prob": 0.6898174487291033
+    },
+    {
+      "match_id": 1387713,
+      "method": "Simple Consensus",
+      "bookmaker_count": 78,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.007681148165368505,
+      "log_loss": 0.1291537658544799,
+      "predicted_probs": {
+        "H": 0.8788388197533759,
+        "D": 0.08320134495126917,
+        "A": 0.03795983529535505
+      },
+      "actual_prob": 0.8788388197533759
+    },
+    {
+      "match_id": 1387713,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 78,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0076811481653685084,
+      "log_loss": 0.12915376585448005,
+      "predicted_probs": {
+        "H": 0.8788388197533757,
+        "D": 0.08320134495126909,
+        "A": 0.03795983529535502
+      },
+      "actual_prob": 0.8788388197533757
+    },
+    {
+      "match_id": 1378979,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03288014587813581,
+      "log_loss": 0.29273516499028185,
+      "predicted_probs": {
+        "H": 0.7462197396425073,
+        "D": 0.15877905312804225,
+        "A": 0.09500120722945041
+      },
+      "actual_prob": 0.7462197396425073
+    },
+    {
+      "match_id": 1378979,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.032880145878135834,
+      "log_loss": 0.292735164990282,
+      "predicted_probs": {
+        "H": 0.7462197396425072,
+        "D": 0.1587790531280423,
+        "A": 0.09500120722945041
+      },
+      "actual_prob": 0.7462197396425072
+    },
+    {
+      "match_id": 1378981,
+      "method": "Simple Consensus",
+      "bookmaker_count": 22,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2735029559578579,
+      "log_loss": 1.3270294766442874,
+      "predicted_probs": {
+        "H": 0.2940415496714652,
+        "D": 0.2652640652127061,
+        "A": 0.44069438511582865
+      },
+      "actual_prob": 0.2652640652127061
+    },
+    {
+      "match_id": 1378981,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 22,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2735029559578578,
+      "log_loss": 1.3270294766442867,
+      "predicted_probs": {
+        "H": 0.2940415496714652,
+        "D": 0.2652640652127063,
+        "A": 0.44069438511582865
+      },
+      "actual_prob": 0.2652640652127063
+    },
+    {
+      "match_id": 1378982,
+      "method": "Simple Consensus",
+      "bookmaker_count": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18505810855007898,
+      "log_loss": 0.9374260252947899,
+      "predicted_probs": {
+        "H": 0.3916345966591008,
+        "D": 0.3017713040430926,
+        "A": 0.3065940992978067
+      },
+      "actual_prob": 0.3916345966591008
+    },
+    {
+      "match_id": 1378982,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18505810855007895,
+      "log_loss": 0.9374260252947897,
+      "predicted_probs": {
+        "H": 0.39163459665910083,
+        "D": 0.3017713040430925,
+        "A": 0.3065940992978067
+      },
+      "actual_prob": 0.39163459665910083
+    },
+    {
+      "match_id": 1378986,
+      "method": "Simple Consensus",
+      "bookmaker_count": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.05903167260727805,
+      "log_loss": 0.4195594386795721,
+      "predicted_probs": {
+        "H": 0.6573363530034563,
+        "D": 0.1933256335635638,
+        "A": 0.1493380134329799
+      },
+      "actual_prob": 0.6573363530034563
+    },
+    {
+      "match_id": 1378986,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.05903167260727804,
+      "log_loss": 0.4195594386795721,
+      "predicted_probs": {
+        "H": 0.6573363530034563,
+        "D": 0.19332563356356375,
+        "A": 0.14933801343297987
+      },
+      "actual_prob": 0.6573363530034563
+    },
+    {
+      "match_id": 1378988,
+      "method": "Simple Consensus",
+      "bookmaker_count": 84,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0907179947814617,
+      "log_loss": 0.553965090689563,
+      "predicted_probs": {
+        "H": 0.1927752471793781,
+        "D": 0.23255807136373302,
+        "A": 0.5746666814568889
+      },
+      "actual_prob": 0.5746666814568889
+    },
+    {
+      "match_id": 1378988,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 84,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.09071799478146177,
+      "log_loss": 0.5539650906895633,
+      "predicted_probs": {
+        "H": 0.19277524717937827,
+        "D": 0.23255807136373297,
+        "A": 0.5746666814568887
+      },
+      "actual_prob": 0.5746666814568887
+    },
+    {
+      "match_id": 1387713,
+      "method": "Simple Consensus",
+      "bookmaker_count": 78,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.5381061313667729,
+      "log_loss": 2.4864917660059533,
+      "predicted_probs": {
+        "H": 0.8788388197533759,
+        "D": 0.08320134495126917,
+        "A": 0.03795983529535505
+      },
+      "actual_prob": 0.08320134495126917
+    },
+    {
+      "match_id": 1387713,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 78,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.5381061313667729,
+      "log_loss": 2.4864917660059542,
+      "predicted_probs": {
+        "H": 0.8788388197533757,
+        "D": 0.08320134495126909,
+        "A": 0.03795983529535502
+      },
+      "actual_prob": 0.08320134495126909
+    },
+    {
+      "match_id": 1378988,
+      "method": "Simple Consensus",
+      "bookmaker_count": 84,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0907179947814617,
+      "log_loss": 0.553965090689563,
+      "predicted_probs": {
+        "H": 0.1927752471793781,
+        "D": 0.23255807136373302,
+        "A": 0.5746666814568889
+      },
+      "actual_prob": 0.5746666814568889
+    },
+    {
+      "match_id": 1378988,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 84,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.09071799478146177,
+      "log_loss": 0.5539650906895633,
+      "predicted_probs": {
+        "H": 0.19277524717937827,
+        "D": 0.23255807136373297,
+        "A": 0.5746666814568887
+      },
+      "actual_prob": 0.5746666814568887
+    },
+    {
+      "match_id": 1387713,
+      "method": "Simple Consensus",
+      "bookmaker_count": 78,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.007681148165368505,
+      "log_loss": 0.1291537658544799,
+      "predicted_probs": {
+        "H": 0.8788388197533759,
+        "D": 0.08320134495126917,
+        "A": 0.03795983529535505
+      },
+      "actual_prob": 0.8788388197533759
+    },
+    {
+      "match_id": 1387713,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 78,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0076811481653685084,
+      "log_loss": 0.12915376585448005,
+      "predicted_probs": {
+        "H": 0.8788388197533757,
+        "D": 0.08320134495126909,
+        "A": 0.03795983529535502
+      },
+      "actual_prob": 0.8788388197533757
+    },
+    {
+      "match_id": 1378988,
+      "method": "Simple Consensus",
+      "bookmaker_count": 84,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0907179947814617,
+      "log_loss": 0.553965090689563,
+      "predicted_probs": {
+        "H": 0.1927752471793781,
+        "D": 0.23255807136373302,
+        "A": 0.5746666814568889
+      },
+      "actual_prob": 0.5746666814568889
+    },
+    {
+      "match_id": 1378988,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 84,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.09071799478146177,
+      "log_loss": 0.5539650906895633,
+      "predicted_probs": {
+        "H": 0.19277524717937827,
+        "D": 0.23255807136373297,
+        "A": 0.5746666814568887
+      },
+      "actual_prob": 0.5746666814568887
+    },
+    {
+      "match_id": 1387713,
+      "method": "Simple Consensus",
+      "bookmaker_count": 78,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.5381061313667729,
+      "log_loss": 2.4864917660059533,
+      "predicted_probs": {
+        "H": 0.8788388197533759,
+        "D": 0.08320134495126917,
+        "A": 0.03795983529535505
+      },
+      "actual_prob": 0.08320134495126917
+    },
+    {
+      "match_id": 1387713,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 78,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.5381061313667729,
+      "log_loss": 2.4864917660059542,
+      "predicted_probs": {
+        "H": 0.8788388197533757,
+        "D": 0.08320134495126909,
+        "A": 0.03795983529535502
+      },
+      "actual_prob": 0.08320134495126909
+    },
+    {
+      "match_id": 1378988,
+      "method": "Simple Consensus",
+      "bookmaker_count": 84,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0907179947814617,
+      "log_loss": 0.553965090689563,
+      "predicted_probs": {
+        "H": 0.1927752471793781,
+        "D": 0.23255807136373302,
+        "A": 0.5746666814568889
+      },
+      "actual_prob": 0.5746666814568889
+    },
+    {
+      "match_id": 1378988,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 84,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.09071799478146177,
+      "log_loss": 0.5539650906895633,
+      "predicted_probs": {
+        "H": 0.19277524717937827,
+        "D": 0.23255807136373297,
+        "A": 0.5746666814568887
+      },
+      "actual_prob": 0.5746666814568887
+    },
+    {
+      "match_id": 1390826,
+      "method": "Simple Consensus",
+      "bookmaker_count": 52,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.4949038028730604,
+      "log_loss": 2.580341214284491,
+      "predicted_probs": {
+        "H": 0.7809904669598735,
+        "D": 0.14326137977927123,
+        "A": 0.07574815326085527
+      },
+      "actual_prob": 0.07574815326085527
+    },
+    {
+      "match_id": 1390826,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 52,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.4949038028730604,
+      "log_loss": 2.58034121428449,
+      "predicted_probs": {
+        "H": 0.7809904669598735,
+        "D": 0.14326137977927128,
+        "A": 0.07574815326085534
+      },
+      "actual_prob": 0.07574815326085534
+    },
+    {
+      "match_id": 1390826,
+      "method": "Simple Consensus",
+      "bookmaker_count": 52,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.024742260407048286,
+      "log_loss": 0.2471923354142924,
+      "predicted_probs": {
+        "H": 0.7809904669598735,
+        "D": 0.14326137977927123,
+        "A": 0.07574815326085527
+      },
+      "actual_prob": 0.7809904669598735
+    },
+    {
+      "match_id": 1390826,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 52,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.024742260407048296,
+      "log_loss": 0.2471923354142924,
+      "predicted_probs": {
+        "H": 0.7809904669598735,
+        "D": 0.14326137977927128,
+        "A": 0.07574815326085534
+      },
+      "actual_prob": 0.7809904669598735
+    },
+    {
+      "match_id": 1390826,
+      "method": "Simple Consensus",
+      "bookmaker_count": 52,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.024742260407048286,
+      "log_loss": 0.2471923354142924,
+      "predicted_probs": {
+        "H": 0.7809904669598735,
+        "D": 0.14326137977927123,
+        "A": 0.07574815326085527
+      },
+      "actual_prob": 0.7809904669598735
+    },
+    {
+      "match_id": 1390826,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 52,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.024742260407048296,
+      "log_loss": 0.2471923354142924,
+      "predicted_probs": {
+        "H": 0.7809904669598735,
+        "D": 0.14326137977927128,
+        "A": 0.07574815326085534
+      },
+      "actual_prob": 0.7809904669598735
+    },
+    {
+      "match_id": 1378978,
+      "method": "Simple Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25271573897803296,
+      "log_loss": 1.2317709504723602,
+      "predicted_probs": {
+        "H": 0.4078435341137218,
+        "D": 0.2917754000854687,
+        "A": 0.3003810658008096
+      },
+      "actual_prob": 0.2917754000854687
+    },
+    {
+      "match_id": 1378978,
+      "method": "Weighted Consensus",
+      "bookmaker_count": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25271573897803296,
+      "log_loss": 1.2317709504723604,
+      "predicted_probs": {
+        "H": 0.4078435341137218,
+        "D": 0.29177540008546865,
+        "A": 0.3003810658008096
+      },
+      "actual_prob": 0.29177540008546865
+    }
+  ]
+}
