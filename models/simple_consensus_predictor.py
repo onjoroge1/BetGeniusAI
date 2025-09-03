@@ -14,20 +14,31 @@ class SimpleWeightedConsensusPredictor:
     
     def __init__(self):
         # Quality weights from 31-year bookmaker analysis
-        self.weights = {
+        # Primary tier - proven best performers
+        self.primary_weights = {
             'pinnacle': 0.35,    # Sharp leader - best LogLoss performance
             'bet365': 0.25,     # High quality recreational
             'betway': 0.22,     # Quality recreational
             'william_hill': 0.18 # Standard recreational
         }
         
+        # Extended weights for all available bookmakers
+        self.weights = {
+            # Primary tier (proven performers)
+            'pinnacle': 0.35, 'bet365': 0.25, 'betway': 0.22, 'william_hill': 0.18,
+            # Secondary tier (major international bookmakers)
+            'unibet': 0.15, '1xbet': 0.12, 'bwin': 0.14, 'betfair': 0.20,
+            # Tertiary tier (regional/smaller bookmakers)
+            'draftkings': 0.10, 'sportingbet': 0.08, 'marathon': 0.07, 'betano': 0.09,
+            'tipico': 0.08, 'interwetten': 0.07, 'nordicbet': 0.06, 'bovada': 0.09,
+            'fanduel': 0.10, 'caesars': 0.08, 'pointsbet': 0.07, 'betmgm': 0.09,
+            'pokerstars': 0.08, 'ladbrokes': 0.12, 'coral': 0.10, 'parions_sport': 0.11
+        }
+        
         # Alternative bookmaker mappings
         self.bookmaker_aliases = {
-            'ps': 'pinnacle',
-            'b365': 'bet365',
-            'bw': 'betway',
-            'wh': 'william_hill',
-            'william hill': 'william_hill'
+            'ps': 'pinnacle', 'b365': 'bet365', 'bw': 'betway', 'wh': 'william_hill',
+            'william hill': 'william_hill', 'parions sport': 'parions_sport'
         }
     
     def normalize_bookmaker_name(self, bookmaker: str) -> str:
