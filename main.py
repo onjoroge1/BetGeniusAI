@@ -798,12 +798,14 @@ async def predict_match(
         processing_time = (datetime.now() - start_time).total_seconds()
         
         # Step 5: Build comprehensive response with frontend-compatible structure
+        # Map new consensus predictor keys to frontend expectations
+        probabilities = prediction_result.get('probabilities', {})
         predictions = {
-            "home_win": round(prediction_result['probabilities'].get('home_win', 0.0), 3),
-            "draw": round(prediction_result['probabilities'].get('draw', 0.0), 3),
-            "away_win": round(prediction_result['probabilities'].get('away_win', 0.0), 3),
+            "home_win": round(probabilities.get('home', 0.0), 3),
+            "draw": round(probabilities.get('draw', 0.0), 3),
+            "away_win": round(probabilities.get('away', 0.0), 3),
             "confidence": prediction_result['confidence'],
-            "recommended_bet": prediction_result['prediction'].title() if prediction_result['prediction'] != 'no_prediction' else 'No Prediction'
+            "recommended_bet": prediction_result.get('prediction', 'No Prediction')
         }
         
         # Build response structure compatible with frontend expectations
@@ -834,14 +836,14 @@ async def predict_match(
             "ml_prediction": {
                 "confidence": prediction_result['confidence'],
                 "probabilities": {
-                    "home_win": round(prediction_result['probabilities'].get('home_win', 0.0), 3),
-                    "draw": round(prediction_result['probabilities'].get('draw', 0.0), 3),
-                    "away_win": round(prediction_result['probabilities'].get('away_win', 0.0), 3)
+                    "home_win": round(probabilities.get('home', 0.0), 3),
+                    "draw": round(probabilities.get('draw', 0.0), 3),
+                    "away_win": round(probabilities.get('away', 0.0), 3)
                 },
-                "model_type": "simple_weighted_consensus"
+                "model_type": prediction_result.get('model_type', 'robust_weighted_consensus')
             },
             "ai_verdict": {
-                "recommended_outcome": prediction_result['prediction'].title() if prediction_result['prediction'] != 'no_prediction' else 'No Prediction',
+                "recommended_outcome": prediction_result.get('prediction', 'No Prediction'),
                 "confidence_level": "None" if prediction_result['confidence'] == 0.0 else "High" if prediction_result['confidence'] > 0.6 else "Medium" if prediction_result['confidence'] > 0.4 else "Low",
                 "explanation": ai_analysis.get('explanation', 'Prediction based on market-efficient consensus') if ai_analysis else "Prediction based on market-efficient consensus"
             }

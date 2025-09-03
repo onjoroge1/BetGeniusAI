@@ -1,0 +1,187 @@
+You’re seeing exactly what we’d expect from three coupled bugs in the /predict path:
+
+1. **Wrong time column in odds query**
+   The test script used `created_at` in `odds_snapshots`, but that table’s timestamp is `ts_snapshot`. Filtering on a non-existent/always-NULL column silently yields “no data”, which collapses probs to zeros (except whatever field survived).
+
+2. **Outcome regrouping/join bug (H/D/A → home/draw/away)**
+   If your consensus builder inner-joins per-outcome rows, a missing outcome at a given snapshot can drop the others. Result: only one outcome (often Draw) survives.
+
+3. **No safe normalization + stale recommender**
+   Probabilities aren’t clamped/renormalized, and the “recommended\_bet” logic is reading a different (or stale) vector than what you return—so it can say “Home” while `home_win` is 0.
+
+Below is a tight, production-safe hotfix plan you can paste into the codebase today.
+
+---
+
+## A. Fix the data fetch (use `ts_snapshot`, not `created_at`)
+
+**Before (bad):**
+
+```sql
+SELECT * FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '30 days' ...
+```
+
+**After (good):**
+
+```sql
+SELECT * FROM odds_snapshots
+WHERE ts_snapshot >= NOW() - INTERVAL '30 days' ...
+```
+
+**And for horizon bucketing (±1h tolerance):**
+
+```sql
+WITH bucketed AS (
+  SELECT *,
+    CASE
+      WHEN secs_to_kickoff BETWEEN (72*3600 - 3600) AND (72*3600 + 3600) THEN '72h'
+      WHEN secs_to_kickoff BETWEEN (48*3600 - 3600) AND (48*3600 + 3600) THEN '48h'
+      WHEN secs_to_kickoff BETWEEN (24*3600 - 3600) AND (24*3600 + 3600) THEN '24h'
+      ELSE NULL
+    END AS time_bucket
+  FROM odds_snapshots
+  WHERE match_id = %(match_id)s
+)
+SELECT match_id, book_id, outcome, time_bucket, odds_decimal, implied_prob
+FROM bucketed
+WHERE time_bucket = %(bucket)s;
+```
+
+---
+
+## B. Make the 1×2 consensus robust to missing outcomes
+
+De-vig per **book × snapshot** only if you have **H, D, A** for that book at that snapshot. Don’t inner-join outcomes at the consensus step; aggregate per outcome separately, then outer-merge.
+
+```python
+OUTCOME_MAP = {'H': 'home', 'D': 'draw', 'A': 'away'}
+
+def devig_triplet(pH, pD, pA):
+    s = pH + pD + pA
+    if s <= 1e-12:
+        return None
+    return (pH/s, pD/s, pA/s)
+
+def build_consensus(rows):  # rows: list of {book_id, outcome in 'H/D/A', implied_prob}
+    # group by book,snapshot and devig only complete triplets
+    by_book_ts = {}
+    for r in rows:
+        key = (r['book_id'], r['ts_snapshot'])
+        by_book_ts.setdefault(key, {})[r['outcome']] = float(r['implied_prob'])
+
+    triplets = []
+    for (book, ts), d in by_book_ts.items():
+        if all(k in d for k in ('H','D','A')):
+            t = devig_triplet(d['H'], d['D'], d['A'])
+            if t: triplets.append(t)
+
+    if not triplets:
+        return None  # upstream should fall back to equal-of-available or return no-data
+
+    # equal-weight consensus across books
+    pH = sum(t[0] for t in triplets)/len(triplets)
+    pD = sum(t[1] for t in triplets)/len(triplets)
+    pA = sum(t[2] for t in triplets)/len(triplets)
+    return pH, pD, pA, len(triplets)
+```
+
+---
+
+## C. Always “safe-normalize” before returning / using probs
+
+```python
+import math
+def safe_simplex(p_dict, eps=1e-12):
+    # ensure nonnegative floats
+    p = {k: max(float(v), 0.0) for k, v in p_dict.items()}
+    s = sum(p.values())
+    if s < eps:
+        return None
+    return {k: v/s for k, v in p.items()}
+
+def prob_confidence(p):  # entropy-based confidence in [0,1]
+    # p is dict with keys home/draw/away that sum to 1
+    H = -sum(v*math.log(max(v,1e-12)) for v in p.values())
+    Hmax = math.log(3.0)
+    return max(0.0, min(1.0, 1 - H/Hmax))
+```
+
+---
+
+## D. Keep “recommended\_bet” consistent with the same probs you return
+
+Use the **exact** normalized vector you serialize; do not re-compute in a different code path. Enforce a minimum confidence threshold so you don’t recommend when it’s mush.
+
+```python
+def choose_recommendation(p, min_conf=0.60):
+    # p: dict {'home':..,'draw':..,'away':..}, already normalized
+    side = max(p, key=p.get)        # 'home'|'draw'|'away'
+    conf = prob_confidence(p)
+    if conf < min_conf:             # or use EV threshold if book odds available
+        return "No Bet", conf
+    label = {'home':'Home','draw':'Draw','away':'Away'}[side]
+    return label, conf
+```
+
+**Return example from /predict (after fixes):**
+
+```json
+"predictions": {
+  "home_win": 0.472,
+  "draw":     0.261,
+  "away_win": 0.267,
+  "confidence": 0.72,
+  "recommended_bet": "Home"
+}
+```
+
+---
+
+## E. Add two cheap guards so this never regresses
+
+1. **Unit test: sums & argmax alignment**
+
+```python
+def test_probs_sum_and_reco_align():
+    p = {'home':0.0,'draw':0.255,'away':0.0}
+    p2 = safe_simplex(p)                 # → None (invalid), or renorm if you want that behavior
+    assert p2 is None                    # choose your policy explicitly
+
+    q = {'home':0.472,'draw':0.261,'away':0.267}
+    q = safe_simplex(q)
+    assert abs(sum(q.values()) - 1) < 1e-9
+    reco, _ = choose_recommendation(q, min_conf=0.0)
+    assert reco == 'Home'
+```
+
+2. **API integration test** (golden match\_id with known consensus):
+
+* Hit `/predict` and assert `home+draw+away≈1`, the largest equals `recommended_bet`, and `confidence ∈ [0,1]`.
+
+---
+
+## F. If consensus still returns “no data”
+
+Relax your “complete triplet” requirement cautiously:
+
+* Permit **book-level** triplets from any snapshot within the bucket (±1h), but do **not** mix partial (e.g., moneyline-only pairs) into a 1×2 devig step.
+* If **too few triplets** (e.g., `< 2 books`), return a **low-coverage** flag and *don’t* recommend a side.
+
+---
+
+## G. Re-test /predict end-to-end (matches with good coverage)
+
+Follow your documented flow to pick valid `match_id`s first, then POST `/predict`. (Make sure you’re using the correct **Authorization: Bearer** header and the right port; your doc example shows the happy path and fields users expect.)&#x20;
+
+---
+
+### TL;DR
+
+* Swap `created_at` → `ts_snapshot`.
+* Don’t inner-join outcomes; devig per book snapshot then average.
+* Clamp & renormalize probs before use; compute **confidence** from the same vector.
+* Align `recommended_bet` with **argmax** (and with an explicit min-confidence policy).
+* Add the two tests above to prevent this class of regressions.
+
+If you paste these pieces in, that “home=0, draw=0.255, away=0” + “recommend Home” bug should disappear immediately—and your /predict output will be consistent, normalized, and trustworthy.
