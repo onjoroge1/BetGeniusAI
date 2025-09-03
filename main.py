@@ -698,6 +698,114 @@ async def health_check():
             }
         )
 
+@app.get("/predict/health")
+async def prediction_health_check():
+    """Dedicated health check for prediction system"""
+    try:
+        import psycopg2
+        import os
+        
+        # Check database connection and odds data
+        database_url = os.environ.get('DATABASE_URL')
+        with psycopg2.connect(database_url) as conn:
+            with conn.cursor() as cursor:
+                # Check recent odds snapshots
+                cursor.execute("""
+                    SELECT 
+                        COUNT(*) as total_snapshots,
+                        COUNT(DISTINCT match_id) as unique_matches,
+                        COUNT(DISTINCT book_id) as unique_bookmakers,
+                        MAX(ts_snapshot) as latest_snapshot
+                    FROM odds_snapshots 
+                    WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+                """)
+                odds_stats = cursor.fetchone()
+                
+                # Check for complete triplets availability
+                cursor.execute("""
+                    WITH complete_triplets AS (
+                        SELECT 
+                            match_id, 
+                            book_id,
+                            COUNT(DISTINCT outcome) as outcome_count
+                        FROM odds_snapshots 
+                        WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+                        GROUP BY match_id, book_id
+                        HAVING COUNT(DISTINCT outcome) = 3
+                    )
+                    SELECT 
+                        COUNT(DISTINCT match_id) as matches_with_triplets,
+                        AVG(triplet_count) as avg_triplets_per_match
+                    FROM (
+                        SELECT match_id, COUNT(*) as triplet_count
+                        FROM complete_triplets 
+                        GROUP BY match_id
+                    ) t
+                """)
+                triplet_stats = cursor.fetchone()
+                
+        # Test consensus prediction with sample data
+        sample_odds = {
+            'test_book_1': {'home': 2.00, 'draw': 3.50, 'away': 3.00},
+            'test_book_2': {'home': 1.95, 'draw': 3.40, 'away': 3.20}
+        }
+        
+        test_prediction = consensus_predictor.predict_match(sample_odds)
+        
+        # Validate prediction quality
+        prediction_valid = False
+        prediction_issues = []
+        
+        if test_prediction:
+            probs = test_prediction['probabilities']
+            prob_sum = probs['home'] + probs['draw'] + probs['away']
+            
+            if abs(prob_sum - 1.0) < 0.01:
+                prediction_valid = True
+            else:
+                prediction_issues.append(f"Probability sum: {prob_sum:.3f}")
+                
+            if not test_prediction['metadata']['reco_aligned']:
+                prediction_issues.append("Recommendation misaligned")
+        else:
+            prediction_issues.append("Prediction generation failed")
+        
+        return {
+            "status": "healthy" if prediction_valid else "degraded",
+            "prediction_system": {
+                "consensus_predictor": "operational" if prediction_valid else "issues",
+                "prediction_issues": prediction_issues,
+                "test_confidence": test_prediction.get('confidence', 0) if test_prediction else 0
+            },
+            "odds_data": {
+                "total_snapshots_24h": odds_stats[0] if odds_stats else 0,
+                "unique_matches_24h": odds_stats[1] if odds_stats else 0,
+                "unique_bookmakers_24h": odds_stats[2] if odds_stats else 0,
+                "latest_snapshot": odds_stats[3].isoformat() if odds_stats and odds_stats[3] else None,
+                "matches_with_complete_data": triplet_stats[0] if triplet_stats else 0,
+                "avg_triplets_per_match": round(float(triplet_stats[1]), 2) if triplet_stats and triplet_stats[1] else 0
+            },
+            "quality_gates": {
+                "min_triplets_threshold": 2,
+                "min_confidence_threshold": 0.20,
+                "prob_sum_tolerance": 0.01,
+                "recommendation_alignment": True
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Prediction health check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "prediction_system": "unavailable",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
 @app.post("/predict")
 async def predict_match(
     request: PredictionRequest,
@@ -710,7 +818,8 @@ async def predict_match(
     start_time = datetime.now()
     
     try:
-        logger.info(f"Processing enhanced prediction request for match {request.match_id}")
+        # Enhanced logging with metadata
+        logger.info(f"🎯 PREDICTION REQUEST | match_id={request.match_id} | include_analysis={request.include_analysis} | additional_markets={request.include_additional_markets}")
         
         # Step 1: Collect comprehensive real-time data (injuries, form, news, odds)
         logger.info("Collecting comprehensive real-time data...")
@@ -892,7 +1001,9 @@ async def predict_match(
                 }
             }
         
-        logger.info(f"Enhanced prediction completed: {match_info['home_team']} vs {match_info['away_team']} - {predictions['recommended_bet']} ({predictions['confidence']:.1%})")
+        # Comprehensive completion logging
+        metadata = prediction_result.get('metadata', {})
+        logger.info(f"✅ PREDICTION COMPLETED | match_id={request.match_id} | {match_info['home_team']} vs {match_info['away_team']} | recommendation={predictions['recommended_bet']} | confidence={predictions['confidence']:.3f} | triplets={metadata.get('n_triplets_used', 0)} | books_raw={metadata.get('n_books_raw', 0)} | dispersion={metadata.get('dispersion', 0)} | prob_sum_valid={metadata.get('prob_sum_valid', False)} | reco_aligned={metadata.get('reco_aligned', False)} | processing_time={processing_time:.2f}s")
         return response
         
     except HTTPException:

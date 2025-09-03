@@ -70,7 +70,7 @@ class SimpleWeightedConsensusPredictor:
         Hmax = math.log(3.0)  # Maximum entropy for 3 outcomes
         return max(0.0, min(1.0, 1 - H/Hmax))
     
-    def build_consensus(self, bookmaker_odds: Dict[str, Dict[str, float]]) -> Optional[tuple]:
+    def build_consensus(self, bookmaker_odds: Dict[str, Dict[str, float]], include_metadata: bool = True) -> Optional[tuple]:
         """Build consensus from bookmaker odds with robust outcome handling"""
         triplets = []
         
@@ -104,7 +104,50 @@ class SimpleWeightedConsensusPredictor:
         pD = sum(t[1] for t in triplets) / len(triplets) 
         pA = sum(t[2] for t in triplets) / len(triplets)
         
-        return pH, pD, pA, len(triplets)
+        # Calculate metadata if requested
+        metadata = {}
+        if include_metadata:
+            # Check for premium bookmakers
+            premium_books = ['pinnacle', 'bet365', 'betway', 'william_hill']
+            available_books = list(bookmaker_odds.keys())
+            has_premium = any(book.lower().replace(' ', '_') in premium_books for book in available_books)
+            
+            # Calculate probability dispersion (standard deviation)
+            home_probs = [t[0] for t in triplets]
+            draw_probs = [t[1] for t in triplets] 
+            away_probs = [t[2] for t in triplets]
+            avg_dispersion = (np.std(home_probs) + np.std(draw_probs) + np.std(away_probs)) / 3
+            
+            metadata = {
+                'n_books_raw': len(bookmaker_odds),
+                'n_triplets_used': len(triplets),
+                'books_excluded': len(bookmaker_odds) - len(triplets),
+                'has_premium': has_premium,
+                'dispersion': round(avg_dispersion, 4),
+                'available_books': available_books,
+                'low_coverage': len(triplets) < 2
+            }
+        
+        return pH, pD, pA, len(triplets), metadata
+    
+    def calculate_expected_values(self, probabilities: Dict[str, float], bookmaker_odds: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+        """Calculate Expected Value (EV) for each outcome when odds are available"""
+        if not bookmaker_odds:
+            return {'home': 0.0, 'draw': 0.0, 'away': 0.0}
+        
+        # Use first available bookmaker for EV calculation (can be enhanced to use best odds)
+        first_book = next(iter(bookmaker_odds.values()))
+        
+        ev_values = {}
+        for outcome in ['home', 'draw', 'away']:
+            if outcome in first_book and outcome in probabilities:
+                # EV = (probability * odds) - 1
+                ev = (probabilities[outcome] * first_book[outcome]) - 1.0
+                ev_values[outcome] = round(ev, 4)
+            else:
+                ev_values[outcome] = 0.0
+        
+        return ev_values
     
     def choose_recommendation(self, p: Dict[str, float], min_conf: float = 0.20) -> tuple:
         """Choose recommendation based on probabilities and confidence threshold"""
@@ -146,13 +189,13 @@ class SimpleWeightedConsensusPredictor:
             return None
         
         # Build robust consensus from complete triplets only
-        consensus_result = self.build_consensus(bookmaker_odds)
+        consensus_result = self.build_consensus(bookmaker_odds, include_metadata=True)
         
         if not consensus_result:
             logger.warning("No valid consensus could be built")
             return None
         
-        pH, pD, pA, triplet_count = consensus_result
+        pH, pD, pA, triplet_count, metadata = consensus_result
         
         # Create probability dictionary
         raw_probs = {'home': pH, 'draw': pD, 'away': pA}
@@ -173,6 +216,18 @@ class SimpleWeightedConsensusPredictor:
         # Calculate quality metrics
         quality_score = min(triplet_count / 5.0, 1.0)  # Quality based on coverage
         
+        # Calculate Expected Values if odds available
+        ev_values = self.calculate_expected_values(final_probs, bookmaker_odds)
+        
+        # Perform acceptance checklist validation
+        prob_sum = final_probs['home'] + final_probs['draw'] + final_probs['away']
+        sum_valid = abs(prob_sum - 1.0) < 1e-9
+        
+        # Check recommendation alignment
+        highest_prob_outcome = max(final_probs, key=final_probs.get)
+        expected_reco = {'home': 'Home', 'draw': 'Draw', 'away': 'Away'}[highest_prob_outcome]
+        reco_aligned = (recommendation == expected_reco) or (recommendation == "No Bet")
+        
         return {
             'probabilities': {
                 'home': round(final_probs['home'], 3),
@@ -186,6 +241,14 @@ class SimpleWeightedConsensusPredictor:
             'total_weight': round(triplet_count / len(bookmaker_odds), 3),
             'model_type': 'robust_weighted_consensus',
             'data_source': 'real_market_odds',
+            'metadata': {
+                **metadata,
+                'time_bucket': '72h',  # Default bucket for now
+                'prob_sum_valid': sum_valid,
+                'prob_sum': round(prob_sum, 6),
+                'reco_aligned': reco_aligned,
+                'expected_reco': expected_reco
+            },
             'performance_metrics': {
                 'expected_logloss': 0.838,
                 'expected_brier': 0.167,

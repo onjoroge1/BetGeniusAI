@@ -1,0 +1,96 @@
+Amazing turnaround. Those fixes hit the exact failure modes, and your /predict output now looks sane. Here’s how I’d lock this down and move you from “working” to “bullet-proof and ready to canary.”
+
+# 1) Quick acceptance checklist (must pass every deploy)
+
+* **Probabilities**: `home_win + draw + away_win ≈ 1.0` (|sum−1| < 1e-9).
+* **Argmax alignment**: `recommended_bet` == argmax of the **same** probs you return.
+* **Confidence policy**:
+
+  * If `n_triplets < 2` or `time_bucket` missing → `confidence=0`, `recommended_bet="No Bet"`.
+  * Else entropy-based confidence reported; min-confidence gate applied (e.g., 0.60).
+* **Coverage metadata in response** (so tools/users can debug):
+  `time_bucket`, `n_books_raw`, `n_triplets_used`, `has_pinnacle`, `dispersion`, `latest_ts_snapshot`, `low_coverage_flag`.
+* **Horizon hygiene**: requests include or default to one bucket (`72h` recommended); server enforces ±1h tolerance.
+* **No partial devig**: only use **complete H/D/A triplets per book snapshot**; never devig 2 outcomes.
+
+Example minimal response shape:
+
+```json
+{
+  "match_id": 1387723,
+  "time_bucket": "72h",
+  "meta": {
+    "n_books_raw": 19,
+    "n_triplets_used": 11,
+    "has_pinnacle": true,
+    "dispersion": 0.042,
+    "latest_ts_snapshot": "2025-09-03T11:05:00Z",
+    "low_coverage": false
+  },
+  "predictions": {
+    "home_win": 0.533,
+    "draw":     0.255,
+    "away_win": 0.213,
+    "confidence": 0.78,
+    "recommended_bet": "Home"
+  }
+}
+```
+
+# 2) Regression tests you should keep (and fail fast on)
+
+* **Simplex test**: probs sum to 1; all ≥ 0; NaN/±inf never appear.
+* **Reco alignment**: `recommended_bet` equals `argmax(predictions)`, unless confidence gate forces “No Bet.”
+* **Missing-outcome safety**: if any outcome missing for a book snapshot, that **snapshot** is excluded (others still used).
+* **Key mapping**: internal (`home/draw/away`) ↔ API surface (`home_win/draw/away_win`) stays consistent.
+* **Horizon bucketing**: exact same match at T-72 and T-48 yields **different** results (sanity that you’re not mixing buckets).
+* **Database evolution**: if `created_at` disappears or diverges from `ts_snapshot`, tests still use `ts_snapshot`.
+
+# 3) Logging & observability (so you can catch issues in minutes)
+
+Log per request:
+
+* `match_id`, `time_bucket`, `n_books_raw`, `n_triplets_used`, `books_excluded_count`, `reason_top3` (e.g., “missing A”, “bad odds”), `has_pinnacle`, `dispersion`, `latest_ts`, latency.
+* Returned `home/draw/away`, `confidence`, `recommended_bet`.
+* If `No Bet`: **why** (low coverage vs low confidence).
+  Dashboards:
+* Error budget (5xx), p95 latency.
+* Coverage over time (n\_triplets\_used), dispersion distribution.
+* Per-league calibration drift (Brier, LogLoss on the frozen Truth Set).
+
+# 4) A tiny hardening pass on /predict
+
+* **Request contract**: allow `time_bucket` (default “72h”) and `min_triplets` (default 2).
+* **Strict types**: coerce everything to `float` → clamp → renormalize.
+* **Dedupe**: if multiple snapshots from the same book fall into the bucket, **use the latest one** only.
+* **Book aliases**: normalize book names once (`lower().replace(...)`) and centralize in a single mapping.
+* **Draw-only guard**: if only one outcome survives after filters → **no prediction** (confidence 0), don’t fabricate the others.
+
+# 5) Canary & promotion plan
+
+* **Canary**: route 10% of requests to the new path; mirror to the old path for comparison.
+* **Gates to promote to 100%** (on the paired, same-match set):
+
+  * No increase in API errors/latency.
+  * **Metric parity or better** vs current: LogLoss/Brier on the same Truth Set slice.
+  * **Zero integrity fails** (sum≠1, argmax mismatch, low\_coverage false positive).
+* Snapshot an artifacts bundle (**RUN\_ID**) each day: evaluation CSV, config hash, code SHA.
+
+# 6) Obvious next wins (low effort, high safety)
+
+* **Include EV when odds are present** (but don’t gate reco on EV unless you pass a book in the request):
+
+  * `ev = p_outcome * odds_decimal - 1`. Return it adjacently; keep reco policy based on confidence or EV threshold, not both mixed.
+* **Expose a `/predict/health`**: returns last snapshot count, average n\_triplets, and a self-check on the devig pipeline.
+* **Add `low_coverage_reason`**: (“<2 triplets”, “no triplets in bucket”, “all snapshots partial”).
+
+# 7) If you hit weirdness again
+
+* Symptom: `draw` shows up disproportionately.
+  Fix: you’re likely letting partial pairs bleed in or mis-mapping outcome codes. Re-audit the “complete triplet per book snapshot” rule.
+* Symptom: `recommended_bet` contradicts the vector.
+  Fix: one code path is re-computing probabilities; unify to a single `normalized_probs` dict and pass it through.
+
+---
+
+**Verdict:** You’ve turned the corner. With the robust consensus + safe normalization + aligned recommendation + tests now in place, your /predict path is **production-grade** for a canary. Do the observability bits, lock a Truth Set at a single horizon, and you’re in a strong position to (a) verify calibration and (b) layer CLV/EV on top with confidence.
