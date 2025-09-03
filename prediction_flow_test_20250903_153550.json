@@ -1,0 +1,232 @@
+{
+  "test_timestamp": "2025-09-03T15:33:15.786790",
+  "test_duration": 154.93,
+  "match_ids_tested": [
+    1378999,
+    1379007,
+    1379000,
+    1379005,
+    1379004
+  ],
+  "tests": {
+    "single_prediction": {
+      "match_id": 1378999,
+      "test_name": "functionality_test",
+      "status": "SUCCESS",
+      "response_time": 17.86,
+      "match_info": {
+        "home_team": "Arsenal",
+        "away_team": "Nottingham Forest",
+        "league": "Premier League",
+        "date": "2025-09-13T11:30:00+00:00"
+      },
+      "ml_prediction": {
+        "confidence": 0.461,
+        "model_type": "simple_weighted_consensus",
+        "probabilities": {
+          "home_win": 0.424,
+          "draw": 0.302,
+          "away_win": 0.275
+        },
+        "predicted_outcome": "home_win"
+      },
+      "ai_analysis": {
+        "has_analysis": true,
+        "recommended_outcome": "Home",
+        "confidence_level": "Medium"
+      }
+    },
+    "consistency": {
+      "match_id": 1378999,
+      "status": "CONSISTENT",
+      "num_tests": 3,
+      "results": [
+        {
+          "confidence": 0.461,
+          "model_type": "simple_weighted_consensus",
+          "probabilities": {
+            "home_win": 0.424,
+            "draw": 0.302,
+            "away_win": 0.275
+          },
+          "predicted_outcome": "home_win"
+        },
+        {
+          "confidence": 0.461,
+          "model_type": "simple_weighted_consensus",
+          "probabilities": {
+            "home_win": 0.424,
+            "draw": 0.302,
+            "away_win": 0.275
+          },
+          "predicted_outcome": "home_win"
+        },
+        {
+          "confidence": 0.461,
+          "model_type": "simple_weighted_consensus",
+          "probabilities": {
+            "home_win": 0.424,
+            "draw": 0.302,
+            "away_win": 0.275
+          },
+          "predicted_outcome": "home_win"
+        }
+      ],
+      "first_confidence": 0.461,
+      "first_probabilities": {
+        "home_win": 0.424,
+        "draw": 0.302,
+        "away_win": 0.275
+      }
+    },
+    "uniqueness": {
+      "total_matches_tested": 5,
+      "unique_predictions": 5,
+      "uniqueness_ratio": 1.0,
+      "is_dynamic": true,
+      "results": [
+        {
+          "match_id": 1378999,
+          "test_name": "uniqueness_test",
+          "status": "SUCCESS",
+          "response_time": 14.69,
+          "match_info": {
+            "home_team": "Arsenal",
+            "away_team": "Nottingham Forest",
+            "league": "Premier League",
+            "date": "2025-09-13T11:30:00+00:00"
+          },
+          "ml_prediction": {
+            "confidence": 0.461,
+            "model_type": "simple_weighted_consensus",
+            "probabilities": {
+              "home_win": 0.424,
+              "draw": 0.302,
+              "away_win": 0.275
+            },
+            "predicted_outcome": "home_win"
+          },
+          "ai_analysis": {
+            "has_analysis": true,
+            "recommended_outcome": "Home",
+            "confidence_level": "Medium"
+          }
+        },
+        {
+          "match_id": 1379007,
+          "test_name": "uniqueness_test",
+          "status": "SUCCESS",
+          "response_time": 12.65,
+          "match_info": {
+            "home_team": "Newcastle",
+            "away_team": "Wolves",
+            "league": "Premier League",
+            "date": "2025-09-13T14:00:00+00:00"
+          },
+          "ml_prediction": {
+            "confidence": 0.398,
+            "model_type": "simple_weighted_consensus",
+            "probabilities": {
+              "home_win": 0.364,
+              "draw": 0.284,
+              "away_win": 0.352
+            },
+            "predicted_outcome": "home_win"
+          },
+          "ai_analysis": {
+            "has_analysis": true,
+            "recommended_outcome": "Home",
+            "confidence_level": "Low"
+          }
+        },
+        {
+          "match_id": 1379000,
+          "test_name": "uniqueness_test",
+          "status": "SUCCESS",
+          "response_time": 14.39,
+          "match_info": {
+            "home_team": "Bournemouth",
+            "away_team": "Brighton",
+            "league": "Premier League",
+            "date": "2025-09-13T14:00:00+00:00"
+          },
+          "ml_prediction": {
+            "confidence": 0.524,
+            "model_type": "simple_weighted_consensus",
+            "probabilities": {
+              "home_win": 0.48,
+              "draw": 0.263,
+              "away_win": 0.257
+            },
+            "predicted_outcome": "home_win"
+          },
+          "ai_analysis": {
+            "has_analysis": true,
+            "recommended_outcome": "Home",
+            "confidence_level": "Medium"
+          }
+        },
+        {
+          "match_id": 1379005,
+          "test_name": "uniqueness_test",
+          "status": "SUCCESS",
+          "response_time": 18.17,
+          "match_info": {
+            "home_team": "Fulham",
+            "away_team": "Leeds",
+            "league": "Premier League",
+            "date": "2025-09-13T14:00:00+00:00"
+          },
+          "ml_prediction": {
+            "confidence": 0.408,
+            "model_type": "simple_weighted_consensus",
+            "probabilities": {
+              "home_win": 0.364,
+              "draw": 0.262,
+              "away_win": 0.374
+            },
+            "predicted_outcome": "away_win"
+          },
+          "ai_analysis": {
+            "has_analysis": true,
+            "recommended_outcome": "Away",
+            "confidence_level": "Medium"
+          }
+        },
+        {
+          "match_id": 1379004,
+          "test_name": "uniqueness_test",
+          "status": "SUCCESS",
+          "response_time": 17.24,
+          "match_info": {
+            "home_team": "Everton",
+            "away_team": "Aston Villa",
+            "league": "Premier League",
+            "date": "2025-09-13T14:00:00+00:00"
+          },
+          "ml_prediction": {
+            "confidence": 0.456,
+            "model_type": "simple_weighted_consensus",
+            "probabilities": {
+              "home_win": 0.378,
+              "draw": 0.206,
+              "away_win": 0.416
+            },
+            "predicted_outcome": "away_win"
+          },
+          "ai_analysis": {
+            "has_analysis": true,
+            "recommended_outcome": "Away",
+            "confidence_level": "Medium"
+          }
+        }
+      ]
+    },
+    "performance": {
+      "avg_response_time": 15.428,
+      "max_response_time": 18.17,
+      "min_response_time": 12.65,
+      "total_calls": 5
+    }
+  }
+}
