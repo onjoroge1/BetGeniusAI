@@ -219,121 +219,98 @@ class EnhancedRealDataCollector:
             return []
     
     def get_current_odds(self, match_id: int) -> Dict:
-        """Get current betting odds from multiple bookmakers using real database data"""
+        """Get current betting odds from multiple bookmakers using ONLY real database data"""
         
         try:
-            # Import database manager
-            from models.database import get_database_manager
-            
-            db_manager = get_database_manager()
-            if not db_manager:
-                logger.warning("Database not available for odds lookup")
-                return self._get_fallback_odds(match_id)
-            
-            # Try to get real odds from database
-            real_odds = self._get_odds_from_database(db_manager, match_id)
+            # Try to get real odds from database using direct connection
+            real_odds = self._get_odds_from_database(match_id)
             if real_odds:
-                logger.info(f"Retrieved real odds from database for match {match_id}")
+                logger.info(f"Retrieved real odds from database for match {match_id} - {len(real_odds)} bookmakers")
                 return real_odds
             
-            # Fallback to varied synthetic odds based on match characteristics
-            return self._get_fallback_odds(match_id)
+            # NO FALLBACK - Production systems require real data only
+            logger.warning(f"No real odds data found for match {match_id} - returning empty for production integrity")
+            return {}
             
         except Exception as e:
-            logger.error(f"Error getting current odds: {e}")
-            return self._get_fallback_odds(match_id)
+            logger.error(f"Error getting current odds for match {match_id}: {e}")
+            return {}
     
-    def _get_odds_from_database(self, db_manager, match_id: int) -> Dict:
-        """Get real odds from odds_snapshots table"""
+    def _get_odds_from_database(self, match_id: int) -> Dict:
+        """Get real odds from odds_snapshots table using direct PostgreSQL connection"""
         
         try:
             import psycopg2
             
-            # Query for recent odds for this match
-            query = """
-                SELECT book_id, outcome, odds_decimal 
-                FROM odds_snapshots 
-                WHERE match_id = %s 
-                AND ts_snapshot > NOW() - INTERVAL '7 days'
-                ORDER BY ts_snapshot DESC
-                LIMIT 50
-            """
+            database_url = os.environ.get('DATABASE_URL')
+            if not database_url:
+                logger.error("DATABASE_URL not found in environment")
+                return None
             
-            with db_manager.connection.cursor() as cursor:
-                cursor.execute(query, (match_id,))
-                rows = cursor.fetchall()
-                
-                if not rows:
+            # Direct connection to PostgreSQL
+            with psycopg2.connect(database_url) as conn:
+                with conn.cursor() as cursor:
+                    # Query for recent odds for this match
+                    query = """
+                        SELECT book_id, outcome, odds_decimal 
+                        FROM odds_snapshots 
+                        WHERE match_id = %s 
+                        AND ts_snapshot > NOW() - INTERVAL '30 days'
+                        ORDER BY ts_snapshot DESC
+                        LIMIT 100
+                    """
+                    
+                    cursor.execute(query, (match_id,))
+                    rows = cursor.fetchall()
+                    
+                    if not rows:
+                        logger.info(f"No odds data found in database for match {match_id}")
+                        return None
+                    
+                    # Organize odds by bookmaker
+                    bookmaker_odds = {}
+                    bookmaker_map = {
+                        '15': 'bet365', '3': 'pinnacle', '16': 'betway', 
+                        '8': 'william_hill', '160': 'unibet', '854': 'parions_sport',
+                        '1': 'betfair', '10': 'ladbrokes', '11': 'coral'
+                    }
+                    
+                    for book_id, outcome, odds in rows:
+                        book_name = bookmaker_map.get(str(book_id))
+                        if not book_name:
+                            continue
+                            
+                        if book_name not in bookmaker_odds:
+                            bookmaker_odds[book_name] = {}
+                        
+                        # Map outcomes (H/D/A to home/draw/away)
+                        outcome_map = {'H': 'home', 'D': 'draw', 'A': 'away'}
+                        outcome_key = outcome_map.get(outcome)
+                        
+                        if outcome_key and odds > 0:  # Valid odds check
+                            bookmaker_odds[book_name][outcome_key] = float(odds)
+                    
+                    # Filter for complete bookmaker data (all three outcomes)
+                    complete_odds = {}
+                    for book, odds in bookmaker_odds.items():
+                        if len(odds) == 3 and all(k in odds for k in ['home', 'draw', 'away']):
+                            complete_odds[book] = odds
+                    
+                    if len(complete_odds) >= 2:  # Need at least 2 complete bookmakers
+                        logger.info(f"Found real odds from {len(complete_odds)} bookmakers for match {match_id}")
+                        return complete_odds
+                    
+                    logger.warning(f"Insufficient complete odds data for match {match_id} - found {len(complete_odds)} complete bookmakers")
                     return None
                 
-                # Organize odds by bookmaker
-                bookmaker_odds = {}
-                bookmaker_map = {
-                    '15': 'bet365', '3': 'pinnacle', '16': 'betway', 
-                    '8': 'william_hill', '160': 'unibet', '854': 'parions_sport'
-                }
-                
-                for book_id, outcome, odds in rows:
-                    book_name = bookmaker_map.get(str(book_id))
-                    if not book_name:
-                        continue
-                        
-                    if book_name not in bookmaker_odds:
-                        bookmaker_odds[book_name] = {}
-                    
-                    # Map outcomes (H/D/A to home/draw/away)
-                    outcome_map = {'H': 'home', 'D': 'draw', 'A': 'away'}
-                    outcome_key = outcome_map.get(outcome)
-                    
-                    if outcome_key:
-                        bookmaker_odds[book_name][outcome_key] = float(odds)
-                
-                # Filter for complete bookmaker data (all three outcomes)
-                complete_odds = {}
-                for book, odds in bookmaker_odds.items():
-                    if len(odds) == 3 and all(k in odds for k in ['home', 'draw', 'away']):
-                        complete_odds[book] = odds
-                
-                if len(complete_odds) >= 2:  # Need at least 2 complete bookmakers
-                    logger.info(f"Found real odds from {len(complete_odds)} bookmakers for match {match_id}")
-                    return complete_odds
-                
-                return None
-                
+        except psycopg2.Error as e:
+            logger.error(f"Database error querying odds for match {match_id}: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Error querying database for odds: {e}")
+            logger.error(f"Error querying database for odds for match {match_id}: {e}")
             return None
     
-    def _get_fallback_odds(self, match_id: int) -> Dict:
-        """Generate varied synthetic odds based on match characteristics"""
-        
-        import random
-        import hashlib
-        
-        # Use match_id as seed for consistent but varied odds
-        random.seed(hashlib.md5(str(match_id).encode()).hexdigest())
-        
-        # Generate base odds with realistic variation
-        home_base = random.uniform(1.8, 3.5)  # Home team odds
-        draw_base = random.uniform(3.0, 4.2)  # Draw odds
-        away_base = random.uniform(1.9, 4.0)  # Away team odds
-        
-        # Create slight variations across bookmakers
-        odds_data = {}
-        bookmakers = ['pinnacle', 'bet365', 'betway', 'william_hill']
-        
-        for book in bookmakers:
-            # Add small random variation for each bookmaker
-            variation = random.uniform(0.95, 1.05)
-            
-            odds_data[book] = {
-                'home': round(home_base * variation, 2),
-                'draw': round(draw_base * random.uniform(0.97, 1.03), 2),
-                'away': round(away_base * variation, 2)
-            }
-        
-        logger.info(f"Generated varied synthetic odds for match {match_id}")
-        return odds_data
+
     
     def collect_comprehensive_match_data(self, match_id: int) -> Dict:
         """Collect all comprehensive data for a match"""

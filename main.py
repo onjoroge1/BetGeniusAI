@@ -736,13 +736,29 @@ async def predict_match(
         # Step 2: Generate prediction using simple weighted consensus (proven best model)
         logger.info("Generating weighted consensus prediction...")
         current_odds = match_data.get('current_odds', {})
-        prediction_result = consensus_predictor.predict_match(current_odds)
         
-        if not prediction_result:
-            raise HTTPException(
-                status_code=422,
-                detail="Unable to generate prediction - insufficient odds data from bookmakers"
-            )
+        if not current_odds:
+            # NO REAL ODDS DATA - Return production-safe response with confidence 0
+            logger.warning(f"No real odds data available for match {request.match_id} - returning confidence 0")
+            prediction_result = {
+                'probabilities': {'home_win': 0.0, 'draw': 0.0, 'away_win': 0.0},
+                'confidence': 0.0,
+                'prediction': 'no_prediction',
+                'quality_score': 0.0,
+                'bookmaker_count': 0,
+                'model_type': 'simple_weighted_consensus',
+                'data_source': 'no_real_data_available'
+            }
+        else:
+            # Real odds data available - generate prediction
+            prediction_result = consensus_predictor.predict_match(current_odds)
+            
+            if not prediction_result:
+                logger.warning(f"Prediction failed despite having odds data for match {request.match_id}")
+                raise HTTPException(
+                    status_code=422,
+                    detail="Unable to generate prediction - prediction algorithm failed"
+                )
         
         # Step 3: Enhanced AI analysis using comprehensive data
         ai_analysis = None
@@ -783,11 +799,11 @@ async def predict_match(
         
         # Step 5: Build comprehensive response with frontend-compatible structure
         predictions = {
-            "home_win": round(prediction_result['probabilities']['home'], 3),
-            "draw": round(prediction_result['probabilities']['draw'], 3),
-            "away_win": round(prediction_result['probabilities']['away'], 3),
+            "home_win": round(prediction_result['probabilities'].get('home_win', 0.0), 3),
+            "draw": round(prediction_result['probabilities'].get('draw', 0.0), 3),
+            "away_win": round(prediction_result['probabilities'].get('away_win', 0.0), 3),
             "confidence": prediction_result['confidence'],
-            "recommended_bet": prediction_result['prediction'].title()
+            "recommended_bet": prediction_result['prediction'].title() if prediction_result['prediction'] != 'no_prediction' else 'No Prediction'
         }
         
         # Build response structure compatible with frontend expectations
@@ -818,15 +834,15 @@ async def predict_match(
             "ml_prediction": {
                 "confidence": prediction_result['confidence'],
                 "probabilities": {
-                    "home_win": round(prediction_result['probabilities']['home'], 3),
-                    "draw": round(prediction_result['probabilities']['draw'], 3),
-                    "away_win": round(prediction_result['probabilities']['away'], 3)
+                    "home_win": round(prediction_result['probabilities'].get('home_win', 0.0), 3),
+                    "draw": round(prediction_result['probabilities'].get('draw', 0.0), 3),
+                    "away_win": round(prediction_result['probabilities'].get('away_win', 0.0), 3)
                 },
                 "model_type": "simple_weighted_consensus"
             },
             "ai_verdict": {
-                "recommended_outcome": prediction_result['prediction'].title(),
-                "confidence_level": "High" if prediction_result['confidence'] > 0.6 else "Medium" if prediction_result['confidence'] > 0.4 else "Low",
+                "recommended_outcome": prediction_result['prediction'].title() if prediction_result['prediction'] != 'no_prediction' else 'No Prediction',
+                "confidence_level": "None" if prediction_result['confidence'] == 0.0 else "High" if prediction_result['confidence'] > 0.6 else "Medium" if prediction_result['confidence'] > 0.4 else "Low",
                 "explanation": ai_analysis.get('explanation', 'Prediction based on market-efficient consensus') if ai_analysis else "Prediction based on market-efficient consensus"
             }
         }
