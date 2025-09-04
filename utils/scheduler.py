@@ -23,7 +23,11 @@ class BackgroundScheduler:
         self.collector = AutomatedCollector()
         self.is_running = False
         self.scheduler_thread: Optional[threading.Thread] = None
-        self.collection_time = time(hour=2, minute=0)  # 2 AM UTC daily
+        # Enhanced scheduling for odds nuance capture
+        # Weekdays: every 6 hours (02:00, 08:00, 14:00, 20:00 UTC)
+        # Weekends: every 3 hours for better coverage
+        self.weekday_hours = [2, 8, 14, 20]  # Every 6 hours
+        self.weekend_hours = [2, 5, 8, 11, 14, 17, 20, 23]  # Every 3 hours
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -34,7 +38,7 @@ class BackgroundScheduler:
         self.is_running = True
         self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
         self.scheduler_thread.start()
-        logger.info("Background scheduler started - daily collection at 02:00 UTC")
+        logger.info("Background scheduler started - enhanced schedule: 6h weekdays, 3h weekends")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -73,54 +77,82 @@ class BackgroundScheduler:
             pass
         return None
     
+    def _get_last_collection_timestamp(self, hour: int):
+        """Get last collection timestamp for specific hour"""
+        try:
+            import json
+            with open('data/collection_log.json', 'r') as f:
+                log_data = json.load(f)
+            
+            if log_data and len(log_data) > 0:
+                # Look for collections from this hour in last 24 hours
+                now = datetime.utcnow()
+                for entry in reversed(log_data):
+                    timestamp_str = entry.get('timestamp', '')
+                    if timestamp_str:
+                        timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        # Check if within last 24h and same hour
+                        if (now - timestamp).total_seconds() < 86400 and timestamp.hour == hour:
+                            return timestamp
+        except Exception:
+            pass
+        return None
+
     async def _scheduler_loop(self):
-        """Scheduler loop that runs daily collection"""
-        last_collection_date = self._get_last_collection_date()
+        """Enhanced scheduler loop for frequent odds collection"""
+        logger.info("🚀 Enhanced scheduler started - capturing odds nuances with frequent collection")
         
         while self.is_running:
             try:
                 now = datetime.utcnow()
-                today = now.date()
-                current_time = now.time()
+                current_hour = now.hour
+                current_minute = now.minute
+                weekday = now.weekday()  # 0=Monday, 6=Sunday
+                is_weekend = weekday >= 5  # Saturday or Sunday
                 
-                # Define the collection window: 02:00-02:30 UTC
-                collection_start = time(hour=2, minute=0)
-                collection_end = time(hour=2, minute=30)
+                # Determine collection hours based on day type
+                target_hours = self.weekend_hours if is_weekend else self.weekday_hours
                 
-                # Only run if:
-                # 1. We're in the 02:00-02:30 UTC window
-                # 2. We haven't collected today yet
-                if (collection_start <= current_time <= collection_end and 
-                    last_collection_date != today):
+                # Check if current hour is a target hour and within collection window (first 15 minutes)
+                if current_hour in target_hours and current_minute < 15:
                     
-                    logger.info(f"🔄 SCHEDULER: Starting daily collection cycle at {current_time.strftime('%H:%M:%S')} UTC")
-                    logger.info(f"📅 Target date: {today}, Last collection: {last_collection_date}")
+                    # Check if we already collected at this hour today
+                    last_collection = self._get_last_collection_timestamp(current_hour)
                     
-                    try:
-                        results = await self.collector.daily_collection_cycle()
-                        last_collection_date = today
+                    if not last_collection or (now - last_collection).total_seconds() > 3600:
+                        day_type = "weekend" if is_weekend else "weekday"
+                        logger.info(f"🔄 SCHEDULER: Starting {day_type} collection cycle at {now.strftime('%H:%M:%S')} UTC")
+                        logger.info(f"📅 Hour {current_hour:02d}:00 - capturing odds nuances for market efficiency")
                         
-                        logger.info(f"✅ Scheduled collection completed: {results.get('new_matches_collected', 0)} new matches added to database")
-                        logger.info(f"💾 Total matches in DB: {results.get('total_matches_in_db', 'unknown')}")
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Scheduled collection failed: {e}")
-                
-                elif last_collection_date == today:
-                    # Already collected today
-                    logger.debug(f"📋 Collection already completed today ({today})")
+                        try:
+                            results = await self.collector.daily_collection_cycle()
+                            
+                            logger.info(f"✅ Enhanced collection completed: {results.get('new_matches_collected', 0)} new matches")
+                            logger.info(f"📊 Fresh odds snapshots: {results.get('new_odds_collected', 0)}")
+                            logger.info(f"💾 Total matches in DB: {results.get('total_matches_in_db', 'unknown')}")
+                            
+                        except Exception as e:
+                            logger.error(f"❌ Enhanced collection failed at {current_hour:02d}:00: {e}")
                     
-                elif current_time < collection_start:
-                    # Before collection window
-                    time_until = (datetime.combine(today, collection_start) - datetime.combine(today, current_time)).total_seconds()
-                    logger.debug(f"⏰ Waiting for collection window (current: {current_time.strftime('%H:%M')} UTC, {time_until/3600:.1f}h remaining)")
+                    else:
+                        logger.debug(f"📋 Collection already completed at {current_hour:02d}:00 today")
                 
                 else:
-                    # After collection window, wait for next day
-                    logger.debug(f"⏳ Collection window passed, waiting for tomorrow")
+                    # Log next collection time for visibility
+                    next_hour = None
+                    for hour in sorted(target_hours):
+                        if hour > current_hour or (hour <= current_hour and hour == target_hours[0]):
+                            next_hour = hour
+                            break
+                    
+                    if next_hour is None:
+                        next_hour = target_hours[0]  # Next day first collection
+                    
+                    if current_hour not in target_hours or current_minute >= 15:
+                        logger.debug(f"⏰ Next collection: {next_hour:02d}:00 UTC ({'weekend' if is_weekend else 'weekday'} schedule)")
                 
-                # Sleep for 30 minutes before next check
-                await asyncio.sleep(1800)
+                # Check every 10 minutes for more responsive scheduling
+                await asyncio.sleep(600)
                 
             except Exception as e:
                 logger.error(f"Scheduler loop error: {e}")

@@ -75,7 +75,7 @@ async def startup_event():
     
     # Start the 2am daily collection scheduler
     background_scheduler.start_scheduler()
-    logger.info("✅ Background scheduler started - daily odds collection at 02:00 UTC")
+    logger.info("✅ Enhanced scheduler started - every 6h weekdays, every 3h weekends for odds nuances")
 
 @app.on_event("shutdown")
 async def shutdown_event():
