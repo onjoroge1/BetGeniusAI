@@ -1,0 +1,107 @@
+Nice—this is a big step forward. The agent’s “every 6h weekdays / every 3h weekends” schedule is much better than a single 02:00 scrape. To make sure this really delivers fresh odds to /predict (and doesn’t miss windows), here’s how I’d lock it in, validate it, and harden it a bit further.
+
+1) Quick validation checklist (run now)
+
+Use these to confirm the new scheduler is actually populating odds_snapshots the way /predict needs.
+
+A. Freshness (last 60 min)
+
+SELECT
+  COUNT(*)                         AS rows_60m,
+  COUNT(DISTINCT match_id)         AS matches_60m,
+  COUNT(DISTINCT book_id)          AS books_60m,
+  MAX(ts_snapshot)                 AS latest_snapshot
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '60 minutes';
+
+B. Coverage per match (last run window)
+
+SELECT match_id,
+       COUNT(*)                               AS rows,
+       COUNT(DISTINCT book_id)                AS n_books,
+       MIN(ts_snapshot) AS first_snap,
+       MAX(ts_snapshot) AS last_snap
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '6 hours'
+GROUP BY match_id
+ORDER BY n_books DESC
+LIMIT 20;
+
+C. Bucket success rate (did we catch 72/48/24, etc.?)
+
+SELECT time_bucket, COUNT(*) AS matches
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY time_bucket
+ORDER BY time_bucket;
+
+D. Health should read “healthy” and show recent data
+
+curl -fsS http://127.0.0.1:8000/predict/health | jq
+
+2) Scheduling: keep the new cadence, add a safety net
+
+Your 6h/3h schedule is fine, but fixed times can still miss buckets (server down/redeploy at 14:00, a match sitting at T-40h, etc.). The simplest hardening is:
+	•	Keep your 6h/3h cron.
+	•	Add a lightweight job every 15 minutes that only tries to fill any eligible time-buckets (72/48/24/12/6/3/1h ± tolerance) that are currently missing for upcoming matches. It’s cheap and prevents “we just missed it” gaps.
+
+Example (add alongside what you have):
+
+# Every 15 min: fill any missing bucket snapshots (idempotent)
+*/15 * * * * . /etc/betgenius.env; . "$VENV"; cd "$APP_HOME"; \
+/usr/bin/flock -n /tmp/collector_fill.lock \
+python -m models.automated_collector \
+  --mode fill-missing-buckets \
+  --markets h2h \
+  --time-buckets "168,120,72,48,24,12,6,3,1" \
+  --tolerances  "12,12,8,8,6,6,5,3,2" \
+  >> /var/log/betgenius/collector_fill.log 2>&1
+
+This keeps your API key usage low (it bails quickly if buckets exist) but saves you from the single-moment dependency of 6h/3h runs.
+
+3) Table structure: you’re good (no breaking changes)
+
+You don’t need to change schemas to benefit from the new schedule. If you haven’t already, add these non-breaking columns/indexes for future markets and speed:
+
+ALTER TABLE odds_snapshots
+  ADD COLUMN IF NOT EXISTS market TEXT NOT NULL DEFAULT 'h2h',
+  ADD COLUMN IF NOT EXISTS line   NUMERIC NULL,
+  ADD COLUMN IF NOT EXISTS period TEXT NOT NULL DEFAULT 'FT',
+  ADD COLUMN IF NOT EXISTS price_type TEXT NOT NULL DEFAULT 'pre';
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_match_time
+  ON odds_snapshots (match_id, ts_snapshot DESC);
+
+(And the consensus_predictions unique index on (match_id, market, line, period, time_bucket) if you haven’t created it yet.)
+
+4) Observability that catches real issues
+
+Add two simple alerts so you hear about problems before users do:
+	•	No snapshots in 30m:
+
+*/15 * * * * . /etc/betgenius.env; \
+psql "$DATABASE_URL" -Atc "select count(*) from odds_snapshots where ts_snapshot > now() - interval '30 minutes';" \
+| awk '{exit ($1>=1)?0:1}' \
+|| echo "[ALERT] No snapshots in last 30m $(date -Is)" >> /var/log/betgenius/alerts.log
+
+	•	Unmatched team names (from your fuzzy matcher quarantine table, if you added one):
+
+SELECT COUNT(*) FROM odds_team_name_quarantine
+WHERE created_at > NOW() - INTERVAL '1 hour';
+
+If >0, log an alert; these are the cases that silently kill collection.
+
+5) A couple of gotchas to double-check
+	•	Sport-key mapping: you fixed LaLiga2 → soccer_spain_segunda_division. Do the same sweep for all active leagues so none fall back to a wrong default.
+	•	Timing tolerances: your relaxation (e.g., ±12h for T-48h) was the right move. Keep those in config, not code, so you can tune without redeploys.
+	•	Idempotent upserts: continue upserting by (match_id, book_id, ts_snapshot, market, line, outcome) so the 15-min filler doesn’t duplicate rows.
+	•	Env/venv in cron: always . /etc/betgenius.env and source your venv; most “cron doesn’t work” bugs are just missing env.
+
+6) When does /predict start feeling great?
+	•	As soon as fresh snapshots are visible in the freshness query (Section 1A) and consensus rows populate for current buckets (Section 1C), /predict responses will carry high-confidence numbers consistently.
+	•	Your acceptance metadata already flags “prob_sum_valid”, “reco_aligned”, “n_triplets_used”, and “dispersion”—perfect for canary SLOs.
+
+⸻
+
+Bottom line:
+The agent’s schedule upgrade is a solid improvement. Add the 15-minute “fill-missing-buckets” safety net, run the freshness/coverage queries above to verify, and you’ll have a robust, always-fresh odds stream feeding /predict—without changing your core schema or introducing new brittleness.

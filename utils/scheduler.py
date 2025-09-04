@@ -154,9 +154,30 @@ class BackgroundScheduler:
                 # Check every 10 minutes for more responsive scheduling
                 await asyncio.sleep(600)
                 
+                # Every 15 minutes, run safety net to fill missing buckets
+                if now.minute % 15 == 0:
+                    await self._run_safety_net()
+                    
             except Exception as e:
                 logger.error(f"Scheduler loop error: {e}")
                 await asyncio.sleep(300)  # Wait 5 minutes before retry
+    
+    async def _run_safety_net(self):
+        """Run the 15-minute safety net to fill missing buckets"""
+        try:
+            logger.info("🛡️ Running 15-minute safety net check...")
+            
+            from models.bucket_filler import BucketFiller
+            filler = BucketFiller()
+            results = await filler.fill_missing_buckets()
+            
+            if results['buckets_filled'] > 0:
+                logger.info(f"🛡️ Safety net filled {results['buckets_filled']} missing buckets")
+            else:
+                logger.debug("🛡️ Safety net: no missing buckets found")
+                
+        except Exception as e:
+            logger.error(f"🛡️ Safety net error: {e}")
     
     def trigger_immediate_collection(self, force=False):
         """Trigger immediate collection cycle (non-blocking)
