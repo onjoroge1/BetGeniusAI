@@ -398,9 +398,10 @@ class AutomatedCollector:
                                 # Collect odds at specific timing windows (allow range not exact)
                                 timing_windows = [72, 48, 24, 12, 6, 3, 1]
                                 for window in timing_windows:
-                                    # Allow larger window for practical collection (±6 hours)
-                                    if abs(hours_to_kickoff - window) <= 6:
-                                        logger.info(f"🎯 Collecting odds for T-{window}h window (actual: T-{hours_to_kickoff:.1f}h)")
+                                    # Allow MUCH larger window for practical collection (±12 hours for T-48h, ±8h for others)
+                                    tolerance = 12 if window >= 48 else 8
+                                    if abs(hours_to_kickoff - window) <= tolerance:
+                                        logger.info(f"🎯 Collecting odds for T-{window}h window (actual: T-{hours_to_kickoff:.1f}h, tolerance: ±{tolerance}h)")
                                         odds_collected = await self._collect_and_save_odds(
                                             match, league_id, window
                                         )
@@ -521,10 +522,15 @@ class AutomatedCollector:
                 league_sport_map = {
                     39: 'soccer_epl',      # Premier League
                     140: 'soccer_spain_la_liga',  # La Liga
+                    141: 'soccer_spain_segunda_division',  # LaLiga2 - CRITICAL FIX
                     135: 'soccer_italy_serie_a',  # Serie A
+                    136: 'soccer_italy_serie_b',   # Serie B
                     78: 'soccer_germany_bundesliga',  # Bundesliga
+                    79: 'soccer_germany_bundesliga2', # 2. Bundesliga
                     61: 'soccer_france_ligue_one',    # Ligue 1
-                    88: 'soccer_netherlands_eredivisie'  # Eredivisie
+                    62: 'soccer_france_ligue_two',    # Ligue 2
+                    88: 'soccer_netherlands_eredivisie',  # Eredivisie
+                    72: 'soccer_efl_champ'            # Championship
                 }
                 
                 sport_key = league_sport_map.get(league_id, 'soccer_epl')
@@ -557,20 +563,31 @@ class AutomatedCollector:
                                     break
                             
                             if match_odds:
+                                logger.info(f"🎯 MATCH FOUND: {match['home_team']} vs {match['away_team']} → {match_odds.get('home_team', '')} vs {match_odds.get('away_team', '')}")
+                                
                                 # Extract individual bookmaker odds 
                                 individual_odds = self._extract_bookmaker_odds(match_odds, match_id, league_id, timing_window)
                                 
-                                # Save to odds_snapshots table
-                                saved = await self._save_odds_snapshot(individual_odds)
-                                
-                                if saved:
-                                    logger.info(f"✅ Saved odds snapshot: Match {match_id}, T-{timing_window}h ({len(individual_odds)} bookmaker entries)")
-                                    return True
+                                if individual_odds:
+                                    logger.info(f"📊 Extracted {len(individual_odds)} bookmaker odds entries")
+                                    
+                                    # Save to odds_snapshots table
+                                    saved = await self._save_odds_snapshot(individual_odds)
+                                    
+                                    if saved:
+                                        logger.info(f"✅ ODDS SAVED: Match {match_id}, T-{timing_window}h ({len(individual_odds)} bookmaker entries)")
+                                        return True
+                                    else:
+                                        logger.warning(f"Failed to save odds snapshot for match {match_id}")
+                                        return False
                                 else:
-                                    logger.warning(f"Failed to save odds snapshot for match {match_id}")
+                                    logger.warning(f"No valid bookmaker odds extracted for match {match_id}")
                                     return False
                             else:
-                                logger.info(f"📭 No odds found for match {match_id} in current odds data")
+                                logger.info(f"📭 No team match found for {match['home_team']} vs {match['away_team']} in {len(odds_data)} API events")
+                                # Log first few API events for debugging
+                                for i, event in enumerate(odds_data[:3]):
+                                    logger.debug(f"   API Event {i+1}: {event.get('home_team', '')} vs {event.get('away_team', '')}")
                                 return False
                                 
                         else:
@@ -588,12 +605,123 @@ class AutomatedCollector:
 
     
     def _fuzzy_match_team(self, team1: str, team2: str) -> bool:
-        """Simple fuzzy matching for team names"""
+        """Enhanced fuzzy matching for team names with accent handling and suffix removal"""
         if not team1 or not team2:
             return False
-        # Simple matching - can be enhanced with fuzzy string matching
-        return team1.lower().replace(' ', '') in team2.lower().replace(' ', '') or \
-               team2.lower().replace(' ', '') in team1.lower().replace(' ', '')
+        
+        # Normalize team names
+        def normalize_team(name: str) -> str:
+            """Normalize team name for matching"""
+            import unicodedata
+            
+            # Remove accents (é → e, ñ → n, ç → c, etc.)
+            name = unicodedata.normalize('NFD', name)
+            name = ''.join(c for c in name if unicodedata.category(c) != 'Mn')
+            
+            # Convert to lowercase
+            name = name.lower()
+            
+            # Remove common team suffixes and prefixes
+            suffixes = ['fc', 'cf', 'city', 'united', 'atletico', 'athletic', 'club', 'sporting', 
+                       'real', 'deportivo', 'cd', 'ud', 'ad', 'sd', 'racing', 'ca', 'ac', 'as']
+            
+            # Split into words and remove suffixes
+            words = name.split()
+            filtered_words = []
+            for word in words:
+                # Remove common suffixes
+                if word not in suffixes:
+                    filtered_words.append(word)
+            
+            # Join back and remove spaces/punctuation
+            name = ''.join(filtered_words)
+            name = ''.join(c for c in name if c.isalnum())
+            
+            return name
+        
+        # Normalize both team names
+        norm1 = normalize_team(team1)
+        norm2 = normalize_team(team2)
+        
+        # Multiple matching strategies
+        
+        # 1. Exact match after normalization
+        if norm1 == norm2:
+            return True
+            
+        # 2. One contains the other (minimum 3 characters for short team names)
+        if len(norm1) >= 3 and len(norm2) >= 3:
+            if norm1 in norm2 or norm2 in norm1:
+                return True
+        
+        # 2.5. Handle specific common patterns
+        # Remove leading numbers and common club indicators
+        def clean_further(name: str) -> str:
+            # Remove numbers at start (like "1" in "1. FC Koln")
+            while name and name[0].isdigit():
+                name = name[1:]
+            # Remove single letters that might be initials
+            words = name.split()
+            cleaned_words = [w for w in words if len(w) > 1 or w.lower() in ['fc', 'cf', 'sc']]
+            return ''.join(cleaned_words)
+        
+        clean1 = clean_further(norm1)
+        clean2 = clean_further(norm2)
+        
+        if clean1 and clean2 and len(clean1) >= 3 and len(clean2) >= 3:
+            if clean1 in clean2 or clean2 in clean1:
+                return True
+        
+        # 3. Common abbreviations and variations
+        abbreviations = {
+            'barcelona': ['barca', 'fcb'],
+            'realmadrid': ['madrid', 'rmcf'], 
+            'atleticomadrid': ['atletico', 'atm'],
+            'mancity': ['city', 'mcfc'],
+            'manunited': ['united', 'mufc'],
+            'tottenham': ['spurs', 'thfc'],
+            'arsenal': ['gunners', 'afc'],
+            'chelsea': ['blues', 'cfc'],
+            'liverpool': ['reds', 'lfc']
+        }
+        
+        for full_name, abbrevs in abbreviations.items():
+            if (norm1 == full_name and norm2 in abbrevs) or \
+               (norm2 == full_name and norm1 in abbrevs) or \
+               (norm1 in abbrevs and norm2 in abbrevs):
+                return True
+        
+        # 4. Levenshtein distance for close matches (optional)
+        if len(norm1) >= 5 and len(norm2) >= 5:
+            def levenshtein_distance(s1: str, s2: str) -> int:
+                """Calculate Levenshtein distance between two strings"""
+                if len(s1) < len(s2):
+                    return levenshtein_distance(s2, s1)
+                
+                if len(s2) == 0:
+                    return len(s1)
+                
+                previous_row = list(range(len(s2) + 1))
+                for i, c1 in enumerate(s1):
+                    current_row = [i + 1]
+                    for j, c2 in enumerate(s2):
+                        insertions = previous_row[j + 1] + 1
+                        deletions = current_row[j] + 1
+                        substitutions = previous_row[j] + (c1 != c2)
+                        current_row.append(min(insertions, deletions, substitutions))
+                    previous_row = current_row
+                
+                return previous_row[-1]
+            
+            distance = levenshtein_distance(norm1, norm2)
+            max_length = max(len(norm1), len(norm2))
+            similarity = 1 - (distance / max_length)
+            
+            # Accept if similarity >= 85%
+            if similarity >= 0.85:
+                return True
+        
+        return False
     
     def _extract_bookmaker_odds(self, match_odds: Dict, match_id: int, league_id: int, timing_window: int) -> List[Dict]:
         """Extract individual bookmaker odds for database storage"""
