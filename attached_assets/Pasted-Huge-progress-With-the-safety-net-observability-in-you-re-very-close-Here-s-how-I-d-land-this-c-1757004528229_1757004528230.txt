@@ -1,0 +1,104 @@
+Huge progress. With the safety-net + observability in, you’re very close. Here’s how I’d land this cleanly and make sure /predict always has fresh, authentic odds.
+
+1) Prove end-to-end data flow (now)
+
+Run these in order—if one fails, fix that layer before moving on.
+
+A. Do we even have upcoming matches to collect?
+
+-- Upcoming in next 10 days (your scraper’s hunting ground)
+SELECT match_id, league_id, home_team, away_team, match_date AT TIME ZONE 'UTC' AS kickoff_utc
+FROM matches
+WHERE match_date BETWEEN NOW() AND NOW() + INTERVAL '10 days'
+ORDER BY match_date
+LIMIT 50;
+
+B. Did the 15-min filler produce snapshots?
+
+SELECT COUNT(*) rows_60m,
+       COUNT(DISTINCT match_id) matches_60m,
+       COUNT(DISTINCT book_id) books_60m,
+       MAX(ts_snapshot) latest_snapshot
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '60 minutes';
+
+	•	If rows_60m = 0: check cron actually firing (system logs), API quota, sport_key mapping for those leagues, and tolerances against secs_to_kickoff.
+
+C. Do we have complete H/D/A triplets per match?
+
+SELECT match_id,
+       COUNT(*)                           AS rows,
+       COUNT(DISTINCT book_id)            AS n_books,
+       COUNT(DISTINCT outcome)            AS outcomes_present
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '6 hours'
+GROUP BY match_id
+HAVING COUNT(DISTINCT outcome) = 3
+ORDER BY n_books DESC
+LIMIT 20;
+
+D. Did we build consensus rows per bucket?
+
+SELECT time_bucket, market, COUNT(*) matches
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY time_bucket, market
+ORDER BY time_bucket;
+
+	•	If empty: the consensus builder isn’t being triggered after snapshots; add/verify a post-snapshot consensus job.
+
+E. Does /predict return sane numbers for a known match?
+	•	Pick one match_id from step C and call /predict.
+	•	Check: prob_sum_valid=true, n_triplets_used>5, recommendation aligned, confidence non-zero.
+
+2) The 3 most common “it’s running but nothing lands” causes (and fixes)
+	1.	Timing window mismatch
+	•	You already relaxed tolerances—good. Keep them config-driven (e.g., 72h±8–12h, 48h±8–12h, 24h±6–8h, 12h±6h, 6h±4–5h, 3h±3h, 1h±2h).
+	•	Make sure you compute secs_to_kickoff in UTC for both your DB and the Odds API commence time.
+	2.	Team-name matching misses
+	•	You fixed accents/prefixes; great. Log every failed pairing to a quarantine table with both strings + league. Alert if >0 in 1h. Keep a small overrides map for chronic offenders (e.g., “QPR”→“Queens Park Rangers”).
+	3.	Sport key/region/market mismap
+	•	Confirm all active league_id → sport keys (LaLiga2, Ligue 2, 2. Bundesliga, EFL Championship, etc.).
+	•	Use regions=eu,uk for best soccer coverage, markets=h2h. Log the exact URL you call (minus key) in DEBUG.
+
+3) Make the safety-net smart and cheap
+
+You’ve added a 15-min filler—perfect. Ensure it is:
+	•	Idempotent: upsert on (match_id, book_id, ts_snapshot, market, line, outcome).
+	•	Selective: only attempts matches within next 10 days and only for missing buckets.
+	•	Quota aware: if Odds API rate is low, downshift to 30-min during weekdays, keep 15-min on weekends.
+
+4) Acceptance gates for canary
+
+Promote to canary once ALL are true over a rolling 24h window:
+	•	≥ 90% of upcoming matches have ≥ 6 books and complete H/D/A in at least one bucket.
+	•	Freshness SLO: median ts_snapshot age < 90 minutes for matches starting within 48h.
+	•	/predict/health stays healthy; zero “prob_sum_valid=false” events.
+	•	Alerts: no snapshots and unmatched teams both at 0 after initial ramp.
+
+5) Keep schemas stable (you already did the right adds)
+
+No breaking changes needed. The extra columns you added on odds_snapshots (market, line, period, price_type) and the indexes are exactly what we’ll need for O/U, BTTS, AH later. ✅
+
+6) One “golden path” manual drill (great for demos & sanity)
+	1.	Pick a match starting in 24–60h from matches.
+	2.	Manually hit The Odds API for that sport key (h2h), confirm bookmakers present.
+	3.	Run the filler job once.
+	4.	Verify snapshots landed (query B/C).
+	5.	Run the consensus builder (if not automatic).
+	6.	Call /predict for that match and screenshot the response (probs sum ~1.0, metadata shows triplets>5, dispersion small).
+
+7) When to switch on CLV/betting analytics
+
+As soon as you see consistent bucket coverage for a week (i.e., consensus rows present at 72/48/24 for most matches), turn on:
+	•	CLV shadow: store opening vs latest vs closing implied probs.
+	•	EV report: now that EV scaffolding exists, expose it in responses only when n_triplets_used ≥ threshold and confidence ≥ min_conf.
+
+⸻
+
+If you run the checks in (1) and the filler still shows no fresh snapshots, send me:
+	•	One example match_id with kickoff, league, and the exact sport key being used.
+	•	The filler logs for that 15-min window.
+	•	Output of the freshness/coverage SQL.
+
+But if those queries start showing rows and /predict looks like your fixed example (sum≈1, aligned recommendation, decent confidence), you’re ready to start canary.
