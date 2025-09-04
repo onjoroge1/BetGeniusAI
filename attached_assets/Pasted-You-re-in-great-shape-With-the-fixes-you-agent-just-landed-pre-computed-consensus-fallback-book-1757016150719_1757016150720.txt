@@ -1,0 +1,110 @@
+You’re in great shape. With the fixes you/agent just landed (pre-computed consensus + fallback, book count fix, relaxed windows, health checks), you’re ready for a canary. Below is a tight “ship list” so this stays boringly reliable.
+
+Go/No-Go: what to check before canary
+	•	Freshness (last 90 min): odds_snapshots > 0 and consensus_predictions > 0 for active leagues/buckets.
+	•	Coverage: for each canary match, n_books ≥ 6 and time_bucket ∈ {72h,48h,24h,12h,6h,3h,1h}.
+	•	Probability sanity: |pH+pD+pA−1| ≤ 0.01, 0 ≤ p_i ≤ 1, entropy ∈ [0,1].
+	•	Dispersion sanity: disp_* < 0.12 (flag extreme disagreement).
+	•	API health: /predict success rate ≥ 99%, p95 latency < 750ms with consensus hit; fallback usage < 20%.
+	•	Logging: every /predict row shows data_source, n_triplets_used, prob_sum_valid, reco_aligned.
+
+Canary plan (low-risk)
+	•	Route 10% of requests to the new flow (consensus first, fallback second).
+	•	Watch these SLOs live (Grafana/Datadog):
+	•	Freshness: last consensus per bucket over time.
+	•	Coverage: n_books, triplet completion rate.
+	•	Prediction quality: online Brier / LogLoss vs last known market (shadow calc).
+	•	Errors: unmatched teams, zero-triplet matches, DB conflicts.
+	•	Auto-rollback rules (no human debate):
+	•	15-min window with consensus_predictions=0 for active matches → rollback.
+	•	/predict 5xx > 1% or prob-sum check failing > 0.5% → rollback.
+	•	Brier online worse than equal-mean baseline by > 0.01 over 500 preds → rollback.
+
+What to monitor daily (simple SQL you can paste)
+
+Consensus coverage by bucket (24h):
+
+SELECT time_bucket, COUNT(*) matches, ROUND(AVG(n_books),1) avg_books
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '24 hours'
+  AND market='h2h' AND period='FT'
+GROUP BY time_bucket ORDER BY 1;
+
+Sanity/degeneracy:
+
+SELECT COUNT(*) bad
+FROM consensus_predictions
+WHERE market='h2h' AND period='FT'
+  AND (consensus_h IS NULL OR consensus_d IS NULL OR consensus_a IS NULL
+       OR consensus_h<0 OR consensus_d<0 OR consensus_a<0
+       OR consensus_h>1 OR consensus_d>1 OR consensus_a>1);
+
+Gaps (snapshots exist but no consensus):
+
+WITH recent AS (
+  SELECT DISTINCT match_id
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+    AND market='h2h' AND period='FT'
+)
+SELECT r.match_id
+FROM recent r
+LEFT JOIN consensus_predictions c
+  ON c.match_id=r.match_id
+ AND c.created_at > NOW() - INTERVAL '24 hours'
+WHERE c.match_id IS NULL
+LIMIT 50;
+
+/predict contract (quick sanity)
+
+Your response should keep these invariants:
+
+{
+  "predictions": {
+    "home_win": 0.533,
+    "draw": 0.255,
+    "away_win": 0.213,
+    "confidence": 0.078,
+    "recommended_bet": "No Bet"
+  },
+  "metadata": {
+    "data_source": "consensus_predictions(equal_mean v1.0.0)",
+    "time_bucket": "48h",
+    "n_triplets_used": 18,
+    "n_books_raw": 18,
+    "dispersion": 0.0075,
+    "entropy": 0.94,
+    "prob_sum_valid": true,
+    "reco_aligned": true,
+    "input_hash": "sha256:…"
+  }
+}
+
+If consensus row is missing, set data_source: "fallback:odds_snapshots" and confidence=0 when coverage/QA fail (no synthetic fill).
+
+Hardening you’ve mostly done (keep it)
+	•	Idempotent upsert on consensus rows; only newer created_at wins.
+	•	Book triplet rule (only use complete H/D/A per book snapshot).
+	•	De-vig per book, then normalize aggregate.
+	•	Timing tolerances relaxed (48h ±12h, 24h ±8h, 6h ±3h, 3h ±90m, 1h ±45m).
+	•	Team matching with accents/prefixes and league→sport key map.
+	•	Safety net job every 15m to fill missing buckets.
+
+Light polish before turning the canary up
+	•	Truth set: pin a rolling list of fixtures (IDs) used for canary scoring so your daily report isn’t shifting underfoot.
+	•	Error budget: allow X “no consensus” misses per 24h (e.g., X=5) before auto-page.
+	•	Retention: keep odds_snapshots for 180 days (partition per day), consensus_predictions for 365 days; archive older to cold storage.
+	•	Indexes (you likely have):
+	•	odds_snapshots (match_id, book_id, ts_snapshot, market, line, period, outcome)
+	•	consensus_predictions (match_id, time_bucket) and (market, coalesce(line,0.0), period), (created_at DESC).
+	•	Security: rotate Odds API key quarterly; restrict DB role used by collectors to only INSERT ON CONFLICT and SELECT.
+
+Answering your implicit question: are we prod-ready?
+	•	Yes—for a controlled canary. Collection is solid, consensus rollups exist, /predict prefers consensus with a safe fallback, and observability/health checks are in place. Your remaining risk is operational (missed buckets, edge-case team names, or DB contention), not math. The rollback plan + invariants make this safe.
+
+After canary stabilizes (fast wins)
+	•	Emit EV in response when a book’s current price is supplied: EV = p*odds - 1 (show best EV across books + Kelly fraction).
+	•	Add buckets beyond H2H in the same table layout: market='totals', line=2.5/3.5, market='dnb', market='btts'. The schema you have already supports it.
+	•	Start a daily calibration report (reliability diagram per bucket).
+
+If you want, I can draft the exact SQL classify_bucket() and a minimal rollup stored procedure you can drop in, plus a one-page runbook for on-call.
