@@ -1,0 +1,185 @@
+Amazing validation run — you’ve proved the hard part (fresh, authentic odds landing reliably). What’s left is wiring that data cleanly into consensus + /predict. Here’s a tight, do-this-now plan with concrete fixes.
+
+What’s good ✅
+	•	Odds collection is excellent: 435 fresh odds / 9 matches / ~18 books in 60m.
+	•	H/D/A triplets exist for all 9 matches (data quality ✓).
+	•	Safety-net + scheduler + observability are in place.
+
+What’s blocking canary 🚧
+	1.	Consensus not building (empty consensus_predictions)
+	2.	Collector counting bug (“1 complete bookmaker” when 18 exist)
+	3.	Health threshold too tight (use 60–90m, not 30m)
+
+⸻
+
+1) Fix consensus building (server-side rollup)
+
+Add a small, idempotent consensus job that rolls odds_snapshots into consensus_predictions. This runs after every collection (and the 15-min filler).
+
+Bucket helper (Postgres function):
+
+CREATE OR REPLACE FUNCTION classify_bucket(secs_to_kickoff int)
+RETURNS text AS $$
+SELECT CASE
+  WHEN $1 BETWEEN 7*24*3600 AND 8*24*3600 THEN '168h'
+  WHEN $1 BETWEEN 5*24*3600 AND 6*24*3600 THEN '120h'
+  WHEN $1 BETWEEN 66*3600   AND 78*3600   THEN '72h'
+  WHEN $1 BETWEEN 40*3600   AND 56*3600   THEN '48h'
+  WHEN $1 BETWEEN 18*3600   AND 30*3600   THEN '24h'
+  WHEN $1 BETWEEN 10*3600   AND 14*3600   THEN '12h'
+  WHEN $1 BETWEEN 4*3600    AND 8*3600    THEN '6h'
+  WHEN $1 BETWEEN 2*3600    AND 4*3600    THEN '3h'
+  WHEN $1 BETWEEN 0         AND 2*3600    THEN '1h'
+  ELSE NULL END;
+$$ LANGUAGE SQL IMMUTABLE;
+
+Rollup (devig only complete triplets per book & bucket):
+
+WITH snap AS (
+  SELECT match_id, league_id, book_id, ts_snapshot,
+         classify_bucket(secs_to_kickoff) AS time_bucket,
+         outcome, odds_decimal
+  FROM odds_snapshots
+  WHERE market = 'h2h' AND period = 'FT' AND price_type = 'pre'
+    AND ts_snapshot > NOW() - INTERVAL '48 hours'
+),
+latest_per_book AS (  -- one snapshot per book per bucket (closest to kickoff)
+  SELECT DISTINCT ON (match_id, book_id, time_bucket)
+         match_id, league_id, book_id, time_bucket, ts_snapshot
+  FROM snap
+  WHERE time_bucket IS NOT NULL
+  ORDER BY match_id, book_id, time_bucket, ts_snapshot DESC
+),
+triplets AS (
+  SELECT l.match_id, l.league_id, l.book_id, l.time_bucket,
+         MAX(CASE WHEN s.outcome='H' THEN 1.0/s.odds_decimal END) AS p_h_raw,
+         MAX(CASE WHEN s.outcome='D' THEN 1.0/s.odds_decimal END) AS p_d_raw,
+         MAX(CASE WHEN s.outcome='A' THEN 1.0/s.odds_decimal END) AS p_a_raw
+  FROM latest_per_book l
+  JOIN snap s USING (match_id, book_id, time_bucket, ts_snapshot)
+  GROUP BY 1,2,3,4
+  HAVING COUNT(DISTINCT s.outcome) = 3
+),
+devig AS (
+  SELECT match_id, league_id, time_bucket, book_id,
+         p_h_raw/(p_h_raw+p_d_raw+p_a_raw) AS p_h,
+         p_d_raw/(p_h_raw+p_d_raw+p_a_raw) AS p_d,
+         p_a_raw/(p_h_raw+p_d_raw+p_a_raw) AS p_a
+  FROM triplets
+),
+weighted AS (  -- optional: join book weights; else equal-average
+  SELECT d.match_id, d.league_id, d.time_bucket,
+         AVG(d.p_h) AS consensus_h,
+         AVG(d.p_d) AS consensus_d,
+         AVG(d.p_a) AS consensus_a,
+         STDDEV_POP(d.p_h) AS dispersion_h,
+         STDDEV_POP(d.p_d) AS dispersion_d,
+         STDDEV_POP(d.p_a) AS dispersion_a,
+         COUNT(*) AS n_books
+  FROM devig d
+  GROUP BY 1,2,3
+)
+INSERT INTO consensus_predictions
+(match_id, time_bucket, consensus_h, consensus_d, consensus_a,
+ dispersion_h, dispersion_d, dispersion_a, n_books, consensus_method, created_at)
+SELECT match_id, time_bucket, consensus_h, consensus_d, consensus_a,
+       COALESCE(dispersion_h,0), COALESCE(dispersion_d,0), COALESCE(dispersion_a,0),
+       n_books, 'equal_mean', NOW()
+FROM weighted
+ON CONFLICT (match_id, time_bucket) DO UPDATE
+SET consensus_h = EXCLUDED.consensus_h,
+    consensus_d = EXCLUDED.consensus_d,
+    consensus_a = EXCLUDED.consensus_a,
+    dispersion_h = EXCLUDED.dispersion_h,
+    dispersion_d = EXCLUDED.dispersion_d,
+    dispersion_a = EXCLUDED.dispersion_a,
+    n_books     = EXCLUDED.n_books,
+    consensus_method = EXCLUDED.consensus_method,
+    created_at  = NOW();
+
+Scheduler: run this rollup right after each successful collect/fill job (and nightly backfill).
+
+⸻
+
+2) Fix “complete bookmaker” counting in code
+
+In enhanced_real_data_collector, count triplets by (book_id, bucket) instead of per-event list length. Also, ignore duplicate outcomes & require all H/D/A.
+
+from collections import defaultdict
+
+by_book = defaultdict(lambda: {'H': None, 'D': None, 'A': None})
+
+for row in rows_from_db:  # each row: book_id, outcome in {'H','D','A'}, odds_decimal, ts_snapshot, secs_to_kickoff
+    bucket = classify_bucket(row['secs_to_kickoff'])  # mirror SQL
+    if not bucket: 
+        continue
+    key = (row['book_id'], bucket)
+    # Keep the freshest snapshot per outcome
+    cur = by_book.get(key) or {'H': None, 'D': None, 'A': None}
+    cur[row['outcome']] = min(cur[row['outcome']], row['odds_decimal']) if cur[row['outcome']] else row['odds_decimal']
+    by_book[key] = cur
+
+complete = {k:v for k,v in by_book.items() if all(v[o] for o in 'HDA')}
+n_complete = len(complete)  # should match your SQL counts
+
+Then devig each complete triplet and average (or weight) across books to produce the same result the SQL job writes to consensus_predictions. Your /predict should prefer consensus_predictions and only fall back to an in-process consensus if there’s no row yet for that match/bucket.
+
+⸻
+
+3) Tune monitoring thresholds
+	•	Freshness: change alert from 30m → 90m (weekday) and 120m (off-peak) to avoid false alarms.
+	•	Add an alert if consensus_predictions has 0 rows in 2h while odds_snapshots has >0 rows. That catches exactly this kind of wiring gap.
+
+⸻
+
+4) Wire /predict to consensus (and keep a safe fallback)
+
+Resolution order:
+	1.	Use consensus_predictions row for the nearest future bucket (e.g., prefer 24h, else 48h, else 72h).
+	2.	If missing, compute in-process equal-mean consensus from odds_snapshots (same logic as SQL job).
+	3.	If still missing, return {confidence: 0.0, recommended_bet: 'No Bet'} and include metadata why.
+
+This guarantees sane, aligned probabilities every time.
+
+⸻
+
+5) One-shot verification script (copy/paste)
+
+After you patch, run this sequence to prove E2E:
+
+-- A) Fresh snapshots exist?
+SELECT COUNT(*) rows, COUNT(DISTINCT match_id) matches, MAX(ts_snapshot) latest
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '90 minutes';
+
+-- B) Complete triplets?
+SELECT COUNT(*) AS matches_with_triplets
+FROM (
+  SELECT match_id
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '6 hours'
+  GROUP BY match_id, book_id
+  HAVING COUNT(DISTINCT outcome)=3
+) t;
+
+-- C) Run the consensus rollup job (SQL above), then check:
+SELECT time_bucket, COUNT(*) matches, MAX(created_at) latest
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '2 hours'
+GROUP BY time_bucket ORDER BY time_bucket;
+
+-- D) Pick a match and hit /predict; confirm:
+--  - prob_sum_valid=true
+--  - n_triplets_used or n_books >= 6
+--  - recommendation aligned with max(prob)
+
+
+⸻
+
+Definition of “canary-ready”
+	•	consensus_predictions populated for ≥80% of matches within 72/48/24h buckets.
+	•	/predict uses consensus row and returns probabilities that sum to ~1.0, with aligned recommendation and non-zero confidence when books ≥ 6.
+	•	Monitoring alerts remain green with 90m freshness threshold.
+	•	The “complete book” count in code matches the SQL count (±0).
+
+Nail the two wiring fixes above (consensus rollup + book counting), and you’re ready to flip on canary.

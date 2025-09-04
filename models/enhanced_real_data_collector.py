@@ -268,23 +268,10 @@ class EnhancedRealDataCollector:
                     
                     # Organize odds by bookmaker
                     bookmaker_odds = {}
-                    bookmaker_map = {
-                        # Major bookmakers from The Odds API
-                        '15': 'bet365', '3': 'pinnacle', '16': 'betway', 
-                        '8': 'william_hill', '160': 'unibet', '854': 'parions_sport',
-                        '1': 'betfair', '10': 'ladbrokes', '11': 'coral',
-                        # Additional bookmakers from your database
-                        '0': 'draftkings', '106': '1xbet', '210': 'bwin', 
-                        '269': 'sportingbet', '282': 'marathon', '335': 'betano',
-                        '357': 'tipico', '371': 'interwetten', '413': 'nordicbet',
-                        '21': 'bovada', '32': 'fanduel', '44': 'caesars',
-                        '77': 'pointsbet', '88': 'betmgm', '99': 'pokerstars'
-                    }
                     
+                    # FIXED: Use all book_ids in database, create dynamic mapping
                     for book_id, outcome, odds in rows:
-                        book_name = bookmaker_map.get(str(book_id))
-                        if not book_name:
-                            continue
+                        book_name = f"book_{book_id}"  # Simple, consistent naming
                             
                         if book_name not in bookmaker_odds:
                             bookmaker_odds[book_name] = {}

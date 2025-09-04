@@ -26,7 +26,7 @@ class MonitoringSystem:
         """Get database connection"""
         return psycopg2.connect(self.database_url)
     
-    def check_fresh_odds_availability(self, threshold_minutes: int = 30) -> Dict:
+    def check_fresh_odds_availability(self, threshold_minutes: int = 90) -> Dict:
         """Check if we have fresh odds within threshold"""
         
         try:

@@ -806,6 +806,73 @@ async def prediction_health_check():
             }
         )
 
+
+async def get_consensus_prediction_from_db(match_id: int):
+    """Get pre-computed consensus prediction from consensus_predictions table"""
+    try:
+        import psycopg2
+        import os
+        database_url = os.environ.get('DATABASE_URL')
+        if not database_url:
+            return None
+            
+        with psycopg2.connect(database_url) as conn:
+            with conn.cursor() as cursor:
+                # Get the best available consensus (prefer closest to match time)
+                query = """
+                    SELECT time_bucket, consensus_h, consensus_d, consensus_a, 
+                           n_books, dispersion_h, dispersion_d, dispersion_a
+                    FROM consensus_predictions 
+                    WHERE match_id = %s
+                    ORDER BY 
+                        CASE time_bucket
+                            WHEN '24h' THEN 1
+                            WHEN '48h' THEN 2  
+                            WHEN '72h' THEN 3
+                            WHEN '12h' THEN 4
+                            WHEN '6h' THEN 5
+                            ELSE 6
+                        END
+                    LIMIT 1
+                """
+                
+                cursor.execute(query, (match_id,))
+                result = cursor.fetchone()
+                
+                if not result:
+                    return None
+                    
+                time_bucket, h_prob, d_prob, a_prob, n_books, disp_h, disp_d, disp_a = result
+                
+                # Determine best bet recommendation
+                max_prob = max(h_prob, d_prob, a_prob)
+                if h_prob == max_prob:
+                    prediction = 'home_win'
+                elif a_prob == max_prob:
+                    prediction = 'away_win'  
+                else:
+                    prediction = 'draw'
+                
+                # Calculate confidence based on max probability and low dispersion
+                avg_dispersion = (disp_h + disp_d + disp_a) / 3
+                confidence = min(max_prob * (1 - avg_dispersion), 0.95)
+                
+                return {
+                    'probabilities': {'home': h_prob, 'draw': d_prob, 'away': a_prob},
+                    'confidence': confidence,
+                    'prediction': prediction,
+                    'quality_score': confidence,
+                    'bookmaker_count': n_books,
+                    'model_type': 'pre_computed_consensus',
+                    'data_source': f'consensus_predictions_{time_bucket}',
+                    'time_bucket': time_bucket,
+                    'dispersion': avg_dispersion
+                }
+                
+    except Exception as e:
+        logger.error(f'Error getting consensus prediction for match {match_id}: {e}')
+        return None
+
 @app.post("/predict")
 async def predict_match(
     request: PredictionRequest,
@@ -842,32 +909,41 @@ async def predict_match(
             "league": match_details['league']['name']
         }
         
-        # Step 2: Generate prediction using simple weighted consensus (proven best model)
+        # Step 2: Generate prediction using consensus (pre-computed preferred, in-process fallback)
         logger.info("Generating weighted consensus prediction...")
-        current_odds = match_data.get('current_odds', {})
         
-        if not current_odds:
-            # NO REAL ODDS DATA - Return production-safe response with confidence 0
-            logger.warning(f"No real odds data available for match {request.match_id} - returning confidence 0")
-            prediction_result = {
-                'probabilities': {'home_win': 0.0, 'draw': 0.0, 'away_win': 0.0},
-                'confidence': 0.0,
-                'prediction': 'no_prediction',
-                'quality_score': 0.0,
-                'bookmaker_count': 0,
-                'model_type': 'simple_weighted_consensus',
-                'data_source': 'no_real_data_available'
-            }
+        # FIRST: Try to get pre-computed consensus from consensus_predictions table
+        prediction_result = await get_consensus_prediction_from_db(request.match_id)
+        
+        if prediction_result:
+            logger.info(f"Using pre-computed consensus for match {request.match_id}")
         else:
-            # Real odds data available - generate prediction
-            prediction_result = consensus_predictor.predict_match(current_odds)
+            # FALLBACK: Generate in-process consensus using current odds
+            logger.info("No pre-computed consensus found, generating in-process consensus...")
+            current_odds = match_data.get('current_odds', {})
             
-            if not prediction_result:
-                logger.warning(f"Prediction failed despite having odds data for match {request.match_id}")
-                raise HTTPException(
-                    status_code=422,
-                    detail="Unable to generate prediction - prediction algorithm failed"
-                )
+            if not current_odds:
+                # NO REAL ODDS DATA - Return production-safe response with confidence 0
+                logger.warning(f"No real odds data available for match {request.match_id} - returning confidence 0")
+                prediction_result = {
+                    'probabilities': {'home_win': 0.0, 'draw': 0.0, 'away_win': 0.0},
+                    'confidence': 0.0,
+                    'prediction': 'no_prediction',
+                    'quality_score': 0.0,
+                    'bookmaker_count': 0,
+                    'model_type': 'simple_weighted_consensus',
+                    'data_source': 'no_real_data_available'
+                }
+            else:
+                # Real odds data available - generate prediction
+                prediction_result = consensus_predictor.predict_match(current_odds)
+                
+                if not prediction_result:
+                    logger.warning(f"Prediction failed despite having odds data for match {request.match_id}")
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Unable to generate prediction - prediction algorithm failed"
+                    )
         
         # Step 3: Enhanced AI analysis using comprehensive data
         ai_analysis = None
