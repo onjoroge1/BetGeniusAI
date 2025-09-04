@@ -519,19 +519,25 @@ class AutomatedCollector:
             
             try:
                 # Map league ID to The Odds API sport key
+                # COMPLETE league -> sport_key mapping for all configured leagues
                 league_sport_map = {
-                    39: 'soccer_epl',      # Premier League
-                    140: 'soccer_spain_la_liga',  # La Liga
-                    141: 'soccer_spain_segunda_division',  # LaLiga2 - CRITICAL FIX
-                    135: 'soccer_italy_serie_a',  # Serie A
-                    136: 'soccer_italy_serie_b',   # Serie B
-                    78: 'soccer_germany_bundesliga',  # Bundesliga
-                    79: 'soccer_germany_bundesliga2', # 2. Bundesliga
-                    61: 'soccer_france_ligue_one',    # Ligue 1
-                    62: 'soccer_france_ligue_two',    # Ligue 2
+                    39: 'soccer_epl',                     # Premier League
+                    140: 'soccer_spain_la_liga',          # La Liga
+                    141: 'soccer_spain_segunda_division', # LaLiga2
+                    135: 'soccer_italy_serie_a',          # Serie A
+                    136: 'soccer_italy_serie_b',          # Serie B
+                    78: 'soccer_germany_bundesliga',      # Bundesliga
+                    79: 'soccer_germany_bundesliga2',     # 2. Bundesliga
+                    61: 'soccer_france_ligue_one',        # Ligue 1
+                    62: 'soccer_france_ligue_two',        # Ligue 2
                     88: 'soccer_netherlands_eredivisie',  # Eredivisie
-                    72: 'soccer_efl_champ'            # Championship
+                    72: 'soccer_efl_champ'                # Championship
                 }
+                
+                # Validate mapping exists
+                if league_id not in league_sport_map:
+                    logger.error(f"❌ CRITICAL: League {league_id} not mapped to Odds API sport key!")
+                    return False
                 
                 sport_key = league_sport_map.get(league_id, 'soccer_epl')
                 
@@ -554,9 +560,9 @@ class AutomatedCollector:
                             # Find odds for this specific match
                             match_odds = None
                             for event in odds_data:
-                                # Match by team names (fuzzy matching may be needed)
-                                home_match = self._fuzzy_match_team(match['home_team'], event.get('home_team', ''))
-                                away_match = self._fuzzy_match_team(match['away_team'], event.get('away_team', ''))
+                                # Match by team names with 0.92 threshold
+                                home_match = self._team_match_passes_threshold(match['home_team'], event.get('home_team', ''))
+                                away_match = self._team_match_passes_threshold(match['away_team'], event.get('away_team', ''))
                                 
                                 if home_match and away_match:
                                     match_odds = event
@@ -604,124 +610,137 @@ class AutomatedCollector:
     
 
     
-    def _fuzzy_match_team(self, team1: str, team2: str) -> bool:
-        """Enhanced fuzzy matching for team names with accent handling and suffix removal"""
+    def _fuzzy_match_team(self, team1: str, team2: str) -> float:
+        """Enhanced fuzzy matching with 0.92 threshold and alias support"""
         if not team1 or not team2:
-            return False
+            return 0.0
         
-        # Normalize team names
+        # Team aliases for common variations
+        team_aliases = {
+            'internazionale': ['inter', 'inter milan'],
+            'athletic club': ['athletic bilbao', 'athletic'],
+            'atletico madrid': ['atletico', 'atm'],
+            'real madrid': ['madrid', 'rmcf'],
+            'barcelona': ['barca', 'fcb'],
+            'manchester city': ['man city', 'city', 'mcfc'],
+            'manchester united': ['man united', 'united', 'mufc'],
+            'tottenham': ['spurs', 'thfc'],
+            'deportivo la coruna': ['deportivo', 'depor'],
+            'real sociedad': ['sociedad'],
+            'valencia cf': ['valencia'],
+            'cordoba': ['cordoba cf'],
+            'castellon': ['cd castellon'],
+            'mirandes': ['cd mirandes'],
+            'albacete': ['albacete bp']
+        }
+        
         def normalize_team(name: str) -> str:
-            """Normalize team name for matching"""
+            """Advanced normalization: lowercase, strip diacritics, remove prefixes/suffixes"""
             import unicodedata
+            import re
             
-            # Remove accents (é → e, ñ → n, ç → c, etc.)
+            # Remove accents and diacritics
             name = unicodedata.normalize('NFD', name)
             name = ''.join(c for c in name if unicodedata.category(c) != 'Mn')
             
             # Convert to lowercase
-            name = name.lower()
+            name = name.lower().strip()
             
-            # Remove common team suffixes and prefixes
-            suffixes = ['fc', 'cf', 'city', 'united', 'atletico', 'athletic', 'club', 'sporting', 
-                       'real', 'deportivo', 'cd', 'ud', 'ad', 'sd', 'racing', 'ca', 'ac', 'as']
+            # Remove common prefixes/suffixes
+            prefixes_suffixes = [
+                'fc', 'cf', 'city', 'united', 'atletico', 'athletic', 'club', 'sporting',
+                'real', 'deportivo', 'cd', 'ud', 'ad', 'sd', 'racing', 'ca', 'ac', 'as',
+                'u19', 'u21', 'ii', 'b', 'reserves', 'sp', 'bp'
+            ]
             
-            # Split into words and remove suffixes
-            words = name.split()
+            # Split into words
+            words = re.split(r'[\s\-\.]+', name)
             filtered_words = []
+            
             for word in words:
-                # Remove common suffixes
-                if word not in suffixes:
-                    filtered_words.append(word)
+                # Remove empty words and single characters (except meaningful ones)
+                if len(word) > 1 or word in ['a', 'o']:
+                    # Remove common prefixes/suffixes
+                    if word not in prefixes_suffixes:
+                        filtered_words.append(word)
             
-            # Join back and remove spaces/punctuation
-            name = ''.join(filtered_words)
-            name = ''.join(c for c in name if c.isalnum())
-            
-            return name
+            # Join and remove all non-alphanumeric
+            result = ''.join(filtered_words)
+            return re.sub(r'[^a-z0-9]', '', result)
         
-        # Normalize both team names
+        # Check aliases first
+        def check_aliases(name1: str, name2: str) -> bool:
+            norm_name1 = normalize_team(name1)
+            norm_name2 = normalize_team(name2)
+            
+            for canonical, aliases in team_aliases.items():
+                canon_norm = normalize_team(canonical)
+                if (norm_name1 == canon_norm and any(normalize_team(alias) == norm_name2 for alias in aliases)) or \
+                   (norm_name2 == canon_norm and any(normalize_team(alias) == norm_name1 for alias in aliases)):
+                    return True
+            return False
+        
+        if check_aliases(team1, team2):
+            return 1.0
+        
+        # Normalize both names
         norm1 = normalize_team(team1)
         norm2 = normalize_team(team2)
         
-        # Multiple matching strategies
-        
-        # 1. Exact match after normalization
+        # Exact match
         if norm1 == norm2:
-            return True
-            
-        # 2. One contains the other (minimum 3 characters for short team names)
+            return 1.0
+        
+        # Substring matching (minimum 3 chars)
         if len(norm1) >= 3 and len(norm2) >= 3:
             if norm1 in norm2 or norm2 in norm1:
-                return True
+                # Calculate overlap ratio
+                overlap = min(len(norm1), len(norm2))
+                total = max(len(norm1), len(norm2))
+                return overlap / total
         
-        # 2.5. Handle specific common patterns
-        # Remove leading numbers and common club indicators
-        def clean_further(name: str) -> str:
-            # Remove numbers at start (like "1" in "1. FC Koln")
-            while name and name[0].isdigit():
-                name = name[1:]
-            # Remove single letters that might be initials
-            words = name.split()
-            cleaned_words = [w for w in words if len(w) > 1 or w.lower() in ['fc', 'cf', 'sc']]
-            return ''.join(cleaned_words)
-        
-        clean1 = clean_further(norm1)
-        clean2 = clean_further(norm2)
-        
-        if clean1 and clean2 and len(clean1) >= 3 and len(clean2) >= 3:
-            if clean1 in clean2 or clean2 in clean1:
-                return True
-        
-        # 3. Common abbreviations and variations
-        abbreviations = {
-            'barcelona': ['barca', 'fcb'],
-            'realmadrid': ['madrid', 'rmcf'], 
-            'atleticomadrid': ['atletico', 'atm'],
-            'mancity': ['city', 'mcfc'],
-            'manunited': ['united', 'mufc'],
-            'tottenham': ['spurs', 'thfc'],
-            'arsenal': ['gunners', 'afc'],
-            'chelsea': ['blues', 'cfc'],
-            'liverpool': ['reds', 'lfc']
-        }
-        
-        for full_name, abbrevs in abbreviations.items():
-            if (norm1 == full_name and norm2 in abbrevs) or \
-               (norm2 == full_name and norm1 in abbrevs) or \
-               (norm1 in abbrevs and norm2 in abbrevs):
-                return True
-        
-        # 4. Levenshtein distance for close matches (optional)
-        if len(norm1) >= 5 and len(norm2) >= 5:
-            def levenshtein_distance(s1: str, s2: str) -> int:
-                """Calculate Levenshtein distance between two strings"""
-                if len(s1) < len(s2):
-                    return levenshtein_distance(s2, s1)
+        # Jaro-Winkler similarity (using simplified Levenshtein)
+        if len(norm1) >= 3 and len(norm2) >= 3:
+            def jaro_winkler_similarity(s1: str, s2: str) -> float:
+                """Simplified Jaro-Winkler using Levenshtein"""
+                if s1 == s2:
+                    return 1.0
                 
-                if len(s2) == 0:
-                    return len(s1)
+                # Levenshtein distance
+                def levenshtein(a: str, b: str) -> int:
+                    if len(a) < len(b):
+                        return levenshtein(b, a)
+                    if len(b) == 0:
+                        return len(a)
+                    
+                    prev_row = list(range(len(b) + 1))
+                    for i, c1 in enumerate(a):
+                        curr_row = [i + 1]
+                        for j, c2 in enumerate(b):
+                            insertions = prev_row[j + 1] + 1
+                            deletions = curr_row[j] + 1
+                            substitutions = prev_row[j] + (c1 != c2)
+                            curr_row.append(min(insertions, deletions, substitutions))
+                        prev_row = curr_row
+                    return prev_row[-1]
                 
-                previous_row = list(range(len(s2) + 1))
-                for i, c1 in enumerate(s1):
-                    current_row = [i + 1]
-                    for j, c2 in enumerate(s2):
-                        insertions = previous_row[j + 1] + 1
-                        deletions = current_row[j] + 1
-                        substitutions = previous_row[j] + (c1 != c2)
-                        current_row.append(min(insertions, deletions, substitutions))
-                    previous_row = current_row
-                
-                return previous_row[-1]
+                distance = levenshtein(s1, s2)
+                max_len = max(len(s1), len(s2))
+                return 1 - (distance / max_len) if max_len > 0 else 0.0
             
-            distance = levenshtein_distance(norm1, norm2)
-            max_length = max(len(norm1), len(norm2))
-            similarity = 1 - (distance / max_length)
-            
-            # Accept if similarity >= 85%
-            if similarity >= 0.85:
-                return True
+            return jaro_winkler_similarity(norm1, norm2)
         
-        return False
+        return 0.0
+    
+    def _team_match_passes_threshold(self, team1: str, team2: str, threshold: float = 0.92) -> bool:
+        """Check if team matching passes the 0.92 threshold"""
+        similarity = self._fuzzy_match_team(team1, team2)
+        
+        # Log near-misses for curation (0.85-0.92)
+        if 0.85 <= similarity < threshold:
+            logger.warning(f"🔍 NEAR-MISS (similarity={similarity:.3f}): '{team1}' vs '{team2}' - consider adding alias")
+        
+        return similarity >= threshold
     
     def _extract_bookmaker_odds(self, match_odds: Dict, match_id: int, league_id: int, timing_window: int) -> List[Dict]:
         """Extract individual bookmaker odds for database storage"""

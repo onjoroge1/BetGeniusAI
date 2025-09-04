@@ -3055,5 +3055,40 @@
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2025-09-04T01:45:44.253066",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 72,
+        "league_name": "League 72",
+        "matches_found": 3,
+        "matches_processed": 3,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 141,
+        "league_name": "League 141",
+        "matches_found": 2,
+        "matches_processed": 2,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      }
+    ],
+    "new_matches_collected": 0,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]

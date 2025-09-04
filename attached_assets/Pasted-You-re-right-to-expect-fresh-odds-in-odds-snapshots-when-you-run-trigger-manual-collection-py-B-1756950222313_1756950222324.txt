@@ -1,0 +1,138 @@
+You’re right to expect fresh odds in `odds_snapshots` when you run `trigger_manual_collection.py`. Based on everything you/agent found, here’s a straight-to-the-point checklist to get collection working end-to-end and keep it working.
+
+# 1) One-time fixes to lock in
+
+* **Use the right timestamp**: all freshness/selection must use `ts_snapshot` (not `created_at`). Keep `created_at` only as ingest time.
+* **League → sport\_key map**: make sure every league you monitor is mapped (e.g., `141 → soccer_spain_segunda_division`, `72 → soccer_efl_champ`, `62 → soccer_france_ligue_two`, etc.). Defaulting to EPL silently kills coverage.
+* **Team matching** (the real killer): normalize both sides before matching
+
+  * lowercase, strip diacritics, strip prefixes/suffixes (`cf`, `cd`, `afc`, `fc`, `u19`, `u21`), remove punctuation/extra spaces
+  * alias table for common variants (`Internazionale`↔`Inter`, `Athletic Club`↔`Athletic Bilbao`, etc.)
+  * fuzzy threshold (Jaro-Winkler / RapidFuzz) ≥ **0.92**; log near-misses 0.85–0.92 for curation
+* **Timing windows**: select the **nearest** bucket among `[168,120,72,48,24,12,6,3,1]` with tolerances (suggested):
+  `±12h` for 168/120/72/48, `±6h` for 24/12, `±3h` for 6/3/1.
+  This fixes T-40h/T-42h misses.
+* **Only devig complete triplets** per bookmaker (H/D/A all present). Ignore partials for consensus.
+
+# 2) Minimal “does it work?” drill (5–10 min)
+
+Run these in order; each step has a pass/fail condition.
+
+**A. API key + quota sanity**
+
+* Call Odds API manually for one mapped league (e.g., LaLiga2):
+  `GET /v4/sports/soccer_spain_segunda_division/odds?regions=eu&markets=h2h&oddsFormat=decimal`
+  ✅ Expect JSON with `home_team`, `away_team`, `bookmakers` array ≥ 3.
+
+**B. Match binding sanity**
+
+* Pick one upcoming internal `match_id` in that league (kickoff 24–72h out).
+* Log: internal names + the API’s closest event names after normalization.
+  ✅ Expect **both** teams to match above 0.92 and print a positive binding.
+
+**C. Snapshot write**
+
+* Run `trigger_manual_collection.py` (or call the collector method for that league).
+* Verify inserts (last 10 minutes):
+
+  ```sql
+  SELECT COUNT(*) total,
+         COUNT(DISTINCT match_id) matches,
+         COUNT(DISTINCT book_id) books,
+         MAX(ts_snapshot) latest
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+  ```
+
+  ✅ Expect `total > 0`, and `books ≥ 3` for at least one match.
+
+**D. Triplet integrity**
+
+* Quick integrity check:
+
+  ```sql
+  SELECT match_id, book_id,
+         SUM(CASE WHEN outcome='H' THEN 1 ELSE 0 END) h,
+         SUM(CASE WHEN outcome='D' THEN 1 ELSE 0 END) d,
+         SUM(CASE WHEN outcome='A' THEN 1 ELSE 0 END) a
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '10 minutes'
+  GROUP BY 1,2
+  HAVING MIN(h)=1 AND MIN(d)=1 AND MIN(a)=1;
+  ```
+
+  ✅ Expect at least one row → you have complete triplets to build consensus.
+
+**E. /predict sanity**
+
+* Call `/predict` for that `match_id`.
+  ✅ Expect:
+
+  * `predictions.home_win + draw + away_win ≈ 1.0`
+  * `metadata.n_triplets_used ≥ 2`, `metadata.prob_sum_valid=true`
+  * `recommended_bet` matches `argmax(probabilities)` **unless** you’re in “No Bet” policy due to low confidence/EV.
+
+# 3) What to watch if it’s still empty
+
+* **Wrong league mapping** → API returns zero events for the sport key. Fix mapping.
+* **Name mismatch** → see logs for “near-miss” matches (0.85–0.92). Add aliases.
+* **Bucket miss** → kickoff time sits outside tolerances. Loosen to suggested bounds.
+* **Region/market filter** → ensure you request `markets=h2h` and `regions=eu` (or your preferred regions list).
+* **Odds API limits** → check `x-requests-remaining` header. If 0, pause/retry later.
+* **DB conflict** → primary key is `(match_id, book_id, ts_snapshot, outcome)`. If you upsert incorrectly, nothing lands. Ensure `ON CONFLICT DO UPDATE` by **newer** `ts_snapshot`.
+
+# 4) DB indexes (makes /predict & health snappy)
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_snapshots_match_time ON odds_snapshots (match_id, ts_snapshot DESC);
+CREATE INDEX IF NOT EXISTS idx_snapshots_bucket ON odds_snapshots (match_id, secs_to_kickoff);
+CREATE INDEX IF NOT EXISTS idx_snapshots_league_time ON odds_snapshots (league_id, ts_snapshot DESC);
+```
+
+# 5) Health + telemetry (so you know it’s working)
+
+Add these to `/predict/health` and log them every run:
+
+* `collector_last_run_ts`, `collector_last_success_ts`
+* `odds_10m: {matches, books_avg, triplets_avg}`
+* `per_league_coverage_24h: [{league_id, avg_triplets, events}]`
+* `errors_5m` with top reasons: `no_sport_key`, `team_mismatch`, `rate_limit`, `no_triplets`.
+
+# 6) A couple of policy toggles worth having
+
+* `min_triplets` (default **2**) — reject consensus if coverage is too thin.
+* `require_pinnacle` (default **false**) — optionally require a sharp book present.
+* `bucket_strategy` — `nearest_with_tolerance` (recommended) vs `strict_exact`.
+
+# 7) Quick SQL to see you’re getting the 72/48/24 streams
+
+```sql
+SELECT time_bucket,
+       COUNT(DISTINCT match_id) matches,
+       ROUND(AVG(n_books),2) avg_books,
+       ROUND(AVG(n_triplets),2) avg_triplets
+FROM (
+  SELECT match_id,
+         CASE
+           WHEN secs_to_kickoff BETWEEN 36*3600 AND 60*3600 THEN '48h'
+           WHEN secs_to_kickoff BETWEEN 18*3600 AND 30*3600 THEN '24h'
+           WHEN secs_to_kickoff BETWEEN 66*3600 AND 78*3600 THEN '72h'
+           ELSE 'other'
+         END AS time_bucket,
+         COUNT(DISTINCT book_id) AS n_books,
+         COUNT(*) FILTER (WHERE outcome IN ('H','D','A'))/3 AS n_triplets
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+  GROUP BY match_id, time_bucket
+) t
+GROUP BY time_bucket
+ORDER BY time_bucket;
+```
+
+---
+
+## Bottom line
+
+You’ve already fixed the big three (mapping, matching, timing). If `trigger_manual_collection.py` still yields no new rows, it’s almost always one of: wrong sport\_key, team fuzzy match barely missing, or bucket tolerances too tight. Use the drill above; you’ll see exactly where it stops.
+
+Once you see fresh rows in `odds_snapshots`, `/predict` will light up (triplets>0, valid sums, aligned recommendation) and your “no synthetic data” policy is honored. After that, let’s flip on the daily cron, wire the health metrics, and you’re ready to canary.

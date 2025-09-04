@@ -250,14 +250,13 @@ class EnhancedRealDataCollector:
             # Direct connection to PostgreSQL
             with psycopg2.connect(database_url) as conn:
                 with conn.cursor() as cursor:
-                    # Query for recent odds for this match
+                    # Query for recent odds for this match (FIXED: use fresh data)
                     query = """
                         SELECT book_id, outcome, odds_decimal 
                         FROM odds_snapshots 
                         WHERE match_id = %s 
-                        AND ts_snapshot > NOW() - INTERVAL '30 days'
+                        AND ts_snapshot > NOW() - INTERVAL '72 hours'
                         ORDER BY ts_snapshot DESC
-                        LIMIT 100
                     """
                     
                     cursor.execute(query, (match_id,))
