@@ -294,12 +294,12 @@ class BackgroundScheduler:
                                 bucket_classified AS (
                                     SELECT *,
                                         CASE 
-                                            WHEN secs_to_kickoff BETWEEN 14400 AND 34200 THEN '24h'  -- ±6h tolerance  
-                                            WHEN secs_to_kickoff BETWEEN 28800 AND 64800 THEN '48h'  -- ±12h tolerance
-                                            WHEN secs_to_kickoff BETWEEN 57600 AND 86400 THEN '72h'  -- ±12h tolerance
-                                            WHEN secs_to_kickoff BETWEEN 3600 AND 14400 THEN '12h'   -- ±3h tolerance
-                                            WHEN secs_to_kickoff BETWEEN 1800 AND 7200 THEN '6h'     -- ±3h tolerance  
-                                            WHEN secs_to_kickoff BETWEEN 900 AND 3600 THEN '3h'      -- ±3h tolerance
+                                            WHEN secs_to_kickoff BETWEEN 5400 AND 32400 THEN '6h'    -- 1.5-9h (consensus_builder compatible)
+                                            WHEN secs_to_kickoff BETWEEN 21600 AND 64800 THEN '12h'  -- 6-18h (consensus_builder compatible)  
+                                            WHEN secs_to_kickoff BETWEEN 64800 AND 108000 THEN '24h' -- 18-30h (consensus_builder compatible)
+                                            WHEN secs_to_kickoff BETWEEN 129600 AND 216000 THEN '48h'-- 36-60h (consensus_builder compatible)
+                                            WHEN secs_to_kickoff BETWEEN 216000 AND 302400 THEN '72h'-- 60-84h (consensus_builder compatible)
+                                            WHEN secs_to_kickoff BETWEEN 900 AND 5400 THEN '3h'      -- 0.25-1.5h (consensus_builder compatible)
                                             ELSE 'other'
                                         END as time_bucket
                                     FROM clean_odds

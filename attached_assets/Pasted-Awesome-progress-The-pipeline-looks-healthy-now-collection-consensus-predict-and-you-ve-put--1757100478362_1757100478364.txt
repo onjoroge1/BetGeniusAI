@@ -1,0 +1,99 @@
+Awesome progress. The pipeline looks healthy now (collection → consensus → /predict) and you’ve put the right guardrails in. To finish tightening things up and make sure the “21 rows” situation never creeps back, here’s a short, practical wrap-up with what to verify and what to do next.
+
+# Quick verifications (copy/paste checks)
+
+1. **24-hour coverage & gap**
+
+```sql
+WITH o AS (
+  SELECT DISTINCT match_id
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+),
+c AS (
+  SELECT DISTINCT match_id
+  FROM consensus_predictions
+  WHERE created_at > NOW() - INTERVAL '24 hours'
+)
+SELECT (SELECT COUNT(*) FROM o) AS matches_with_odds,
+       (SELECT COUNT(*) FROM c) AS matches_with_consensus,
+       (SELECT COUNT(*) FROM o) - (SELECT COUNT(*) FROM c) AS remaining_gap;
+```
+
+**Target:** remaining\_gap ≈ 0–20% (your /health can alert if >20%).
+
+2. **Per-bucket sanity** (to catch tolerance/bucket misses)
+
+```sql
+SELECT time_bucket, COUNT(*) AS rows, COUNT(DISTINCT match_id) AS matches
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY time_bucket
+ORDER BY CASE time_bucket WHEN '3h' THEN 1 WHEN '6h' THEN 2 WHEN '12h' THEN 3
+                          WHEN '24h' THEN 4 WHEN '48h' THEN 5 WHEN '72h' THEN 6 ELSE 7 END;
+```
+
+**Target:** rows present across the buckets you expect (esp. 24/48/72h).
+
+3. **/predict smoke test**
+
+* One match **with** a consensus row (expect non-zero probs, sum≈1, recommendation aligned).
+* One match **without** a consensus row but **with** snapshots (expect on-the-fly consensus).
+* One match with **too few books** (expect `confidence: 0.0` and a clear `metadata.failure_reason`).
+
+# Why you only saw \~21 consensus rows earlier
+
+* You were building **per match** (or only when “no existing consensus”) instead of **per bucket**.
+* Gates were too strict (bucket tolerance/min triplets).
+  You’ve already fixed both; consensus counts should now grow steadily and mirror snapshot coverage.
+
+# Action items to “lock it in”
+
+1. **Keep the relaxed gates**
+
+   * Buckets: `72/48/24/12/6/3h`
+   * Tolerances: `±12h (72/48), ±6h (24/12), ±3h (6/3)`
+   * `min_triplets = 2` (raise to 3 only if coverage stays high).
+
+2. **Ensure /predict always has a fallback**
+
+   * Read `consensus_predictions` **or** build from latest `odds_snapshots` if bucket missing.
+   * Centralize key mapping (`home/draw/away` → `home_win/draw/away_win`) and enforce `sum≈1`.
+
+3. **Remove foot-guns**
+
+   * Drop/rename the typo table `prediction_consenus` if it still exists and **block reads** from it in code.
+   * Add a one-line guard in /predict: if any prob==0 → recompute/fallback; if still invalid → return `no_prediction` with reason.
+
+4. **Failure telemetry you just added—use it**
+
+   * Alert on spikes of `no_bucket_hit`, `too_few_triplets`, `team_match_fail`.
+   * Put top 3 failure reasons into the `/predict/health` JSON for quick triage.
+
+5. **Indexes ( sanity list )**
+
+   * `odds_snapshots (match_id, ts_snapshot)`
+   * `odds_snapshots (match_id, book_id, outcome, ts_snapshot)`
+   * `consensus_predictions (match_id, time_bucket)`  (PK already on (match\_id,time\_bucket) = good)
+     These keep consensus building snappy.
+
+6. **Daily backfill**
+
+   * Nightly job: for the last 7 days, rebuild any **missing buckets** where snapshots exist. This smooths over API hiccups.
+
+# Go/No-Go canary criteria
+
+* **Coverage:** ≥80% of matches with snapshots in last 24h have a consensus row in ≥1 bucket.
+* **/predict validity:** ≥95% of calls return probabilities > 0 with sum in \[0.999, 1.001]; remaining calls return `no_prediction` with explicit reason.
+* **Triplet depth:** median `n_triplets_used ≥ 3` (watch dispersion).
+* **Latency:** p95 `/predict` < 800ms (without OpenAI text block).
+* **Quality sanity:** on a rolling truth set, LogLoss ≤ market T-72h baseline (or within +0.02 during canary).
+
+# Nice-to-haves (soon)
+
+* **Materialized view** `latest_consensus` (one row per match with the freshest acceptable bucket) to make `/predict` reads O(1).
+* **Region mixing:** pull multiple Odds API regions (eu/uk/us) → more triplets per match.
+* **Automated sport\_key/league mapping tests** (to prevent another LaLiga2 type miss).
+* **Unit tests** for: bucket selection, probability normalization, and recommendation alignment.
+
+If the new checks pass and your `/health` reports “HEALTHY” (coverage ≥80%), you’re in good shape to run a canary. From there, you can layer CLV and EV screens knowing the data path is trustworthy.
