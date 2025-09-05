@@ -264,6 +264,12 @@ class BackgroundScheduler:
                     
                     consensus_built = 0
                     skipped = 0
+                    failure_reasons = {
+                        'no_bucket_hit': 0,
+                        'too_few_triplets': 0, 
+                        'devig_failed': 0,
+                        'write_conflict': 0
+                    }
                     
                     for (match_id,) in matches_needing_consensus:
                         try:
@@ -320,17 +326,33 @@ class BackgroundScheduler:
                                 ON CONFLICT (match_id, time_bucket) DO NOTHING
                             """, (match_id, match_id))
                             
-                            if cursor.rowcount > 0:
-                                consensus_built += cursor.rowcount
+                            rows_inserted = cursor.rowcount
+                            if rows_inserted > 0:
+                                consensus_built += rows_inserted
                             else:
                                 skipped += 1
+                                failure_reasons['no_bucket_hit'] += 1
                             
                         except Exception as e:
+                            error_msg = str(e).lower()
+                            if 'having count(distinct book_id) >= 2' in error_msg:
+                                failure_reasons['too_few_triplets'] += 1
+                            elif 'division by zero' in error_msg or 'invalid probability' in error_msg:
+                                failure_reasons['devig_failed'] += 1
+                            elif 'conflict' in error_msg or 'duplicate' in error_msg:
+                                failure_reasons['write_conflict'] += 1
+                            else:
+                                failure_reasons['devig_failed'] += 1  # Default category
+                            
                             logger.warning(f"[CONSENSUS] Failed to build consensus for match {match_id}: {e}")
                             skipped += 1
                     
                     conn.commit()
+                    # Log detailed failure telemetry
+                    failure_summary = ", ".join([f"{reason}: {count}" for reason, count in failure_reasons.items() if count > 0])
                     logger.info(f"✅ [CONSENSUS] Completed: {consensus_built} new predictions, {skipped} skipped, {total_candidates} total candidates")
+                    if failure_summary:
+                        logger.info(f"📊 [CONSENSUS] Failure breakdown: {failure_summary}")
                     return consensus_built
                     
         except Exception as e:

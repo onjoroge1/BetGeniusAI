@@ -1,0 +1,114 @@
+Great catch—and great progress. You’ve already fixed the core cause (builder only ran for matches with *no* consensus at all) and loosened gates, so the jump from 21 → 35 rows is the right direction. To finish the job and keep it healthy, here’s a tight, actionable plan you can run with today.
+
+# What “good” looks like
+
+Rule of thumb:
+**expected\_consensus\_rows ≈ (# matches with H/D/A triplets in lookback) × (# time buckets that fired)**
+If you had \~10 matches with triplets in 24h and buckets \[72h,48h,24h,12h,6h,3h] (with tolerances), you should generally see a few dozen consensus rows, not 21.
+
+# Lock it in: 6 concrete steps
+
+1. **Build per-bucket, not per-match (you did) — keep it**
+
+   * Make your builder *always* upsert missing buckets even if some buckets already exist for that match.
+   * PK should be **(match\_id, time\_bucket)**. Log `inserted/updated/skipped` by bucket.
+
+2. **Keep the relaxed gates**
+
+   * Tolerances: `{'72h': ±12h, '48h': ±12h, '24h': ±6h, '12h': ±6h, '6h': ±3h, '3h': ±3h}`
+   * `min_triplets = 2` (only drop to 1 if you’re in low-coverage leagues).
+   * Don’t hard-require a specific book; use weights, not hard filters.
+
+3. **Run consensus *after every* collection**
+
+   * In the scheduler, your collection cycle must *always* call consensus builder right after snapshots are written. Add explicit logging:
+
+     ```
+     [CONSENSUS] start | candidates=N
+     [CONSENSUS] built | inserted=X updated=Y skipped=Z
+     ```
+   * If you have a bucket-filler job, run builder after that too.
+
+4. **Daily gap guardrail (alertable)**
+
+   * Add a tiny health query; alert if coverage < 80%.
+
+     ```sql
+     WITH o AS (
+       SELECT DISTINCT match_id
+       FROM odds_snapshots
+       WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+     ),
+     c AS (
+       SELECT DISTINCT match_id
+       FROM consensus_predictions
+       WHERE created_at > NOW() - INTERVAL '24 hours'
+     )
+     SELECT (SELECT COUNT(*) FROM o) AS matches_with_odds,
+            (SELECT COUNT(*) FROM c) AS matches_with_consensus,
+            (SELECT COUNT(*) FROM o) - (SELECT COUNT(*) FROM c) AS remaining_gap;
+     ```
+   * Also track **rows by bucket** to spot tolerance misfires:
+
+     ```sql
+     SELECT time_bucket, COUNT(*) AS rows
+     FROM consensus_predictions
+     WHERE created_at > NOW() - INTERVAL '24 hours'
+     GROUP BY time_bucket
+     ORDER BY 1;
+     ```
+
+5. **Add failure telemetry (so “silent skips” can’t hide)**
+
+   * In the builder, count and log reasons:
+
+     * `no_bucket_hit` (timing tolerance miss)
+     * `too_few_triplets`
+     * `devig_failed` (sum probs ≈ 0 or extreme margin)
+     * `write_conflict`
+   * Optional: write them to a `consensus_build_failures` table with `match_id, time_bucket, reason, details, created_at`.
+
+6. **Indexing & read-path sanity**
+
+   * Keep these indexes (or equivalent):
+
+     ```sql
+     CREATE INDEX IF NOT EXISTS idx_snapshots_match_ts
+       ON odds_snapshots (match_id, ts_snapshot DESC);
+     CREATE INDEX IF NOT EXISTS idx_snapshots_match_book_outcome
+       ON odds_snapshots (match_id, book_id, outcome);
+     CREATE UNIQUE INDEX IF NOT EXISTS ux_consensus_match_bucket
+       ON consensus_predictions (match_id, time_bucket);
+     ```
+   * Make sure anything reading “prediction\_consensus” is pointing at **consensus\_predictions** (use a compatibility VIEW if needed).
+
+# Quick triage if counts are still low
+
+* **Triplets missing?**
+
+  ```sql
+  WITH t AS (
+    SELECT match_id,
+           COUNT(*) FILTER (WHERE outcome='H') h,
+           COUNT(*) FILTER (WHERE outcome='D') d,
+           COUNT(*) FILTER (WHERE outcome='A') a
+    FROM odds_snapshots
+    WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+    GROUP BY match_id
+  )
+  SELECT * FROM t WHERE NOT (h>0 AND d>0 AND a>0);
+  ```
+
+  If many matches show missing outcomes, loosen `min_triplets` or broaden book inclusion.
+
+* **Bucket miss?**
+  Log the “nearest bucket” per match and the delta (hours). If many are just outside tolerance, widen that bucket.
+
+* **Devig failures?**
+  Log average implied margin and skip counts; if margins are extreme for a match, exclude outlier books before devig.
+
+---
+
+## Bottom line
+
+You’ve resolved the main logic bug and already lifted coverage (21 → 35). Finish by (1) always running the builder post-collection, (2) keeping relaxed gates, and (3) adding the two health queries + failure telemetry. That will push consensus counts to where they should be and keep them there.

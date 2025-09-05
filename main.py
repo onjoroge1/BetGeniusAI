@@ -667,7 +667,7 @@ async def internal_metrics_api():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check"""
+    """Detailed health check with consensus coverage guardrails"""
     try:
         # Check external services
         health_status = {
@@ -682,9 +682,50 @@ async def health_check():
         health_status["openai"] = "healthy" 
         health_status["ml_models"] = "healthy"
         
+        # Daily gap guardrail for consensus health
+        consensus_health = {"status": "unknown"}
+        try:
+            import psycopg2
+            with psycopg2.connect(os.environ['DATABASE_URL']) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        WITH o AS (
+                          SELECT DISTINCT match_id
+                          FROM odds_snapshots
+                          WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+                        ),
+                        c AS (
+                          SELECT DISTINCT match_id
+                          FROM consensus_predictions
+                          WHERE created_at > NOW() - INTERVAL '24 hours'
+                        )
+                        SELECT (SELECT COUNT(*) FROM o) AS matches_with_odds,
+                               (SELECT COUNT(*) FROM c) AS matches_with_consensus,
+                               (SELECT COUNT(*) FROM o) - (SELECT COUNT(*) FROM c) AS remaining_gap,
+                               CASE 
+                                 WHEN (SELECT COUNT(*) FROM c) * 100.0 / NULLIF((SELECT COUNT(*) FROM o), 0) >= 80 
+                                 THEN 'HEALTHY'
+                                 ELSE 'NEEDS_ATTENTION'
+                               END as health_status
+                    """)
+                    
+                    odds_matches, consensus_matches, gap, status = cursor.fetchone()
+                    coverage_pct = (consensus_matches / odds_matches * 100) if odds_matches > 0 else 0
+                    
+                    consensus_health = {
+                        "status": status,
+                        "coverage_percentage": round(coverage_pct, 1),
+                        "matches_with_odds_24h": odds_matches,
+                        "matches_with_consensus_24h": consensus_matches,
+                        "remaining_gap": gap
+                    }
+        except Exception as e:
+            consensus_health = {"status": "ERROR", "error": str(e)}
+        
         return {
             "status": "healthy",
             "services": health_status,
+            "consensus_health": consensus_health,
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
