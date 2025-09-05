@@ -1,0 +1,128 @@
+Short answer: with **5,673 rows in `odds_snapshots`** over the last day, **21 rows in `prediction_consenus`** is almost certainly too low. You should expect **tens to a few hundred** consensus rows (roughly “number of matches × number of time-buckets that fired”), not 21.
+
+Here’s how to sanity-check and fix it fast.
+
+# What “good” looks like
+
+* `odds_snapshots` = many rows: per **bookmaker × outcome × snapshot**.
+* Consensus table (usually `consensus_predictions`) = **1 row per (match\_id, time\_bucket)** *when* a valid triplet (H/D/A) exists from ≥ min\_triplets books.
+* If 5,673 snapshot rows ≈ (books × outcomes × matches), e.g. 5,673 / (18 books × 3 outcomes) ≈ **\~105 matches**.
+  If you compute **72h/48h/24h** buckets, you’d expect **\~100–300 consensus rows** for that day, not 21.
+
+# Likely causes of “21 only”
+
+1. **Table name mismatch**
+   Code writes to `consensus_predictions` but you’re looking at `prediction_consenus` (typo).
+   Fix: confirm the writer’s target table and align (or make a view/rename).
+
+2. **Filter too strict**
+   High `min_triplets`, “require\_pinnacle=true”, or narrow time-bucket tolerances can drop most matches.
+
+3. **Bucket logic**
+   If the aggregator only emits for **one** bucket (say 24h) or the tolerance is tight, you’ll miss many matches (T-40h won’t land in 48h if ±6h).
+
+4. **Windowing**
+   Aggregator looking at a tiny time window (`ts_snapshot > NOW()-1h`) while you’re counting snapshots across 24h.
+
+5. **Upsert overwriting**
+   PK `(match_id,time_bucket)` + repeated runs can leave **1 final row** per match even if you had multiple snapshots—this is fine, but expect closer to your match count.
+
+6. **Consensus computed but saved elsewhere**
+   You already have **5,136 rows in `odds_consensus`**; ensure that isn’t where your per-match consensus landed.
+
+# Quick triage SQL (copy/paste)
+
+**A) How many matches had usable triplets in last 24h?**
+
+```sql
+WITH triplets AS (
+  SELECT match_id, ts_snapshot::date d,
+         COUNT(*) FILTER (WHERE outcome='H') h,
+         COUNT(*) FILTER (WHERE outcome='D') dct,
+         COUNT(*) FILTER (WHERE outcome='A') a
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+  GROUP BY match_id, ts_snapshot::date
+)
+SELECT COUNT(DISTINCT match_id) AS matches_24h
+FROM triplets
+WHERE h>0 AND dct>0 AND a>0;
+```
+
+**B) Expected bucket per match vs. what’s in your consensus table**
+
+```sql
+WITH latest AS (
+  SELECT match_id,
+         MIN(secs_to_kickoff) AS min_secs
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+  GROUP BY match_id
+),
+bucketed AS (
+  SELECT match_id,
+         CASE
+           WHEN min_secs BETWEEN 66*3600 AND 78*3600 THEN '72h'
+           WHEN min_secs BETWEEN 36*3600 AND 60*3600 THEN '48h'
+           WHEN min_secs BETWEEN 18*3600 AND 30*3600 THEN '24h'
+           ELSE 'other'
+         END AS expected_bucket
+  FROM latest
+)
+SELECT expected_bucket, COUNT(*) AS matches
+FROM bucketed
+GROUP BY expected_bucket;
+```
+
+**C) Do we have a naming mismatch?**
+
+```sql
+SELECT table_name
+FROM information_schema.tables
+WHERE table_name IN ('consensus_predictions','prediction_consenus','odds_consensus');
+```
+
+**D) Which matches have triplets but **no** consensus row?**
+
+```sql
+WITH have_triplets AS (
+  SELECT DISTINCT match_id
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+  GROUP BY match_id, book_id
+  HAVING COUNT(*) FILTER (WHERE outcome IN ('H','D','A')) = 3
+),
+have_consensus AS (
+  SELECT DISTINCT match_id
+  FROM consensus_predictions  -- or your actual table
+  WHERE created_at > NOW() - INTERVAL '24 hours'
+)
+SELECT ht.match_id
+FROM have_triplets ht
+LEFT JOIN have_consensus hc USING (match_id)
+WHERE hc.match_id IS NULL
+LIMIT 50;
+```
+
+# Fixes to apply
+
+* **Align table names**: if your writer targets `consensus_predictions`, either:
+
+  * point your reads there, or
+  * `ALTER TABLE consensus_predictions RENAME TO prediction_consensus;` (or create a view)
+* **Relax tolerances** (recommended):
+
+  * 72/48h buckets: **±12h**
+  * 24/12h: **±6h**
+  * 6/3/1h: **±3h**
+* **min\_triplets**: set to **2** (start), then increase after you see stable coverage.
+* **Don’t require Pinnacle** at this stage; make it advisory.
+* **Windowing**: have the aggregator process **last 24h** snapshots when building the daily consensus, not just the last hour.
+* **Schedule**: run consensus after each collection cycle (or on a 15-min cron), not only once nightly.
+
+# What you should see after fixes
+
+* `prediction_consensus / consensus_predictions`: counts roughly equal to the number of distinct matches that had at least one qualifying bucket in the last day (often **\~50–200/day** depending on leagues monitored).
+* Each row with non-null `consensus_{h,d,a}`, `dispersion_*`, `n_books`, and the `time_bucket` you expect.
+
+If you want, send me the exact **INSERT target** your aggregator uses and the **PK/unique** on your consensus table; I’ll tell you whether overwrites are collapsing your totals. But purely from your counts, yes—you should be seeing **more than 21** consensus rows; the queries above will pinpoint whether it’s a naming issue, a filter, or a bucket/tolerance mismatch.
