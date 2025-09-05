@@ -9,6 +9,8 @@ from datetime import datetime, time
 from typing import Optional
 import threading
 import json
+import psycopg2
+import os
 from models.automated_collector import AutomatedCollector
 
 logger = logging.getLogger(__name__)
@@ -217,6 +219,17 @@ class BackgroundScheduler:
                 logger.info(f"🔧 MANUAL collection completed: {results.get('new_matches_collected', 0)} new matches")
             else:
                 logger.info(f"Immediate collection completed: {results.get('new_matches_collected', 0)} new matches")
+            
+            # Build consensus predictions from fresh odds
+            try:
+                consensus_count = self.build_consensus_predictions()
+                if consensus_count > 0:
+                    logger.info(f"✅ Built {consensus_count} new consensus predictions")
+                else:
+                    logger.info("🧮 No new consensus predictions needed")
+            except Exception as consensus_error:
+                logger.error(f"Consensus building failed: {consensus_error}")
+                
         except Exception as e:
             if force:
                 logger.error(f"🔧 MANUAL collection failed: {e}")
@@ -224,6 +237,93 @@ class BackgroundScheduler:
                 logger.error(f"Immediate collection failed: {e}")
         finally:
             loop.close()
+    
+    def build_consensus_predictions(self) -> int:
+        """Build consensus predictions from odds_snapshots for matches that don't have consensus yet"""
+        try:
+            database_url = os.environ.get('DATABASE_URL')
+            if not database_url:
+                logger.error("DATABASE_URL not found")
+                return 0
+            
+            with psycopg2.connect(database_url) as conn:
+                with conn.cursor() as cursor:
+                    # Find matches with odds but no consensus
+                    cursor.execute("""
+                        SELECT DISTINCT o.match_id
+                        FROM odds_snapshots o
+                        LEFT JOIN consensus_predictions c ON o.match_id = c.match_id
+                        WHERE c.match_id IS NULL
+                          AND o.ts_snapshot > NOW() - INTERVAL '7 days'
+                        GROUP BY o.match_id
+                        HAVING COUNT(DISTINCT CASE WHEN o.outcome IN ('H','D','A') THEN o.book_id END) >= 3
+                    """)
+                    
+                    matches_needing_consensus = cursor.fetchall()
+                    consensus_built = 0
+                    
+                    for (match_id,) in matches_needing_consensus:
+                        try:
+                            # Build consensus for this match using the SQL bucket classifier
+                            cursor.execute("""
+                                INSERT INTO consensus_predictions 
+                                (match_id, time_bucket, consensus_h, consensus_d, consensus_a, 
+                                 dispersion_h, dispersion_d, dispersion_a, n_books, created_at)
+                                WITH match_odds AS (
+                                    SELECT book_id, outcome, implied_prob, secs_to_kickoff
+                                    FROM odds_snapshots 
+                                    WHERE match_id = %s AND ts_snapshot > NOW() - INTERVAL '24 hours'
+                                ),
+                                complete_books AS (
+                                    SELECT book_id FROM match_odds
+                                    GROUP BY book_id HAVING COUNT(DISTINCT outcome) = 3
+                                ),
+                                clean_odds AS (
+                                    SELECT mo.* FROM match_odds mo 
+                                    JOIN complete_books cb ON mo.book_id = cb.book_id
+                                ),
+                                bucket_classified AS (
+                                    SELECT *,
+                                        CASE 
+                                            WHEN secs_to_kickoff BETWEEN 21600 AND 28800 THEN '24h'
+                                            WHEN secs_to_kickoff BETWEEN 43200 AND 57600 THEN '48h'  
+                                            WHEN secs_to_kickoff BETWEEN 64800 AND 79200 THEN '72h'
+                                            ELSE '6h'
+                                        END as time_bucket
+                                    FROM clean_odds
+                                ),
+                                consensus_calc AS (
+                                    SELECT 
+                                        time_bucket,
+                                        AVG(CASE WHEN outcome = 'H' THEN implied_prob END) as consensus_h,
+                                        AVG(CASE WHEN outcome = 'D' THEN implied_prob END) as consensus_d,
+                                        AVG(CASE WHEN outcome = 'A' THEN implied_prob END) as consensus_a,
+                                        STDDEV(CASE WHEN outcome = 'H' THEN implied_prob END) as dispersion_h,
+                                        STDDEV(CASE WHEN outcome = 'D' THEN implied_prob END) as dispersion_d,
+                                        STDDEV(CASE WHEN outcome = 'A' THEN implied_prob END) as dispersion_a,
+                                        COUNT(DISTINCT book_id) as n_books
+                                    FROM bucket_classified
+                                    GROUP BY time_bucket
+                                    HAVING COUNT(DISTINCT book_id) >= 3
+                                )
+                                SELECT %s, time_bucket, consensus_h, consensus_d, consensus_a,
+                                       COALESCE(dispersion_h, 0), COALESCE(dispersion_d, 0), COALESCE(dispersion_a, 0),
+                                       n_books, NOW()
+                                FROM consensus_calc
+                                ON CONFLICT (match_id, time_bucket) DO NOTHING
+                            """, (match_id, match_id))
+                            
+                            consensus_built += cursor.rowcount
+                            
+                        except Exception as e:
+                            logger.warning(f"Failed to build consensus for match {match_id}: {e}")
+                    
+                    conn.commit()
+                    return consensus_built
+                    
+        except Exception as e:
+            logger.error(f"Consensus building error: {e}")
+            return 0
 
 # Global scheduler instance
 _scheduler_instance: Optional[BackgroundScheduler] = None
