@@ -239,28 +239,31 @@ class BackgroundScheduler:
             loop.close()
     
     def build_consensus_predictions(self) -> int:
-        """Build consensus predictions from odds_snapshots for matches that don't have consensus yet"""
+        """Build consensus predictions from odds_snapshots for matches with recent odds"""
         try:
+            logger.info("🧮 [CONSENSUS] Starting consensus building for recent matches...")
             database_url = os.environ.get('DATABASE_URL')
             if not database_url:
-                logger.error("DATABASE_URL not found")
+                logger.error("[CONSENSUS] ❌ DATABASE_URL not found")
                 return 0
             
             with psycopg2.connect(database_url) as conn:
                 with conn.cursor() as cursor:
-                    # Find matches with odds but no consensus
+                    # Find matches with recent odds that might need consensus for new time buckets
                     cursor.execute("""
                         SELECT DISTINCT o.match_id
                         FROM odds_snapshots o
-                        LEFT JOIN consensus_predictions c ON o.match_id = c.match_id
-                        WHERE c.match_id IS NULL
-                          AND o.ts_snapshot > NOW() - INTERVAL '7 days'
+                        WHERE o.ts_snapshot > NOW() - INTERVAL '48 hours'
                         GROUP BY o.match_id
-                        HAVING COUNT(DISTINCT CASE WHEN o.outcome IN ('H','D','A') THEN o.book_id END) >= 3
+                        HAVING COUNT(DISTINCT CASE WHEN o.outcome IN ('H','D','A') THEN o.book_id END) >= 2
                     """)
                     
                     matches_needing_consensus = cursor.fetchall()
+                    total_candidates = len(matches_needing_consensus)
+                    logger.info(f"🧮 [CONSENSUS] Found {total_candidates} candidate matches for consensus building")
+                    
                     consensus_built = 0
+                    skipped = 0
                     
                     for (match_id,) in matches_needing_consensus:
                         try:
@@ -285,12 +288,16 @@ class BackgroundScheduler:
                                 bucket_classified AS (
                                     SELECT *,
                                         CASE 
-                                            WHEN secs_to_kickoff BETWEEN 21600 AND 28800 THEN '24h'
-                                            WHEN secs_to_kickoff BETWEEN 43200 AND 57600 THEN '48h'  
-                                            WHEN secs_to_kickoff BETWEEN 64800 AND 79200 THEN '72h'
-                                            ELSE '6h'
+                                            WHEN secs_to_kickoff BETWEEN 14400 AND 34200 THEN '24h'  -- ±6h tolerance  
+                                            WHEN secs_to_kickoff BETWEEN 28800 AND 64800 THEN '48h'  -- ±12h tolerance
+                                            WHEN secs_to_kickoff BETWEEN 57600 AND 86400 THEN '72h'  -- ±12h tolerance
+                                            WHEN secs_to_kickoff BETWEEN 3600 AND 14400 THEN '12h'   -- ±3h tolerance
+                                            WHEN secs_to_kickoff BETWEEN 1800 AND 7200 THEN '6h'     -- ±3h tolerance  
+                                            WHEN secs_to_kickoff BETWEEN 900 AND 3600 THEN '3h'      -- ±3h tolerance
+                                            ELSE 'other'
                                         END as time_bucket
                                     FROM clean_odds
+                                    WHERE secs_to_kickoff > 900  -- at least 15 minutes before kickoff
                                 ),
                                 consensus_calc AS (
                                     SELECT 
@@ -304,7 +311,7 @@ class BackgroundScheduler:
                                         COUNT(DISTINCT book_id) as n_books
                                     FROM bucket_classified
                                     GROUP BY time_bucket
-                                    HAVING COUNT(DISTINCT book_id) >= 3
+                                    HAVING COUNT(DISTINCT book_id) >= 2
                                 )
                                 SELECT %s, time_bucket, consensus_h, consensus_d, consensus_a,
                                        COALESCE(dispersion_h, 0), COALESCE(dispersion_d, 0), COALESCE(dispersion_a, 0),
@@ -313,16 +320,21 @@ class BackgroundScheduler:
                                 ON CONFLICT (match_id, time_bucket) DO NOTHING
                             """, (match_id, match_id))
                             
-                            consensus_built += cursor.rowcount
+                            if cursor.rowcount > 0:
+                                consensus_built += cursor.rowcount
+                            else:
+                                skipped += 1
                             
                         except Exception as e:
-                            logger.warning(f"Failed to build consensus for match {match_id}: {e}")
+                            logger.warning(f"[CONSENSUS] Failed to build consensus for match {match_id}: {e}")
+                            skipped += 1
                     
                     conn.commit()
+                    logger.info(f"✅ [CONSENSUS] Completed: {consensus_built} new predictions, {skipped} skipped, {total_candidates} total candidates")
                     return consensus_built
                     
         except Exception as e:
-            logger.error(f"Consensus building error: {e}")
+            logger.error(f"[CONSENSUS] ❌ Critical error: {e}")
             return 0
 
 # Global scheduler instance

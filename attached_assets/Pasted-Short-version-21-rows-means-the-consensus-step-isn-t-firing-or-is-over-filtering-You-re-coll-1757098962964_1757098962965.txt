@@ -1,0 +1,183 @@
+Short version: 21 rows means the **consensus step isn’t firing (or is over-filtering)**. You’re collecting odds fine; you’re just not turning them into per-match, per-bucket consensus records. Do three things in order: **(A) verify + backfill now, (B) loosen gates, (C) wire the scheduler so it always runs.**
+
+---
+
+# A) Verify and backfill **now**
+
+### 1) Sanity-check coverage vs. consensus
+
+```sql
+-- How many matches have complete H/D/A triplets in the last 24h?
+WITH triplets AS (
+  SELECT match_id,
+         COUNT(*) FILTER (WHERE outcome='H') h,
+         COUNT(*) FILTER (WHERE outcome='D') d,
+         COUNT(*) FILTER (WHERE outcome='A') a
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+  GROUP BY match_id
+)
+SELECT COUNT(*) AS matches_with_triplets
+FROM triplets
+WHERE h>0 AND d>0 AND a>0;
+```
+
+If that’s ≫ 21, your builder is the bottleneck.
+
+### 2) Catch naming mismatch
+
+Lots of code writes to `consensus_predictions` while some dashboards look at `prediction_consenus` (typo).
+
+```sql
+SELECT table_name
+FROM information_schema.tables
+WHERE table_name IN ('consensus_predictions','prediction_consenus','odds_consensus');
+```
+
+If your reads point at `prediction_consenus`, fix one of these:
+
+```sql
+-- Option A: one-liner compatibility view
+CREATE OR REPLACE VIEW prediction_consenus AS
+SELECT * FROM consensus_predictions;
+
+-- Option B: rename the real table (if safe)
+-- ALTER TABLE consensus_predictions RENAME TO prediction_consenus;
+```
+
+### 3) Backfill consensus for the last 48h
+
+(Use your builder, but here’s the SQL to find targets the builder should process.)
+
+```sql
+-- Matches with odds but NO consensus row yet
+WITH odds_matches AS (
+  SELECT DISTINCT match_id
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '48 hours'
+),
+consensus_matches AS (
+  SELECT DISTINCT match_id
+  FROM consensus_predictions
+  WHERE created_at > NOW() - INTERVAL '7 days'
+)
+SELECT o.match_id
+FROM odds_matches o
+LEFT JOIN consensus_matches c USING (match_id)
+WHERE c.match_id IS NULL
+LIMIT 200;
+```
+
+Run your consensus builder against that list (or simply run your “build all pending” command/script). After it runs, re-count rows in `consensus_predictions`—you should jump from 21 to **\~(number of eligible matches × buckets that fired)**.
+
+---
+
+# B) Loosen gates so you don’t drop most matches
+
+These three settings kill coverage if they’re too tight:
+
+1. **Time-bucket tolerance**
+
+   * 72h / 48h buckets: use **±12h**
+   * 24h / 12h: **±6h**
+   * 6h / 3h / 1h: **±3h**
+
+2. **Min triplets** (books with full H/D/A)
+   Start with **min\_triplets = 2** (not 3+). Raise later once flow is stable.
+
+3. **Hard book requirements**
+   Don’t require “must include Pinnacle” yet. Make it *advisory*, not a hard filter.
+
+Also ensure your **UPSERT** is not over-squashing rows. Primary key should be:
+
+```
+(consensus_predictions.match_id, consensus_predictions.time_bucket)
+```
+
+That’s correct—but if you run the builder many times for the **same** bucket, you’ll still have **one** row per match/bucket (that’s expected). The important thing is that you actually cover *all* buckets that fired.
+
+Indexes that help:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_snapshots_match_ts
+ON odds_snapshots (match_id, ts_snapshot DESC);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_match_book_outcome
+ON odds_snapshots (match_id, book_id, outcome);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_consensus_match_bucket
+ON consensus_predictions (match_id, time_bucket);
+```
+
+---
+
+# C) Wire the scheduler to always build consensus
+
+Right now you collect odds but (sometimes) don’t call the builder. Make the consensus call **part of the same job**:
+
+```python
+# utils/scheduler.py  (conceptual)
+def run_collection_cycle():
+    collector.collect_recent_odds_snapshots()    # fills odds_snapshots
+    bucket_filler.fill_missing_windows()         # optional
+    consensus_builder.build_recent_consensus(    # <— MANDATORY
+        lookback_hours=48,
+        min_triplets=2,
+        bucket_tolerances={'72h': 12, '48h': 12, '24h': 6, '12h': 6, '6h': 3, '3h': 3, '1h': 3}
+    )
+```
+
+Add **explicit logs** so you can prove it ran:
+
+```
+[CONSENSUS] start | candidates=123
+[CONSENSUS] built | inserted=97 updated=12 skipped=14
+```
+
+---
+
+## Quick health checks you can run daily
+
+* **Gap report (should be small):**
+
+```sql
+WITH odds_matches AS (
+  SELECT DISTINCT match_id
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+),
+consensus_matches AS (
+  SELECT DISTINCT match_id
+  FROM consensus_predictions
+  WHERE created_at > NOW() - INTERVAL '24 hours'
+)
+SELECT (SELECT COUNT(*) FROM odds_matches) AS matches_with_odds,
+       (SELECT COUNT(*) FROM consensus_matches) AS matches_with_consensus,
+       (SELECT COUNT(*) FROM odds_matches) - (SELECT COUNT(*) FROM consensus_matches) AS remaining_gap;
+```
+
+* **Coverage by bucket (to spot tolerance issues):**
+
+```sql
+SELECT time_bucket, COUNT(*) AS rows
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY time_bucket
+ORDER BY 1;
+```
+
+* **Builder “drop” reasons (instrument in code):**
+  Log counters for: `too_few_triplets`, `no_bucket_hit`, `invalid_probs`, `devig_failed`, `write_conflict`.
+
+---
+
+## TL;DR action list
+
+1. **Fix naming**: read from the actual writer table (create a view if needed).
+2. **Backfill** last 48h consensus now (query above → run builder).
+3. **Relax gates**: tolerances and `min_triplets=2`, no hard Pinnacle requirement.
+4. **Scheduler**: ensure `build_recent_consensus()` runs after every collection.
+5. **Indexes + logs**: add the indexes and explicit inserted/updated/ skipped counts.
+6. **Daily gap report**: alert if `matches_with_consensus < 80%` of `matches_with_odds`.
+
+Do that, and your 21 rows will become **dozens to a few hundred**—in line with your snapshot volume.
