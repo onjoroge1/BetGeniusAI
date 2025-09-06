@@ -1,0 +1,100 @@
+Love it — this is exactly the kind of “make it bulletproof” work you want before scaling. A few tight, high-impact notes so you lock this in and avoid slipping back to 47 rows again:
+
+What looks great
+	•	Self-healing /predict with on-demand consensus that persists = ✅ the right fix.
+	•	Bucket alignment + failure telemetry (no_bucket_hit, too_few_triplets) = ✅ you can see problems as they happen.
+	•	Daily backfill + relaxed gates = ✅ covers historical gaps without hand-holding.
+
+The 3 things I’d still add/verify
+	1.	Prove on-demand consensus is really persisting (and not just returning in-memory)
+
+	•	Add a single unique constraint if you haven’t:
+UNIQUE(match_id, time_bucket) on consensus_predictions.
+	•	After a /predict that had no pre-computed row, verify the UPSERT happened:
+
+-- Was a new row persisted by the on-demand build?
+SELECT match_id, time_bucket, n_books, created_at
+FROM consensus_predictions
+WHERE match_id = :match_id
+ORDER BY created_at DESC
+LIMIT 5;
+
+You should also see model_type: "on_demand_consensus" (or record a source='on_demand' column) for audit.
+	2.	Backfill by “missing buckets”, not “missing matches”
+Your agent noted “no candidates” because the finder looked only for matches with zero consensus. Instead, target bucket gaps per match:
+
+-- Candidates where a match has snapshots in a bucket window but no consensus for that bucket
+WITH snaps AS (
+  SELECT
+    match_id,
+    CASE
+      WHEN secs_to_kickoff BETWEEN 60*60*60 AND 84*60*60 THEN '72h'
+      WHEN secs_to_kickoff BETWEEN 36*60*60 AND 60*60*60 THEN '48h'
+      WHEN secs_to_kickoff BETWEEN 18*60*60 AND 30*60*60 THEN '24h'
+      WHEN secs_to_kickoff BETWEEN 10*60*60 AND 14*60*60 THEN '12h'
+      WHEN secs_to_kickoff BETWEEN  5*60*60 AND  7*60*60 THEN '6h'
+      WHEN secs_to_kickoff BETWEEN  2*60*60 AND  4*60*60 THEN '3h'
+    END AS bucket,
+    COUNT(*) FILTER (WHERE outcome IN ('H','D','A')) AS rows_all,
+    COUNT(DISTINCT book_id) FILTER (
+      WHERE outcome IN ('H','D','A')
+    ) AS books_all
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '90 days'
+  GROUP BY 1,2
+),
+gaps AS (
+  SELECT s.match_id, s.bucket, s.books_all
+  FROM snaps s
+  LEFT JOIN consensus_predictions c
+    ON c.match_id = s.match_id AND c.time_bucket = s.bucket
+  WHERE s.bucket IS NOT NULL
+    AND s.books_all >= 2
+    AND c.match_id IS NULL
+)
+SELECT * FROM gaps ORDER BY bucket, books_all DESC LIMIT 200;
+
+Feed that list to your backfill job; expect consensus rows to jump fast.
+	3.	SLOs + alerts so this never regresses
+
+	•	Coverage SLO: ≥ 80% of matches in last 24h have consensus in at least one bucket (and ≥60% per individual bucket).
+	•	On-demand success SLO: ≥ 95% of /predict calls with snapshots but no pre-computed consensus successfully persist an on-demand row.
+	•	Wire these into /health and page/Slack on breach.
+
+Tiny, surgical improvements
+	•	Concurrency safety: both scheduler and /predict now write consensus. Keep your UPSERT (ON CONFLICT (match_id, time_bucket) DO NOTHING) and log when a write was skipped due to conflict.
+	•	Return metadata in /predict: data_ok, prob_sum_valid, n_triplets_used, time_bucket, consensus_source (precomputed|on_demand) so operators can eyeball quality instantly.
+	•	Auto-sweep: add a weekly “historical sweep” (Sun 04:30 UTC, --days-back 180) so late odds or mapping fixes get captured.
+
+Quick smoke tests (run these now)
+	1.	On-demand path truly used
+
+	•	Pick a match with snapshots but no consensus for, say, 48h. Call /predict. Confirm response shows consensus_source=on_demand and DB row appears (query above).
+
+	2.	Coverage by bucket today
+
+WITH odds_m AS (
+  SELECT DISTINCT match_id FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+),
+cons_m AS (
+  SELECT DISTINCT match_id FROM consensus_predictions WHERE created_at > NOW() - INTERVAL '24 hours'
+)
+SELECT
+  (SELECT COUNT(*) FROM odds_m) AS matches_with_odds_24h,
+  (SELECT COUNT(*) FROM cons_m) AS matches_with_consensus_24h,
+  ROUND(100.0 * (SELECT COUNT(*) FROM cons_m) / NULLIF((SELECT COUNT(*) FROM odds_m),0),1) AS coverage_pct;
+
+	3.	Bucket distribution (sanity that alignment stuck)
+
+SELECT time_bucket, COUNT(*) rows, COUNT(DISTINCT match_id) matches
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY 1
+ORDER BY CASE time_bucket
+  WHEN '3h' THEN 1 WHEN '6h' THEN 2 WHEN '12h' THEN 3
+  WHEN '24h' THEN 4 WHEN '48h' THEN 5 WHEN '72h' THEN 6 ELSE 7 END;
+
+
+⸻
+
+Bottom line: you’re ~there. The self-healing /predict + daily backfill are the big wins. Tighten the backfill to bucket gaps, verify on-demand persistence with a UNIQUE constraint, and enforce the 24h coverage SLO in /health. That will push consensus from dozens → hundreds of rows and keep it there without manual tending.
