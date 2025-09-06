@@ -19,7 +19,7 @@ def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(os.environ['DATABASE_URL'])
 
-def find_backfill_candidates(days_back=30, min_books=2):
+def find_backfill_candidates(days_back=90, min_books=2):
     """Find matches that need consensus backfilling"""
     
     with get_db_connection() as conn:

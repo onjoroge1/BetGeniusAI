@@ -21,6 +21,7 @@ from models.comprehensive_analyzer import ComprehensiveAnalyzer
 from models.enhanced_real_data_collector import EnhancedRealDataCollector
 from models.simple_consensus_predictor import SimpleWeightedConsensusPredictor
 from models.enhanced_ai_analyzer import EnhancedAIAnalyzer
+from utils.on_demand_consensus import build_on_demand_consensus
 from models.response_schemas import FinalPredictionResponse, MatchContext, ComprehensiveAnalysisResponse
 from models.clv_api import CLVMonitorAPI
 
@@ -959,9 +960,14 @@ async def predict_match(
         if prediction_result:
             logger.info(f"Using pre-computed consensus for match {request.match_id}")
         else:
-            # FALLBACK: Generate in-process consensus using current odds
-            logger.info("No pre-computed consensus found, generating in-process consensus...")
-            current_odds = match_data.get('current_odds', {})
+            # FALLBACK: Build on-demand consensus from odds_snapshots and persist it
+            logger.info("No pre-computed consensus found, building on-demand consensus from snapshots...")
+            prediction_result = await build_on_demand_consensus(request.match_id)
+            
+            if not prediction_result:
+                # FINAL FALLBACK: Generate in-process consensus using current odds
+                logger.info("No consensus possible from snapshots, trying current odds...")
+                current_odds = match_data.get('current_odds', {})
             
             if not current_odds:
                 # NO REAL ODDS DATA - Return production-safe response with confidence 0
@@ -975,7 +981,7 @@ async def predict_match(
                     'model_type': 'simple_weighted_consensus',
                     'data_source': 'no_real_data_available'
                 }
-            else:
+            if current_odds:
                 # Real odds data available - generate prediction
                 prediction_result = consensus_predictor.predict_match(current_odds)
                 
@@ -985,6 +991,18 @@ async def predict_match(
                         status_code=422,
                         detail="Unable to generate prediction - prediction algorithm failed"
                     )
+            else:
+                # No current odds either - return no prediction
+                logger.warning(f"No real odds data available for match {request.match_id} - returning confidence 0")
+                prediction_result = {
+                    'probabilities': {'home_win': 0.0, 'draw': 0.0, 'away_win': 0.0},
+                    'confidence': 0.0,
+                    'prediction': 'no_prediction',
+                    'quality_score': 0.0,
+                    'bookmaker_count': 0,
+                    'model_type': 'simple_weighted_consensus',
+                    'data_source': 'no_real_data_available'
+                }
         
         # Step 3: Enhanced AI analysis using comprehensive data
         ai_analysis = None
