@@ -1,0 +1,44 @@
+Short take: 47 consensus rows with 8,4k+ odds snapshots means your collector is fine but your consensus layer is under-populated. The agent’s pipeline is “mostly working,” but you’re still missing historical backfill + a safety net in /predict. I’d treat this as a reliability task, not a modeling one.
+
+What I’d do next (in order)
+	1.	Quantify the real gap (last 24–72h only)
+
+	•	KPI: coverage = matches_with_consensus / matches_with_snapshots by bucket (72h/48h/24h/12h/6h/3h).
+	•	Target: ≥80% per bucket over the last 24h. If you’re below that, there’s still a wiring issue.
+
+	2.	Run a wide backfill (60–90 days)
+
+	•	Use your consensus_backfill.py but bump --days-back to 90 and keep gates min_triplets=2 with the relaxed tolerances you adopted.
+	•	Expectation: consensus rows should jump from 47 → hundreds quickly (each match × multiple buckets).
+
+	3.	Make /predict self-healing (no synthetic, still real odds)
+
+	•	If a match has odds in odds_snapshots but no consensus_predictions, have /predict:
+	•	Build consensus on-demand from snapshots within the tolerance window,
+	•	Persist it (idempotent),
+	•	Then return the prediction.
+	•	If no complete triplets are found → keep confidence: 0.0 (your “no real data, no prediction” rule).
+
+	4.	Keep the “bucket alignment” + telemetry guardrails
+
+	•	You already fixed the 48h/72h misalignment—great. Keep the failure breakdown logging (no_bucket_hit, too_few_triplets, etc.) and alert if no_bucket_hit spikes.
+	•	Expose /health coverage metrics by bucket so this can’t regress silently.
+
+	5.	Schedule consensus after every collection + daily backfill
+
+	•	You wired consensus after collection; add a daily backfill cron (e.g., 04:30 UTC) with --days-back 90 so late odds or fixed mappings get swept in.
+
+	6.	Sanity in /predict response
+
+	•	If bookmaker_count = 0 or n_triplets_used = 0 in metadata, that’s a red flag—surface a data_ok: false and reason (e.g., no_triplets_in_window) so you can spot wiring issues instantly.
+
+What “good” looks like by the end of the day
+	•	/health shows ≥80% coverage in the last 24h for 72h/48h/24h buckets.
+	•	consensus_predictions grows proportionally (multiple rows per match across buckets), not stuck at a small number.
+	•	/predict no longer returns confidence: 0.0 for matches that clearly have snapshots—because it can build on-demand.
+
+Why the agent’s “no backfill needed” feels optimistic
+
+Your counts (47 consensus vs 8,403 snapshots) still imply a historical backlog and/or matches sitting outside bucket windows. Even if the live cycle is OK, a one-off wide backfill plus an on-demand builder in /predict removes the remaining sharp edges.
+
+If you want, I can outline the exact SQL/logic for the on-demand consensus inside /predict and the daily backfill job so you can drop them straight in.
