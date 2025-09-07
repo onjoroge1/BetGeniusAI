@@ -223,3 +223,36 @@ ERROR_RESPONSE_TEMPLATE = {
         "issues": ["injury_data_unavailable", "news_api_timeout"]
     }
 }
+
+# ======================================
+# Prediction Availability Endpoint Schemas
+# ======================================
+
+class AvailabilityRequest(BaseModel):
+    """Request schema for /predict/availability endpoint"""
+    match_ids: List[int] = Field(..., min_length=1, max_length=100, description="List of match IDs to check availability")
+    trigger_consensus: bool = Field(default=False, description="Whether to trigger consensus building for waiting matches")
+    staleness_hours: int = Field(default=168, ge=1, le=720, description="Max age for consensus rows in hours (default: 168h/7d)")
+
+class MatchAvailability(BaseModel):
+    """Individual match availability status"""
+    match_id: int = Field(..., description="Match ID")
+    enrich: bool = Field(..., description="Whether match is ready for full prediction")
+    reason: str = Field(..., description="Reason code: consensus_ready | waiting_consensus | no_odds")
+    time_bucket: Optional[str] = Field(default=None, description="Time bucket if consensus exists")
+    bookmakers: int = Field(..., ge=0, description="Number of bookmakers with data")
+    last_updated: Optional[str] = Field(default=None, description="ISO timestamp of last data update")
+    min_secs_to_kickoff: Optional[int] = Field(default=None, description="Minimum seconds to kickoff from odds data")
+
+class AvailabilityMeta(BaseModel):
+    """Metadata about availability check"""
+    requested: int = Field(..., description="Number of match IDs requested")
+    deduped: int = Field(..., description="Number after deduplication")
+    enrich_true: int = Field(..., description="Number ready for prediction")
+    enrich_false: int = Field(..., description="Number not ready for prediction")
+    failure_breakdown: Dict[str, int] = Field(..., description="Breakdown of failure reasons")
+
+class AvailabilityResponse(BaseModel):
+    """Response schema for /predict/availability endpoint"""
+    availability: List[MatchAvailability] = Field(..., description="Availability status for each match")
+    meta: AvailabilityMeta = Field(..., description="Request metadata and statistics")

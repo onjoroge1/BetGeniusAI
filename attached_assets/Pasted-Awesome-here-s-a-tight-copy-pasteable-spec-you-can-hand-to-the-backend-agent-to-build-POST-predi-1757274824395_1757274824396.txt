@@ -1,0 +1,264 @@
+Awesome — here’s a tight, copy-pasteable spec you can hand to the backend agent to build POST /predict/availability and wire it into the current pipeline.
+
+⸻
+
+Implementation brief: POST /predict/availability
+
+1) Endpoint contract
+
+Route
+	•	POST /predict/availability
+
+Auth
+	•	Same Bearer token as other internal endpoints.
+
+Request (JSON)
+
+{
+  "match_ids": [1391287, 1391290, 1390851],
+  "trigger_consensus": false,     // optional, default=false (see §5)
+  "staleness_hours": 168          // optional max age for consensus rows; default 168h (7d)
+}
+
+Response (200)
+
+{
+  "availability": [
+    {
+      "match_id": 1391287,
+      "enrich": true,
+      "reason": "consensus_ready",   // enum: consensus_ready | waiting_consensus | no_odds
+      "time_bucket": "48h",          // null if no consensus row
+      "bookmakers": 19,              // consensus.bookmakers if present; else distinct books in snapshots
+      "last_updated": "2025-09-07T14:19:26Z",  // consensus.created_at or latest snapshot ts
+      "min_secs_to_kickoff": 151200  // from odds_snapshots (optional, helps the FE)
+    },
+    {
+      "match_id": 1391290,
+      "enrich": false,
+      "reason": "waiting_consensus",
+      "time_bucket": null,
+      "bookmakers": 11,
+      "last_updated": "2025-09-07T12:03:11Z",
+      "min_secs_to_kickoff": 173400
+    },
+    {
+      "match_id": 1390851,
+      "enrich": false,
+      "reason": "no_odds",
+      "time_bucket": null,
+      "bookmakers": 0,
+      "last_updated": null,
+      "min_secs_to_kickoff": null
+    }
+  ],
+  "meta": {
+    "requested": 3,
+    "deduped": 3,
+    "enrich_true": 1,
+    "enrich_false": 2,
+    "failure_breakdown": { "no_odds": 1, "waiting_consensus": 1 }
+  }
+}
+
+Error (400)
+
+{ "error": "match_ids required and must be an array of up to 100 integers" }
+
+
+⸻
+
+2) Semantics / rules
+	•	enrich = true when there exists a latest consensus_predictions row for match_id within staleness_hours and it passed gates (your builder already enforces gates; we only check existence).
+	•	enrich = false, reason = "waiting_consensus" when we have any odds_snapshots rows for that match_id but no qualifying consensus row yet.
+	•	enrich = false, reason = "no_odds" when we have no snapshots at all for that match_id.
+	•	bookmakers: if consensus exists, use consensus_predictions.bookmakers; else COUNT(DISTINCT book_id) from odds_snapshots.
+	•	last_updated: consensus_predictions.created_at if present, otherwise latest odds_snapshots.ts_snapshot.
+	•	min_secs_to_kickoff: MIN(secs_to_kickoff) from odds_snapshots (nullable; handy for FE sorting/badges).
+
+⸻
+
+3) Single SQL (no N+1)
+
+PostgreSQL CTE using array param:
+
+WITH ids AS (
+  SELECT UNNEST($1::bigint[]) AS match_id
+),
+latest_consensus AS (
+  SELECT DISTINCT ON (match_id)
+         match_id, time_bucket, bookmakers, created_at
+  FROM consensus_predictions
+  WHERE match_id IN (SELECT match_id FROM ids)
+    AND created_at > NOW() - ($2::interval)   -- staleness window
+  ORDER BY match_id, created_at DESC
+),
+odds AS (
+  SELECT match_id,
+         COUNT(DISTINCT book_id) AS books,
+         MAX(ts_snapshot) AS last_snapshot,
+         MIN(secs_to_kickoff) AS min_secs_to_kickoff
+  FROM odds_snapshots
+  WHERE match_id IN (SELECT match_id FROM ids)
+  GROUP BY match_id
+)
+SELECT
+  i.match_id,
+  (lc.match_id IS NOT NULL) AS enrich,
+  CASE
+    WHEN lc.match_id IS NOT NULL THEN 'consensus_ready'
+    WHEN o.match_id IS NOT NULL THEN 'waiting_consensus'
+    ELSE 'no_odds'
+  END AS reason,
+  lc.time_bucket,
+  COALESCE(lc.bookmakers, o.books, 0) AS bookmakers,
+  COALESCE(lc.created_at, o.last_snapshot) AS last_updated,
+  o.min_secs_to_kickoff
+FROM ids i
+LEFT JOIN latest_consensus lc USING (match_id)
+LEFT JOIN odds o USING (match_id);
+
+Parameters
+	•	$1: array of match_ids (deduped, max 100)
+	•	$2: interval text like '168 hours' (derived from staleness_hours)
+
+⸻
+
+4) Code skeleton (FastAPI-ish)
+
+class AvailabilityReq(BaseModel):
+    match_ids: List[int]
+    trigger_consensus: bool = False
+    staleness_hours: int = 168
+
+@app.post("/predict/availability")
+async def predict_availability(req: AvailabilityReq, user=Depends(auth_guard)):
+    # Validate
+    ids = list(dict.fromkeys(req.match_ids))  # dedupe, preserve order
+    if not ids or len(ids) > 100:
+        raise HTTPException(400, "match_ids required and must be <= 100")
+
+    rows = await db.fetch("""
+        -- (paste SQL above)
+    """, ids, f"{req.staleness_hours} hours")
+
+    results = []
+    to_trigger = []
+    for r in rows:
+        enrich = r["enrich"]
+        reason = r["reason"]
+        if req.trigger_consensus and (not enrich) and reason == "waiting_consensus":
+            to_trigger.append(r["match_id"])
+        results.append({
+            "match_id": r["match_id"],
+            "enrich": enrich,
+            "reason": reason,
+            "time_bucket": r["time_bucket"],
+            "bookmakers": r["bookmakers"],
+            "last_updated": r["last_updated"].isoformat() if r["last_updated"] else None,
+            "min_secs_to_kickoff": r["min_secs_to_kickoff"]
+        })
+
+    # Optional: enqueue builder for “waiting_consensus”
+    if to_trigger:
+        try:
+            scheduler.enqueue_consensus_build(to_trigger)  # non-blocking
+        except Exception as e:
+            logger.warning(f"availability trigger failed: {e}")
+
+    meta = {
+        "requested": len(req.match_ids),
+        "deduped": len(ids),
+        "enrich_true": sum(1 for r in results if r["enrich"]),
+        "enrich_false": sum(1 for r in results if not r["enrich"]),
+        "failure_breakdown": {
+            "no_odds": sum(1 for r in results if r["reason"] == "no_odds"),
+            "waiting_consensus": sum(1 for r in results if r["reason"] == "waiting_consensus")
+        }
+    }
+    return {"availability": results, "meta": meta}
+
+
+⸻
+
+5) Optional: auto-trigger consensus
+	•	Request flag: "trigger_consensus": true
+	•	Behavior: for rows with reason="waiting_consensus", enqueue ids to your existing scheduler/build method (don’t block the request).
+	•	Log: [AVAILABILITY] triggered_consensus=K for matches=[...]
+
+⸻
+
+6) Reuse in /predict
+	•	Before loading heavy stuff, call the same internal function to get availability for that single match_id.
+	•	If enrich=false, return early with zeros and the availability block (your FE will not request full prediction unless enrich=true anyway).
+
+Response addition in /predict:
+
+"availability": {
+  "enrich": true,
+  "reason": "consensus_ready",
+  "time_bucket": "24h",
+  "bookmakers": 17,
+  "last_updated": "..."
+}
+
+
+⸻
+
+7) Indexes (if not present)
+
+CREATE INDEX IF NOT EXISTS idx_consensus_match_created
+  ON consensus_predictions (match_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_match
+  ON odds_snapshots (match_id);
+
+-- (optional) only if you filter by created_at ranges frequently:
+CREATE INDEX IF NOT EXISTS idx_consensus_created
+  ON consensus_predictions (created_at);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_tss
+  ON odds_snapshots (ts_snapshot);
+
+
+⸻
+
+8) Validation & limits
+	•	Max match_ids per call: 100 (return 400 otherwise).
+	•	Ensure all ids are integers; silently drop dupes.
+	•	Timeouts: target p95 < 50ms for 100 ids (with the indexes).
+	•	Rate-limit per token (e.g., 10 rps) since this endpoint will be called frequently by the FE list view.
+
+⸻
+
+9) Observability
+
+Log once per request:
+
+[AVAILABILITY] req=37ms ids=24 enrich_true=15 waiting=7 no_odds=2 staleness=168h trigger=false
+
+Expose counters:
+	•	availability_requests_total
+	•	availability_enrich_true_total
+	•	availability_reason_total{reason=...}
+
+⸻
+
+10) Tests / acceptance
+	•	Case A: consensus exists → enrich=true, reason=consensus_ready, correct bucket/bookmakers.
+	•	Case B: snapshots exist, no consensus → enrich=false, reason=waiting_consensus, bookmakers > 0.
+	•	Case C: no snapshots → enrich=false, reason=no_odds, bookmakers 0.
+	•	Duplicates in input are deduped.
+	•	Invalid body (missing/too many ids) returns 400.
+	•	With trigger_consensus=true, ensure enqueue is called only for waiting_consensus.
+
+⸻
+
+11) Frontend usage
+	1.	Page load → call /predict/availability for visible match_ids.
+	2.	Only if enrich=true → call /predict to render full card.
+	3.	For others, show “Prediction pending” or “Collecting odds”.
+
+⸻
+
+That’s everything the agent needs. If they follow this, you’ll get fewer noisy /predict calls, a crisp FE experience, and a reliable readiness signal tied directly to your consensus pipeline.

@@ -22,7 +22,10 @@ from models.enhanced_real_data_collector import EnhancedRealDataCollector
 from models.simple_consensus_predictor import SimpleWeightedConsensusPredictor
 from models.enhanced_ai_analyzer import EnhancedAIAnalyzer
 from utils.on_demand_consensus import build_on_demand_consensus
-from models.response_schemas import FinalPredictionResponse, MatchContext, ComprehensiveAnalysisResponse
+from models.response_schemas import (
+    FinalPredictionResponse, MatchContext, ComprehensiveAnalysisResponse,
+    AvailabilityRequest, AvailabilityResponse, MatchAvailability, AvailabilityMeta
+)
 from models.clv_api import CLVMonitorAPI
 
 # Configure logging
@@ -1782,5 +1785,152 @@ async def get_clv_opportunities(
     except Exception as e:
         logger.error(f"CLV opportunities error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/predict/availability", response_model=AvailabilityResponse)
+async def predict_availability(
+    req: AvailabilityRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Check prediction availability for multiple match IDs
+    
+    Returns:
+    - enrich=true: Match has fresh consensus predictions and is ready for /predict
+    - enrich=false: Match is waiting for consensus or has no odds data
+    """
+    start_time = datetime.utcnow()
+    
+    try:
+        # Validate and dedupe match IDs
+        ids = list(dict.fromkeys(req.match_ids))  # Dedupe preserving order
+        if not ids or len(ids) > 100:
+            raise HTTPException(
+                status_code=400, 
+                detail="match_ids required and must be an array of up to 100 integers"
+            )
+        
+        # Import database connection
+        import os
+        import psycopg2
+        
+        # Execute availability check SQL
+        database_url = os.environ.get('DATABASE_URL')
+        if not database_url:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+        
+        with psycopg2.connect(database_url) as conn:
+            with conn.cursor() as cursor:
+                # Single SQL query as per specification
+                cursor.execute("""
+                    WITH ids AS (
+                      SELECT UNNEST(%s::bigint[]) AS match_id
+                    ),
+                    latest_consensus AS (
+                      SELECT DISTINCT ON (match_id)
+                             match_id, time_bucket, n_books as bookmakers, created_at
+                      FROM consensus_predictions
+                      WHERE match_id IN (SELECT match_id FROM ids)
+                        AND created_at > NOW() - (%s::interval)
+                      ORDER BY match_id, created_at DESC
+                    ),
+                    odds AS (
+                      SELECT match_id,
+                             COUNT(DISTINCT book_id) AS books,
+                             MAX(ts_snapshot) AS last_snapshot,
+                             MIN(secs_to_kickoff) AS min_secs_to_kickoff
+                      FROM odds_snapshots
+                      WHERE match_id IN (SELECT match_id FROM ids)
+                      GROUP BY match_id
+                    )
+                    SELECT
+                      i.match_id,
+                      (lc.match_id IS NOT NULL) AS enrich,
+                      CASE
+                        WHEN lc.match_id IS NOT NULL THEN 'consensus_ready'
+                        WHEN o.match_id IS NOT NULL THEN 'waiting_consensus'
+                        ELSE 'no_odds'
+                      END AS reason,
+                      lc.time_bucket,
+                      COALESCE(lc.bookmakers, o.books, 0) AS bookmakers,
+                      COALESCE(lc.created_at, o.last_snapshot) AS last_updated,
+                      o.min_secs_to_kickoff
+                    FROM ids i
+                    LEFT JOIN latest_consensus lc USING (match_id)
+                    LEFT JOIN odds o USING (match_id)
+                    ORDER BY i.match_id
+                """, (ids, f"{req.staleness_hours} hours"))
+                
+                rows = cursor.fetchall()
+        
+        # Build response
+        results = []
+        to_trigger = []
+        
+        for row in rows:
+            match_id, enrich, reason, time_bucket, bookmakers, last_updated, min_secs_to_kickoff = row
+            
+            # Track matches that need consensus triggering
+            if req.trigger_consensus and not enrich and reason == "waiting_consensus":
+                to_trigger.append(match_id)
+            
+            # Build availability object
+            availability = MatchAvailability(
+                match_id=match_id,
+                enrich=bool(enrich),
+                reason=reason,
+                time_bucket=time_bucket,
+                bookmakers=int(bookmakers),
+                last_updated=last_updated.isoformat() if last_updated else None,
+                min_secs_to_kickoff=min_secs_to_kickoff
+            )
+            results.append(availability)
+        
+        # Optional: trigger consensus building for waiting matches
+        if to_trigger:
+            try:
+                from utils.scheduler import trigger_manual_collection
+                logger.info(f"[AVAILABILITY] Triggered consensus building for {len(to_trigger)} matches: {to_trigger}")
+                # Non-blocking trigger - don't wait for completion
+                import threading
+                threading.Thread(
+                    target=lambda: trigger_manual_collection(),
+                    daemon=True
+                ).start()
+            except Exception as trigger_error:
+                logger.warning(f"[AVAILABILITY] Consensus trigger failed: {trigger_error}")
+        
+        # Build metadata
+        enrich_true_count = sum(1 for r in results if r.enrich)
+        enrich_false_count = len(results) - enrich_true_count
+        
+        failure_counts = {}
+        for r in results:
+            if r.reason != "consensus_ready":
+                failure_counts[r.reason] = failure_counts.get(r.reason, 0) + 1
+        
+        meta = AvailabilityMeta(
+            requested=len(req.match_ids),
+            deduped=len(ids),
+            enrich_true=enrich_true_count,
+            enrich_false=enrich_false_count,
+            failure_breakdown=failure_counts
+        )
+        
+        # Log performance
+        processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        logger.info(f"[AVAILABILITY] req={processing_time:.0f}ms ids={len(ids)} enrich_true={enrich_true_count} "
+                   f"waiting={failure_counts.get('waiting_consensus', 0)} no_odds={failure_counts.get('no_odds', 0)} "
+                   f"staleness={req.staleness_hours}h trigger={req.trigger_consensus}")
+        
+        return AvailabilityResponse(
+            availability=results,
+            meta=meta
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[AVAILABILITY] ❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Availability check failed: {str(e)}")
 
 
