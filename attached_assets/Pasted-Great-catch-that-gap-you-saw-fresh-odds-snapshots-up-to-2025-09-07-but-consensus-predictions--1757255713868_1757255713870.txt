@@ -1,0 +1,90 @@
+Great catch — that gap you saw (fresh `odds_snapshots` up to 2025-09-07, but `consensus_predictions` stuck at 2025-09-05) is exactly what happens when odds collection is running but consensus building lags or misses the new windows. From the agent’s trace, the root cause was bucket mis-alignment + scheduler not always invoking consensus; that’s now been fixed and manually backfilled.
+
+Here’s a tight runbook to (1) verify we’re good **right now** and (2) know what to do if it slips again.
+
+# 1) Quick health checks (paste into psql)
+
+**Freshness + gap**
+
+```sql
+-- Latest timestamps + how many matches still lack consensus
+WITH last_cons AS (SELECT MAX(created_at) AS t FROM consensus_predictions),
+     last_odds AS (SELECT MAX(ts_snapshot) AS t FROM odds_snapshots)
+SELECT
+  (SELECT t FROM last_odds)       AS latest_odds_snapshot,
+  (SELECT t FROM last_cons)       AS latest_consensus,
+  (SELECT (SELECT t FROM last_odds) - (SELECT t FROM last_cons)) AS time_gap,
+  (SELECT COUNT(DISTINCT o.match_id)
+     FROM odds_snapshots o
+     LEFT JOIN consensus_predictions c ON c.match_id = o.match_id
+    WHERE o.ts_snapshot > (SELECT t FROM last_cons)
+      AND c.match_id IS NULL)     AS matches_missing_consensus;
+```
+
+**24-hour coverage**
+
+```sql
+WITH o AS (
+  SELECT DISTINCT match_id FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '24 hours'
+),
+c AS (
+  SELECT DISTINCT match_id FROM consensus_predictions WHERE created_at > NOW() - INTERVAL '24 hours'
+)
+SELECT
+  (SELECT COUNT(*) FROM o) AS matches_with_odds_24h,
+  (SELECT COUNT(*) FROM c) AS matches_with_consensus_24h,
+  ROUND((SELECT COUNT(*) FROM c)*100.0/NULLIF((SELECT COUNT(*) FROM o),0),1) AS coverage_pct;
+```
+
+**Bucket distribution (to confirm the fixed ranges are populating)**
+
+```sql
+SELECT time_bucket, COUNT(*) AS rows, COUNT(DISTINCT match_id) AS matches
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '48 hours'
+GROUP BY time_bucket
+ORDER BY CASE time_bucket
+  WHEN '3h' THEN 1 WHEN '6h' THEN 2 WHEN '12h' THEN 3
+  WHEN '24h' THEN 4 WHEN '48h' THEN 5 WHEN '72h' THEN 6 ELSE 7 END;
+```
+
+✅ You’re healthy if:
+
+* `time_gap` is small (≤ 1–2 hours) and **matches\_missing\_consensus = 0–2**.
+* `coverage_pct ≥ 80%` for the last 24h.
+* Buckets show rows across your active windows (12/24/48/72h).
+
+# 2) Manual control — yes, that’s the right script
+
+**Yes**: `python trigger_manual_collection.py` is the correct manual “collect → build consensus” trigger. Use it when:
+
+* You just adjusted bucket tolerances or league mappings.
+* You see `coverage_pct < 80%` or a growing `time_gap`.
+* You need to fill T-72/T-48/T-24 for specific weekend slates.
+
+After running it, re-run the SQL checks above. Then do a smoke test:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/predict \
+  -H "Authorization: Bearer betgenius_secure_key_2024" \
+  -H "Content-Type: application/json" \
+  -d '{"match_id": <A_MATCH_WITH_FRESH_CONSENSUS>, "include_analysis": false}' | jq
+```
+
+You should see non-zero `home_win/draw/away_win`, `confidence > 0`, and `model_info.bookmaker_count > 0`.
+
+# 3) If consensus slows down again (fast fixes)
+
+* **Bucket alignment:** ensure scheduler and consensus builder use the **same hour windows** (e.g., 72h=60–84, 48h=36–60, 24h=18–30, with tolerances you settled on).
+* **Min triplets:** keep `min_triplets = 2` to avoid over-filtering.
+* **Always run consensus after collection:** confirm the scheduler logs show
+  `🧮 [CONSENSUS] Found ...` followed by `✅ [CONSENSUS] Completed: X new, Y skipped`.
+* **Guardrails:** check `/health` shows coverage and remaining gap; alert if coverage < 80% or time\_gap > 2h.
+
+# 4) Why you saw 0-confidence in /predict
+
+When consensus isn’t built for that match/time bucket, `/predict` returns zeros by design (no synthetic fallback). As the consensus builder now runs after each collection (and buckets are aligned), that should disappear. If it happens for a specific match, manually run the trigger and re-query.
+
+---
+
+If you want, I can give you a single **SQL view** that returns “matches with odds but missing consensus by bucket” to hook into the health endpoint—handy for daily alerts.
