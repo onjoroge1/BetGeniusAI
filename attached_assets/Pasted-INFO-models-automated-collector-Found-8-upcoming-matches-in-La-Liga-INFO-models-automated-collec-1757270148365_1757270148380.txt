@@ -1,0 +1,35 @@
+INFO:models.automated_collector:📅 Found 8 upcoming matches in La Liga
+INFO:models.automated_collector:🕐 Match 1390858 (Sevilla vs Elche) - T-120.6h
+INFO:models.automated_collector:🕐 Match 1390854 (Getafe vs Oviedo) - T-137.6h
+INFO:models.automated_collector:🕐 Match 1390857 (Real Sociedad vs Real Madrid) - T-139.9h
+INFO:models.automated_collector:🕐 Match 1390849 (Athletic Club vs Alaves) - T-142.1h
+INFO:models.automated_collector:🕐 Match 1390850 (Atletico Madrid vs Villarreal) - T-144.6h
+INFO:models.automated_collector:🕐 Match 1390852 (Celta Vigo vs Girona) - T-161.6h
+INFO:models.automated_collector:🕐 Match 1390855 (Levante vs Real Betis) - T-163.9h
+INFO:models.automated_collector:🕐 Match 1390856 (Osasuna vs Rayo Vallecano) - T-166.1h
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 141 (ID: 141)
+INFO:models.data_collector:Found 50 NS matches for league 141, season 2025
+INFO:     127.0.0.1:60836 - "GET /matches/upcoming?league_id=141&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 10 upcoming matches for league 141 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 10 upcoming matches in League 141
+INFO:models.automated_collector:🕐 Match 1396949 (Eibar vs FC Andorra) - T-24.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-24.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1396949 (Eibar vs FC Andorra) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Eibar vs FC Andorra → SD Eibar vs Andorra CF
+INFO:models.automated_collector:📊 Extracted 54 bookmaker odds entries
+INFO:models.automated_collector:Saved 54 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1396949, T-24h (54 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1396951 (Las Palmas vs Real Sociedad II) - T-120.1h
+INFO:models.automated_collector:🕐 Match 1391296 (Cadiz vs Eibar) - T-139.9h
+INFO:models.automated_collector:🕐 Match 1391298 (Mirandes vs Deportivo La Coruna) - T-139.9h
+INFO:models.automated_collector:🕐 Match 1391299 (Huesca vs Malaga) - T-142.1h
+INFO:models.automated_collector:🕐 Match 1391294 (Valladolid vs Almeria) - T-144.6h
+INFO:models.automated_collector:🕐 Match 1396950 (FC Andorra vs Cordoba) - T-161.6h
+INFO:models.automated_collector:🕐 Match 1391295 (Racing Santander vs Cultural Leonesa) - T-163.9h
+INFO:models.automated_collector:🕐 Match 1391297 (Castellón vs AD Ceuta FC) - T-166.1h
+INFO:models.automated_collector:🕐 Match 1391293 (Sporting Gijon vs Burgos) - T-166.1h
+INFO:models.automated_collector:✅ Odds collection completed: 1 new snapshots
+INFO:models.automated_collector:✅ DUAL collection completed:
+INFO:models.automated_collector:   • Training matches: 0 new
+INFO:models.automated_collector:   • Odds snapshots: 1 new
+INFO:models.automated_collector:   • Total data points: 1
