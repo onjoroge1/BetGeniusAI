@@ -3,7 +3,7 @@ BetGenius AI Backend - Main FastAPI Application
 Production-ready sports prediction API with ML and AI explanations
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
@@ -1151,6 +1151,168 @@ async def predict_match(
         raise HTTPException(
             status_code=500,
             detail=f"Error generating enhanced prediction: {str(e)}"
+        )
+
+@app.get("/consensus/sync")
+async def sync_consensus_predictions(
+    limit: int = Query(100, ge=1, le=1000, description="Number of records to return (max 1000)"),
+    offset: int = Query(0, ge=0, description="Number of records to skip for pagination"),
+    match_id: Optional[int] = Query(None, description="Filter by specific match ID"),
+    time_bucket: Optional[str] = Query(None, description="Filter by time bucket (6h, 12h, 24h, 48h, 72h, other)"),
+    from_date: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD format)"),
+    to_date: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD format)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Sync all consensus predictions for frontend data consistency
+    
+    Returns all matches from consensus_predictions table with filtering and pagination support.
+    Used by frontend to sync and prevent data leaks.
+    
+    Parameters:
+    - limit: Max records per request (1-1000, default: 100)
+    - offset: Skip records for pagination (default: 0)  
+    - match_id: Filter by specific match
+    - time_bucket: Filter by timing window
+    - from_date/to_date: Filter by prediction creation date range
+    """
+    try:
+        # Import database connection
+        import os
+        import psycopg2
+        
+        database_url = os.environ.get('DATABASE_URL')
+        if not database_url:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+        
+        with psycopg2.connect(database_url) as conn:
+            with conn.cursor() as cursor:
+                # Build dynamic WHERE clause
+                where_conditions = []
+                params = []
+                
+                if match_id:
+                    where_conditions.append("cp.match_id = %s")
+                    params.append(match_id)
+                
+                if time_bucket:
+                    where_conditions.append("cp.time_bucket = %s")
+                    params.append(time_bucket)
+                
+                if from_date:
+                    where_conditions.append("cp.created_at >= %s::date")
+                    params.append(from_date)
+                
+                if to_date:
+                    where_conditions.append("cp.created_at <= %s::date + INTERVAL '1 day'")
+                    params.append(to_date)
+                
+                where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+                
+                # Get total count for pagination metadata
+                count_query = f"""
+                    SELECT COUNT(*) 
+                    FROM consensus_predictions cp
+                    {where_clause}
+                """
+                
+                cursor.execute(count_query, params)
+                total_count = cursor.fetchone()[0]
+                
+                # Main query with optional match info
+                main_query = f"""
+                    SELECT 
+                        cp.match_id,
+                        cp.time_bucket,
+                        cp.consensus_h,
+                        cp.consensus_d,
+                        cp.consensus_a,
+                        cp.dispersion_h,
+                        cp.dispersion_d,
+                        cp.dispersion_a,
+                        cp.n_books,
+                        cp.consensus_method,
+                        cp.created_at,
+                        -- Try to get match info from odds_snapshots if available
+                        os.league_id,
+                        os.secs_to_kickoff
+                    FROM consensus_predictions cp
+                    LEFT JOIN (
+                        SELECT DISTINCT match_id, league_id, 
+                               MIN(secs_to_kickoff) as secs_to_kickoff
+                        FROM odds_snapshots 
+                        GROUP BY match_id, league_id
+                    ) os ON cp.match_id = os.match_id
+                    {where_clause}
+                    ORDER BY cp.created_at DESC, cp.match_id, cp.time_bucket
+                    LIMIT %s OFFSET %s
+                """
+                
+                # Add limit and offset to params
+                final_params = params + [limit, offset]
+                cursor.execute(main_query, final_params)
+                
+                rows = cursor.fetchall()
+                
+                # Build response data
+                consensus_data = []
+                for row in rows:
+                    (match_id, time_bucket, consensus_h, consensus_d, consensus_a,
+                     dispersion_h, dispersion_d, dispersion_a, n_books, consensus_method,
+                     created_at, league_id, secs_to_kickoff) = row
+                    
+                    consensus_data.append({
+                        "match_id": match_id,
+                        "time_bucket": time_bucket,
+                        "probabilities": {
+                            "home": round(float(consensus_h), 4),
+                            "draw": round(float(consensus_d), 4), 
+                            "away": round(float(consensus_a), 4)
+                        },
+                        "dispersion": {
+                            "home": round(float(dispersion_h), 4),
+                            "draw": round(float(dispersion_d), 4),
+                            "away": round(float(dispersion_a), 4)
+                        },
+                        "bookmakers_count": int(n_books) if n_books else 0,
+                        "consensus_method": consensus_method or "weighted",
+                        "created_at": created_at.isoformat() if created_at else None,
+                        "league_id": league_id,
+                        "secs_to_kickoff": secs_to_kickoff
+                    })
+        
+        # Calculate pagination metadata
+        has_more = (offset + limit) < total_count
+        total_pages = (total_count + limit - 1) // limit  # Ceiling division
+        current_page = (offset // limit) + 1
+        
+        return {
+            "status": "success", 
+            "data": consensus_data,
+            "pagination": {
+                "total_records": total_count,
+                "returned_records": len(consensus_data),
+                "limit": limit,
+                "offset": offset,
+                "current_page": current_page,
+                "total_pages": total_pages,
+                "has_more": has_more,
+                "next_offset": offset + limit if has_more else None
+            },
+            "filters_applied": {
+                "match_id": match_id,
+                "time_bucket": time_bucket,
+                "from_date": from_date,
+                "to_date": to_date
+            },
+            "sync_timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in consensus sync: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to sync consensus predictions: {str(e)}"
         )
 
 @app.get("/matches/upcoming")
