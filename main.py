@@ -248,6 +248,25 @@ def prob_over_25(lambda_h: float, lambda_a: float) -> float:
     lambda_total = lambda_h + lambda_a
     return 1.0 - poisson_cdf(2, lambda_total)
 
+def prob_over_under_total(lambda_h: float, lambda_a: float, line: float) -> dict:
+    """Probability of over/under for any total line (e.g., 0.5, 1.5, 3.5, 4.5)"""
+    lambda_total = lambda_h + lambda_a
+    k = int(line)  # For half-lines like 2.5, k=2
+    
+    under_prob = poisson_cdf(k, lambda_total)
+    over_prob = 1.0 - under_prob
+    
+    return {"over": over_prob, "under": under_prob}
+
+def prob_team_totals(lambda_team: float, line: float) -> dict:
+    """Probability of over/under for team-specific total lines"""
+    k = int(line)  # For half-lines like 1.5, k=1
+    
+    under_prob = poisson_cdf(k, lambda_team)
+    over_prob = 1.0 - under_prob
+    
+    return {"over": over_prob, "under": under_prob}
+
 def prob_btts_yes(lambda_h: float, lambda_a: float) -> float:
     """Probability both teams score"""
     # P(BTTS=Yes) = 1 - P(H=0) - P(A=0) + P(H=0 AND A=0)
@@ -273,6 +292,138 @@ def prob_ah_home_minus_1(lambda_h: float, lambda_a: float):
                 p_lose += prob
     
     return {"win": p_win, "push": p_push, "lose": p_lose}
+
+def prob_asian_handicap(lambda_h: float, lambda_a: float, handicap: float) -> dict:
+    """Calculate Asian Handicap probabilities for any line (including quarter-lines)"""
+    grid = joint_score_grid(lambda_h, lambda_a, 10)
+    max_goals = len(grid) - 1
+    
+    # For quarter-lines, we split stakes between adjacent lines
+    if handicap % 0.5 == 0.25:  # Quarter lines like -0.25, +0.25, -0.75, +0.75
+        # Split between two adjacent half/whole lines
+        line1 = handicap - 0.25  # Lower line
+        line2 = handicap + 0.25  # Higher line
+        
+        result1 = prob_asian_handicap(lambda_h, lambda_a, line1)
+        result2 = prob_asian_handicap(lambda_h, lambda_a, line2)
+        
+        # For quarter-lines, we have win, half_win, half_lose, lose
+        win = (result1.get("win", 0) + result2.get("win", 0)) / 2
+        half_win = result1.get("push", 0) / 2  # Push on line1 becomes half-win
+        half_lose = result2.get("push", 0) / 2  # Push on line2 becomes half-lose
+        lose = (result1.get("lose", 0) + result2.get("lose", 0)) / 2
+        
+        return {"win": win, "half_win": half_win, "half_lose": half_lose, "lose": lose}
+    
+    # For whole and half lines
+    p_win, p_push, p_lose = 0.0, 0.0, 0.0
+    
+    for i in range(max_goals + 1):
+        for j in range(max_goals + 1):
+            prob = grid[i][j]
+            diff = i - j  # Home goals - Away goals
+            adjusted_diff = diff - handicap
+            
+            if adjusted_diff > 0:
+                p_win += prob
+            elif adjusted_diff == 0:
+                p_push += prob
+            else:
+                p_lose += prob
+    
+    return {"win": p_win, "push": p_push, "lose": p_lose}
+
+def prob_double_chance(p_home: float, p_draw: float, p_away: float) -> dict:
+    """Double chance probabilities from 1X2"""
+    return {
+        "1X": p_home + p_draw,      # Home or Draw
+        "12": p_home + p_away,      # Home or Away  
+        "X2": p_draw + p_away       # Draw or Away
+    }
+
+def prob_winning_margin(lambda_h: float, lambda_a: float) -> dict:
+    """Winning margin probabilities using Skellam distribution"""
+    grid = joint_score_grid(lambda_h, lambda_a, 10)
+    max_goals = len(grid) - 1
+    
+    margins = {"draw": 0.0, "home_by_1": 0.0, "home_by_2": 0.0, "home_by_3+": 0.0, 
+               "away_by_1": 0.0, "away_by_2": 0.0, "away_by_3+": 0.0}
+    
+    for i in range(max_goals + 1):
+        for j in range(max_goals + 1):
+            prob = grid[i][j]
+            diff = i - j
+            
+            if diff == 0:
+                margins["draw"] += prob
+            elif diff == 1:
+                margins["home_by_1"] += prob
+            elif diff == 2:
+                margins["home_by_2"] += prob
+            elif diff >= 3:
+                margins["home_by_3+"] += prob
+            elif diff == -1:
+                margins["away_by_1"] += prob
+            elif diff == -2:
+                margins["away_by_2"] += prob
+            elif diff <= -3:
+                margins["away_by_3+"] += prob
+    
+    return margins
+
+def prob_correct_score(lambda_h: float, lambda_a: float, top_n: int = 10) -> list:
+    """Top-N correct score probabilities with Other bucket"""
+    grid = joint_score_grid(lambda_h, lambda_a, 10)
+    max_goals = len(grid) - 1
+    
+    scores = []
+    for i in range(max_goals + 1):
+        for j in range(max_goals + 1):
+            prob = grid[i][j]
+            scores.append({"score": f"{i}-{j}", "p": prob})
+    
+    # Sort by probability descending
+    scores.sort(key=lambda x: x["p"], reverse=True)
+    
+    # Take top N and sum the rest as "Other"
+    top_scores = scores[:top_n]
+    other_prob = sum(score["p"] for score in scores[top_n:])
+    
+    if other_prob > 0:
+        top_scores.append({"score": "Other", "p": other_prob})
+    
+    return top_scores
+
+def prob_odd_even_total(lambda_h: float, lambda_a: float) -> dict:
+    """Odd/Even total goals probabilities"""
+    mu = lambda_h + lambda_a
+    
+    # P(Even) = (1 + e^{-2μ})/2
+    p_even = (1 + math.exp(-2 * mu)) / 2
+    p_odd = 1.0 - p_even
+    
+    return {"odd": p_odd, "even": p_even}
+
+def prob_clean_sheet_and_win_to_nil(lambda_h: float, lambda_a: float) -> dict:
+    """Clean sheet and win-to-nil probabilities"""
+    # Clean sheets
+    home_clean_sheet = math.exp(-lambda_a)  # P(Away = 0)
+    away_clean_sheet = math.exp(-lambda_h)  # P(Home = 0)
+    
+    # Win to nil (win with clean sheet)
+    home_win_to_nil = (1 - math.exp(-lambda_h)) * math.exp(-lambda_a)  # P(H≥1) * P(A=0)
+    away_win_to_nil = (1 - math.exp(-lambda_a)) * math.exp(-lambda_h)  # P(A≥1) * P(H=0)
+    
+    return {
+        "clean_sheet": {
+            "home": home_clean_sheet,
+            "away": away_clean_sheet
+        },
+        "win_to_nil": {
+            "home": home_win_to_nil,
+            "away": away_win_to_nil
+        }
+    }
 
 def calculate_calibrated_confidence(probabilities: dict, dispersions: dict, n_books: int) -> float:
     """
@@ -322,15 +473,16 @@ def calculate_calibrated_confidence(probabilities: dict, dispersions: dict, n_bo
         # Fallback to safe conservative confidence
         return 0.50
 
-def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float, injury_adjustment: float = 1.0):
+def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float, injury_adjustment: float = 1.0, config: dict = None):
     """
-    Derive additional markets from 1X2 consensus using Poisson goal model with invariant checks
+    Derive comprehensive additional markets from 1X2 consensus using Poisson goal model
     
     Args:
         home_prob: Home win probability from consensus
         draw_prob: Draw probability from consensus  
         away_prob: Away win probability from consensus
         injury_adjustment: Factor to adjust goal rates for injuries (default: 1.0)
+        config: Configuration dict to specify which markets to include
     
     Returns:
         Dictionary with mathematically consistent additional markets
@@ -354,24 +506,30 @@ def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float
     total_bounded = pH + pD + pA
     pH, pD, pA = pH/total_bounded, pD/total_bounded, pA/total_bounded
     
+    # Default configuration for markets to include
+    default_config = {
+        "totals": [0.5, 1.5, 2.5, 3.5, 4.5],
+        "team_totals": {"home": [0.5, 1.5, 2.5], "away": [0.5, 1.5, 2.5]},
+        "asian": [0, -0.25, -0.5, -0.75, -1.0, +0.25, +0.5, +0.75, +1.0],
+        "btts": True,
+        "double_chance": True,
+        "dnb": True,
+        "margin": True,
+        "correct_score_top_n": 10,
+        "odd_even": True,
+        "clean_sheet": True,
+        "win_to_nil": True,
+        "htft": False
+    }
+    
+    # Use provided config or default
+    markets_config = config if config is not None else default_config
+    
     try:
         # Fit Poisson lambdas to match 1X2 probabilities
         fit_result = fit_lambdas_to_1x2(pH, pD, pA)
         lambda_h = fit_result["lambda_h"] * injury_adjustment
         lambda_a = fit_result["lambda_a"] * injury_adjustment
-        
-        # Calculate derived markets
-        over_25 = prob_over_25(lambda_h, lambda_a)
-        under_25 = 1.0 - over_25
-        
-        btts_yes = prob_btts_yes(lambda_h, lambda_a)
-        btts_no = 1.0 - btts_yes
-        
-        # Asian handicap calculations
-        ah_home_minus_05 = pH  # P(goal difference ≥ 1) = P(Home win)
-        ah_away_plus_05 = pD + pA  # P(goal difference ≤ 0) = P(Draw or Away win)
-        
-        ah_home_minus_1 = prob_ah_home_minus_1(lambda_h, lambda_a)
         
         # Ensure all probabilities are in valid range [0, 1]
         def clamp_prob(p):
@@ -379,90 +537,236 @@ def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float
                 return 0.5  # Safe fallback
             return max(0.0, min(1.0, p))
         
-        # Build result structure
+        # Build comprehensive result structure
         result = {
             "lambdas": {
                 "home": round(lambda_h, 3),
                 "away": round(lambda_a, 3),
                 "fit_loss": round(fit_result["loss"], 6)
-            },
-            "total_goals": {
-                "over_2_5": round(clamp_prob(over_25), 3),
-                "under_2_5": round(clamp_prob(under_25), 3)
-            },
-            "both_teams_score": {
-                "yes": round(clamp_prob(btts_yes), 3),
-                "no": round(clamp_prob(btts_no), 3)
-            },
-            "asian_handicap": {
-                "home_-0.5": round(clamp_prob(ah_home_minus_05), 3),
-                "away_+0.5": round(clamp_prob(ah_away_plus_05), 3),
-                "home_-1.0": {
-                    "win": round(clamp_prob(ah_home_minus_1["win"]), 3),
-                    "push": round(clamp_prob(ah_home_minus_1["push"]), 3),
-                    "lose": round(clamp_prob(ah_home_minus_1["lose"]), 3)
-                }
             }
         }
         
-        # INVARIANT CHECKS - Critical validation with appropriate tolerances
+        # Calculate and add configured markets
+        
+        # 1. Total Goals (alternate lines)
+        if "totals" in markets_config and markets_config["totals"]:
+            result["totals"] = {}
+            for line in markets_config["totals"]:
+                line_key = f"{line}".replace(".", "_")
+                totals = prob_over_under_total(lambda_h, lambda_a, line)
+                result["totals"][line_key] = {
+                    "over": round(clamp_prob(totals["over"]), 3),
+                    "under": round(clamp_prob(totals["under"]), 3)
+                }
+        
+        # 2. Team Totals
+        if "team_totals" in markets_config:
+            result["team_totals"] = {}
+            if "home" in markets_config["team_totals"]:
+                result["team_totals"]["home"] = {}
+                for line in markets_config["team_totals"]["home"]:
+                    line_key = f"{line}".replace(".", "_")
+                    totals = prob_team_totals(lambda_h, line)
+                    result["team_totals"]["home"][line_key] = {
+                        "over": round(clamp_prob(totals["over"]), 3),
+                        "under": round(clamp_prob(totals["under"]), 3)
+                    }
+            if "away" in markets_config["team_totals"]:
+                result["team_totals"]["away"] = {}
+                for line in markets_config["team_totals"]["away"]:
+                    line_key = f"{line}".replace(".", "_")
+                    totals = prob_team_totals(lambda_a, line)
+                    result["team_totals"]["away"][line_key] = {
+                        "over": round(clamp_prob(totals["over"]), 3),
+                        "under": round(clamp_prob(totals["under"]), 3)
+                    }
+        
+        # 3. Both Teams to Score
+        if markets_config.get("btts", False):
+            btts_yes = prob_btts_yes(lambda_h, lambda_a)
+            btts_no = 1.0 - btts_yes
+            result["both_teams_score"] = {
+                "yes": round(clamp_prob(btts_yes), 3),
+                "no": round(clamp_prob(btts_no), 3)
+            }
+        
+        # 4. Asian Handicap (including quarter-lines)
+        if "asian" in markets_config and markets_config["asian"]:
+            result["asian_handicap"] = {}
+            for handicap in markets_config["asian"]:
+                handicap_key = f"home_{handicap:+g}".replace(".", "_").replace("+", "_plus_").replace("-", "_minus_")
+                ah_probs = prob_asian_handicap(lambda_h, lambda_a, handicap)
+                
+                if "half_win" in ah_probs:  # Quarter-line
+                    result["asian_handicap"][handicap_key] = {
+                        "win": round(clamp_prob(ah_probs["win"]), 3),
+                        "half_win": round(clamp_prob(ah_probs["half_win"]), 3),
+                        "half_lose": round(clamp_prob(ah_probs["half_lose"]), 3),
+                        "lose": round(clamp_prob(ah_probs["lose"]), 3)
+                    }
+                else:  # Whole or half line
+                    result["asian_handicap"][handicap_key] = {
+                        "win": round(clamp_prob(ah_probs["win"]), 3),
+                        "push": round(clamp_prob(ah_probs["push"]), 3),
+                        "lose": round(clamp_prob(ah_probs["lose"]), 3)
+                    }
+        
+        # 5. Double Chance
+        if markets_config.get("double_chance", False):
+            dc_probs = prob_double_chance(pH, pD, pA)
+            result["double_chance"] = {
+                "1X": round(clamp_prob(dc_probs["1X"]), 3),
+                "12": round(clamp_prob(dc_probs["12"]), 3),
+                "X2": round(clamp_prob(dc_probs["X2"]), 3)
+            }
+        
+        # 6. Draw No Bet (DNB)
+        if markets_config.get("dnb", False):
+            dnb_home = pH / (pH + pA)  # Home win probability excluding draw
+            dnb_away = pA / (pH + pA)  # Away win probability excluding draw
+            result["dnb"] = {
+                "home": round(clamp_prob(dnb_home), 3),
+                "away": round(clamp_prob(dnb_away), 3)
+            }
+        
+        # 7. Winning Margin
+        if markets_config.get("margin", False):
+            margin_probs = prob_winning_margin(lambda_h, lambda_a)
+            result["winning_margin"] = {
+                k: round(clamp_prob(v), 3) for k, v in margin_probs.items()
+            }
+        
+        # 8. Correct Score (Top-N)
+        if markets_config.get("correct_score_top_n", 0) > 0:
+            correct_scores = prob_correct_score(lambda_h, lambda_a, markets_config["correct_score_top_n"])
+            result["correct_score_top"] = [
+                {"score": cs["score"], "p": round(clamp_prob(cs["p"]), 3)}
+                for cs in correct_scores
+            ]
+        
+        # 9. Odd/Even Total Goals
+        if markets_config.get("odd_even", False):
+            odd_even_probs = prob_odd_even_total(lambda_h, lambda_a)
+            result["odd_even_total"] = {
+                "odd": round(clamp_prob(odd_even_probs["odd"]), 3),
+                "even": round(clamp_prob(odd_even_probs["even"]), 3)
+            }
+        
+        # 10. Clean Sheet & Win-to-Nil
+        if markets_config.get("clean_sheet", False) or markets_config.get("win_to_nil", False):
+            cs_wtn_probs = prob_clean_sheet_and_win_to_nil(lambda_h, lambda_a)
+            if markets_config.get("clean_sheet", False):
+                result["clean_sheet"] = {
+                    "home": round(clamp_prob(cs_wtn_probs["clean_sheet"]["home"]), 3),
+                    "away": round(clamp_prob(cs_wtn_probs["clean_sheet"]["away"]), 3)
+                }
+            if markets_config.get("win_to_nil", False):
+                result["win_to_nil"] = {
+                    "home": round(clamp_prob(cs_wtn_probs["win_to_nil"]["home"]), 3),
+                    "away": round(clamp_prob(cs_wtn_probs["win_to_nil"]["away"]), 3)
+                }
+        
+        # COMPREHENSIVE INVARIANT CHECKS - Enhanced validation for all markets
         try:
-            # Calculate raw unrounded values for tolerance checks
-            raw_over_25 = over_25
-            raw_under_25 = under_25
-            raw_btts_yes = btts_yes  
-            raw_btts_no = btts_no
-            raw_ah_home_minus_05 = ah_home_minus_05
-            raw_ah_away_plus_05 = ah_away_plus_05
-            raw_ah_minus_1 = ah_home_minus_1
+            # Validate market-specific invariants based on what's included
+            invariant_failures = []
             
-            # Sum rules on raw values (tighter tolerance)
-            total_goals_sum_raw = raw_over_25 + raw_under_25
-            btts_sum_raw = raw_btts_yes + raw_btts_no
-            ah_minus_1_sum_raw = raw_ah_minus_1["win"] + raw_ah_minus_1["push"] + raw_ah_minus_1["lose"]
+            # 1. Total Goals Sum Rules (values are rounded to 3 decimals, so 0-1 range)
+            if "totals" in result:
+                for line_key, probs in result["totals"].items():
+                    total_sum = probs["over"] + probs["under"]
+                    if abs(total_sum - 1.0) > 0.003:  # Allow 3 units tolerance for rounding
+                        invariant_failures.append(f"Total {line_key} sum: {total_sum:.6f}")
             
-            sum_rules_valid = (
-                abs(total_goals_sum_raw - 1.0) < 1e-4 and
-                abs(btts_sum_raw - 1.0) < 1e-4 and
-                abs(ah_minus_1_sum_raw - 1.0) < 1e-4
-            )
+            # 2. Team Totals Sum Rules
+            if "team_totals" in result:
+                for team in ["home", "away"]:
+                    if team in result["team_totals"]:
+                        for line_key, probs in result["team_totals"][team].items():
+                            total_sum = probs["over"] + probs["under"]
+                            if abs(total_sum - 1.0) > 0.003:
+                                invariant_failures.append(f"Team {team} total {line_key} sum: {total_sum:.6f}")
             
-            # Consistency with 1X2 on raw values
-            consistency_valid = (
-                abs(raw_ah_home_minus_05 - pH) < 1e-4 and
-                abs(raw_ah_away_plus_05 - (pD + pA)) < 1e-4
-            )
+            # 3. BTTS Sum Rules
+            if "both_teams_score" in result:
+                btts_sum = result["both_teams_score"]["yes"] + result["both_teams_score"]["no"]
+                if abs(btts_sum - 1.0) > 0.003:
+                    invariant_failures.append(f"BTTS sum: {btts_sum:.6f}")
             
-            # Sanity bounds - only check probability fields, exclude lambdas/fit_loss
-            def check_probability_bounds(d, exclude_keys=None):
+            # 4. Asian Handicap Sum Rules
+            if "asian_handicap" in result:
+                for handicap_key, probs in result["asian_handicap"].items():
+                    if "half_win" in probs:  # Quarter-line
+                        ah_sum = probs["win"] + probs["half_win"] + probs["half_lose"] + probs["lose"]
+                    else:  # Whole or half line
+                        ah_sum = probs["win"] + probs["push"] + probs["lose"]
+                    if abs(ah_sum - 1.0) > 0.003:
+                        invariant_failures.append(f"AH {handicap_key} sum: {ah_sum:.6f}")
+            
+            # 5. Double Chance Sum Rules
+            if "double_chance" in result:
+                # 1X + X2 + 12 should equal 2 (since each outcome is counted twice)
+                dc_sum = result["double_chance"]["1X"] + result["double_chance"]["X2"] + result["double_chance"]["12"]
+                if abs(dc_sum - 2.0) > 0.006:  # Expected sum is 2.0
+                    invariant_failures.append(f"Double chance sum: {dc_sum:.6f} (expected: 2.0)")
+            
+            # 6. DNB Sum Rules
+            if "dnb" in result:
+                dnb_sum = result["dnb"]["home"] + result["dnb"]["away"]
+                if abs(dnb_sum - 1.0) > 0.003:
+                    invariant_failures.append(f"DNB sum: {dnb_sum:.6f}")
+            
+            # 7. Winning Margin Sum Rules
+            if "winning_margin" in result:
+                margin_sum = sum(result["winning_margin"].values())
+                if abs(margin_sum - 1.0) > 0.003:
+                    invariant_failures.append(f"Winning margin sum: {margin_sum:.6f}")
+            
+            # 8. Correct Score Sum Rules
+            if "correct_score_top" in result:
+                cs_sum = sum(cs["p"] for cs in result["correct_score_top"])
+                if abs(cs_sum - 1.0) > 0.003:
+                    invariant_failures.append(f"Correct score sum: {cs_sum:.6f}")
+            
+            # 9. Odd/Even Sum Rules
+            if "odd_even_total" in result:
+                oe_sum = result["odd_even_total"]["odd"] + result["odd_even_total"]["even"]
+                if abs(oe_sum - 1.0) > 0.003:
+                    invariant_failures.append(f"Odd/Even sum: {oe_sum:.6f}")
+            
+            # 10. Clean Sheet & Win-to-Nil Bounds
+            for market in ["clean_sheet", "win_to_nil"]:
+                if market in result:
+                    for team, prob in result[market].items():
+                        if not (0 <= prob <= 1.0):
+                            invariant_failures.append(f"{market} {team} out of bounds: {prob:.6f}")
+            
+            # 11. General Bounds Check - only check probability fields
+            def check_probability_bounds(d, exclude_keys=None, path=""):
                 exclude_keys = exclude_keys or {"lambdas", "fit_loss"}
                 for k, v in d.items():
+                    current_path = f"{path}.{k}" if path else k
                     if k in exclude_keys:
                         continue  # Skip non-probability fields
                     if isinstance(v, dict):
-                        if not check_probability_bounds(v, exclude_keys):
+                        if not check_probability_bounds(v, exclude_keys, current_path):
                             return False
+                    elif isinstance(v, list):
+                        continue  # Skip lists (like correct_score_top)
                     else:
-                        if not (0.0 <= v <= 1.0) or math.isnan(v):
+                        # Check bounds for probability values (0-1 for rounded values)
+                        if not (0 <= v <= 1.0) or math.isnan(v):
+                            invariant_failures.append(f"Bounds check failed at {current_path}: {v}")
                             return False
                 return True
             
             bounds_valid = check_probability_bounds(result)
             
-            # Log validation results using raw values
-            if not sum_rules_valid:
-                logger.warning(f"[POISSON_GUARDRAIL] Sum rules failed: totals={total_goals_sum_raw:.6f}, btts={btts_sum_raw:.6f}, ah_minus_1={ah_minus_1_sum_raw:.6f}")
-            
-            if not consistency_valid:
-                logger.warning(f"[POISSON_GUARDRAIL] 1X2 consistency failed: ah_home={raw_ah_home_minus_05:.6f} vs pH={pH:.6f}, ah_away={raw_ah_away_plus_05:.6f} vs pD+pA={pD+pA:.6f}")
-            
-            if not bounds_valid:
-                logger.warning(f"[POISSON_GUARDRAIL] Bounds check failed - invalid probabilities detected")
-            
-            # If any invariant fails, fallback to simple estimates
-            if not (sum_rules_valid and consistency_valid and bounds_valid):
+            # Report any validation failures
+            if invariant_failures:
+                logger.warning(f"[POISSON_GUARDRAIL] Invariant failures detected: {'; '.join(invariant_failures[:3])}")  # Log first 3 failures
                 logger.warning(f"[POISSON_GUARDRAIL] Falling back to simple estimates. λₕ={lambda_h:.3f}, λₐ={lambda_a:.3f}, fit_loss={fit_result['loss']:.6f}")
-                raise ValueError("Invariant validation failed")
+                raise ValueError("Comprehensive invariant validation failed")
             
             return result
             

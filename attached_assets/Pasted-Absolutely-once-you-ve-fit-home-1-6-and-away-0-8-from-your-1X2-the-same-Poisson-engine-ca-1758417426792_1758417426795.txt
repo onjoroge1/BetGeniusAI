@@ -1,0 +1,186 @@
+Absolutely—once you’ve fit λ\_home=1.6 and λ\_away=0.8 from your 1X2, the **same Poisson engine** can generate a *lot* more markets, all internally consistent with your 1X2. Here’s what you can (and should) add, with clear formulas and an implementation sketch.
+
+# What you can derive from the same λ’s
+
+## 1) Alternate Totals (0.5, 1.5, 2.5, 3.5, 4.5, …)
+
+Let μ = λ\_home + λ\_away and let T \~ Poisson(μ) be total goals.
+
+* For a half-line L = k+0.5:
+
+  * P(Over L)  = 1 − P(T ≤ k)  = 1 − PoissonCDF(k; μ)
+  * P(Under L) = PoissonCDF(k; μ)
+
+## 2) Team Totals (per-team alt lines)
+
+For X\~Poisson(λ\_home), Y\~Poisson(λ\_away):
+
+* P(Home Over a+0.5)  = 1 − PoissonCDF(a; λ\_home)
+* P(Home Under a+0.5) = PoissonCDF(a; λ\_home)
+  (similarly for Away with λ\_away)
+
+## 3) BTTS & combos
+
+* BTTS (Yes) = 1 − e^{-λ\_home} − e^{-λ\_away} + e^{-(λ\_home+λ\_away)}
+* BTTS & Over 2.5 = ∑*{x≥1}∑*{y≥1, x+y≥3} Pois(x;λ\_h)·Pois(y;λ\_a)
+  (compute on a truncated grid; see performance notes below)
+
+## 4) Asian Handicap (any line, including quarters)
+
+Let G = X − Y (Skellam with means λ\_h, λ\_a). For a **whole-number line** h (e.g., -1.0):
+
+* Win = P(G > h)
+* Push = P(G = h)
+* Lose = P(G < h)
+
+**Quarter-lines** are split-stakes between adjacent half/whole lines:
+
+* -0.25  = ½(AH 0.0) + ½(AH -0.5)
+* -0.75  = ½(AH -0.5) + ½(AH -1.0)
+  (and likewise for +0.25, +0.75)
+
+This also gives you **AH 0 (DNB)** exactly:
+
+* For AH 0: Win=P(G>0), Push=P(G=0), Lose=P(G<0).
+  The implied “DNB price” aligns with H/(H+A) from your 1X2.
+
+## 5) Double Chance
+
+Trivial from 1X2:
+
+* 1X = H + D,  X2 = D + A,  12 = 1 − D
+
+## 6) Winning Margin
+
+* Home by k = P(G = k)  (Skellam pmf), Draw = P(G=0), Away by k = P(G = −k)
+
+## 7) Correct Score (top-N)
+
+* P(i–j) = Pois(i; λ\_h)·Pois(j; λ\_a)
+  Return a top-N with an “Other” bucket (remaining mass) to keep payload small.
+
+## 8) Odd/Even Total Goals
+
+For μ = λ\_h + λ\_a:
+
+* P(Even) = (1 + e^{-2μ})/2,  P(Odd) = 1 − P(Even)
+
+## 9) Clean Sheet & Win-to-Nil
+
+* Home clean sheet = P(Y=0) = e^{-λ\_a}
+* Away clean sheet = e^{-λ\_h}
+* Home win to nil = ∑\_{x≥1} Pois(x;λ\_h)·Pois(0;λ\_a) = (1 − e^{-λ\_h})·e^{-λ\_a}
+  (similarly for away)
+
+## 10) Half-Time / Full-Time (optional)
+
+If you assume homogeneous rates over time:
+
+* λ\_h1 = λ\_h/2, λ\_a1 = λ\_a/2 for the first half; same for second half
+* Convolve half-time and second-half independent Poissons to get HT/FT grid
+
+---
+
+# Implementation sketch (drop-in)
+
+1. **Extend** your `derive_markets_from_1x2(…)` to accept a config:
+
+```python
+derive_markets_from_1x2(
+    p_home, p_draw, p_away,
+    injury_adjustment=None,
+    config={
+      "totals":[0.5,1.5,2.5,3.5,4.5],
+      "team_totals":{"home":[0.5,1.5,2.5], "away":[0.5,1.5,2.5]},
+      "asian":[0, -0.25, -0.5, -0.75, -1.0, +0.25, +0.5, +0.75, +1.0],
+      "btts": True,
+      "double_chance": True,
+      "dnb": True,
+      "margin": True,
+      "correct_score_top_n": 10,
+      "odd_even": True,
+      "clean_sheet": True,
+      "win_to_nil": True,
+      "htft": False   # turn on later if needed
+    }
+)
+```
+
+2. **Re-use** the same λ’s:
+
+* You already fit λ\_h, λ\_a to reproduce 1X2. Cache the Poisson pmfs for X and Y and the Skellam pmf for G to compute everything else **once** per match.
+
+3. **Performance notes**
+
+* Truncate goals at `g_max = ceil(μ + 8*sqrt(μ))` (often ≤ 10–12 for typical μ), and precompute:
+
+  * `px[i] = Pois(i; λ_h)`, `py[j] = Pois(j; λ_a)`
+  * `cdf_total[k] = P(T≤k)` by convolving or directly Poisson(μ)
+  * `skellam[k]` for needed k in a range \[−K…K]
+* For BTTS & Over combos, loop i=1..g\_max, j=1..g\_max and skip states that don’t meet the condition; the grid is tiny and fast with the above truncation.
+* Return **rounded** probs (e.g., 3 decimals) but validate with **pre-round values** and allow a small tolerance in invariants.
+
+4. **Integrity checks (same as you added)**
+
+* `Over/Under(L) + Under/Over(L) ≈ 1`
+* `AH 0.0`: win/push/lose should equal (H/D/A) from your 1X2 within tolerance
+* Sum of correct-score **top-N + Other ≈ 1** for the score grid mass
+* BTTS yes/no sums to 1 (within rounding)
+
+---
+
+# Suggested response shape (example)
+
+Extend `additional_markets` so it’s predictable and easy for FE:
+
+```json
+"additional_markets": {
+  "lambdas": { "home": 1.6, "away": 0.8, "fit_loss": 0.000378 },
+  "totals": {
+    "0_5": {"over": 0.82, "under": 0.18},
+    "1_5": {"over": 0.66, "under": 0.34},
+    "2_5": {"over": 0.43, "under": 0.57},
+    "3_5": {"over": 0.24, "under": 0.76}
+  },
+  "team_totals": {
+    "home": { "0_5": {"over": 0.80, "under": 0.20}, "1_5": {"over": 0.55, "under": 0.45} },
+    "away": { "0_5": {"over": 0.55, "under": 0.45}, "1_5": {"over": 0.20, "under": 0.80} }
+  },
+  "btts": { "yes": 0.439, "no": 0.561 },
+  "asian": {
+    "home_0":   {"win": 0.596, "push": 0.285, "lose": 0.119},
+    "home_-0_25": {"win": 0.573, "half_lose": 0.011, "half_win": 0.013, "lose": 0.403},
+    "home_-0_5":  {"win": 0.549, "lose": 0.451},
+    "home_-1_0":  {"win": 0.304, "push": 0.260, "lose": 0.436}
+  },
+  "double_chance": { "1X": 0.881, "12": 0.800, "X2": 0.489 },
+  "dnb": { "home": 0.745, "away": 0.255 },
+  "winning_margin": { "home_by_1": 0.31, "home_by_2+": 0.23, "draw": 0.285, "away_by_1": 0.12, "away_by_2+": 0.055 },
+  "correct_score_top": [
+    {"score":"1-0","p":0.192},
+    {"score":"2-0","p":0.154},
+    {"score":"1-1","p":0.133},
+    ...
+    {"score":"Other","p":0.087}
+  ],
+  "odd_even_total": { "odd": 0.52, "even": 0.48 },
+  "clean_sheet": { "home": 0.449, "away": 0.202 },
+  "win_to_nil": { "home": 0.359, "away": 0.161 }
+}
+```
+
+*(Numbers above are illustrative; your backend will compute the exact values.)*
+
+---
+
+# How to roll it out safely
+
+1. **Backend**: extend `derive_markets_from_1x2` to accept a config and compute the sets above. Keep your invariant checks & tolerances.
+2. **/predict**: add `additional_markets_config` (optional); default to a sensible pack (totals \[1.5–3.5], AH \[0,-0.25,-0.5,-1.0], BTTS, DNB, DoubleChance).
+3. **FE**: render only what’s returned (no hardcoded assumptions). If you later add more, FE gets them “for free”.
+4. **Caching**: key off `(match_id, consensus_created_at, markets_signature)` so alt-lines don’t invalidate base caches.
+5. **Grading later**: the same Poisson model eases checking coherence (and when you store closing odds you can compare each derived probability to closing prices).
+
+---
+
+**Bottom line:** Yes—use the same λ’s to produce **alt totals, team totals, BTTS combos, AH quarter-lines, DNB, double chance, margins, correct score, parity, clean sheets, win-to-nil, and even HT/FT**. It stays fast, coherent with your 1X2, and production-safe with the invariant checks you’ve already put in.
