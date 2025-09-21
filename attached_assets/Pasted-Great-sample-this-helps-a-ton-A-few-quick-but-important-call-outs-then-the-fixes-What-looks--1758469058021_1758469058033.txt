@@ -1,0 +1,90 @@
+Great sample—this helps a ton. A few quick but important call-outs, then the fixes.
+
+# What looks good
+
+* Your Poisson block is mostly solid: `λ_h=1.0, λ_a=0.8`, tails trimmed, team totals / BTTS / totals / clean sheets all line up with the λ’s.
+
+  * Example: `clean_sheet_home ≈ e^{-λ_a} = e^{-0.8} = 0.449` ✅
+  * `BTTS_yes = 1 - e^{-λ_h} - e^{-λ_a} + e^{-(λ_h+λ_a)} ≈ 0.348` ✅
+  * Totals ladder (0.5→4.5) is coherent with μ=1.8 ✅
+  * Correct-score Top-N + “Other” sums ≈ 1.0 ✅
+
+# What’s off (and how to fix it)
+
+## 1) 1X2 doesn’t sum to \~1
+
+`home=0.408, draw=0.337, away=0.338 → sum=1.083` ❌
+**Fix:** after you assemble consensus, **soft-renormalize** if `0.95 ≤ sum ≤ 1.05`:
+
+```py
+p = np.array([home, draw, away])
+s = p.sum()
+if 0.95 <= s <= 1.05:
+    p = p / s
+```
+
+Use these normalized probs both for display **and** to fit λ.
+
+## 2) Asian Handicap (v2) mapping is wrong
+
+Your v2 block shows things like:
+
+* `ah_home._minus_0_5.win = 0.718` (should equal **P(G>0)**, i.e., **home 1X2 win**; with λ’s here it’s ≈ 0.39–0.40, not 0.72)
+* For quarter lines you’re halving the **probability** on draws (e.g., half\_win=0.163 when draw ≈ 0.326). That’s backwards: payouts are half, **probabilities are not**.
+
+**Correct probability mapping (let G = X−Y):**
+
+* **−0.5:** win = P(G>0), lose = P(G≤0)
+* **+0.5:** win = P(G≥0), lose = P(G<0)
+* **−1.0:** win = P(G>1), push = P(G=1), lose = P(G<1)
+* **+1.0:** win = P(G≥1), push = P(G=0), lose = P(G≤−1)
+* **−0.25:** win = P(G>0), **half-lose = P(G=0)**, lose = P(G<0)
+* **+0.25:** win = P(G>0), **half-win = P(G=0)**, lose = P(G<0)
+* **−0.75:** win = P(G≥2), **half-win = P(G=1)**, lose = P(G≤0)
+* **+0.75:** win = P(G≥1), **half-win = P(G=0)**, lose = P(G≤−1)
+
+> Key point: “half-win/half-lose” *probabilities* equal the full probability of the draw (or one-goal margin) event. The “half” applies to settlement, not to probability mass.
+
+Also, **AH −0.5 win must equal your 1X2 Home Win**. If you enforce that invariant in code, you’ll catch errors instantly.
+
+## 3) Double Chance / DNB inconsistencies
+
+* DC must be pure sums of 1X2:
+  `1X = H + D`, `12 = 1 − D`, `X2 = D + A`
+* DNB: `DNB_home = H / (1 − D)`, `DNB_away = A / (1 − D)`
+
+Your v2 `1X / 12 / X2` and `dnb_home/away` don’t match either the displayed 1X2 or the Poisson-implied 1X2, so they’re coming from the same mapping bug as AH. Recompute from the **same** source (either the normalized consensus 1X2 or the Poisson 1X2 you get after fitting λ). I recommend:
+
+* Normalize consensus 1X2 → fit λ to that → derive **all** derived markets from λ.
+* (Optional) expose `coherence.hda_poisson` so you can see the tiny residual vs. input H/D/A.
+
+# Minimal changes to lock this in
+
+1. **Normalize 1X2** before fitting λ (and before emitting predictions).
+2. **Fit λ** on the normalized H/D/A.
+3. **Rebuild v2 markets from λ** only (don’t mix sources).
+4. **Fix AH/DC/DNB mapping** using the formulas above.
+5. Add **invariants** (fail-soft with logs if violated):
+
+   * `abs((H+D+A) − 1) < 1e-6`
+   * `AH −0.5 win == H` (within tol)
+   * `DC sums` equalities (within tol)
+   * Totals pairs sum to 1 (within rounding)
+6. **Drop the legacy `additional_markets`** block and keep only `additional_markets_v2` to avoid conflicting outputs.
+7. Include a `coherence` block in the payload:
+
+```json
+"coherence": {
+  "hda_sum": 0.9999,
+  "ah_minus_0_5_eq_homewin": true,
+  "dc_from_hda": true,
+  "fit_loss": 0.0013
+}
+```
+
+# Quick sanity on your sample
+
+* Poisson parts (totals ladder, BTTS, clean sheets, correct scores) look consistent with `λ_h=1.0, λ_a=0.8`. ✅
+* 1X2 sum > 1 and v2 AH/DC/DNB need the mapping fix. ❌
+
+Once you normalize H/D/A and rebuild AH/DC/DNB from λ with the mappings above, the whole payload will be internally coherent—and every market will stay consistent with your consensus.

@@ -355,54 +355,190 @@ def prob_ah_home_minus_1(lambda_h: float, lambda_a: float):
     return {"win": p_win, "push": p_push, "lose": p_lose}
 
 def price_asian_handicap(grid: PoissonGrid, handicap: float) -> dict:
-    """Calculate Asian Handicap probabilities using goal-difference PMF (corrected math)"""
+    """
+    Calculate Asian Handicap probabilities using CORRECTED goal-difference formulas
+    G = Home_Goals - Away_Goals (positive = home advantage)
+    Home handicap h: Effective goal difference is G + h
+    
+    Returns unified dict: {win, lose, push, half_win, half_lose} (zeros where not applicable)
+    """
     diff_pmf = grid.diff_pmf
+    tol = 1e-9
     
-    # Quarter-lines: 50/50 mix of adjacent half/whole lines
-    if abs(handicap % 0.5 - 0.25) < 1e-9:  # Quarter lines like -0.25, +0.25, -0.75, +0.75
-        if handicap > 0:  # Positive quarter-lines like +0.25, +0.75
-            line1 = handicap - 0.25  # e.g., +0.25 -> 0.0 and +0.5
-            line2 = handicap + 0.25
-            
-            # +0.25 = 1/2(0) + 1/2(+0.5)
-            result1 = price_asian_handicap(grid, line1)
-            result2 = price_asian_handicap(grid, line2)
-            
-            win = (result1["win"] + result2["win"]) / 2
-            # Quarter-line push handling: push from line1 becomes half-win
-            half_win = result1.get("push", 0) / 2
-            half_lose = result2.get("push", 0) / 2
-            lose = (result1["lose"] + result2["lose"]) / 2
-            
-            return {"win": win, "half_win": half_win, "half_lose": half_lose, "lose": lose}
+    # Initialize unified return structure (prevents KeyError)
+    result = {"win": 0.0, "lose": 0.0, "push": 0.0, "half_win": 0.0, "half_lose": 0.0}
+    
+    # Quarter-lines: Split-leg logic (ARCHITECT CORRECTED)
+    if abs((handicap % 0.5) - 0.25) < tol:  # Quarter lines like -0.25, +0.25, -0.75, +0.75
         
-        else:  # Negative quarter-lines like -0.25, -0.75
-            line1 = handicap + 0.25  # e.g., -0.25 -> 0.0 and -0.5
-            line2 = handicap - 0.25
+        if abs(handicap - 0.25) < tol:  # +0.25 = (0.0 + 0.5)/2
+            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > 0)    # P(G>0)
+            result["half_win"] = diff_pmf.get(0, 0)  # P(G=0) becomes half-win
+            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < 0)   # P(G<0)
             
-            # -0.25 = 1/2(0) + 1/2(-0.5)
-            result1 = price_asian_handicap(grid, line1)
-            result2 = price_asian_handicap(grid, line2)
+        elif abs(handicap + 0.25) < tol:  # -0.25 = (0.0 + (-0.5))/2
+            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > 0)    # P(G>0)
+            result["half_lose"] = diff_pmf.get(0, 0)  # P(G=0) becomes half-lose
+            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < 0)   # P(G<0)
             
-            win = (result1["win"] + result2["win"]) / 2
-            half_win = result1.get("push", 0) / 2  # Push becomes half-win
-            half_lose = result2.get("push", 0) / 2  # Push becomes half-lose  
-            lose = (result1["lose"] + result2["lose"]) / 2
+        elif abs(handicap - 0.75) < tol:  # +0.75 = (+0.5 + +1.0)/2 (CORRECTED)
+            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff >= 0)   # P(G≥0)
+            result["half_lose"] = diff_pmf.get(-1, 0)  # P(G=-1) becomes half-lose
+            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff <= -2) # P(G≤-2)
             
-            return {"win": win, "half_win": half_win, "half_lose": half_lose, "lose": lose}
+        elif abs(handicap + 0.75) < tol:  # -0.75 = (-0.5 + -1.0)/2 (CORRECTED)
+            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff >= 2)   # P(G≥2)
+            result["half_win"] = diff_pmf.get(1, 0)  # P(G=1) becomes half-win
+            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff <= 0)  # P(G≤0)
     
-    # Whole and half lines: use goal difference thresholds directly
-    p_win, p_push, p_lose = 0.0, 0.0, 0.0
+    # Half-lines: General parameterized formula
+    elif abs((handicap % 1.0) - 0.5) < tol:  # Half lines
+        # For home handicap h.5: win = P(G > -h), lose = P(G < -h)
+        threshold = -handicap
+        
+        if handicap > 0:  # Positive half-lines like +0.5, +1.5, +2.5
+            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > threshold)
+            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < threshold)
+        else:  # Negative half-lines like -0.5, -1.5, -2.5  
+            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > threshold)
+            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < threshold)
     
-    for diff, prob in diff_pmf.items():
-        if diff > handicap:
-            p_win += prob
-        elif diff == handicap:
-            p_push += prob
-        else:
-            p_lose += prob
+    # Whole lines: General parameterized formula (CORRECTED)
+    elif abs(handicap - round(handicap)) < tol:  # Whole lines
+        # For home handicap h.0: win = P(G > -h), push = P(G = -h), lose = P(G < -h)
+        threshold = -handicap
+        
+        result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > threshold)
+        result["push"] = diff_pmf.get(int(threshold), 0)
+        result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < threshold)
     
-    return {"win": p_win, "push": p_push, "lose": p_lose}
+    # Fallback: Use parameterized threshold logic
+    else:
+        threshold = -handicap
+        result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > threshold)
+        result["push"] = diff_pmf.get(int(threshold), 0) if threshold == int(threshold) else 0.0
+        result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < threshold)
+    
+    return result
+
+def validate_market_coherence(v2_markets: dict, grid: PoissonGrid, pH: float, pD: float, pA: float, fit_result: dict) -> dict:
+    """
+    Comprehensive mathematical coherence validation for all derived markets
+    Returns coherence metrics for API transparency and debugging
+    """
+    import math
+    logger = logging.getLogger(__name__)
+    
+    coherence = {
+        "hda_sum": round(pH + pD + pA, 6),
+        "fit_loss": round(fit_result.get("loss", 0), 6),
+        "lambda_h": round(grid.lambda_h, 3),
+        "lambda_a": round(grid.lambda_a, 3)
+    }
+    
+    # INVARIANT 1: 1X2 probabilities sum to 1.0
+    hda_sum_valid = abs((pH + pD + pA) - 1.0) < 1e-6
+    coherence["hda_sum_valid"] = hda_sum_valid
+    
+    # INVARIANT 2: Asian Handicap -0.5 win must equal Home Win (critical consistency check)
+    ah_minus_0_5_eq_homewin = True
+    try:
+        if "asian_handicap" in v2_markets and "home" in v2_markets["asian_handicap"]:
+            ah_minus_0_5 = v2_markets["asian_handicap"]["home"].get("_minus_0_5", {})
+            if "win" in ah_minus_0_5:
+                ah_home_win = ah_minus_0_5["win"] 
+                tolerance = 0.002  # Allow small rounding differences
+                if abs(ah_home_win - pH) > tolerance:
+                    ah_minus_0_5_eq_homewin = False
+                    logger.warning(f"🔍 AH-0.5 vs Home Win mismatch: {ah_home_win:.3f} vs {pH:.3f}")
+    except Exception as e:
+        ah_minus_0_5_eq_homewin = False
+        
+    coherence["ah_minus_0_5_eq_homewin"] = ah_minus_0_5_eq_homewin
+    
+    # INVARIANT 3: Double Chance must be pure sums of 1X2
+    dc_from_hda = True
+    try:
+        if "double_chance" in v2_markets:
+            dc = v2_markets["double_chance"]
+            tolerance = 0.003
+            
+            # Check 1X = H + D
+            if "1X" in dc and abs(dc["1X"] - (pH + pD)) > tolerance:
+                dc_from_hda = False
+            # Check 12 = H + A  (equivalent to 1 - D)
+            if "12" in dc and abs(dc["12"] - (pH + pA)) > tolerance:
+                dc_from_hda = False
+            # Check X2 = D + A
+            if "X2" in dc and abs(dc["X2"] - (pD + pA)) > tolerance:
+                dc_from_hda = False
+    except Exception as e:
+        dc_from_hda = False
+        
+    coherence["dc_from_hda"] = dc_from_hda
+    
+    # INVARIANT 4: DNB probabilities sum to 1.0
+    dnb_sums_valid = True
+    try:
+        if "dnb" in v2_markets:
+            dnb = v2_markets["dnb"]
+            if "home" in dnb and "away" in dnb:
+                dnb_sum = dnb["home"] + dnb["away"]
+                if abs(dnb_sum - 1.0) > 0.005:
+                    dnb_sums_valid = False
+    except Exception as e:
+        dnb_sums_valid = False
+        
+    coherence["dnb_sums_valid"] = dnb_sums_valid
+    
+    # INVARIANT 5: Total goals markets - each line sums to 1.0
+    totals_pairs_sum_valid = True
+    try:
+        if "totals" in v2_markets:
+            for line, probs in v2_markets["totals"].items():
+                if "over" in probs and "under" in probs:
+                    line_sum = probs["over"] + probs["under"]
+                    if abs(line_sum - 1.0) > 0.003:  # Allow small rounding tolerance
+                        totals_pairs_sum_valid = False
+                        logger.warning(f"🔍 Total {line} sum: {line_sum:.6f} != 1.000000")
+                        break
+    except Exception as e:
+        totals_pairs_sum_valid = False
+        
+    coherence["totals_pairs_sum_valid"] = totals_pairs_sum_valid
+    
+    # INVARIANT 6: BTTS probabilities sum to 1.0
+    btts_sums_valid = True
+    try:
+        if "btts" in v2_markets:
+            btts = v2_markets["btts"]
+            if "yes" in btts and "no" in btts:
+                btts_sum = btts["yes"] + btts["no"]
+                if abs(btts_sum - 1.0) > 0.003:
+                    btts_sums_valid = False
+    except Exception as e:
+        btts_sums_valid = False
+        
+    coherence["btts_sums_valid"] = btts_sums_valid
+    
+    # Overall coherence score
+    checks = [hda_sum_valid, ah_minus_0_5_eq_homewin, dc_from_hda, dnb_sums_valid, totals_pairs_sum_valid, btts_sums_valid]
+    coherence_score = sum(checks) / len(checks)
+    coherence["overall_coherence_score"] = round(coherence_score, 3)
+    
+    # Log any major coherence issues
+    if coherence_score < 0.8:
+        failed_checks = []
+        if not hda_sum_valid: failed_checks.append("1X2_sum")
+        if not ah_minus_0_5_eq_homewin: failed_checks.append("AH-0.5_vs_Home")
+        if not dc_from_hda: failed_checks.append("DC_derivation")
+        if not dnb_sums_valid: failed_checks.append("DNB_sums")
+        if not totals_pairs_sum_valid: failed_checks.append("totals_sums")
+        if not btts_sums_valid: failed_checks.append("BTTS_sums")
+        
+        logger.warning(f"🚨 COHERENCE ISSUES: {', '.join(failed_checks)} - Score: {coherence_score:.3f}")
+    
+    return coherence
 
 def prob_double_chance(p_home: float, p_draw: float, p_away: float) -> dict:
     """Double chance probabilities from 1X2"""
@@ -698,8 +834,9 @@ def derive_comprehensive_markets(home_prob: float, draw_prob: float, away_prob: 
             if markets_config.get("win_to_nil"):
                 v2_markets["win_to_nil"] = {k: round(clamp_prob(v), 3) for k, v in win_to_nil_probs.items()}
         
-        # Add metadata
-        v2_markets["meta"] = grid.get_metadata()
+        # Add comprehensive coherence validation block
+        coherence = validate_market_coherence(v2_markets, grid, pH, pD, pA, fit_result)
+        v2_markets["coherence"] = coherence
         
         # ===== V1 COMPATIBLE MARKETS (keep original structure) =====
         v1_markets = {
@@ -1752,11 +1889,26 @@ async def predict_match(
         
         response["comprehensive_analysis"] = comprehensive_analysis
         
+        # CENTRALIZED 1X2 NORMALIZATION: Apply immediately after consensus for consistency
+        home_prob = predictions['home_win']
+        draw_prob = predictions['draw']
+        away_prob = predictions['away_win']
+        
+        # SOFT RENORMALIZATION: If sum is close to 1.0, normalize for mathematical consistency
+        prob_sum = home_prob + draw_prob + away_prob
+        if 0.95 <= prob_sum <= 1.05:
+            home_prob = home_prob / prob_sum
+            draw_prob = draw_prob / prob_sum  
+            away_prob = away_prob / prob_sum
+            logger.info(f"🔧 SOFT RENORMALIZED: {prob_sum:.6f} → 1.000000")
+            
+            # Update the predictions object with normalized values for ALL uses
+            predictions['home_win'] = home_prob
+            predictions['draw'] = draw_prob
+            predictions['away_win'] = away_prob
+
         # Add additional markets using mathematically sound Poisson goal model
         if request.include_additional_markets:
-            home_prob = predictions['home_win']
-            draw_prob = predictions['draw']
-            away_prob = predictions['away_win']
             
             # Calculate injury adjustment factor for goal rates
             home_injuries = len(match_data.get('home_team', {}).get('injuries', []))
