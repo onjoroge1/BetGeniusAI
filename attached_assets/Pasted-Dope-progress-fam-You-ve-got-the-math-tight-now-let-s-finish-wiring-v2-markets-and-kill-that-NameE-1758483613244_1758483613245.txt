@@ -1,0 +1,281 @@
+Dope progress, fam. You’ve got the math tight—now let’s finish wiring v2 markets and kill that NameError. Below is a drop-in patch you can paste into main.py (or your markets module). It does three things exactly like the architect asked:
+	1.	Fix the NameError in derive_comprehensive_markets (remove market_count, make logging derive counts from objects).
+	2.	Make market generation unconditional once 1X2 is normalized (with a strict but sane prob_sum_valid).
+	3.	Attach v2 markets via a compatible, uniform schema (no more mixed floats vs dicts).
+
+⸻
+
+✅ Minimal patch (copy/paste)
+
+# =========================
+# utilities_markets_v2.py (or inline in main.py)
+# =========================
+import math
+import logging
+from typing import Dict, Any, Optional, Iterable
+
+log = logging.getLogger(__name__)
+
+# ---------- Odds helpers ----------
+def to_decimal(p: float, min_odds: float = 1.01, max_odds: float = 1000.0) -> float:
+    if p <= 0.0:
+        return max_odds
+    o = 1.0 / p
+    if not math.isfinite(o):
+        return max_odds
+    return max(min_odds, min(o, max_odds))
+
+def to_american(p: float) -> int:
+    # +X if p<0.5, -X if p>=0.5; protect edges
+    if p <= 0.0:
+        return 100000
+    if p >= 1.0:
+        return -100000
+    dec = 1.0 / p
+    # US odds from decimal
+    if dec >= 2.0:
+        return int(round((dec - 1.0) * 100))
+    else:
+        return int(round(-100 / (dec - 1.0)))
+
+def pack_sel(p: float) -> Dict[str, Any]:
+    return {"p": float(p), "odds_dec": to_decimal(p), "odds_amer": to_american(p)}
+
+# ---------- Validation ----------
+def prob_sum_valid(h: float, d: float, a: float, tol: float = 1e-6) -> bool:
+    # Use raw normalized floats, not rounded
+    s = h + d + a
+    if not all(map(math.isfinite, (h, d, a))) or not math.isfinite(s):
+        return False
+    return abs(s - 1.0) <= tol and all(x >= 0.0 for x in (h, d, a))
+
+# ---------- Simple derived markets from H/D/A ----------
+def build_1x2(h: float, d: float, a: float) -> Dict[str, Any]:
+    return {"1": pack_sel(h), "X": pack_sel(d), "2": pack_sel(a)}
+
+def build_double_chance(h: float, d: float, a: float) -> Dict[str, Any]:
+    # 1X = H + D, 12 = 1 - D, X2 = D + A
+    return {
+        "1X": pack_sel(h + d),
+        "12": pack_sel(1.0 - d),
+        "X2": pack_sel(d + a),
+    }
+
+def build_dnb(h: float, d: float, a: float) -> Dict[str, Any]:
+    # H/(1-D) and A/(1-D), with protection if D ~ 1
+    denom = max(1e-12, (1.0 - d))
+    return {
+        "1": pack_sel(min(1.0, h / denom)),
+        "2": pack_sel(min(1.0, a / denom)),
+    }
+
+# ---------- Asian Handicap + Totals from goal-diff PMF ----------
+# Expectation: you already implemented the “Corrected Asian Handicap Formulas”
+# using a precise goal-difference PMF (e.g., dict[int, float]).
+# We just call into those helpers and wrap in the uniform schema.
+
+def safe_build_ah_from_pmf(goal_diff_pmf: Dict[int, float],
+                           lines: Iterable[float]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for line in lines:
+        try:
+            # You should already have: ah_prices_from_goal_diff_pmf(pmf, line)
+            # that returns (p_home_covers, p_away_covers) on that line,
+            # handling quarter-lines internally via split-push logic.
+            ph, pa = ah_prices_from_goal_diff_pmf(goal_diff_pmf, float(line))
+            out[str(line)] = {"1": pack_sel(ph), "2": pack_sel(pa)}
+        except Exception as e:
+            log.exception("AH build failed for line %s: %s", line, e)
+    return out
+
+def safe_build_totals_from_pmf(score_pmf: Dict[tuple, float],
+                               totals: Iterable[float]) -> Dict[str, Any]:
+    # score_pmf keys like (home_goals, away_goals) -> prob
+    out: Dict[str, Any] = {}
+    for t in totals:
+        try:
+            t = float(t)
+            p_over = 0.0
+            p_under = 0.0
+            # standard O/U with push handled by excluding equality; your caller may do O/U/Push if desired
+            for (hg, ag), p in score_pmf.items():
+                total = hg + ag
+                if total > t:
+                    p_over += p
+                elif total < t:
+                    p_under += p
+                # push ignored; if you want 3-way totals add "push": pack_sel(...)
+            out[str(t)] = {"O": pack_sel(p_over), "U": pack_sel(p_under)}
+        except Exception as e:
+            log.exception("Totals build failed for %s: %s", t, e)
+    return out
+
+# ---------- The main builder ----------
+def derive_comprehensive_markets(h: float,
+                                 d: float,
+                                 a: float,
+                                 goal_diff_pmf: Optional[Dict[int, float]] = None,
+                                 score_pmf: Optional[Dict[tuple, float]] = None,
+                                 ah_lines: Iterable[float] = (-1.5, -1.25, -1.0, -0.75, -0.5, -0.25,
+                                                              0.0,
+                                                              0.25, 0.5, 0.75, 1.0, 1.25, 1.5),
+                                 total_lines: Iterable[float] = (1.5, 2.0, 2.25, 2.5, 2.75, 3.0)
+                                 ) -> Dict[str, Any]:
+    """
+    Returns a uniform schema:
+    {
+      "1x2": { "1": {...}, "X": {...}, "2": {...} },
+      "double_chance": { "1X": {...}, "12": {...}, "X2": {...} },
+      "dnb": { "1": {...}, "2": {...} },
+      "asian_handicap": { "<line>": { "1": {...}, "2": {...} }, ... },
+      "totals": { "<line>": { "O": {...}, "U": {...} }, ... }
+    }
+    All leaf selections are dicts with {p, odds_dec, odds_amer}.
+    """
+    v2: Dict[str, Any] = {}
+
+    # core from H/D/A
+    v2["1x2"] = build_1x2(h, d, a)
+    v2["double_chance"] = build_double_chance(h, d, a)
+    v2["dnb"] = build_dnb(h, d, a)
+
+    # optional PMF-based markets, safe fallbacks if PMFs missing
+    if goal_diff_pmf is not None:
+        v2["asian_handicap"] = safe_build_ah_from_pmf(goal_diff_pmf, ah_lines)
+    else:
+        v2["asian_handicap"] = {}
+
+    if score_pmf is not None:
+        v2["totals"] = safe_build_totals_from_pmf(score_pmf, total_lines)
+    else:
+        v2["totals"] = {}
+
+    # --- IMPORTANT: remove any references to market_count (NameError source) ---
+    # Log counts without needing a mutable counter:
+    total_groups = len(v2)
+    total_selections = sum(
+        (len(g) if isinstance(g, dict) else 1)
+        for g in v2.values()
+    )
+    log.info("comprehensive markets v2 built: %d groups / ~%d selections",
+             total_groups, total_selections)
+
+    return v2
+
+
+# =========================
+# main.py – pipeline wiring (sketch)
+# =========================
+def compute_and_attach_v2_markets(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Expects payload to already contain normalized H/D/A under:
+      payload["probabilities"]["normalized"] = {"H": h, "D": d, "A": a}
+    And, if available from your coarse-to-fine fit:
+      payload["_pmf"]["goal_diff"], payload["_pmf"]["score"]
+    """
+    probs = payload.get("probabilities", {}).get("normalized", {})
+    h, d, a = float(probs.get("H", 0.0)), float(probs.get("D", 0.0)), float(probs.get("A", 0.0))
+
+    # Unconditional generation after normalization, with robust validation
+    if not prob_sum_valid(h, d, a, tol=1e-6):
+        log.warning("Normalized H/D/A failed tight sum check; proceeding anyway: H=%.6f D=%.6f A=%.6f (sum=%.6f)",
+                    h, d, a, h + d + a)
+
+    goal_diff_pmf = None
+    score_pmf = None
+    pmf = payload.get("_pmf") or {}
+    if isinstance(pmf, dict):
+        goal_diff_pmf = pmf.get("goal_diff")
+        score_pmf = pmf.get("score")
+
+    try:
+        v2 = derive_comprehensive_markets(h, d, a,
+                                          goal_diff_pmf=goal_diff_pmf,
+                                          score_pmf=score_pmf)
+    except Exception as e:
+        # Hardened fallback: still deliver core markets from H/D/A so API never breaks
+        log.exception("derive_comprehensive_markets failed, falling back to core: %s", e)
+        v2 = {
+            "1x2": build_1x2(h, d, a),
+            "double_chance": build_double_chance(h, d, a),
+            "dnb": build_dnb(h, d, a),
+            "asian_handicap": {},
+            "totals": {},
+            "_error": str(e),
+        }
+
+    # Attach via compatible schema; never mix floats at leaves
+    payload["markets_v2"] = v2
+    return payload
+
+
+⸻
+
+What this fixes (line-by-line with the architect’s checklist)
+	1.	NameError: market_count is not defined
+	•	I removed the need for market_count entirely. Logging uses:
+
+total_groups = len(v2)
+total_selections = sum(len(g) if isinstance(g, dict) else 1 for g in v2.values())
+log.info("comprehensive markets v2 built: %d groups / ~%d selections", total_groups, total_selections)
+
+No mutable counter; no NameError.
+
+	2.	Unconditional market generation after normalization
+	•	compute_and_attach_v2_markets(...) always builds v2 after pulling normalized H/D/A.
+	•	It does run a strict prob_sum_valid() (1e-6), but only logs if off; it still proceeds (per architect note).
+	3.	prob_sum_valid uses normalized values w/ proper tolerance
+	•	Uses raw floats, not rounded; tol = 1e-6; also checks non-negativity and finiteness.
+	4.	Attach v2 markets via a compatible schema (uniform leaves)
+	•	Every selection is a dict: {"p": <float>, "odds_dec": <float>, "odds_amer": <int>}.
+	•	No more mixing floats and dicts inside v2_markets. LSP/type checkers chill.
+	5.	Hardened PMF markets
+	•	asian_handicap + totals are optional and safely no-op if PMFs are absent.
+	•	If your AH / totals helpers throw, we catch, log, and continue.
+	6.	Core identities preserved
+	•	1X2, Double Chance, DNB are derived exactly from normalized H/D/A (your now-perfect base).
+
+⸻
+
+Quick sanity check (use your known perfect normalization)
+
+payload = {
+    "probabilities": {"normalized": {"H": 0.377, "D": 0.311, "A": 0.312}},
+    "_pmf": None  # or {"goal_diff": {...}, "score": {...}}
+}
+out = compute_and_attach_v2_markets(payload)
+assert abs(out["probabilities"]["normalized"]["H"] +
+           out["probabilities"]["normalized"]["D"] +
+           out["probabilities"]["normalized"]["A"] - 1.0) < 1e-6
+# 1x2 present?
+assert {"1","X","2"} <= set(out["markets_v2"]["1x2"].keys())
+# DC/DNB present?
+assert {"1X","12","X2"} <= set(out["markets_v2"]["double_chance"].keys())
+assert {"1","2"} <= set(out["markets_v2"]["dnb"].keys())
+
+
+⸻
+
+Notes for your existing codebase
+	•	Where you logged something like:
+
+logger.info("generated %d markets", market_count)
+
+replace with:
+
+logger.info("comprehensive markets v2 built: %d groups / ~%d selections",
+            len(v2), sum(len(g) if isinstance(g, dict) else 1 for g in v2.values()))
+
+
+	•	Return/response shape: attach the dict at payload["markets_v2"]. If your API expects response["v2_markets"], just rename the key—schema of leaves stays uniform.
+	•	AH/Total formulas: this patch assumes you’ve got your corrected PMF builders (you said ✅). Just ensure the callable names match (ah_prices_from_goal_diff_pmf, etc.). If they’re named differently, update the call site in safe_build_ah_from_pmf / safe_build_totals_from_pmf.
+
+⸻
+
+TL;DR
+	•	Killed the NameError.
+	•	v2 markets now generate every time after normalization.
+	•	Schema is uniform (no more type mismatches).
+	•	PMF-based markets are optional and hardened.
+
+Ship this and your “comprehensive markets v2” will appear consistently on responses—on top of your already perfect 1X2 normalization (sum = 1.000000).
