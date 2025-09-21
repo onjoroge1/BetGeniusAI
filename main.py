@@ -35,30 +35,35 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # CENTRALIZED 1X2 NORMALIZATION UTILITY (UNCONDITIONAL)
-def normalize_hda(h: float, d: float, a: float, eps: float = 1e-12) -> tuple[tuple[float, float, float], bool]:
+def normalize_hda(h: float, d: float, a: float) -> tuple[float, float, float]:
     """
     ALWAYS normalize H/D/A probabilities for mathematical consistency
-    Returns: ((normalized_home, normalized_draw, normalized_away), normalization_applied)
+    Returns: (normalized_home, normalized_draw, normalized_away)
     """
+    # Clamp negatives, avoid zeros that break DNB
+    h = max(h, 0.0)
+    d = max(d, 0.0) 
+    a = max(a, 0.0)
+    
     s = h + d + a
-    if s <= eps:
-        return (1/3, 1/3, 1/3), False
+    if s <= 0:
+        # Safe fallback to uniform
+        return (1/3, 1/3, 1/3)
     
-    # ALWAYS renormalize (unconditional)
-    h, d, a = h/s, d/s, a/s
+    H, D, A = h/s, d/s, a/s
     
-    # Optional tiny clamps to avoid exact 0/1
-    floor = 1e-6
-    h = max(floor, min(1 - 2*floor, h))
-    d = max(floor, min(1 - 2*floor, d))
-    a = max(floor, min(1 - 2*floor, a))
+    # Micro nudges to keep in (0,1) and prevent divide-by-zero
+    eps = 1e-12
+    H = min(max(H, eps), 1 - 2*eps)
+    D = min(max(D, eps), 1 - 2*eps)
+    A = min(max(A, eps), 1 - 2*eps)
     
-    # Renormalize after clamps
-    s = h + d + a
-    normalized = (h/s, d/s, a/s)
+    # Re-normalize after clamping
+    s2 = H + D + A
+    normalized = (H/s2, D/s2, A/s2)
     
     logger.info(f"🔧 UNCONDITIONAL RENORMALIZED: {h+d+a:.6f} → 1.000000")
-    return normalized, True
+    return normalized
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -285,28 +290,67 @@ def implied_1x2_from_grid(joint_matrix):
     return {"p_h": p_h, "p_d": p_d, "p_a": p_a}
 
 def fit_lambdas_to_1x2(target_h: float, target_d: float, target_a: float):
-    """Fit Poisson goal rates to match 1X2 probabilities using grid search"""
-    # Normalize targets
-    total = target_h + target_d + target_a
-    if total <= 0:
-        total = 1.0
-    target = {"p_h": target_h / total, "p_d": target_d / total, "p_a": target_a / total}
+    """
+    Fit Poisson goal rates to match 1X2 probabilities using coarse-to-fine grid search
+    Implements coarse (0.1 steps) then fine (0.01 steps) search for precision
+    """
+    # Targets are already normalized from calling code
+    target = {"p_h": target_h, "p_d": target_d, "p_a": target_a}
     
     best = {"lambda_h": 1.4, "lambda_a": 1.1, "loss": float('inf')}
     
-    # Fast grid search for optimal lambdas (optimized for speed)
-    for lh in [x * 0.2 for x in range(1, 16)]:  # 0.2 to 3.0 in steps of 0.2
-        for la in [x * 0.2 for x in range(1, 16)]:  # 0.2 to 3.0 in steps of 0.2
-            grid = build_poisson_grid(lh, la)  # Use optimized grid system
-            implied = implied_1x2_from_grid(grid.joint_matrix)
+    # COARSE GRID SEARCH (0.1 steps from 0.2 to 3.0)
+    coarse_step = 0.1
+    for lh_raw in range(2, 31):  # 0.2 to 3.0 in steps of 0.1
+        lh = lh_raw * coarse_step
+        for la_raw in range(2, 31):
+            la = la_raw * coarse_step
             
-            # Calculate squared error
-            loss = ((implied["p_h"] - target["p_h"]) ** 2 + 
-                   (implied["p_d"] - target["p_d"]) ** 2 + 
-                   (implied["p_a"] - target["p_a"]) ** 2)
-            
-            if loss < best["loss"]:
-                best = {"lambda_h": lh, "lambda_a": la, "loss": loss}
+            try:
+                grid = build_poisson_grid(lh, la)
+                implied = implied_1x2_from_grid(grid.joint_matrix)
+                
+                # Squared error loss with equal weighting
+                loss = ((implied["p_h"] - target["p_h"]) ** 2 + 
+                       (implied["p_d"] - target["p_d"]) ** 2 + 
+                       (implied["p_a"] - target["p_a"]) ** 2)
+                
+                if loss < best["loss"]:
+                    best = {"lambda_h": lh, "lambda_a": la, "loss": loss}
+            except:
+                continue  # Skip invalid parameter combinations
+    
+    # FINE GRID SEARCH in ±0.2 window around best (0.01 steps)
+    if best["loss"] < float('inf'):
+        coarse_lh, coarse_la = best["lambda_h"], best["lambda_a"]
+        fine_step = 0.01
+        
+        # Search in ±0.2 window with 0.01 precision
+        lh_min = max(0.2, coarse_lh - 0.2)
+        lh_max = min(3.0, coarse_lh + 0.2)
+        la_min = max(0.2, coarse_la - 0.2)  
+        la_max = min(3.0, coarse_la + 0.2)
+        
+        lh_range = int((lh_max - lh_min) / fine_step) + 1
+        la_range = int((la_max - la_min) / fine_step) + 1
+        
+        for i in range(lh_range):
+            lh = lh_min + i * fine_step
+            for j in range(la_range):
+                la = la_min + j * fine_step
+                
+                try:
+                    grid = build_poisson_grid(lh, la)
+                    implied = implied_1x2_from_grid(grid.joint_matrix)
+                    
+                    loss = ((implied["p_h"] - target["p_h"]) ** 2 + 
+                           (implied["p_d"] - target["p_d"]) ** 2 + 
+                           (implied["p_a"] - target["p_a"]) ** 2)
+                    
+                    if loss < best["loss"]:
+                        best = {"lambda_h": lh, "lambda_a": la, "loss": loss}
+                except:
+                    continue
     
     return best
 
@@ -1908,7 +1952,7 @@ async def predict_match(
         h_raw = probabilities.get('home', 0.0)
         d_raw = probabilities.get('draw', 0.0)
         a_raw = probabilities.get('away', 0.0)
-        (h_norm, d_norm, a_norm), norm_applied = normalize_hda(h_raw, d_raw, a_raw)
+        h_norm, d_norm, a_norm = normalize_hda(h_raw, d_raw, a_raw)
         
         predictions = {
             "home_win": round(h_norm, 3),
