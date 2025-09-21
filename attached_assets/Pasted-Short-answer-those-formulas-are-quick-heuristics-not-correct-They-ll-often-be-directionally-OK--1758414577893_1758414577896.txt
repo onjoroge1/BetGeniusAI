@@ -1,0 +1,167 @@
+Short answer: those formulas are quick heuristics, not “correct.” They’ll often be directionally OK, but they can be badly mis-calibrated and internally inconsistent with your 1X2 consensus. A safer, still-lightweight approach is to **derive totals/BTTS/AH from a goal model that matches your 1X2 probabilities**.
+
+Here’s a practical upgrade that fits in your current stack and avoids new data sources:
+
+# What to do instead (robust & fast)
+
+1. **Infer goal rates (λₕ, λₐ)** from your consensus 1X2 probs
+   Model home and away goals as independent Poissons with means λₕ and λₐ. Find (λₕ, λₐ) that make the model-implied P(H), P(D), P(A) match your consensus pH, pD, pA as closely as possible (least squares). This keeps all downstream markets consistent with your 1X2.
+
+2. **Compute derived markets from the fitted model**
+
+* **Totals (Over/Under 2.5)**
+  Total goals T \~ Poisson(λₕ+λₐ) ⇒
+  `P(Over 2.5) = 1 − PoisCDF(2; λₕ+λₐ)`
+  `P(Under 2.5) = PoisCDF(2; λₕ+λₐ)`
+* **BTTS (Both Teams To Score)**
+  With independent Poissons:
+  `P(BTTS=Yes) = 1 − e^{−λₕ} − e^{−λₐ} + e^{−(λₕ+λₐ)}`
+* **Asian handicap (examples)**
+  Let goal difference Δ = (Home − Away). With independent Poissons, Δ follows a Skellam distribution. You can compute from a small (i,j) grid instead of Bessel functions:
+
+  * **Home −0.5**: `P(Δ ≥ 1)` (this equals your pH by construction)
+  * **Away +0.5**: `P(Δ ≤ 0)` = pD + pA (also matches your 1X2)
+  * **Home −1.0**: `P(Δ ≥ 2) + 0.5·P(Δ = 1)` (push on exactly 1)
+  * **Away +1.0**: `P(Δ ≤ −2) + 0.5·P(Δ = −1)`
+  * For quarter lines (−0.25, +0.75, etc.), split the stake across the two nearest half/whole lines and combine the probabilities accordingly.
+
+3. **(Optional) Injuries/news adjustment**
+   If you insist on an injury tweak, do it on **λ** (the actual goal expectation), not on the final market probability. E.g., a small multiplicative bump to λₕ when the away defense is depleted, then recompute all markets off the adjusted λ’s.
+
+# Drop-in code (TypeScript/Node) you can port to your backend
+
+This stays fast (tiny loops), needs no special libs, and keeps everything coherent.
+
+```ts
+// --- Small math helpers ---
+function poissonPmf(k: number, lambda: number): number {
+  if (k < 0) return 0;
+  return Math.exp(-lambda) * Math.pow(lambda, k) / factorial(k);
+}
+function factorial(n: number): number {
+  let r = 1;
+  for (let i = 2; i <= n; i++) r *= i;
+  return r;
+}
+function poissonCdf(k: number, lambda: number): number {
+  let s = 0;
+  for (let i = 0; i <= k; i++) s += poissonPmf(i, lambda);
+  return s;
+}
+
+// Build joint P(i,j) up to MAX (10 is usually enough)
+function jointScoreGrid(lambdaH: number, lambdaA: number, MAX = 10) {
+  const pH: number[] = Array.from({ length: MAX + 1 }, (_, i) => poissonPmf(i, lambdaH));
+  const pA: number[] = Array.from({ length: MAX + 1 }, (_, j) => poissonPmf(j, lambdaA));
+  const grid: number[][] = Array.from({ length: MAX + 1 }, () => Array(MAX + 1).fill(0));
+  for (let i = 0; i <= MAX; i++) {
+    for (let j = 0; j <= MAX; j++) grid[i][j] = pH[i] * pA[j];
+  }
+  // small tail mass beyond MAX
+  const tailH = 1 - pH.reduce((a, b) => a + b, 0);
+  const tailA = 1 - pA.reduce((a, b) => a + b, 0);
+  // ignore tails or increase MAX if you want even tighter sums
+  return grid;
+}
+
+function implied1x2FromGrid(grid: number[][]) {
+  let pH = 0, pD = 0, pA = 0;
+  const MAX = grid.length - 1;
+  for (let i = 0; i <= MAX; i++) {
+    for (let j = 0; j <= MAX; j++) {
+      const p = grid[i][j];
+      if (i > j) pH += p;
+      else if (i === j) pD += p;
+      else pA += p;
+    }
+  }
+  return { pH, pD, pA };
+}
+
+// Fit lambdas by simple grid search (robust & easy). You can replace with Nelder-Mead later.
+function fitLambdasTo1x2(target: { pH: number; pD: number; pA: number }) {
+  let best = { lambdaH: 1.4, lambdaA: 1.1, loss: Infinity };
+  for (let lh = 0.2; lh <= 3.2; lh += 0.05) {
+    for (let la = 0.2; la <= 3.2; la += 0.05) {
+      const grid = jointScoreGrid(lh, la, 10);
+      const { pH, pD, pA } = implied1x2FromGrid(grid);
+      const loss = Math.pow(pH - target.pH, 2) + Math.pow(pD - target.pD, 2) + Math.pow(pA - target.pA, 2);
+      if (loss < best.loss) best = { lambdaH: lh, lambdaA: la, loss };
+    }
+  }
+  return best; // good enough in <10ms
+}
+
+// Derived markets
+function probOver25(lambdaH: number, lambdaA: number) {
+  const lt = lambdaH + lambdaA;
+  // P(Total >= 3) = 1 - CDF(2)
+  return 1 - poissonCdf(2, lt);
+}
+function probBTTSyes(lambdaH: number, lambdaA: number) {
+  return 1 - Math.exp(-lambdaH) - Math.exp(-lambdaA) + Math.exp(-(lambdaH + lambdaA));
+}
+function probAHHomeMinus1(lambdaH: number, lambdaA: number) {
+  const grid = jointScoreGrid(lambdaH, lambdaA, 10);
+  let pWinBy2Plus = 0, pWinBy1 = 0;
+  const MAX = grid.length - 1;
+  for (let i = 0; i <= MAX; i++) {
+    for (let j = 0; j <= MAX; j++) {
+      const p = grid[i][j];
+      const diff = i - j;
+      if (diff >= 2) pWinBy2Plus += p;
+      else if (diff === 1) pWinBy1 += p;
+    }
+  }
+  // Asian -1: win if diff≥2, push if diff=1
+  return { win: pWinBy2Plus, push: pWinBy1, lose: 1 - pWinBy2Plus - pWinBy1 };
+}
+
+// MAIN: turn 1X2 → derived markets (coherent)
+export function deriveMarketsFrom1x2(pH: number, pD: number, pA: number) {
+  // ensure normalized
+  const s = pH + pD + pA || 1;
+  const target = { pH: pH / s, pD: pD / s, pA: pA / s };
+
+  const { lambdaH, lambdaA } = fitLambdasTo1x2(target);
+
+  const over25 = probOver25(lambdaH, lambdaA);
+  const under25 = 1 - over25;
+
+  const bttsYes = probBTTSyes(lambdaH, lambdaA);
+  const bttsNo = 1 - bttsYes;
+
+  // -0.5 and +0.5 come “for free” from 1X2
+  const ahHomeMinus05 = target.pH;            // P(Δ≥1)
+  const ahAwayPlus05  = target.pD + target.pA; // P(Δ≤0)
+
+  const ahHomeMinus1 = probAHHomeMinus1(lambdaH, lambdaA); // gives win/push/lose breakdown
+
+  return {
+    lambdas: { home: lambdaH, away: lambdaA },
+    total_goals: { over_2_5: round(over25), under_2_5: round(under25) },
+    both_teams_score: { yes: round(bttsYes), no: round(bttsNo) },
+    asian_handicap: {
+      home_-0.5: round(ahHomeMinus05),
+      away_+0.5: round(ahAwayPlus05),
+      // breakdown shown for -1; convert to price/prob as needed
+      home_-1: { win: round(ahHomeMinus1.win), push: round(ahHomeMinus1.push), lose: round(ahHomeMinus1.lose) }
+    }
+  };
+}
+function round(x: number) { return Math.max(0, Math.min(1, Math.round(x * 1000) / 1000)); }
+```
+
+# Where this is better than your current code
+
+* **Consistency**: All markets are tied back to the same (λₕ, λₐ) that reproduce your 1X2.
+* **No ad-hoc 0.9 multipliers**: If you want to add margin, do it as a final step (e.g., rescale probabilities to include a target overround) rather than baking an arbitrary factor into one market.
+* **Extensibility**: Want Over/Under 3.5? Same approach. Want AH −0.25 or +1.25? Split stakes and use the goal-difference grid.
+
+# Notes & options
+
+* If you **already collect consensus totals/BTTS/AH odds**, prefer those over any synthetic model. The above is a principled **fallback**.
+* If you want extra fidelity, switch to a **bivariate Poisson** (adds a covariance κ to capture score correlation); start with κ=0 (independence) and consider fitting κ at league level to align your BTTS baseline with markets.
+* Calibrate: after you collect some outcomes, check calibration of Over/Under and BTTS separately. You can apply a light logistic/isotonic calibration per bucket (72h/48h/…).
+
+If you want, I can help you drop this directly into the `/predict` path where you currently build “additional\_markets”, and wire it to use consensus pH/pD/pA + (optional) a tiny injury tweak on λ before computing markets.

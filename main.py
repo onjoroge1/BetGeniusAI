@@ -152,6 +152,188 @@ async def verify_api_key(authorization: str = Header(None)):
     
     return api_key
 
+# Poisson Goal Model for Additional Markets
+import math
+
+def factorial(n: int) -> int:
+    """Calculate factorial of n"""
+    if n <= 1:
+        return 1
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result
+
+def poisson_pmf(k: int, lambda_val: float) -> float:
+    """Poisson probability mass function"""
+    if k < 0 or lambda_val <= 0:
+        return 0.0
+    return math.exp(-lambda_val) * (lambda_val ** k) / factorial(k)
+
+def poisson_cdf(k: int, lambda_val: float) -> float:
+    """Poisson cumulative distribution function"""
+    if k < 0:
+        return 0.0
+    total = 0.0
+    for i in range(k + 1):
+        total += poisson_pmf(i, lambda_val)
+    return total
+
+def joint_score_grid(lambda_h: float, lambda_a: float, max_goals: int = 10):
+    """Build joint probability grid for scores up to max_goals"""
+    grid = []
+    for i in range(max_goals + 1):
+        row = []
+        for j in range(max_goals + 1):
+            prob_h = poisson_pmf(i, lambda_h)
+            prob_a = poisson_pmf(j, lambda_a)
+            row.append(prob_h * prob_a)
+        grid.append(row)
+    return grid
+
+def implied_1x2_from_grid(grid):
+    """Extract 1X2 probabilities from joint score grid"""
+    p_h, p_d, p_a = 0.0, 0.0, 0.0
+    max_goals = len(grid) - 1
+    
+    for i in range(max_goals + 1):
+        for j in range(max_goals + 1):
+            prob = grid[i][j]
+            if i > j:
+                p_h += prob
+            elif i == j:
+                p_d += prob
+            else:
+                p_a += prob
+    
+    return {"p_h": p_h, "p_d": p_d, "p_a": p_a}
+
+def fit_lambdas_to_1x2(target_h: float, target_d: float, target_a: float):
+    """Fit Poisson goal rates to match 1X2 probabilities using grid search"""
+    # Normalize targets
+    total = target_h + target_d + target_a
+    if total <= 0:
+        total = 1.0
+    target = {"p_h": target_h / total, "p_d": target_d / total, "p_a": target_a / total}
+    
+    best = {"lambda_h": 1.4, "lambda_a": 1.1, "loss": float('inf')}
+    
+    # Fast grid search for optimal lambdas (optimized for speed)
+    for lh in [x * 0.2 for x in range(1, 16)]:  # 0.2 to 3.0 in steps of 0.2
+        for la in [x * 0.2 for x in range(1, 16)]:  # 0.2 to 3.0 in steps of 0.2
+            grid = joint_score_grid(lh, la, 6)  # Reduced max_goals for speed
+            implied = implied_1x2_from_grid(grid)
+            
+            # Calculate squared error
+            loss = ((implied["p_h"] - target["p_h"]) ** 2 + 
+                   (implied["p_d"] - target["p_d"]) ** 2 + 
+                   (implied["p_a"] - target["p_a"]) ** 2)
+            
+            if loss < best["loss"]:
+                best = {"lambda_h": lh, "lambda_a": la, "loss": loss}
+    
+    return best
+
+def prob_over_25(lambda_h: float, lambda_a: float) -> float:
+    """Probability of over 2.5 goals"""
+    lambda_total = lambda_h + lambda_a
+    return 1.0 - poisson_cdf(2, lambda_total)
+
+def prob_btts_yes(lambda_h: float, lambda_a: float) -> float:
+    """Probability both teams score"""
+    # P(BTTS=Yes) = 1 - P(H=0) - P(A=0) + P(H=0 AND A=0)
+    return 1.0 - math.exp(-lambda_h) - math.exp(-lambda_a) + math.exp(-(lambda_h + lambda_a))
+
+def prob_ah_home_minus_1(lambda_h: float, lambda_a: float):
+    """Asian handicap Home -1.0 probabilities"""
+    grid = joint_score_grid(lambda_h, lambda_a, 8)
+    max_goals = len(grid) - 1
+    
+    p_win, p_push, p_lose = 0.0, 0.0, 0.0
+    
+    for i in range(max_goals + 1):
+        for j in range(max_goals + 1):
+            prob = grid[i][j]
+            diff = i - j
+            
+            if diff >= 2:
+                p_win += prob
+            elif diff == 1:
+                p_push += prob
+            else:
+                p_lose += prob
+    
+    return {"win": p_win, "push": p_push, "lose": p_lose}
+
+def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float, injury_adjustment: float = 1.0):
+    """
+    Derive additional markets from 1X2 consensus using Poisson goal model
+    
+    Args:
+        home_prob: Home win probability from consensus
+        draw_prob: Draw probability from consensus  
+        away_prob: Away win probability from consensus
+        injury_adjustment: Factor to adjust goal rates for injuries (default: 1.0)
+    
+    Returns:
+        Dictionary with mathematically consistent additional markets
+    """
+    # Ensure probabilities are valid
+    if home_prob <= 0 or draw_prob <= 0 or away_prob <= 0:
+        # Fallback to simple estimates if invalid probabilities
+        return {
+            "total_goals": {"over_2.5": 0.500, "under_2.5": 0.500},
+            "both_teams_score": {"yes": 0.500, "no": 0.500},
+            "asian_handicap": {"home_-0.5": max(0.0, home_prob), "away_+0.5": max(0.0, draw_prob + away_prob)}
+        }
+    
+    # Fit Poisson lambdas to match 1X2 probabilities
+    fit_result = fit_lambdas_to_1x2(home_prob, draw_prob, away_prob)
+    lambda_h = fit_result["lambda_h"] * injury_adjustment
+    lambda_a = fit_result["lambda_a"] * injury_adjustment
+    
+    # Calculate derived markets
+    over_25 = prob_over_25(lambda_h, lambda_a)
+    under_25 = 1.0 - over_25
+    
+    btts_yes = prob_btts_yes(lambda_h, lambda_a)
+    btts_no = 1.0 - btts_yes
+    
+    # Asian handicap calculations
+    ah_home_minus_05 = home_prob  # P(goal difference ≥ 1) = P(Home win)
+    ah_away_plus_05 = draw_prob + away_prob  # P(goal difference ≤ 0) = P(Draw or Away win)
+    
+    ah_home_minus_1 = prob_ah_home_minus_1(lambda_h, lambda_a)
+    
+    # Ensure all probabilities are in valid range [0, 1]
+    def clamp_prob(p):
+        return max(0.0, min(1.0, p))
+    
+    return {
+        "lambda_rates": {
+            "home": round(lambda_h, 3),
+            "away": round(lambda_a, 3),
+            "fit_quality": round(fit_result["loss"], 6)
+        },
+        "total_goals": {
+            "over_2.5": round(clamp_prob(over_25), 3),
+            "under_2.5": round(clamp_prob(under_25), 3)
+        },
+        "both_teams_score": {
+            "yes": round(clamp_prob(btts_yes), 3),
+            "no": round(clamp_prob(btts_no), 3)
+        },
+        "asian_handicap": {
+            "home_-0.5": round(clamp_prob(ah_home_minus_05), 3),
+            "away_+0.5": round(clamp_prob(ah_away_plus_05), 3),
+            "home_-1.0": {
+                "win": round(clamp_prob(ah_home_minus_1["win"]), 3),
+                "push": round(clamp_prob(ah_home_minus_1["push"]), 3),
+                "lose": round(clamp_prob(ah_home_minus_1["lose"]), 3)
+            }
+        }
+    }
+
 @app.get("/")
 async def root():
     """Health check endpoint"""
@@ -1110,34 +1292,23 @@ async def predict_match(
         
         response["comprehensive_analysis"] = comprehensive_analysis
         
-        # Add additional markets using enhanced calculations
+        # Add additional markets using mathematically sound Poisson goal model
         if request.include_additional_markets:
             home_prob = predictions['home_win']
             draw_prob = predictions['draw']
             away_prob = predictions['away_win']
             
-            # Enhanced market calculations based on team data
+            # Calculate injury adjustment factor for goal rates
             home_injuries = len(match_data.get('home_team', {}).get('injuries', []))
             away_injuries = len(match_data.get('away_team', {}).get('injuries', []))
+            injury_adjustment = 1.0 - (home_injuries + away_injuries) * 0.01  # Small adjustment to goal rates
             
-            # Adjust based on injuries and form
-            goals_factor = 0.6 if (home_prob > 0.4 or away_prob > 0.4) else 0.4
-            goals_factor -= (home_injuries + away_injuries) * 0.02  # Reduce for injuries
+            # Derive markets from consensus 1X2 using Poisson goal model
+            derived_markets = derive_markets_from_1x2(
+                home_prob, draw_prob, away_prob, injury_adjustment
+            )
             
-            response["additional_markets"] = {
-                "total_goals": {
-                    "over_2.5": round(max(0.3, min(0.8, goals_factor)), 3),
-                    "under_2.5": round(max(0.2, min(0.7, 1 - goals_factor)), 3)
-                },
-                "both_teams_score": {
-                    "yes": round(0.55 if draw_prob < 0.35 else 0.45, 3),
-                    "no": round(0.45 if draw_prob < 0.35 else 0.55, 3)
-                },
-                "asian_handicap": {
-                    "home_-0.5": round(home_prob * 0.9, 3),
-                    "away_+0.5": round((draw_prob + away_prob) * 0.9, 3)
-                }
-            }
+            response["additional_markets"] = derived_markets
         
         # Comprehensive completion logging
         metadata = prediction_result.get('metadata', {})
