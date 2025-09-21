@@ -1,0 +1,118 @@
+Awesome — you’ve crossed the hard part: moving “additional markets” to a coherent Poisson goal model tied to your 1X2. To lock this in and make it reliable (and useful for model correction later), here’s a tight checklist + drop-in tests + a couple of small optimizations.
+
+# Quick invariants to verify on every `/predict`
+
+Run these checks right after you compute additional markets; log and guard-rail if any fail.
+
+* Sum rules
+
+  * `abs((over_2.5 + under_2.5) - 1) < 1e-6`
+  * `abs((btts_yes + btts_no) - 1) < 1e-6`
+* Consistency with 1X2
+
+  * `asian.home_-0.5 == home_win` (within 1e-6)
+  * `asian.away_+0.5 == draw + away_win` (within 1e-6)
+* Sanity bounds
+
+  * Every probability ∈ \[0,1] and none are `NaN`.
+
+If any invariant fails, fall back to your previous (simple) outputs for that market and log a `[POISSON_GUARDRAIL]` message with the inputs and fitted λ’s.
+
+# Robustness tweaks (small but important)
+
+* **Normalize 1X2** defensively:
+
+  ```py
+  s = max(1e-12, pH + pD + pA)
+  pH, pD, pA = pH/s, pD/s, pA/s
+  pH = min(max(pH, 1e-6), 1-1e-6); pA = min(max(pA, 1e-6), 1-1e-6); pD = 1 - pH - pA
+  ```
+* **Adaptive grid size**: choose MAX so that Poisson tail mass is tiny.
+  Keep extending MAX until `1 - sum_{k=0..MAX} pmf(k, λ)` < `1e-8` for both teams (typically MAX 8–12).
+* **Cache factorials / pmf rows** by `(λ rounded to 2 dp, MAX)` to shave a few ms when cron hits many matches.
+
+# Unit tests you can paste (pytest)
+
+These validate invariants and give you a regression harness.
+
+```python
+def approx(a, b, eps=1e-6): return abs(a-b) < eps
+
+def test_markets_sum_rules():
+    # Example: mildly home-favored
+    pH, pD, pA = 0.47, 0.27, 0.26
+    markets = derive_markets_from_1x2(pH, pD, pA)  # your function
+
+    over = markets["total_goals"]["over_2_5"]
+    under = markets["total_goals"]["under_2_5"]
+    assert approx(over + under, 1.0)
+
+    btts_y = markets["both_teams_score"]["yes"]
+    btts_n = markets["both_teams_score"]["no"]
+    assert approx(btts_y + btts_n, 1.0)
+
+def test_asian_consistency_half_lines():
+    pH, pD, pA = 0.40, 0.30, 0.30
+    m = derive_markets_from_1x2(pH, pD, pA)
+    assert abs(m["asian_handicap"]["home_-0.5"] - pH) < 1e-6
+    assert abs(m["asian_handicap"]["away_+0.5"] - (pD + pA)) < 1e-6
+
+def test_bounds():
+    pH, pD, pA = 0.60, 0.25, 0.15
+    m = derive_markets_from_1x2(pH, pD, pA)
+    def all_probs(d):
+        for v in d.values():
+            if isinstance(v, dict): yield from all_probs(v)
+            else: yield v
+    for p in all_probs(m):
+        assert 0.0 <= p <= 1.0
+```
+
+# Performance notes (to keep latency low)
+
+* **Grid search speed**: searching λₕ, λₐ on a 0.05 step (0.2→3.2) is usually <10 ms if you cache PMF rows and use MAX 10–12. If you need more speed, do a **coarse search** (step 0.1), then a **fine local search** (step 0.02) around the best cell.
+* **Skip AI text when not asked**: you already added `include_ai_analysis=false` path; keep it default-off for cron/enrichment.
+
+# Calibrate & grade (ties into your grading idea)
+
+Since totals/BTTS now come from the same λ’s, you can grade them alongside 1X2:
+
+* Store alongside each saved prediction:
+
+  * `lambda_home`, `lambda_away`, `fit_loss` (sum of squared error vs 1X2), and each derived market prob.
+* After results:
+
+  * **1X2 Brier/LogLoss** (as we discussed earlier).
+  * **Totals**: treat Over/Under 2.5 as a binary; compute Brier/LogLoss.
+  * **BTTS**: same.
+  * **AH −1 / +1**: compute expected value from win/push/lose probabilities and compare to market closing price for calibration.
+* Use this to build **per-league calibration maps** (simple isotonic or logistic scaling on λ or directly on market outputs). Apply during `/predict` as a final calibration layer.
+
+# Closing-odds hook
+
+If you add closing odds to `/predict/availability` (or a sibling endpoint), you can:
+
+* Compare your implied prices vs closing for **price error** tracking.
+* Weight grading by **market edge** (e.g., larger penalty if you’re confidently far from close and wrong).
+
+# Small API shape suggestion (stable for FE)
+
+In `/predict` response, include:
+
+```json
+"additional_markets": {
+  "lambdas": {"home": 1.73, "away": 1.21, "fit_loss": 0.00011},
+  "total_goals": {"over_2_5": 0.612, "under_2_5": 0.388},
+  "both_teams_score": {"yes": 0.571, "no": 0.429},
+  "asian_handicap": {
+    "home_-0.5": 0.472, "away_+0.5": 0.528,
+    "home_-1.0": {"win": 0.262, "push": 0.142, "lose": 0.596}
+  }
+}
+```
+
+Those fields are exactly what you’ll need to grade and to render confidently.
+
+---
+
+If you want, I can also give you a compact **quarter-line AH helper** and **OU 1.5/3.5/…** derivations that use the same grid so you can expand the markets without extra cost.

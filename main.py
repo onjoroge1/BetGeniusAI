@@ -180,11 +180,20 @@ def poisson_cdf(k: int, lambda_val: float) -> float:
     return total
 
 def joint_score_grid(lambda_h: float, lambda_a: float, max_goals: int = 10):
-    """Build joint probability grid for scores up to max_goals"""
+    """Build joint probability grid with adaptive size to minimize tail truncation"""
+    # Adaptive MAX: ensure tail mass is minimal for both lambda values
+    adaptive_max = max_goals
+    while adaptive_max < 20:  # Safety limit
+        tail_mass_h = 1 - poisson_cdf(adaptive_max, lambda_h)
+        tail_mass_a = 1 - poisson_cdf(adaptive_max, lambda_a)
+        if tail_mass_h < 1e-8 and tail_mass_a < 1e-8:
+            break
+        adaptive_max += 1
+    
     grid = []
-    for i in range(max_goals + 1):
+    for i in range(adaptive_max + 1):
         row = []
-        for j in range(max_goals + 1):
+        for j in range(adaptive_max + 1):
             prob_h = poisson_pmf(i, lambda_h)
             prob_a = poisson_pmf(j, lambda_a)
             row.append(prob_h * prob_a)
@@ -221,7 +230,7 @@ def fit_lambdas_to_1x2(target_h: float, target_d: float, target_a: float):
     # Fast grid search for optimal lambdas (optimized for speed)
     for lh in [x * 0.2 for x in range(1, 16)]:  # 0.2 to 3.0 in steps of 0.2
         for la in [x * 0.2 for x in range(1, 16)]:  # 0.2 to 3.0 in steps of 0.2
-            grid = joint_score_grid(lh, la, 6)  # Reduced max_goals for speed
+            grid = joint_score_grid(lh, la, 8)  # Increased for better accuracy
             implied = implied_1x2_from_grid(grid)
             
             # Calculate squared error
@@ -246,7 +255,7 @@ def prob_btts_yes(lambda_h: float, lambda_a: float) -> float:
 
 def prob_ah_home_minus_1(lambda_h: float, lambda_a: float):
     """Asian handicap Home -1.0 probabilities"""
-    grid = joint_score_grid(lambda_h, lambda_a, 8)
+    grid = joint_score_grid(lambda_h, lambda_a, 10)  # Increased for better tail coverage
     max_goals = len(grid) - 1
     
     p_win, p_push, p_lose = 0.0, 0.0, 0.0
@@ -265,9 +274,57 @@ def prob_ah_home_minus_1(lambda_h: float, lambda_a: float):
     
     return {"win": p_win, "push": p_push, "lose": p_lose}
 
+def calculate_calibrated_confidence(probabilities: dict, dispersions: dict, n_books: int) -> float:
+    """
+    Calculate prediction confidence using information theory and consensus strength
+    
+    Args:
+        probabilities: Dict with 'home', 'draw', 'away' probabilities
+        dispersions: Dict with 'home', 'draw', 'away' dispersions  
+        n_books: Number of bookmakers in consensus
+    
+    Returns:
+        Confidence ∈ [0,1] based on entropy, consensus strength, and sample size
+    """
+    try:
+        pH = max(probabilities.get('home', 0), 1e-12)
+        pD = max(probabilities.get('draw', 0), 1e-12) 
+        pA = max(probabilities.get('away', 0), 1e-12)
+        
+        # Normalize probabilities
+        total = pH + pD + pA
+        if total > 0:
+            pH, pD, pA = pH/total, pD/total, pA/total
+        
+        # 1. Entropy-based confidence (lower entropy = higher information content)
+        entropy = -(pH * math.log(pH) + pD * math.log(pD) + pA * math.log(pA))
+        max_entropy = math.log(3)  # Maximum entropy for uniform 3-way distribution
+        normalized_entropy = entropy / max_entropy
+        entropy_confidence = 1 - normalized_entropy  # Higher when entropy is lower
+        
+        # 2. Consensus strength (lower dispersion = stronger consensus)
+        disp_h = max(dispersions.get('home', 0), 0)
+        disp_d = max(dispersions.get('draw', 0), 0)
+        disp_a = max(dispersions.get('away', 0), 0)
+        avg_dispersion = (disp_h + disp_d + disp_a) / 3
+        consensus_confidence = math.exp(-avg_dispersion * 10)  # Exponential decay of confidence with dispersion
+        
+        # 3. Sample size confidence (more bookmakers = more reliable)
+        sample_confidence = min(n_books / 20, 1.0)  # Asymptote at 20 bookmakers
+        
+        # Combined confidence using geometric mean for proper scaling
+        combined_confidence = (entropy_confidence * consensus_confidence * sample_confidence) ** (1/3)
+        
+        # Ensure bounds and reasonable scaling
+        return min(max(combined_confidence, 0.05), 0.95)  # Bounded between 5% and 95%
+        
+    except Exception as e:
+        # Fallback to safe conservative confidence
+        return 0.50
+
 def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float, injury_adjustment: float = 1.0):
     """
-    Derive additional markets from 1X2 consensus using Poisson goal model
+    Derive additional markets from 1X2 consensus using Poisson goal model with invariant checks
     
     Args:
         home_prob: Home win probability from consensus
@@ -278,59 +335,153 @@ def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float
     Returns:
         Dictionary with mathematically consistent additional markets
     """
-    # Ensure probabilities are valid
-    if home_prob <= 0 or draw_prob <= 0 or away_prob <= 0:
-        # Fallback to simple estimates if invalid probabilities
-        return {
-            "total_goals": {"over_2.5": 0.500, "under_2.5": 0.500},
-            "both_teams_score": {"yes": 0.500, "no": 0.500},
-            "asian_handicap": {"home_-0.5": max(0.0, home_prob), "away_+0.5": max(0.0, draw_prob + away_prob)}
-        }
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Fit Poisson lambdas to match 1X2 probabilities
-    fit_result = fit_lambdas_to_1x2(home_prob, draw_prob, away_prob)
-    lambda_h = fit_result["lambda_h"] * injury_adjustment
-    lambda_a = fit_result["lambda_a"] * injury_adjustment
+    # Defensive normalization of 1X2 probabilities
+    total = max(1e-12, home_prob + draw_prob + away_prob)
+    pH = home_prob / total
+    pD = draw_prob / total
+    pA = away_prob / total
     
-    # Calculate derived markets
-    over_25 = prob_over_25(lambda_h, lambda_a)
-    under_25 = 1.0 - over_25
+    # Ensure bounds and non-zero probabilities
+    pH = min(max(pH, 1e-6), 1-1e-6)
+    pA = min(max(pA, 1e-6), 1-1e-6)
+    pD = 1 - pH - pA
+    pD = min(max(pD, 1e-6), 1-1e-6)
     
-    btts_yes = prob_btts_yes(lambda_h, lambda_a)
-    btts_no = 1.0 - btts_yes
+    # Re-normalize after bounding
+    total_bounded = pH + pD + pA
+    pH, pD, pA = pH/total_bounded, pD/total_bounded, pA/total_bounded
     
-    # Asian handicap calculations
-    ah_home_minus_05 = home_prob  # P(goal difference ≥ 1) = P(Home win)
-    ah_away_plus_05 = draw_prob + away_prob  # P(goal difference ≤ 0) = P(Draw or Away win)
-    
-    ah_home_minus_1 = prob_ah_home_minus_1(lambda_h, lambda_a)
-    
-    # Ensure all probabilities are in valid range [0, 1]
-    def clamp_prob(p):
-        return max(0.0, min(1.0, p))
-    
-    return {
-        "lambda_rates": {
-            "home": round(lambda_h, 3),
-            "away": round(lambda_a, 3),
-            "fit_quality": round(fit_result["loss"], 6)
-        },
-        "total_goals": {
-            "over_2.5": round(clamp_prob(over_25), 3),
-            "under_2.5": round(clamp_prob(under_25), 3)
-        },
-        "both_teams_score": {
-            "yes": round(clamp_prob(btts_yes), 3),
-            "no": round(clamp_prob(btts_no), 3)
-        },
-        "asian_handicap": {
-            "home_-0.5": round(clamp_prob(ah_home_minus_05), 3),
-            "away_+0.5": round(clamp_prob(ah_away_plus_05), 3),
-            "home_-1.0": {
-                "win": round(clamp_prob(ah_home_minus_1["win"]), 3),
-                "push": round(clamp_prob(ah_home_minus_1["push"]), 3),
-                "lose": round(clamp_prob(ah_home_minus_1["lose"]), 3)
+    try:
+        # Fit Poisson lambdas to match 1X2 probabilities
+        fit_result = fit_lambdas_to_1x2(pH, pD, pA)
+        lambda_h = fit_result["lambda_h"] * injury_adjustment
+        lambda_a = fit_result["lambda_a"] * injury_adjustment
+        
+        # Calculate derived markets
+        over_25 = prob_over_25(lambda_h, lambda_a)
+        under_25 = 1.0 - over_25
+        
+        btts_yes = prob_btts_yes(lambda_h, lambda_a)
+        btts_no = 1.0 - btts_yes
+        
+        # Asian handicap calculations
+        ah_home_minus_05 = pH  # P(goal difference ≥ 1) = P(Home win)
+        ah_away_plus_05 = pD + pA  # P(goal difference ≤ 0) = P(Draw or Away win)
+        
+        ah_home_minus_1 = prob_ah_home_minus_1(lambda_h, lambda_a)
+        
+        # Ensure all probabilities are in valid range [0, 1]
+        def clamp_prob(p):
+            if math.isnan(p) or math.isinf(p):
+                return 0.5  # Safe fallback
+            return max(0.0, min(1.0, p))
+        
+        # Build result structure
+        result = {
+            "lambdas": {
+                "home": round(lambda_h, 3),
+                "away": round(lambda_a, 3),
+                "fit_loss": round(fit_result["loss"], 6)
+            },
+            "total_goals": {
+                "over_2_5": round(clamp_prob(over_25), 3),
+                "under_2_5": round(clamp_prob(under_25), 3)
+            },
+            "both_teams_score": {
+                "yes": round(clamp_prob(btts_yes), 3),
+                "no": round(clamp_prob(btts_no), 3)
+            },
+            "asian_handicap": {
+                "home_-0.5": round(clamp_prob(ah_home_minus_05), 3),
+                "away_+0.5": round(clamp_prob(ah_away_plus_05), 3),
+                "home_-1.0": {
+                    "win": round(clamp_prob(ah_home_minus_1["win"]), 3),
+                    "push": round(clamp_prob(ah_home_minus_1["push"]), 3),
+                    "lose": round(clamp_prob(ah_home_minus_1["lose"]), 3)
+                }
             }
+        }
+        
+        # INVARIANT CHECKS - Critical validation with appropriate tolerances
+        try:
+            # Calculate raw unrounded values for tolerance checks
+            raw_over_25 = over_25
+            raw_under_25 = under_25
+            raw_btts_yes = btts_yes  
+            raw_btts_no = btts_no
+            raw_ah_home_minus_05 = ah_home_minus_05
+            raw_ah_away_plus_05 = ah_away_plus_05
+            raw_ah_minus_1 = ah_home_minus_1
+            
+            # Sum rules on raw values (tighter tolerance)
+            total_goals_sum_raw = raw_over_25 + raw_under_25
+            btts_sum_raw = raw_btts_yes + raw_btts_no
+            ah_minus_1_sum_raw = raw_ah_minus_1["win"] + raw_ah_minus_1["push"] + raw_ah_minus_1["lose"]
+            
+            sum_rules_valid = (
+                abs(total_goals_sum_raw - 1.0) < 1e-4 and
+                abs(btts_sum_raw - 1.0) < 1e-4 and
+                abs(ah_minus_1_sum_raw - 1.0) < 1e-4
+            )
+            
+            # Consistency with 1X2 on raw values
+            consistency_valid = (
+                abs(raw_ah_home_minus_05 - pH) < 1e-4 and
+                abs(raw_ah_away_plus_05 - (pD + pA)) < 1e-4
+            )
+            
+            # Sanity bounds - only check probability fields, exclude lambdas/fit_loss
+            def check_probability_bounds(d, exclude_keys=None):
+                exclude_keys = exclude_keys or {"lambdas", "fit_loss"}
+                for k, v in d.items():
+                    if k in exclude_keys:
+                        continue  # Skip non-probability fields
+                    if isinstance(v, dict):
+                        if not check_probability_bounds(v, exclude_keys):
+                            return False
+                    else:
+                        if not (0.0 <= v <= 1.0) or math.isnan(v):
+                            return False
+                return True
+            
+            bounds_valid = check_probability_bounds(result)
+            
+            # Log validation results using raw values
+            if not sum_rules_valid:
+                logger.warning(f"[POISSON_GUARDRAIL] Sum rules failed: totals={total_goals_sum_raw:.6f}, btts={btts_sum_raw:.6f}, ah_minus_1={ah_minus_1_sum_raw:.6f}")
+            
+            if not consistency_valid:
+                logger.warning(f"[POISSON_GUARDRAIL] 1X2 consistency failed: ah_home={raw_ah_home_minus_05:.6f} vs pH={pH:.6f}, ah_away={raw_ah_away_plus_05:.6f} vs pD+pA={pD+pA:.6f}")
+            
+            if not bounds_valid:
+                logger.warning(f"[POISSON_GUARDRAIL] Bounds check failed - invalid probabilities detected")
+            
+            # If any invariant fails, fallback to simple estimates
+            if not (sum_rules_valid and consistency_valid and bounds_valid):
+                logger.warning(f"[POISSON_GUARDRAIL] Falling back to simple estimates. λₕ={lambda_h:.3f}, λₐ={lambda_a:.3f}, fit_loss={fit_result['loss']:.6f}")
+                raise ValueError("Invariant validation failed")
+            
+            return result
+            
+        except Exception as validation_error:
+            logger.warning(f"[POISSON_GUARDRAIL] Validation error: {validation_error}")
+            # Continue to fallback below
+            
+    except Exception as e:
+        logger.warning(f"[POISSON_GUARDRAIL] Poisson fitting failed: {e}. Using fallback estimates.")
+    
+    # Fallback to simple but consistent estimates
+    return {
+        "lambdas": {"home": 1.4, "away": 1.1, "fit_loss": 1.0},  # Default values
+        "total_goals": {"over_2_5": 0.500, "under_2_5": 0.500},
+        "both_teams_score": {"yes": 0.500, "no": 0.500},
+        "asian_handicap": {
+            "home_-0.5": round(max(0.0, pH), 3),
+            "away_+0.5": round(max(0.0, pD + pA), 3),
+            "home_-1.0": {"win": 0.300, "push": 0.200, "lose": 0.500}
         }
     }
 
@@ -1080,9 +1231,12 @@ async def get_consensus_prediction_from_db(match_id: int):
                 else:
                     prediction = 'draw'
                 
-                # Calculate confidence based on max probability and low dispersion
-                avg_dispersion = (disp_h + disp_d + disp_a) / 3
-                confidence = min(max_prob * (1 - avg_dispersion), 0.95)
+                # Calculate confidence using mathematically sound approach
+                confidence = calculate_calibrated_confidence(
+                    {'home': h_prob, 'draw': d_prob, 'away': a_prob},
+                    {'home': disp_h, 'draw': disp_d, 'away': disp_a},
+                    n_books
+                )
                 
                 return {
                     'probabilities': {'home': h_prob, 'draw': d_prob, 'away': a_prob},
@@ -1093,7 +1247,7 @@ async def get_consensus_prediction_from_db(match_id: int):
                     'model_type': 'pre_computed_consensus',
                     'data_source': f'consensus_predictions_{time_bucket}',
                     'time_bucket': time_bucket,
-                    'dispersion': avg_dispersion
+                    'dispersion': (disp_h + disp_d + disp_a) / 3  # Average dispersion for metadata
                 }
                 
     except Exception as e:
