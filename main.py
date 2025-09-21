@@ -13,6 +13,7 @@ import logging
 import math
 import os
 from datetime import datetime
+from functools import lru_cache
 
 from utils.config import settings
 from models.data_collector import SportsDataCollector
@@ -33,6 +34,63 @@ from models.clv_api import CLVMonitorAPI
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ============ PERFORMANCE OPTIMIZATION: POISSON PMF CACHING ============
+# Cache for Poisson grids to eliminate repeated calculations
+# Significant latency reduction for lambda fitting and market generation
+
+# Precomputed log-factorials cache for Poisson calculations
+@lru_cache(maxsize=100)
+def log_factorial(n: int) -> float:
+    """Precomputed log-factorial for Poisson PMF calculations"""
+    if n <= 1:
+        return 0.0
+    return sum(math.log(i) for i in range(2, n + 1))
+
+@lru_cache(maxsize=500)
+def cached_poisson_pmf(lam: float, k: int) -> float:
+    """Cached Poisson PMF calculation using precomputed log-factorials"""
+    if lam <= 0 or k < 0:
+        return 0.0
+    # P(X=k) = e^(-λ) * λ^k / k!
+    # log P(X=k) = -λ + k*log(λ) - log(k!)
+    log_prob = -lam + k * math.log(lam) - log_factorial(k)
+    return math.exp(log_prob)
+
+@lru_cache(maxsize=200)  
+def cached_poisson_grid_key(lambda_h_rounded: float, lambda_a_rounded: float) -> tuple:
+    """
+    Cached Poisson grid computation with rounded lambda values for cache efficiency
+    Returns: (joint_matrix_tuple, diff_pmf_tuple, tail_mass)
+    """
+    # Convert back to precise values  
+    lh, la = lambda_h_rounded, lambda_a_rounded
+    K = 10  # Sufficient for most practical cases
+    
+    # Build joint matrix using cached PMFs
+    joint_matrix = []
+    for i in range(K + 1):
+        row = []
+        for j in range(K + 1):
+            prob = cached_poisson_pmf(lh, i) * cached_poisson_pmf(la, j)
+            row.append(prob)
+        joint_matrix.append(tuple(row))  # Convert to tuple for hashability
+    
+    # Build goal difference PMF  
+    diff_pmf = {}
+    for diff in range(-K, K + 1):
+        prob = 0.0
+        for i in range(K + 1):
+            j = i - diff
+            if 0 <= j <= K:
+                prob += joint_matrix[i][j]
+        diff_pmf[diff] = prob
+    
+    # Calculate tail mass
+    total_mass = sum(sum(row) for row in joint_matrix)
+    tail_mass = max(0.0, 1.0 - total_mass)
+    
+    return (tuple(joint_matrix), tuple(diff_pmf.items()), tail_mass)
 
 # CENTRALIZED 1X2 NORMALIZATION UTILITY (UNCONDITIONAL)
 def normalize_hda(h: float, d: float, a: float) -> tuple[float, float, float]:
@@ -269,8 +327,32 @@ class PoissonGrid:
         }
 
 def build_poisson_grid(lambda_h: float, lambda_a: float) -> PoissonGrid:
-    """Factory function to build optimized Poisson grid"""
-    return PoissonGrid(lambda_h, lambda_a)
+    """Factory function to build optimized Poisson grid with caching"""
+    # Round lambda values for cache efficiency (0.01 precision)
+    lh_rounded = round(lambda_h, 2)
+    la_rounded = round(lambda_a, 2)
+    
+    # Use cached computation
+    joint_matrix_tuple, diff_pmf_tuple, tail_mass = cached_poisson_grid_key(lh_rounded, la_rounded)
+    
+    # Convert back to expected formats
+    joint_matrix = [list(row) for row in joint_matrix_tuple]
+    diff_pmf = dict(diff_pmf_tuple)
+    
+    # Create PoissonGrid with cached data
+    grid = PoissonGrid.__new__(PoissonGrid)  # Bypass __init__
+    grid.lambda_h = lambda_h
+    grid.lambda_a = lambda_a
+    grid.K = len(joint_matrix) - 1
+    grid.joint_matrix = joint_matrix
+    grid.diff_pmf = diff_pmf
+    grid.tail_mass = tail_mass
+    
+    # Add missing PMF arrays that market functions expect
+    grid.pmf_home = [cached_poisson_pmf(lambda_h, i) for i in range(grid.K + 1)]
+    grid.pmf_away = [cached_poisson_pmf(lambda_a, j) for j in range(grid.K + 1)]
+    
+    return grid
 
 def implied_1x2_from_grid(joint_matrix):
     """Extract 1X2 probabilities from joint score matrix"""
@@ -1954,12 +2036,35 @@ async def predict_match(
         a_raw = probabilities.get('away', 0.0)
         h_norm, d_norm, a_norm = normalize_hda(h_raw, d_raw, a_raw)
         
+        # SMART CONFIDENCE GATING (per analysis recommendations)
+        confidence = prediction_result['confidence']
+        raw_prediction = prediction_result.get('prediction', 'No Prediction')
+        
+        # Apply confidence-based recommendation gating
+        if confidence < 0.15:
+            # Very low confidence - no betting recommendation
+            recommended_bet = "No bet - Info only"
+            recommendation_tone = "avoid"
+        elif confidence < 0.30:
+            # Low-medium confidence - lean recommendation with caution
+            if raw_prediction and raw_prediction != 'No Prediction':
+                recommended_bet = f"Lean: {raw_prediction} (small stake)"
+                recommendation_tone = "lean"
+            else:
+                recommended_bet = "No clear lean - Info only"
+                recommendation_tone = "avoid"
+        else:
+            # High confidence - full recommendation
+            recommended_bet = raw_prediction if raw_prediction != 'No Prediction' else 'No Prediction'
+            recommendation_tone = "confident"
+        
         predictions = {
             "home_win": round(h_norm, 3),
             "draw": round(d_norm, 3),
             "away_win": round(a_norm, 3),
-            "confidence": prediction_result['confidence'],
-            "recommended_bet": prediction_result.get('prediction', 'No Prediction')
+            "confidence": confidence,
+            "recommended_bet": recommended_bet,
+            "recommendation_tone": recommendation_tone  # Add metadata for frontend
         }
         
         # Build response structure compatible with frontend expectations
