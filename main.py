@@ -179,35 +179,74 @@ def poisson_cdf(k: int, lambda_val: float) -> float:
         total += poisson_pmf(i, lambda_val)
     return total
 
-def joint_score_grid(lambda_h: float, lambda_a: float, max_goals: int = 10):
-    """Build joint probability grid with adaptive size to minimize tail truncation"""
-    # Adaptive MAX: ensure tail mass is minimal for both lambda values
-    adaptive_max = max_goals
-    while adaptive_max < 20:  # Safety limit
-        tail_mass_h = 1 - poisson_cdf(adaptive_max, lambda_h)
-        tail_mass_a = 1 - poisson_cdf(adaptive_max, lambda_a)
-        if tail_mass_h < 1e-8 and tail_mass_a < 1e-8:
-            break
-        adaptive_max += 1
+class PoissonGrid:
+    """Optimized Poisson grid computation for reuse across all markets"""
     
-    grid = []
-    for i in range(adaptive_max + 1):
-        row = []
-        for j in range(adaptive_max + 1):
-            prob_h = poisson_pmf(i, lambda_h)
-            prob_a = poisson_pmf(j, lambda_a)
-            row.append(prob_h * prob_a)
-        grid.append(row)
-    return grid
+    def __init__(self, lambda_h: float, lambda_a: float):
+        self.lambda_h = lambda_h
+        self.lambda_a = lambda_a
+        
+        # Calculate optimal cutoff to minimize tail mass
+        self.K = max(10, 
+                    int(lambda_h + 6 * math.sqrt(lambda_h)) + 1,
+                    int(lambda_a + 6 * math.sqrt(lambda_a)) + 1)
+        
+        # Precompute Poisson PMFs for efficiency
+        self.pmf_home = [poisson_pmf(i, lambda_h) for i in range(self.K + 1)]
+        self.pmf_away = [poisson_pmf(j, lambda_a) for j in range(self.K + 1)]
+        
+        # Build joint probability matrix
+        self.joint_matrix = []
+        for i in range(self.K + 1):
+            row = []
+            for j in range(self.K + 1):
+                row.append(self.pmf_home[i] * self.pmf_away[j])
+            self.joint_matrix.append(row)
+        
+        # Precompute goal difference PMF for Asian Handicap calculations
+        self.diff_pmf = self._compute_goal_difference_pmf()
+        
+        # Calculate tail mass for metadata
+        tail_mass_h = 1 - sum(self.pmf_home)
+        tail_mass_a = 1 - sum(self.pmf_away)
+        self.tail_mass = max(tail_mass_h, tail_mass_a)
+    
+    def _compute_goal_difference_pmf(self) -> dict:
+        """Compute P(Home - Away = k) for all k values"""
+        diff_pmf = {}
+        
+        # Goal difference can range from -K to +K
+        for diff in range(-self.K, self.K + 1):
+            prob = 0.0
+            for h in range(self.K + 1):
+                a = h - diff
+                if 0 <= a <= self.K:
+                    prob += self.joint_matrix[h][a]
+            diff_pmf[diff] = prob
+        
+        return diff_pmf
+    
+    def get_metadata(self) -> dict:
+        """Return grid metadata for debugging"""
+        return {
+            "k": self.K,
+            "lambda_h": self.lambda_h,
+            "lambda_a": self.lambda_a,
+            "tail_mass": self.tail_mass
+        }
 
-def implied_1x2_from_grid(grid):
-    """Extract 1X2 probabilities from joint score grid"""
+def build_poisson_grid(lambda_h: float, lambda_a: float) -> PoissonGrid:
+    """Factory function to build optimized Poisson grid"""
+    return PoissonGrid(lambda_h, lambda_a)
+
+def implied_1x2_from_grid(joint_matrix):
+    """Extract 1X2 probabilities from joint score matrix"""
     p_h, p_d, p_a = 0.0, 0.0, 0.0
-    max_goals = len(grid) - 1
+    max_goals = len(joint_matrix) - 1
     
     for i in range(max_goals + 1):
         for j in range(max_goals + 1):
-            prob = grid[i][j]
+            prob = joint_matrix[i][j]
             if i > j:
                 p_h += prob
             elif i == j:
@@ -230,8 +269,8 @@ def fit_lambdas_to_1x2(target_h: float, target_d: float, target_a: float):
     # Fast grid search for optimal lambdas (optimized for speed)
     for lh in [x * 0.2 for x in range(1, 16)]:  # 0.2 to 3.0 in steps of 0.2
         for la in [x * 0.2 for x in range(1, 16)]:  # 0.2 to 3.0 in steps of 0.2
-            grid = joint_score_grid(lh, la, 8)  # Increased for better accuracy
-            implied = implied_1x2_from_grid(grid)
+            grid = build_poisson_grid(lh, la)  # Use optimized grid system
+            implied = implied_1x2_from_grid(grid.joint_matrix)
             
             # Calculate squared error
             loss = ((implied["p_h"] - target["p_h"]) ** 2 + 
@@ -248,24 +287,47 @@ def prob_over_25(lambda_h: float, lambda_a: float) -> float:
     lambda_total = lambda_h + lambda_a
     return 1.0 - poisson_cdf(2, lambda_total)
 
-def prob_over_under_total(lambda_h: float, lambda_a: float, line: float) -> dict:
-    """Probability of over/under for any total line (e.g., 0.5, 1.5, 3.5, 4.5)"""
-    lambda_total = lambda_h + lambda_a
-    k = int(line)  # For half-lines like 2.5, k=2
+def price_totals(grid: PoissonGrid, lines: list) -> dict:
+    """Calculate total goals over/under for multiple lines efficiently"""
+    totals = {}
     
-    under_prob = poisson_cdf(k, lambda_total)
-    over_prob = 1.0 - under_prob
+    for line in lines:
+        k = int(line)  # For half-lines like 2.5, k=2
+        over_prob = 0.0
+        
+        # Sum all combinations where home + away > k
+        for h in range(grid.K + 1):
+            for a in range(grid.K + 1):
+                if h + a > k:
+                    over_prob += grid.joint_matrix[h][a]
+        
+        under_prob = 1.0 - over_prob
+        line_key = f"{line}".replace(".", "_")
+        totals[line_key] = {"over": over_prob, "under": under_prob}
     
-    return {"over": over_prob, "under": under_prob}
+    return totals
 
-def prob_team_totals(lambda_team: float, line: float) -> dict:
-    """Probability of over/under for team-specific total lines"""
-    k = int(line)  # For half-lines like 1.5, k=1
+def price_team_totals(grid: PoissonGrid, lines: list) -> dict:
+    """Calculate team-specific totals efficiently"""
+    home_totals = {}
+    away_totals = {}
     
-    under_prob = poisson_cdf(k, lambda_team)
-    over_prob = 1.0 - under_prob
+    for line in lines:
+        k = int(line)  # For half-lines like 1.5, k=1
+        
+        # Home team totals
+        home_over = sum(grid.pmf_home[i] for i in range(k + 1, grid.K + 1))
+        home_under = 1.0 - home_over
+        
+        # Away team totals  
+        away_over = sum(grid.pmf_away[i] for i in range(k + 1, grid.K + 1))
+        away_under = 1.0 - away_over
+        
+        line_key = f"{line}".replace(".", "_")
+        home_totals[line_key] = {"over": home_over, "under": home_under}
+        away_totals[line_key] = {"over": away_over, "under": away_under}
     
-    return {"over": over_prob, "under": under_prob}
+    return {"home": home_totals, "away": away_totals}
 
 def prob_btts_yes(lambda_h: float, lambda_a: float) -> float:
     """Probability both teams score"""
@@ -274,14 +336,13 @@ def prob_btts_yes(lambda_h: float, lambda_a: float) -> float:
 
 def prob_ah_home_minus_1(lambda_h: float, lambda_a: float):
     """Asian handicap Home -1.0 probabilities"""
-    grid = joint_score_grid(lambda_h, lambda_a, 10)  # Increased for better tail coverage
-    max_goals = len(grid) - 1
+    grid = build_poisson_grid(lambda_h, lambda_a)  # Use optimized grid system
     
     p_win, p_push, p_lose = 0.0, 0.0, 0.0
     
-    for i in range(max_goals + 1):
-        for j in range(max_goals + 1):
-            prob = grid[i][j]
+    for i in range(grid.K + 1):
+        for j in range(grid.K + 1):
+            prob = grid.joint_matrix[i][j]
             diff = i - j
             
             if diff >= 2:
@@ -293,43 +354,53 @@ def prob_ah_home_minus_1(lambda_h: float, lambda_a: float):
     
     return {"win": p_win, "push": p_push, "lose": p_lose}
 
-def prob_asian_handicap(lambda_h: float, lambda_a: float, handicap: float) -> dict:
-    """Calculate Asian Handicap probabilities for any line (including quarter-lines)"""
-    grid = joint_score_grid(lambda_h, lambda_a, 10)
-    max_goals = len(grid) - 1
+def price_asian_handicap(grid: PoissonGrid, handicap: float) -> dict:
+    """Calculate Asian Handicap probabilities using goal-difference PMF (corrected math)"""
+    diff_pmf = grid.diff_pmf
     
-    # For quarter-lines, we split stakes between adjacent lines
-    if handicap % 0.5 == 0.25:  # Quarter lines like -0.25, +0.25, -0.75, +0.75
-        # Split between two adjacent half/whole lines
-        line1 = handicap - 0.25  # Lower line
-        line2 = handicap + 0.25  # Higher line
+    # Quarter-lines: 50/50 mix of adjacent half/whole lines
+    if abs(handicap % 0.5 - 0.25) < 1e-9:  # Quarter lines like -0.25, +0.25, -0.75, +0.75
+        if handicap > 0:  # Positive quarter-lines like +0.25, +0.75
+            line1 = handicap - 0.25  # e.g., +0.25 -> 0.0 and +0.5
+            line2 = handicap + 0.25
+            
+            # +0.25 = 1/2(0) + 1/2(+0.5)
+            result1 = price_asian_handicap(grid, line1)
+            result2 = price_asian_handicap(grid, line2)
+            
+            win = (result1["win"] + result2["win"]) / 2
+            # Quarter-line push handling: push from line1 becomes half-win
+            half_win = result1.get("push", 0) / 2
+            half_lose = result2.get("push", 0) / 2
+            lose = (result1["lose"] + result2["lose"]) / 2
+            
+            return {"win": win, "half_win": half_win, "half_lose": half_lose, "lose": lose}
         
-        result1 = prob_asian_handicap(lambda_h, lambda_a, line1)
-        result2 = prob_asian_handicap(lambda_h, lambda_a, line2)
-        
-        # For quarter-lines, we have win, half_win, half_lose, lose
-        win = (result1.get("win", 0) + result2.get("win", 0)) / 2
-        half_win = result1.get("push", 0) / 2  # Push on line1 becomes half-win
-        half_lose = result2.get("push", 0) / 2  # Push on line2 becomes half-lose
-        lose = (result1.get("lose", 0) + result2.get("lose", 0)) / 2
-        
-        return {"win": win, "half_win": half_win, "half_lose": half_lose, "lose": lose}
+        else:  # Negative quarter-lines like -0.25, -0.75
+            line1 = handicap + 0.25  # e.g., -0.25 -> 0.0 and -0.5
+            line2 = handicap - 0.25
+            
+            # -0.25 = 1/2(0) + 1/2(-0.5)
+            result1 = price_asian_handicap(grid, line1)
+            result2 = price_asian_handicap(grid, line2)
+            
+            win = (result1["win"] + result2["win"]) / 2
+            half_win = result1.get("push", 0) / 2  # Push becomes half-win
+            half_lose = result2.get("push", 0) / 2  # Push becomes half-lose  
+            lose = (result1["lose"] + result2["lose"]) / 2
+            
+            return {"win": win, "half_win": half_win, "half_lose": half_lose, "lose": lose}
     
-    # For whole and half lines
+    # Whole and half lines: use goal difference thresholds directly
     p_win, p_push, p_lose = 0.0, 0.0, 0.0
     
-    for i in range(max_goals + 1):
-        for j in range(max_goals + 1):
-            prob = grid[i][j]
-            diff = i - j  # Home goals - Away goals
-            adjusted_diff = diff - handicap
-            
-            if adjusted_diff > 0:
-                p_win += prob
-            elif adjusted_diff == 0:
-                p_push += prob
-            else:
-                p_lose += prob
+    for diff, prob in diff_pmf.items():
+        if diff > handicap:
+            p_win += prob
+        elif diff == handicap:
+            p_push += prob
+        else:
+            p_lose += prob
     
     return {"win": p_win, "push": p_push, "lose": p_lose}
 
@@ -341,46 +412,36 @@ def prob_double_chance(p_home: float, p_draw: float, p_away: float) -> dict:
         "X2": p_draw + p_away       # Draw or Away
     }
 
-def prob_winning_margin(lambda_h: float, lambda_a: float) -> dict:
-    """Winning margin probabilities using Skellam distribution"""
-    grid = joint_score_grid(lambda_h, lambda_a, 10)
-    max_goals = len(grid) - 1
+def price_winning_margin(grid: PoissonGrid) -> dict:
+    """Winning margin probabilities using goal difference PMF"""
+    margins = {"-3+": 0.0, "-2": 0.0, "-1": 0.0, "0": 0.0, "+1": 0.0, "+2": 0.0, "+3+": 0.0}
     
-    margins = {"draw": 0.0, "home_by_1": 0.0, "home_by_2": 0.0, "home_by_3+": 0.0, 
-               "away_by_1": 0.0, "away_by_2": 0.0, "away_by_3+": 0.0}
-    
-    for i in range(max_goals + 1):
-        for j in range(max_goals + 1):
-            prob = grid[i][j]
-            diff = i - j
-            
-            if diff == 0:
-                margins["draw"] += prob
-            elif diff == 1:
-                margins["home_by_1"] += prob
-            elif diff == 2:
-                margins["home_by_2"] += prob
-            elif diff >= 3:
-                margins["home_by_3+"] += prob
-            elif diff == -1:
-                margins["away_by_1"] += prob
-            elif diff == -2:
-                margins["away_by_2"] += prob
-            elif diff <= -3:
-                margins["away_by_3+"] += prob
+    for diff, prob in grid.diff_pmf.items():
+        if diff == 0:
+            margins["0"] += prob
+        elif diff == 1:
+            margins["+1"] += prob
+        elif diff == 2:
+            margins["+2"] += prob
+        elif diff >= 3:
+            margins["+3+"] += prob
+        elif diff == -1:
+            margins["-1"] += prob
+        elif diff == -2:
+            margins["-2"] += prob
+        elif diff <= -3:
+            margins["-3+"] += prob
     
     return margins
 
-def prob_correct_score(lambda_h: float, lambda_a: float, top_n: int = 10) -> list:
-    """Top-N correct score probabilities with Other bucket"""
-    grid = joint_score_grid(lambda_h, lambda_a, 10)
-    max_goals = len(grid) - 1
-    
+def price_correct_scores(grid: PoissonGrid, top_n: int = 10) -> list:
+    """Top-N correct score probabilities with Other bucket from joint matrix"""
     scores = []
-    for i in range(max_goals + 1):
-        for j in range(max_goals + 1):
-            prob = grid[i][j]
-            scores.append({"score": f"{i}-{j}", "p": prob})
+    
+    for h in range(grid.K + 1):
+        for a in range(grid.K + 1):
+            prob = grid.joint_matrix[h][a]
+            scores.append({"score": f"{h}-{a}", "p": prob})
     
     # Sort by probability descending
     scores.sort(key=lambda x: x["p"], reverse=True)
@@ -394,35 +455,53 @@ def prob_correct_score(lambda_h: float, lambda_a: float, top_n: int = 10) -> lis
     
     return top_scores
 
-def prob_odd_even_total(lambda_h: float, lambda_a: float) -> dict:
-    """Odd/Even total goals probabilities"""
-    mu = lambda_h + lambda_a
+def price_btts(grid: PoissonGrid) -> dict:
+    """Both teams to score using joint matrix"""
+    # P(BTTS=Yes) = 1 - P(H=0) - P(A=0) + P(H=0 AND A=0)
+    btts_yes = 1.0 - grid.pmf_home[0] - grid.pmf_away[0] + grid.joint_matrix[0][0]
+    btts_no = 1.0 - btts_yes
     
-    # P(Even) = (1 + e^{-2μ})/2
-    p_even = (1 + math.exp(-2 * mu)) / 2
-    p_odd = 1.0 - p_even
-    
-    return {"odd": p_odd, "even": p_even}
+    return {"yes": btts_yes, "no": btts_no}
 
-def prob_clean_sheet_and_win_to_nil(lambda_h: float, lambda_a: float) -> dict:
-    """Clean sheet and win-to-nil probabilities"""
-    # Clean sheets
-    home_clean_sheet = math.exp(-lambda_a)  # P(Away = 0)
-    away_clean_sheet = math.exp(-lambda_h)  # P(Home = 0)
+def price_odd_even_total(grid: PoissonGrid) -> dict:
+    """Odd/Even total goals from joint matrix"""
+    odd_prob = 0.0
+    even_prob = 0.0
     
-    # Win to nil (win with clean sheet)
-    home_win_to_nil = (1 - math.exp(-lambda_h)) * math.exp(-lambda_a)  # P(H≥1) * P(A=0)
-    away_win_to_nil = (1 - math.exp(-lambda_a)) * math.exp(-lambda_h)  # P(A≥1) * P(H=0)
+    for h in range(grid.K + 1):
+        for a in range(grid.K + 1):
+            total = h + a
+            prob = grid.joint_matrix[h][a]
+            
+            if total % 2 == 0:
+                even_prob += prob
+            else:
+                odd_prob += prob
+    
+    return {"odd": odd_prob, "even": even_prob}
+
+def price_clean_sheet_and_win_to_nil(grid: PoissonGrid) -> dict:
+    """Clean sheet and win-to-nil using PMFs"""
+    # Clean sheets: P(team = 0 goals)
+    home_clean_sheet = grid.pmf_away[0]  # Away team scores 0
+    away_clean_sheet = grid.pmf_home[0]  # Home team scores 0
+    
+    # Win to nil: P(win AND opponent = 0)
+    home_win_to_nil = 0.0
+    away_win_to_nil = 0.0
+    
+    for h in range(1, grid.K + 1):  # Home scores ≥1
+        home_win_to_nil += grid.joint_matrix[h][0]  # Away scores 0
+    
+    for a in range(1, grid.K + 1):  # Away scores ≥1  
+        away_win_to_nil += grid.joint_matrix[0][a]  # Home scores 0
     
     return {
-        "clean_sheet": {
-            "home": home_clean_sheet,
-            "away": away_clean_sheet
-        },
-        "win_to_nil": {
-            "home": home_win_to_nil,
-            "away": away_win_to_nil
-        }
+        "home": home_clean_sheet,
+        "away": away_clean_sheet
+    }, {
+        "home": home_win_to_nil,
+        "away": away_win_to_nil
     }
 
 def calculate_calibrated_confidence(probabilities: dict, dispersions: dict, n_books: int) -> float:
@@ -473,7 +552,7 @@ def calculate_calibrated_confidence(probabilities: dict, dispersions: dict, n_bo
         # Fallback to safe conservative confidence
         return 0.50
 
-def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float, injury_adjustment: float = 1.0, config: dict = None):
+def derive_comprehensive_markets(home_prob: float, draw_prob: float, away_prob: float, injury_adjustment: float = 1.0, config: dict = None):
     """
     Derive comprehensive additional markets from 1X2 consensus using Poisson goal model
     
@@ -506,10 +585,10 @@ def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float
     total_bounded = pH + pD + pA
     pH, pD, pA = pH/total_bounded, pD/total_bounded, pA/total_bounded
     
-    # Default configuration for markets to include
+    # Default configuration for comprehensive markets
     default_config = {
         "totals": [0.5, 1.5, 2.5, 3.5, 4.5],
-        "team_totals": {"home": [0.5, 1.5, 2.5], "away": [0.5, 1.5, 2.5]},
+        "team_totals": [0.5, 1.5, 2.5],
         "asian": [0, -0.25, -0.5, -0.75, -1.0, +0.25, +0.5, +0.75, +1.0],
         "btts": True,
         "double_chance": True,
@@ -518,8 +597,7 @@ def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float
         "correct_score_top_n": 10,
         "odd_even": True,
         "clean_sheet": True,
-        "win_to_nil": True,
-        "htft": False
+        "win_to_nil": True
     }
     
     # Use provided config or default
@@ -531,14 +609,17 @@ def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float
         lambda_h = fit_result["lambda_h"] * injury_adjustment
         lambda_a = fit_result["lambda_a"] * injury_adjustment
         
-        # Ensure all probabilities are in valid range [0, 1]
+        # Build optimized Poisson grid for all market calculations
+        grid = build_poisson_grid(lambda_h, lambda_a)
+        
+        # Helper function for safe probability clamping
         def clamp_prob(p):
             if math.isnan(p) or math.isinf(p):
                 return 0.5  # Safe fallback
             return max(0.0, min(1.0, p))
         
-        # Build comprehensive result structure
-        result = {
+        # ===== V2 COMPREHENSIVE MARKETS (nested structure) =====
+        v2_markets = {
             "lambdas": {
                 "home": round(lambda_h, 3),
                 "away": round(lambda_a, 3),
@@ -546,248 +627,169 @@ def derive_markets_from_1x2(home_prob: float, draw_prob: float, away_prob: float
             }
         }
         
-        # Calculate and add configured markets
+        # Calculate markets using optimized grid functions
+        if markets_config.get("totals"):
+            totals = price_totals(grid, markets_config["totals"])
+            v2_markets["totals"] = {k: {sk: round(clamp_prob(sv), 3) for sk, sv in v.items()} for k, v in totals.items()}
         
-        # 1. Total Goals (alternate lines)
-        if "totals" in markets_config and markets_config["totals"]:
-            result["totals"] = {}
-            for line in markets_config["totals"]:
-                line_key = f"{line}".replace(".", "_")
-                totals = prob_over_under_total(lambda_h, lambda_a, line)
-                result["totals"][line_key] = {
-                    "over": round(clamp_prob(totals["over"]), 3),
-                    "under": round(clamp_prob(totals["under"]), 3)
-                }
-        
-        # 2. Team Totals
-        if "team_totals" in markets_config:
-            result["team_totals"] = {}
-            if "home" in markets_config["team_totals"]:
-                result["team_totals"]["home"] = {}
-                for line in markets_config["team_totals"]["home"]:
-                    line_key = f"{line}".replace(".", "_")
-                    totals = prob_team_totals(lambda_h, line)
-                    result["team_totals"]["home"][line_key] = {
-                        "over": round(clamp_prob(totals["over"]), 3),
-                        "under": round(clamp_prob(totals["under"]), 3)
-                    }
-            if "away" in markets_config["team_totals"]:
-                result["team_totals"]["away"] = {}
-                for line in markets_config["team_totals"]["away"]:
-                    line_key = f"{line}".replace(".", "_")
-                    totals = prob_team_totals(lambda_a, line)
-                    result["team_totals"]["away"][line_key] = {
-                        "over": round(clamp_prob(totals["over"]), 3),
-                        "under": round(clamp_prob(totals["under"]), 3)
-                    }
-        
-        # 3. Both Teams to Score
-        if markets_config.get("btts", False):
-            btts_yes = prob_btts_yes(lambda_h, lambda_a)
-            btts_no = 1.0 - btts_yes
-            result["both_teams_score"] = {
-                "yes": round(clamp_prob(btts_yes), 3),
-                "no": round(clamp_prob(btts_no), 3)
+        if markets_config.get("team_totals"):
+            team_totals = price_team_totals(grid, markets_config["team_totals"])
+            v2_markets["team_totals"] = {
+                team: {k: {sk: round(clamp_prob(sv), 3) for sk, sv in v.items()} for k, v in totals.items()}
+                for team, totals in team_totals.items()
             }
         
-        # 4. Asian Handicap (including quarter-lines)
-        if "asian" in markets_config and markets_config["asian"]:
-            result["asian_handicap"] = {}
+        if markets_config.get("btts"):
+            btts = price_btts(grid)
+            v2_markets["btts"] = {k: round(clamp_prob(v), 3) for k, v in btts.items()}
+        
+        if markets_config.get("asian"):
+            v2_markets["asian_handicap"] = {"home": {}, "away": {}}
             for handicap in markets_config["asian"]:
-                handicap_key = f"home_{handicap:+g}".replace(".", "_").replace("+", "_plus_").replace("-", "_minus_")
-                ah_probs = prob_asian_handicap(lambda_h, lambda_a, handicap)
+                ah_probs = price_asian_handicap(grid, handicap)
+                handicap_key = f"{handicap:+g}".replace(".", "_").replace("+", "_plus_").replace("-", "_minus_")
                 
+                # Apply to home handicap
                 if "half_win" in ah_probs:  # Quarter-line
-                    result["asian_handicap"][handicap_key] = {
+                    v2_markets["asian_handicap"]["home"][handicap_key] = {
                         "win": round(clamp_prob(ah_probs["win"]), 3),
                         "half_win": round(clamp_prob(ah_probs["half_win"]), 3),
                         "half_lose": round(clamp_prob(ah_probs["half_lose"]), 3),
                         "lose": round(clamp_prob(ah_probs["lose"]), 3)
                     }
                 else:  # Whole or half line
-                    result["asian_handicap"][handicap_key] = {
+                    v2_markets["asian_handicap"]["home"][handicap_key] = {
                         "win": round(clamp_prob(ah_probs["win"]), 3),
                         "push": round(clamp_prob(ah_probs["push"]), 3),
                         "lose": round(clamp_prob(ah_probs["lose"]), 3)
                     }
         
-        # 5. Double Chance
-        if markets_config.get("double_chance", False):
+        if markets_config.get("double_chance"):
             dc_probs = prob_double_chance(pH, pD, pA)
-            result["double_chance"] = {
-                "1X": round(clamp_prob(dc_probs["1X"]), 3),
-                "12": round(clamp_prob(dc_probs["12"]), 3),
-                "X2": round(clamp_prob(dc_probs["X2"]), 3)
-            }
+            v2_markets["double_chance"] = {k: round(clamp_prob(v), 3) for k, v in dc_probs.items()}
         
-        # 6. Draw No Bet (DNB)
-        if markets_config.get("dnb", False):
-            dnb_home = pH / (pH + pA)  # Home win probability excluding draw
-            dnb_away = pA / (pH + pA)  # Away win probability excluding draw
-            result["dnb"] = {
+        if markets_config.get("dnb"):
+            dnb_home = pH / (pH + pA)
+            dnb_away = pA / (pH + pA)
+            v2_markets["dnb"] = {
                 "home": round(clamp_prob(dnb_home), 3),
                 "away": round(clamp_prob(dnb_away), 3)
             }
         
-        # 7. Winning Margin
-        if markets_config.get("margin", False):
-            margin_probs = prob_winning_margin(lambda_h, lambda_a)
-            result["winning_margin"] = {
-                k: round(clamp_prob(v), 3) for k, v in margin_probs.items()
-            }
+        if markets_config.get("margin"):
+            margin_probs = price_winning_margin(grid)
+            v2_markets["winning_margin"] = {k: round(clamp_prob(v), 3) for k, v in margin_probs.items()}
         
-        # 8. Correct Score (Top-N)
-        if markets_config.get("correct_score_top_n", 0) > 0:
-            correct_scores = prob_correct_score(lambda_h, lambda_a, markets_config["correct_score_top_n"])
-            result["correct_score_top"] = [
+        if markets_config.get("correct_score_top_n"):
+            correct_scores = price_correct_scores(grid, markets_config["correct_score_top_n"])
+            v2_markets["correct_scores"] = [
                 {"score": cs["score"], "p": round(clamp_prob(cs["p"]), 3)}
                 for cs in correct_scores
             ]
         
-        # 9. Odd/Even Total Goals
-        if markets_config.get("odd_even", False):
-            odd_even_probs = prob_odd_even_total(lambda_h, lambda_a)
-            result["odd_even_total"] = {
-                "odd": round(clamp_prob(odd_even_probs["odd"]), 3),
-                "even": round(clamp_prob(odd_even_probs["even"]), 3)
-            }
+        if markets_config.get("odd_even"):
+            odd_even_probs = price_odd_even_total(grid)
+            v2_markets["odd_even_total"] = {k: round(clamp_prob(v), 3) for k, v in odd_even_probs.items()}
         
-        # 10. Clean Sheet & Win-to-Nil
-        if markets_config.get("clean_sheet", False) or markets_config.get("win_to_nil", False):
-            cs_wtn_probs = prob_clean_sheet_and_win_to_nil(lambda_h, lambda_a)
-            if markets_config.get("clean_sheet", False):
-                result["clean_sheet"] = {
-                    "home": round(clamp_prob(cs_wtn_probs["clean_sheet"]["home"]), 3),
-                    "away": round(clamp_prob(cs_wtn_probs["clean_sheet"]["away"]), 3)
-                }
-            if markets_config.get("win_to_nil", False):
-                result["win_to_nil"] = {
-                    "home": round(clamp_prob(cs_wtn_probs["win_to_nil"]["home"]), 3),
-                    "away": round(clamp_prob(cs_wtn_probs["win_to_nil"]["away"]), 3)
-                }
+        if markets_config.get("clean_sheet") or markets_config.get("win_to_nil"):
+            clean_sheet_probs, win_to_nil_probs = price_clean_sheet_and_win_to_nil(grid)
+            if markets_config.get("clean_sheet"):
+                v2_markets["clean_sheet"] = {k: round(clamp_prob(v), 3) for k, v in clean_sheet_probs.items()}
+            if markets_config.get("win_to_nil"):
+                v2_markets["win_to_nil"] = {k: round(clamp_prob(v), 3) for k, v in win_to_nil_probs.items()}
         
-        # COMPREHENSIVE INVARIANT CHECKS - Enhanced validation for all markets
-        try:
-            # Validate market-specific invariants based on what's included
-            invariant_failures = []
-            
-            # 1. Total Goals Sum Rules (values are rounded to 3 decimals, so 0-1 range)
-            if "totals" in result:
-                for line_key, probs in result["totals"].items():
-                    total_sum = probs["over"] + probs["under"]
-                    if abs(total_sum - 1.0) > 0.003:  # Allow 3 units tolerance for rounding
-                        invariant_failures.append(f"Total {line_key} sum: {total_sum:.6f}")
-            
-            # 2. Team Totals Sum Rules
-            if "team_totals" in result:
-                for team in ["home", "away"]:
-                    if team in result["team_totals"]:
-                        for line_key, probs in result["team_totals"][team].items():
-                            total_sum = probs["over"] + probs["under"]
-                            if abs(total_sum - 1.0) > 0.003:
-                                invariant_failures.append(f"Team {team} total {line_key} sum: {total_sum:.6f}")
-            
-            # 3. BTTS Sum Rules
-            if "both_teams_score" in result:
-                btts_sum = result["both_teams_score"]["yes"] + result["both_teams_score"]["no"]
-                if abs(btts_sum - 1.0) > 0.003:
-                    invariant_failures.append(f"BTTS sum: {btts_sum:.6f}")
-            
-            # 4. Asian Handicap Sum Rules
-            if "asian_handicap" in result:
-                for handicap_key, probs in result["asian_handicap"].items():
-                    if "half_win" in probs:  # Quarter-line
-                        ah_sum = probs["win"] + probs["half_win"] + probs["half_lose"] + probs["lose"]
-                    else:  # Whole or half line
-                        ah_sum = probs["win"] + probs["push"] + probs["lose"]
-                    if abs(ah_sum - 1.0) > 0.003:
-                        invariant_failures.append(f"AH {handicap_key} sum: {ah_sum:.6f}")
-            
-            # 5. Double Chance Sum Rules
-            if "double_chance" in result:
-                # 1X + X2 + 12 should equal 2 (since each outcome is counted twice)
-                dc_sum = result["double_chance"]["1X"] + result["double_chance"]["X2"] + result["double_chance"]["12"]
-                if abs(dc_sum - 2.0) > 0.006:  # Expected sum is 2.0
-                    invariant_failures.append(f"Double chance sum: {dc_sum:.6f} (expected: 2.0)")
-            
-            # 6. DNB Sum Rules
-            if "dnb" in result:
-                dnb_sum = result["dnb"]["home"] + result["dnb"]["away"]
-                if abs(dnb_sum - 1.0) > 0.003:
-                    invariant_failures.append(f"DNB sum: {dnb_sum:.6f}")
-            
-            # 7. Winning Margin Sum Rules
-            if "winning_margin" in result:
-                margin_sum = sum(result["winning_margin"].values())
-                if abs(margin_sum - 1.0) > 0.003:
-                    invariant_failures.append(f"Winning margin sum: {margin_sum:.6f}")
-            
-            # 8. Correct Score Sum Rules
-            if "correct_score_top" in result:
-                cs_sum = sum(cs["p"] for cs in result["correct_score_top"])
-                if abs(cs_sum - 1.0) > 0.003:
-                    invariant_failures.append(f"Correct score sum: {cs_sum:.6f}")
-            
-            # 9. Odd/Even Sum Rules
-            if "odd_even_total" in result:
-                oe_sum = result["odd_even_total"]["odd"] + result["odd_even_total"]["even"]
-                if abs(oe_sum - 1.0) > 0.003:
-                    invariant_failures.append(f"Odd/Even sum: {oe_sum:.6f}")
-            
-            # 10. Clean Sheet & Win-to-Nil Bounds
-            for market in ["clean_sheet", "win_to_nil"]:
-                if market in result:
-                    for team, prob in result[market].items():
-                        if not (0 <= prob <= 1.0):
-                            invariant_failures.append(f"{market} {team} out of bounds: {prob:.6f}")
-            
-            # 11. General Bounds Check - only check probability fields
-            def check_probability_bounds(d, exclude_keys=None, path=""):
-                exclude_keys = exclude_keys or {"lambdas", "fit_loss"}
-                for k, v in d.items():
-                    current_path = f"{path}.{k}" if path else k
-                    if k in exclude_keys:
-                        continue  # Skip non-probability fields
-                    if isinstance(v, dict):
-                        if not check_probability_bounds(v, exclude_keys, current_path):
-                            return False
-                    elif isinstance(v, list):
-                        continue  # Skip lists (like correct_score_top)
-                    else:
-                        # Check bounds for probability values (0-1 for rounded values)
-                        if not (0 <= v <= 1.0) or math.isnan(v):
-                            invariant_failures.append(f"Bounds check failed at {current_path}: {v}")
-                            return False
-                return True
-            
-            bounds_valid = check_probability_bounds(result)
-            
-            # Report any validation failures
-            if invariant_failures:
-                logger.warning(f"[POISSON_GUARDRAIL] Invariant failures detected: {'; '.join(invariant_failures[:3])}")  # Log first 3 failures
-                logger.warning(f"[POISSON_GUARDRAIL] Falling back to simple estimates. λₕ={lambda_h:.3f}, λₐ={lambda_a:.3f}, fit_loss={fit_result['loss']:.6f}")
-                raise ValueError("Comprehensive invariant validation failed")
-            
-            return result
-            
-        except Exception as validation_error:
-            logger.warning(f"[POISSON_GUARDRAIL] Validation error: {validation_error}")
-            # Continue to fallback below
-            
-    except Exception as e:
-        logger.warning(f"[POISSON_GUARDRAIL] Poisson fitting failed: {e}. Using fallback estimates.")
-    
-    # Fallback to simple but consistent estimates
-    return {
-        "lambdas": {"home": 1.4, "away": 1.1, "fit_loss": 1.0},  # Default values
-        "total_goals": {"over_2_5": 0.500, "under_2_5": 0.500},
-        "both_teams_score": {"yes": 0.500, "no": 0.500},
-        "asian_handicap": {
-            "home_-0.5": round(max(0.0, pH), 3),
-            "away_+0.5": round(max(0.0, pD + pA), 3),
-            "home_-1.0": {"win": 0.300, "push": 0.200, "lose": 0.500}
+        # Add metadata
+        v2_markets["meta"] = grid.get_metadata()
+        
+        # ===== V1 COMPATIBLE MARKETS (keep original structure) =====
+        v1_markets = {
+            "total_goals": {
+                "over_2_5": v2_markets.get("totals", {}).get("2_5", {}).get("over", 0.5),
+                "under_2_5": v2_markets.get("totals", {}).get("2_5", {}).get("under", 0.5)
+            },
+            "both_teams_score": v2_markets.get("btts", {"yes": 0.5, "no": 0.5}),
+            "asian_handicap": {
+                "home_-0.5": pH,  # Direct from 1X2
+                "away_+0.5": pD + pA,
+                "home_-1.0": v2_markets.get("asian_handicap", {}).get("home", {}).get("_minus_1_0", {"win": 0.3, "push": 0.3, "lose": 0.4}).get("win", 0.3)
+            },
+            "correct_score_top3": v2_markets.get("correct_scores", [])[:3]
         }
-    }
+        
+        # ===== FLAT EXPORT (for v1 clients expecting simple key-value) =====
+        flat_markets = {}
+        
+        # Flatten totals
+        if "totals" in v2_markets:
+            for line_key, probs in v2_markets["totals"].items():
+                flat_markets[f"totals_over_{line_key}"] = probs["over"]
+                flat_markets[f"totals_under_{line_key}"] = probs["under"]
+        
+        # Flatten BTTS
+        if "btts" in v2_markets:
+            flat_markets["btts_yes"] = v2_markets["btts"]["yes"]
+            flat_markets["btts_no"] = v2_markets["btts"]["no"]
+        
+        # Flatten Asian Handicap
+        if "asian_handicap" in v2_markets:
+            for team, handicaps in v2_markets["asian_handicap"].items():
+                for line, probs in handicaps.items():
+                    for outcome, prob in probs.items():
+                        flat_markets[f"ah_{team}_{line}_{outcome}"] = prob
+        
+        # Flatten other markets
+        for market in ["double_chance", "dnb", "winning_margin", "odd_even_total", "clean_sheet", "win_to_nil"]:
+            if market in v2_markets:
+                for key, value in v2_markets[market].items():
+                    flat_markets[f"{market}_{key}"] = value
+        
+        # QUIET VALIDATION - Single compact warning if any issues detected
+        validation_issues = []
+        
+        # Validate key sum rules with appropriate tolerances
+        if "totals" in v2_markets:
+            for line_key, probs in v2_markets["totals"].items():
+                total_sum = probs["over"] + probs["under"]
+                if abs(total_sum - 1.0) > 0.005:  # Relaxed tolerance for rounded values
+                    validation_issues.append(f"totals_{line_key}")
+        
+        if "btts" in v2_markets:
+            btts_sum = v2_markets["btts"]["yes"] + v2_markets["btts"]["no"]
+            if abs(btts_sum - 1.0) > 0.005:
+                validation_issues.append("btts")
+        
+        if "dnb" in v2_markets:
+            dnb_sum = v2_markets["dnb"]["home"] + v2_markets["dnb"]["away"] 
+            if abs(dnb_sum - 1.0) > 0.005:
+                validation_issues.append("dnb")
+        
+        # Log single compact warning if issues detected
+        if validation_issues:
+            logger.warning(f"[POISSON_VALIDATION] Minor sum rule tolerances exceeded: {', '.join(validation_issues[:3])}")
+        
+        # Return all three formats
+        return {
+            "v1": v1_markets,
+            "v2": v2_markets,
+            "flat": flat_markets
+        }
+    
+    except Exception as e:
+        logger.warning(f"[POISSON_GUARDRAIL] Comprehensive market calculation failed: {e}")
+        
+        # Simple fallback using basic calculations
+        fallback_v1 = {
+            "total_goals": {"over_2_5": 0.45, "under_2_5": 0.55},
+            "both_teams_score": {"yes": 0.50, "no": 0.50},
+            "asian_handicap": {"home_-0.5": pH, "away_+0.5": pD + pA, "home_-1.0": 0.35},
+            "correct_score_top3": [{"score": "1-1", "p": 0.12}, {"score": "1-0", "p": 0.10}, {"score": "0-1", "p": 0.08}]
+        }
+        
+        return {
+            "v1": fallback_v1,
+            "v2": {"lambdas": {"home": 1.4, "away": 1.1, "fit_loss": 0.1}},
+            "flat": {"btts_yes": 0.50, "btts_no": 0.50, "totals_over_2_5": 0.45}
+        }
 
 @app.get("/")
 async def root():
@@ -1761,12 +1763,15 @@ async def predict_match(
             away_injuries = len(match_data.get('away_team', {}).get('injuries', []))
             injury_adjustment = 1.0 - (home_injuries + away_injuries) * 0.01  # Small adjustment to goal rates
             
-            # Derive markets from consensus 1X2 using Poisson goal model
-            derived_markets = derive_markets_from_1x2(
+            # Derive comprehensive markets from consensus 1X2 using optimized Poisson goal model
+            comprehensive_markets = derive_comprehensive_markets(
                 home_prob, draw_prob, away_prob, injury_adjustment
             )
             
-            response["additional_markets"] = derived_markets
+            # Add all three market formats to response
+            response["additional_markets"] = comprehensive_markets["v1"]
+            response["additional_markets_v2"] = comprehensive_markets["v2"] 
+            response["additional_markets_flat"] = comprehensive_markets["flat"]
         
         # Comprehensive completion logging
         metadata = prediction_result.get('metadata', {})

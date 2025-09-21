@@ -83,17 +83,35 @@ class FinalPredictionResponse(BaseModel):
 
 # Additional market-specific responses
 class AdditionalMarkets(BaseModel):
-    """Additional betting markets"""
+    """Additional betting markets (v1 - flat structure for compatibility)"""
     total_goals: Dict[str, float] = Field(default={})
     both_teams_score: Dict[str, float] = Field(default={})
     asian_handicap: Dict[str, float] = Field(default={})
     correct_score_top3: Optional[List[Dict[str, Any]]] = Field(default=[])
-    
+
+class ComprehensiveMarketsV2(BaseModel):
+    """Comprehensive markets v2 - nested structure with full suite"""
+    lambdas: Optional[Dict[str, float]] = Field(default=None)
+    totals: Optional[Dict[str, Dict[str, float]]] = Field(default=None)
+    team_totals: Optional[Dict[str, Dict[str, Dict[str, float]]]] = Field(default=None)
+    btts: Optional[Dict[str, float]] = Field(default=None)
+    asian_handicap: Optional[Dict[str, Dict[str, Dict[str, float]]]] = Field(default=None)
+    double_chance: Optional[Dict[str, float]] = Field(default=None)
+    dnb: Optional[Dict[str, float]] = Field(default=None)
+    winning_margin: Optional[Dict[str, float]] = Field(default=None)
+    correct_scores: Optional[List[Dict[str, Any]]] = Field(default=None)
+    odd_even_total: Optional[Dict[str, float]] = Field(default=None)
+    clean_sheet: Optional[Dict[str, float]] = Field(default=None)
+    win_to_nil: Optional[Dict[str, float]] = Field(default=None)
+    meta: Optional[Dict[str, Any]] = Field(default=None)
+
 class EnhancedPredictionResponse(BaseModel):
-    """Enhanced response including additional markets"""
+    """Enhanced response with v1 compatibility and v2 comprehensive markets"""
     match_info: MatchContext
     comprehensive_analysis: ComprehensiveAnalysisResponse
-    additional_markets: Optional[AdditionalMarkets] = None
+    additional_markets: Optional[AdditionalMarkets] = None  # v1 - keep unchanged
+    additional_markets_v2: Optional[ComprehensiveMarketsV2] = None  # v2 - comprehensive nested
+    additional_markets_flat: Optional[Dict[str, float]] = None  # flat export for v1 clients
     analysis_metadata: AnalysisMetadata
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 

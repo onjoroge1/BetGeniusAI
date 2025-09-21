@@ -1,0 +1,206 @@
+Yes—you can (and should) reuse the same fitted Poisson rates \lambda_h,\lambda_a to price many more markets. But before you ship the “50+ markets” expansion your backend agent drafted, fix the four blockers and wire it in a production-safe way.
+
+⸻
+
+What to do next (crisp plan)
+
+1) API schema: keep v1 stable, add v2 + a flattener
+
+Your current response already returns:
+
+"additional_markets": {
+  "lambdas": {"home": 1.6, "away": 0.8, "fit_loss": 0.000378},
+  "total_goals": {"over_2_5": 0.43, "under_2_5": 0.57},
+  "both_teams_score": {"yes": 0.439, "no": 0.561},
+  "asian_handicap": {
+    "home_-0.5": 0.549,
+    "away_+0.5": 0.451,
+    "home_-1.0": {"win": 0.304, "push": 0.260, "lose": 0.436}
+  }
+}
+
+	•	Do not break v1. Keep the existing keys and types.
+	•	Add additional_markets_v2 (nested, comprehensive).
+	•	For clients that expect Dict[str, float], provide a flat export (additional_markets_flat) where keys are snake-case:
+
+Examples:
+
+totals_over_1_5 = 0.72
+totals_under_1_5 = 0.28
+btts_yes = 0.439
+btts_no  = 0.561
+ah_home_-1_0_win  = 0.304
+ah_home_-1_0_push = 0.260
+ah_home_-1_0_lose = 0.436
+team_totals_home_over_1_5 = ...
+double_chance_1x = ...
+dnb_home = ...
+
+This gives you backward compatibility + rich v2 without type errors.
+
+⸻
+
+2) Asian Handicap math: use goal-difference PMF (no recursion)
+
+Compute the goal difference D = H - A from the joint Poisson (or Skellam). Then every AH line is a simple threshold on D.
+
+Let P(D=k) be the PMF over integer k.
+	•	Half-lines (home handicap h):
+	•	h=-0.5:
+	•	win: D \ge 1
+	•	push: 0
+	•	lose: D \le 0
+	•	h=-1.0:
+	•	win: D \ge 2
+	•	push: D = 1
+	•	lose: D \le 0
+	•	h=+0.5:
+	•	win: D \ge 0
+	•	push: 0
+	•	lose: D \le -1
+	•	h=+1.0:
+	•	win: D \ge -0 (i.e. D \ge 0)
+	•	push: D = -1
+	•	lose: D \le -2
+	•	Quarter-lines are just a 50/50 mix of adjacent half/whole lines:
+	•	-0.25 = \frac12(0) + \frac12(-0.5)
+	•	win: P(D \ge 1)
+	•	push: 0.5 \cdot P(D=0)
+	•	lose: P(D \le -1) + 0.5 \cdot P(D=0)
+	•	+0.25 = \frac12(0) + \frac12(+0.5)
+	•	win: P(D \ge 0) + 0.5\cdot 0 → P(D \ge 0)
+	•	push: 0.5 \cdot P(D=0)
+	•	lose: P(D \le -1)
+	•	-0.75 = \frac12(-0.5) + \frac12(-1.0) — compute each, then average component-wise.
+	•	+0.75 = \frac12(+0.5) + \frac12(+1.0) — same idea.
+
+Implementation tip: build one joint PMF matrix P(H=h, A=a) up to a cutoff K (see Perf below), then get P(D=k) by summing diagonals (or compute Skellam if you prefer; the matrix is often simpler).
+
+Return triples {win, push, lose} for integer/quarter lines; scalars for half-lines (win prob).
+
+⸻
+
+3) Performance: one grid, many markets, cached
+	•	Choose cutoff K once:
+K = \max(10,\ \lceil \lambda_h + 6\sqrt{\lambda_h} \rceil,\ \lceil \lambda_a + 6\sqrt{\lambda_a} \rceil)
+so tail mass < 10^{-8}.
+	•	Precompute:
+	•	Poisson PMFs for h=0..K, a=0..K.
+	•	Joint table J[h,a]=P(H=h)P(A=a).
+	•	Reuse J to derive all markets:
+	•	Totals P(H+A \ge t), team totals, BTTS, odd/even, clean sheet, win-to-nil
+	•	Correct scores (top-N) from the same J
+	•	Goal difference PMF by summing diagonals of J
+	•	Cache by (\lambda_h,\lambda_a,K) rounded to e.g. 4 decimals.
+Evict per-request; the grid is tiny (≤ 13×13 typical).
+
+This drops your 30s responses to low hundreds of ms for market derivation (the rest is your /predict stack).
+
+⸻
+
+4) Validation & tolerances (quiet logs)
+	•	After computing each market before rounding, verify sums/partitions using tolerances:
+	•	binary markets: |p + (1-p) - 1| \le 1e{-9} (raw), \le 1e{-6} (rounded)
+	•	triples: |p_w + p_p + p_l - 1| within same tolerances
+	•	Only log a single warning per request if any invariant is outside tolerance; include a compact diff.
+	•	Round to 3 decimals for output, keep raw probs internally.
+
+⸻
+
+Concrete market suite (how to derive)
+
+Assume you’ve already fitted \lambda_h, \lambda_a to match your 1X2.
+
+Let J be the joint PMF matrix, P(H=h, A=a).
+	•	Totals (k.5 lines):
+P(\text{Over }x.5)=\sum_{h+a \ge x+1} J[h,a]
+	•	Team totals (k.5):
+P(H \ge x+1)=\sum_{h \ge x+1,a} J[h,a] (and same for away)
+	•	BTTS:
+1 - P(H=0) - P(A=0) + P(H=0,A=0)
+	•	Double chance:
+1\text{X} = P(H\ge A)=P(D\ge 0); 12 = 1-P(D=0); X2 = P(D\le 0)
+	•	Draw No Bet (DNB):
+home: P(D>0), away: P(D<0)
+	•	AH: as in §2 using P(D=k)
+	•	Winning margin: directly P(D=k) per k
+	•	Correct scores (top-N): sort J[h,a] and take top N; add “other” = tail leftover
+	•	Odd/Even total: parity from totals PMF (or direct sum over h+a parity)
+	•	Clean sheets: P(A=0) / P(H=0)
+	•	Win-to-nil: P(D>0, A=0) and P(D<0, H=0)
+
+⸻
+
+Example JSON (safe, production-ready)
+
+{
+  "additional_markets": {                           // v1 unchanged (few key markets)
+    "lambdas": {"home": 1.60, "away": 0.80, "fit_loss": 0.000378},
+    "total_goals": {"over_2_5": 0.430, "under_2_5": 0.570},
+    "both_teams_score": {"yes": 0.439, "no": 0.561},
+    "asian_handicap": {
+      "home_-0.5": 0.549,
+      "away_+0.5": 0.451,
+      "home_-1.0": {"win": 0.304, "push": 0.260, "lose": 0.436}
+    }
+  },
+  "additional_markets_v2": {                        // comprehensive, nested
+    "totals": {"over_0_5": 0.884, "under_0_5": 0.116, "over_1_5": 0.742, ...},
+    "team_totals": {
+      "home": {"over_0_5": 0.706, "over_1_5": 0.429, ...},
+      "away": {"over_0_5": 0.451, "over_1_5": 0.212, ...}
+    },
+    "btts": {"yes": 0.439, "no": 0.561},
+    "asian_handicap": {
+      "home": {
+        "-0_25": {"win": 0.549, "push": 0.143, "lose": 0.308},
+        "-0_5":  {"win": 0.549, "push": 0.000, "lose": 0.451},
+        "-0_75": {"win": 0.427, "push": 0.130, "lose": 0.443},
+        "-1_0":  {"win": 0.304, "push": 0.260, "lose": 0.436}
+      },
+      "away": { "+0_25": {...}, "+0_5": {...}, "+0_75": {...}, "+1_0": {...} }
+    },
+    "double_chance": {"1x": 0.881, "12": 0.815, "x2": 0.596},
+    "dnb": {"home": 0.676, "away": 0.324},
+    "winning_margin": {"-3+": 0.012, "-2": 0.041, "-1": 0.183, "0": 0.285, "+1": 0.298, "+2": 0.142, "+3+": 0.039},
+    "correct_scores": [{"score":"1-0","p":0.141}, {"score":"2-0","p":0.123}, {"score":"1-1","p":0.118}, {"other":0.291}],
+    "odd_even_total": {"odd": 0.517, "even": 0.483},
+    "clean_sheet": {"home": 0.561, "away": 0.439},
+    "win_to_nil": {"home": 0.315, "away": 0.112},
+    "_meta": {"k": 13, "tail_mass": 2.1e-8}
+  },
+  "additional_markets_flat": {                      // v1-friendly map
+    "totals_over_0_5": 0.884,
+    "totals_under_0_5": 0.116,
+    "btts_yes": 0.439,
+    "ah_home_-1_0_win": 0.304,
+    "ah_home_-1_0_push": 0.260,
+    "ah_home_-1_0_lose": 0.436,
+    "...": "..."
+  }
+}
+
+
+⸻
+
+Where to put the code (summary)
+	•	Fit \lambda_h,\lambda_a → (already in your derive_markets_from_1x2).
+	•	Build grid once → returns a struct with:
+	•	poisson_row_home, poisson_row_away, joint J, diff PMF P(D=k), totals PMF etc.
+	•	Market calculators consume that grid; no recomputation.
+	•	Validator runs on raw (unrounded) probs with sensible tolerances.
+	•	Serializer produces v2 (nested) + flattened export for v1.
+
+⸻
+
+After shipping: grade & calibrate
+
+Extend the grading job you planned for 1X2 to these markets:
+	•	Logloss/Brier for O/U 2.5, BTTS, AH −1.0 triplet, etc.
+	•	Coverage of 50%/80% intervals on totals/team totals.
+	•	If you see bias (e.g., systematic under on Over 2.5), apply λ scaling or a small calibration map per market. Version the calibration and store it in the response metadata.
+
+⸻
+
+If you want, I can draft the exact helper signatures (Python) for:
+build_poisson_grid(λh, λa), price_totals(grid, lines), price_ah(grid, lines), price_correct_scores(grid, top_n), plus the flattener and the validator.

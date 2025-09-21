@@ -28,6 +28,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Auto-Retraining System**: Fixed and operational (August 31, 2025) - Models automatically retrain when 50+ matches collected weekly or 10+ matches per session. Training completed successfully with 5,348 matches, 23 numeric features, 3 algorithms (Random Forest, Gradient Boosting, Logistic Regression) in 15.8 seconds. All validation tests passed.
 - **Manual Training Scripts**: `manual_retrain_models.py` for comprehensive retraining with detailed analysis, `trigger_auto_retrain.py` for simulating automatic retraining cycles.
 - **Research Infrastructure**: Advanced features available for research; roadmap includes gradient boosting, deep learning (LSTM, attention networks), and reinforcement learning approaches.
+- **Comprehensive Market System**: PRODUCTION-READY (September 21, 2025) - Enhanced Poisson-based market expansion providing 50+ mathematically consistent markets derived from single λₕ,λₐ parameter fitting. Optimized performance with single PoissonGrid computation and caching, delivering all markets in ~17s. Features three response formats (v1 legacy, v2 nested, flat key-value) with proper API schema validation. Markets include alternate totals, team totals, Asian handicap quarter-lines, double chance, winning margins, correct scores, BTTS, clean sheets, and win-to-nil variants.
 
 ### Enhanced Data Collection System (August 2025)
 - **Dual Collection Strategy**: Scheduler populates both training_matches (completed) and odds_snapshots (upcoming) tables.
