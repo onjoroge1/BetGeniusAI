@@ -1,0 +1,187 @@
+1) Centralized normalization (apply immediately after consensus)
+def normalize_hda(h: float, d: float, a: float) -> tuple[float,float,float]:
+    # clamp negatives, avoid zeros that break DNB
+    h = max(h, 0.0); d = max(d, 0.0); a = max(a, 0.0)
+    s = h + d + a
+    if s <= 0:
+        # safe fallback to uniform
+        return (1/3, 1/3, 1/3)
+    H, D, A = h/s, d/s, a/s
+    # micro nudges to keep in (0,1) and prevent divide-by-zero
+    eps = 1e-12
+    H = min(max(H, eps), 1 - 2*eps)
+    D = min(max(D, eps), 1 - 2*eps)
+    A = min(max(A, eps), 1 - 2*eps)
+    # re-normalize after clamping
+    s2 = H + D + A
+    return (H/s2, D/s2, A/s2)
+
+
+Placement: right after consensus retrieval, before any market derivation.
+Propagation: use (H,D,A) everywhere (Poisson fit, DC/DNB, coherence flags, etc.).
+
+2) Poisson fit + coarse→fine search
+
+Coarse grid for (λₕ, λₐ) (e.g., 0.2…3.0 step 0.1), minimize loss to (H,D,A).
+
+Refine in a ±0.2 window around the best pair (step 0.01).
+
+Tail mass: choose K s.t. P(X>K or Y>K) < 1e-8 (typically K=10 is enough for λ<3).
+
+Loss suggestion:
+
+loss = w1*(P_home - H)**2 + w2*(P_draw - D)**2 + w3*(P_away - A)**2
+# with P_* from bivariate independent Poisson (sum/diff)
+# (w1=w2=w3=1 is fine; you can upweight draw slightly if needed)
+
+3) Correct AH mappings from goal difference PMF
+
+Let G = goals_home - goals_away from the fitted Poisson. Then:
+
+AH -0.5 (home -0.5)
+win = P(G > 0) ; lose = P(G ≤ 0)
+(invariant: win ≈ H within ~0.002)
+
+AH +0.5 (home +0.5)
+win = P(G ≥ 0) ; lose = P(G < 0)
+
+AH -1.0
+win = P(G ≥ 2) ; push = P(G = 1) ; lose = P(G ≤ 0)
+
+AH +1.0
+win = P(G ≥ 1) ; push = P(G = 0) ; lose = P(G ≤ -1)
+
+AH -0.75 (split -0.5/-1.0)
+
+“win” (full) = P(G ≥ 2)
+
+“half_win” = P(G = 1)
+
+“lose” = P(G ≤ 0)
+(You can also expose push/half_lose where appropriate; for -0.75 there’s no push, only half states)
+
+AH +0.75 (split +0.5/+1.0)
+
+“win” (full) = P(G ≥ 1)
+
+“half_win” = P(G = 0)
+
+“lose” = P(G ≤ -1)
+
+Schema rule: always return the same keys for a given handicap node to avoid KeyErrors. If a key doesn’t apply (e.g., push on -0.5), set it to 0.0.
+
+4) DC & DNB from normalized 1X2 (no Poisson needed)
+
+Double Chance:
+1X = H+D, 12 = 1-D, X2 = D+A
+
+Draw No Bet:
+DNB_home = H / (1 - D)
+DNB_away = A / (1 - D)
+(guard if 1-D underflows ~0)
+
+5) Type-stable additional_markets_v2 schema (no mixed types)
+
+The LSP/type errors came from mixing floats and dicts. Use objects everywhere:
+
+"additional_markets_v2": {
+  "lambdas": {"home": 1.12, "away": 0.94, "fit_loss": 0.00037},
+  "totals": {
+    "0_5": {"over": 0.89, "under": 0.11},
+    "1_5": {"over": 0.68, "under": 0.32},
+    "2_5": {"over": 0.41, "under": 0.59},
+    "3_5": {"over": 0.21, "under": 0.79}
+  },
+  "team_totals": {
+    "home": {
+      "0_5": {"over": 0.72, "under": 0.28},
+      "1_5": {"over": 0.34, "under": 0.66}
+    },
+    "away": {
+      "0_5": {"over": 0.61, "under": 0.39},
+      "1_5": {"over": 0.27, "under": 0.73}
+    }
+  },
+  "btts": {"yes": 0.438, "no": 0.562},
+  "double_chance": {"1X": 0.74, "12": 0.62, "X2": 0.66},
+  "dnb": {"home": 0.58, "away": 0.42},
+  "asian_handicap": {
+    "home": {
+      "_minus_0_5": {"win": 0.551, "push": 0.0,   "half_win": 0.0, "half_lose": 0.0, "lose": 0.449},
+      "_minus_1":   {"win": 0.303, "push": 0.261, "half_win": 0.0, "half_lose": 0.0, "lose": 0.436},
+      "_minus_0_75":{"win": 0.303, "push": 0.0,   "half_win": 0.261,"half_lose": 0.0, "lose": 0.436}
+    },
+    "away": {
+      "_plus_0_5":  {"win": 0.449, "push": 0.0,   "half_win": 0.0, "half_lose": 0.0, "lose": 0.551},
+      "_plus_1":    {"win": 0.436, "push": 0.261, "half_win": 0.0, "half_lose": 0.0, "lose": 0.303},
+      "_plus_0_75": {"win": 0.436, "push": 0.0,   "half_win": 0.261,"half_lose": 0.0, "lose": 0.303}
+    }
+  },
+  "correct_scores": [
+    {"score":"0-0","p":0.12}, {"score":"1-0","p":0.14}, {"score":"0-1","p":0.11}, {"score":"Other","p":0.09}
+  ],
+  "coherence": {
+    "hda_sum_valid": true,
+    "dc_identities_valid": true,
+    "dnb_identities_valid": true,
+    "totals_sum_valid": true,
+    "ah_minus_0_5_eq_homewin": true,
+    "overall_coherence_score": 1.0
+  }
+}
+
+
+If you use Pydantic, define models for each node so editors/linters stop complaining.
+
+6) Coherence validation (use raw normalized floats)
+
+Compute flags on the same raw (H,D,A) you use for fitting (not rounded display values).
+
+Tolerances:
+
+identities/sums: ≤ 1e-6
+
+AH −0.5 vs H: ≤ 0.002
+
+probs in [0,1]
+
+Example (pseudocode):
+
+coh = {
+  "hda_sum_valid": abs(H + D + A - 1.0) <= 1e-6,
+  "dc_identities_valid": max(
+    abs(dc["1X"] - (H+D)), abs(dc["12"] - (1-D)), abs(dc["X2"] - (D+A))
+  ) <= 1e-6,
+  "dnb_identities_valid": (
+    abs(dnb["home"] - H/(1-D)) <= 1e-6 and
+    abs(dnb["away"] - A/(1-D)) <= 1e-6
+  ) if (1-D) > 1e-12 else False,
+  "totals_sum_valid": max(
+    *[abs(v["over"]+v["under"]-1.0) for v in totals.values()]
+  ) <= 1e-6,
+  "ah_minus_0_5_eq_homewin": abs(ah_home["_minus_0_5"]["win"] - H) <= 0.002
+}
+coh["overall_coherence_score"] = float(sum(coh.values()))/len(coh)
+
+
+Also log when ah_minus_0_5_eq_homewin fails (diff, λs, match_id) to help tuning.
+
+7) Wire it cleanly into /predict
+
+Build additional_markets_v2 exactly once (from normalized H/D/A + Poisson).
+
+Keep legacy additional_markets (light subset) if you need backward compatibility, but derive it from v2 to stay consistent.
+
+Ensure the response contains the v2 block and coherence every time when include_additional_markets (or new include_additional_markets_v2) is true.
+
+8) Quick backend-only tests (no frontend tables involved)
+
+Unit: given (H,D,A)=(0.60,0.25,0.15) assert DC/DNB identities, totals sum, and AH −0.5 ≈ H.
+
+Smoke: call /predict for 3–5 live matches → confirm:
+
+predictions.home_win + draw + away == 1.0 (within 1e-6)
+
+additional_markets_v2.asian_handicap.home._minus_0_5.win within 0.002 of predictions.home_win
+
+coherence.overall_coherence_score == 1.0 (or very close)
