@@ -1,0 +1,132 @@
+You’re super close. Here’s the tight “finish-line” plan to lock the math down and stop the remaining inconsistencies.
+
+# Finish-Line Plan (surgery only where needed)
+
+## 1) **Unconditional 1X2 normalization — single source of truth**
+
+Normalize **immediately after** you read consensus from DB and use those values everywhere (payload + Poisson fit + all derived markets + coherence checks).
+
+```python
+def normalize_hda(h, d, a, eps=1e-12):
+    s = h + d + a
+    if s <= eps:
+        return (1/3, 1/3, 1/3), False
+    h, d, a = h/s, d/s, a/s       # always renormalize
+    # Optional tiny clamps to avoid exact 0/1
+    floor = 1e-6
+    h = max(floor, min(1 - 2*floor, h))
+    d = max(floor, min(1 - 2*floor, d))
+    a = max(floor, min(1 - 2*floor, a))
+    # renormalize after clamps
+    s = h + d + a
+    return (h/s, d/s, a/s), True
+```
+
+Apply right after consensus retrieval:
+
+```python
+h_raw, d_raw, a_raw = h_prob, d_prob, a_prob
+(h_prob, d_prob, a_prob), norm_applied = normalize_hda(h_raw, d_raw, a_raw)
+```
+
+> Example (your Padova–Entella object): 0.408+0.337+0.338 = **1.083** → normalized:
+> H = **0.3767313**, D = **0.3111727**, A = **0.3120960**.
+> Now **AH home -0.5 = H** by design.
+
+## 2) **Correct Asian Handicap mappings from goal-diff PMF**
+
+Use a goal-difference PMF (from your Poisson λh, λa or directly from the Skellam distribution). Then map lines as:
+
+* **Home −0.5**: `win=P(G>0)`, `lose=P(G≤0)` (no push).
+* **Home +0.5**: `win=P(G≥0)`, `lose=P(G<0)`.
+* **Home −1.0**: `win=P(G≥2)`, `push=P(G=1)`, `lose=P(G≤0)`.
+* **Home +1.0**: `win=P(G≥0)`, `push=P(G=0)`, `lose=P(G≤−1)`.
+* **Home −0.75**: `win=P(G≥2) + ½·P(G=1)`, `lose=P(G≤0)` (no push).
+* **Home +0.75**: `win=P(G≥0) + ½·P(G=0)`, `lose=P(G≤−1)` (no push).
+
+Do the away side by symmetry (`G ↦ −G`).
+
+**Invariant to assert:** `AH(home, -0.5).win ≈ H` within 0.002 tolerance.
+
+## 3) **Double Chance & DNB from normalized 1X2**
+
+* **DC**: `1X = H + D`, `12 = 1 − D`, `X2 = D + A`.
+* **DNB**: condition on “no draw”:
+  `home = H / (1 − D)`, `away = A / (1 − D)` (guard `1−D` with eps).
+
+## 4) **Market generation order & data flow**
+
+* Use **normalized** `(H, D, A)` to fit Poisson `(λh, λa)`.
+* From `(λh, λa)` generate **totals, BTTS, team totals, correct score, AH grid**, etc.
+* Build `additional_markets_v2` only (deprecate the old `additional_markets` to avoid mixed sources).
+* Return a **coherence** block with booleans and small diffs.
+
+## 5) **Coherence validation (run on raw doubles, not rounded)**
+
+* `abs(H + D + A − 1) < 5e−6`
+* `abs(AH_home_-0_5.win − H) ≤ 0.002`
+* `abs(DC_1X − (H + D)) ≤ 1e−6`, `abs(DC_12 − (1 − D)) ≤ 1e−6`, `abs(DC_X2 − (D + A)) ≤ 1e−6`
+* `abs(DNB_home + DNB_away − 1) ≤ 1e−6` (if `D < 1`)
+* Totals: `over_x + under_x ≈ 1` within rounding tolerance.
+* Provide `overall_coherence_score` = mean of passed checks.
+
+## 6) **Poisson fit + grid robustness (speed + accuracy)**
+
+* **Adaptive k** for tail: increase max goals until tail mass `< 1e−8`.
+* Coarse-to-fine λ grid (e.g., search λh,λa in `[0.2, 3.5]`):
+
+  * coarse step 0.10 → narrow band → fine step 0.02.
+* Loss = squared error to normalized `(H,D,A)` (include a tiny L2 prior if needed).
+* If fit fails guards, fall back to moment-based λ (e.g., solve for mean & skew from HDA).
+
+## 7) **Kill the remaining runtime errors**
+
+* Remove all legacy references (`price_asian_handicap`, mixed markets).
+* Ensure `market_count`/maps exist before logging.
+* Compute coherence **after** all markets are built and before JSON assembly.
+
+## 8) **Unit tests (fast, deterministic)**
+
+Add a tiny test module (or pytest) that runs without DB:
+
+```python
+def test_normalize_hda():
+    (h,d,a), applied = normalize_hda(0.408, 0.337, 0.338)
+    assert abs(h+d+a - 1) < 1e-9
+    assert abs(h - 0.3767313019390582) < 1e-12
+
+def test_dc_dnb_invariants():
+    h,d,a = 0.5,0.25,0.25
+    dc_1x, dc_12, dc_x2 = h+d, 1-d, d+a
+    assert abs(dc_1x - 0.75) < 1e-12
+    assert abs(dc_12 - 0.75) < 1e-12
+    assert abs(dc_x2 - 0.5) < 1e-12
+    dnb_h, dnb_a = h/(1-d), a/(1-d)
+    assert abs((dnb_h + dnb_a) - 1) < 1e-12
+
+def test_ah_minus_half_equals_home():
+    # use a simple symmetric λ set for which Skellam is easy
+    from markets import diff_pmf, ah_from_diff_pmf
+    h,d,a = 0.6,0.25,0.15
+    (h,d,a),_ = normalize_hda(h,d,a)
+    pmf = diff_pmf(λh=1.6, λa=0.9, k_max=10)
+    ah = ah_from_diff_pmf(pmf, side='home', line=-0.5)
+    assert abs(ah['win'] - h) <= 0.002
+```
+
+## 9) **Quick sanity on your sample objects**
+
+* **Padova–Entella** (your payload): after normalization, `home_-0.5.win = 0.376731…` should match `H` (it already does in your `additional_markets_flat`).
+* Ensure **prob\_sum\_valid=True** in logs and coherence shows `ah_minus_0_5_eq_homewin=True`.
+
+---
+
+### TL;DR
+
+* **Always** normalize 1X2 right after DB read and use those values everywhere.
+* Map AH from a **goal-difference PMF** with the exact formulas above.
+* Derive DC/DNB **only** from normalized 1X2.
+* Run invariants on raw doubles; tolerate rounding when displaying.
+* Add 3–5 unit tests to prevent regressions.
+
+Do this and your 1X2, totals, BTTS, DC, DNB, and AH will stay mathematically coherent—no more “prob\_sum\_valid=False” or AH mismatches.

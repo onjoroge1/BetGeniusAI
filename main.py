@@ -34,21 +34,31 @@ from models.clv_api import CLVMonitorAPI
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# CENTRALIZED 1X2 NORMALIZATION UTILITY
-def normalize_hda(p_home: float, p_draw: float, p_away: float, *, eps: float = 1e-12) -> tuple[float, float, float]:
+# CENTRALIZED 1X2 NORMALIZATION UTILITY (UNCONDITIONAL)
+def normalize_hda(h: float, d: float, a: float, eps: float = 1e-12) -> tuple[tuple[float, float, float], bool]:
     """
-    Normalize H/D/A probabilities if sum is close to 1.0 (soft normalization)
-    Returns: (normalized_home, normalized_draw, normalized_away)
+    ALWAYS normalize H/D/A probabilities for mathematical consistency
+    Returns: ((normalized_home, normalized_draw, normalized_away), normalization_applied)
     """
-    p = [max(p_home, 0.0), max(p_draw, 0.0), max(p_away, 0.0)]
-    s = p[0] + p[1] + p[2]
+    s = h + d + a
+    if s <= eps:
+        return (1/3, 1/3, 1/3), False
     
-    # Soft normalization only if close to 1 (covers bookmaker noise)
-    if 0.95 <= s <= 1.05 and s > eps:
-        p = [x / s for x in p]
-        logger.info(f"🔧 SOFT RENORMALIZED: {s:.6f} → 1.000000")
+    # ALWAYS renormalize (unconditional)
+    h, d, a = h/s, d/s, a/s
     
-    return p[0], p[1], p[2]
+    # Optional tiny clamps to avoid exact 0/1
+    floor = 1e-6
+    h = max(floor, min(1 - 2*floor, h))
+    d = max(floor, min(1 - 2*floor, d))
+    a = max(floor, min(1 - 2*floor, a))
+    
+    # Renormalize after clamps
+    s = h + d + a
+    normalized = (h/s, d/s, a/s)
+    
+    logger.info(f"🔧 UNCONDITIONAL RENORMALIZED: {h+d+a:.6f} → 1.000000")
+    return normalized, True
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -814,7 +824,7 @@ def derive_comprehensive_markets(home_prob: float, draw_prob: float, away_prob: 
             return max(0.0, min(1.0, p))
         
         # ===== V2 COMPREHENSIVE MARKETS (nested structure) =====
-        v2_markets = {
+        v2_markets: Dict[str, Any] = {
             "lambdas": {
                 "home": round(lambda_h, 3),
                 "away": round(lambda_a, 3),
@@ -1898,7 +1908,7 @@ async def predict_match(
         h_raw = probabilities.get('home', 0.0)
         d_raw = probabilities.get('draw', 0.0)
         a_raw = probabilities.get('away', 0.0)
-        h_norm, d_norm, a_norm = normalize_hda(h_raw, d_raw, a_raw)
+        (h_norm, d_norm, a_norm), norm_applied = normalize_hda(h_raw, d_raw, a_raw)
         
         predictions = {
             "home_win": round(h_norm, 3),
