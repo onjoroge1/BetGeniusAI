@@ -1,0 +1,196 @@
+You’re super close. Here’s a tight, surgical plan to **finish the math fixes** and stop the remaining inconsistencies (1X2 sum ≠ 1, AH mapping errors, markets occasionally missing).
+
+# 1) Centralize 1X2 normalization (one source of truth)
+
+Add a tiny utility and call it **immediately after you read consensus** and **before** you:
+
+* emit `predictions`
+* fit Poisson λ’s
+* compute any derived markets
+
+```py
+# utils/prob.py (or top of main.py)
+import math
+
+def normalize_hda(p_home, p_draw, p_away, *, eps=1e-12):
+    p = [max(p_home, 0.0), max(p_draw, 0.0), max(p_away, 0.0)]
+    s = p[0] + p[1] + p[2]
+    # “soft” normalization only if close to 1 (covers bookmaker noise)
+    if 0.95 <= s <= 1.05 and s > eps:
+        p = [x / s for x in p]
+    return p[0], p[1], p[2]
+```
+
+**Where to call:** right after consensus retrieval (the function that returns the 1X2 probabilities from DB). Replace any direct use of raw probs with the normalized values, e.g.:
+
+```py
+h_raw, d_raw, a_raw = h_prob, d_prob, a_prob
+h_prob, d_prob, a_prob = normalize_hda(h_raw, d_raw, a_raw)
+
+pred_payload["predictions"]["home_win"] = h_prob
+pred_payload["predictions"]["draw"]     = d_prob
+pred_payload["predictions"]["away_win"] = a_prob
+
+# pass *normalized* to Poisson fit
+lam_h, lam_a = fit_poisson_from_hda(h_prob, d_prob, a_prob, ...)
+```
+
+Also set the flag you log/check:
+
+```py
+pred_payload["coherence"] = {"hda_sum": round(h_prob + d_prob + a_prob, 6)}
+pred_payload["prob_sum_valid"] = abs((h_prob + d_prob + a_prob) - 1.0) < 1e-6
+```
+
+# 2) Keep Poisson fit + all markets derived from λ
+
+You already do this—just make sure **λ is fitted using the normalized H/D/A** and every derived market (totals, BTTS, AH, DC, DNB, correct scores, etc.) is computed from **the same λ**. Don’t mix “consensus HDA” and “Poisson HDA” in different places.
+
+# 3) Fix Asian Handicap mapping (no more halving probabilities)
+
+Compute the **goal-difference PMF** `P(G=k)` from λ (you can keep your grid or Skellam; grid is fine). Then map handicaps with these identities:
+
+Let `Pdiff(k)` be `P(G=k)` and `S(cond)` means sum of `Pdiff(k)` over k that meet the condition.
+
+* **−0.5:**
+  `win = S(k>0)`; `lose = S(k≤0)`
+* **+0.5:**
+  `win = S(k≥0)`; `lose = S(k<0)`
+* **−1.0:**
+  `win = S(k>1)`; `push = Pdiff(1)`; `lose = S(k<1)`
+* **+1.0:**
+  `win = S(k≥1)`; `push = Pdiff(0)`; `lose = S(k≤-1)`
+* **−0.25:**
+  `win = S(k>0)`; **`half_lose = Pdiff(0)`**; `lose = S(k<0)`
+* **+0.25:**
+  `win = S(k>0)`; **`half_win = Pdiff(0)`**; `lose = S(k<0)`
+* **−0.75:**
+  `win = S(k≥2)`; **`half_win = Pdiff(1)`**; `lose = S(k≤0)`
+* **+0.75:**
+  `win = S(k≥1)`; **`half_win = Pdiff(0)`**; `lose = S(k≤-1)`
+
+> Note: “half” applies to settlement, **not** to probability; you store the **full probability mass** in the `half_win/half_lose` fields.
+
+**Invariant to enforce:** `AH -0.5 win == normalized_home_win` (within tolerance).
+
+Stub:
+
+```py
+def ah_from_diff_pmf(Pdiff):
+    def S(cond):
+        return sum(p for k,p in Pdiff.items() if cond(k))
+
+    return {
+      "home": {
+        "_minus_0_5": {"win": S(lambda k:k>0), "push": 0.0, "lose": S(lambda k:k<=0)},
+        "_minus_1":   {"win": S(lambda k:k>1), "push": Pdiff.get(1,0.0), "lose": S(lambda k:k<1)},
+        "_minus_0_25":{"win": S(lambda k:k>0), "half_win":0.0, "half_lose": Pdiff.get(0,0.0), "lose": S(lambda k:k<0)},
+        "_minus_0_75":{"win": S(lambda k:k>=2), "half_win": Pdiff.get(1,0.0), "half_lose":0.0, "lose": S(lambda k:k<=0)},
+        # add more lines as needed…
+      },
+      "away": {
+        "_plus_0_5":  {"win": S(lambda k:k<=0), "push": 0.0, "lose": S(lambda k:k>0)},
+        "_plus_1":    {"win": S(lambda k:k<=0), "push": Pdiff.get(0,0.0), "lose": S(lambda k:k>=1)},
+        "_plus_0_25": {"win": S(lambda k:k<0), "half_win": Pdiff.get(0,0.0), "half_lose":0.0, "lose": S(lambda k:k>0)},
+        "_plus_0_75": {"win": S(lambda k:k<=-1), "half_win": Pdiff.get(0,0.0), "half_lose":0.0, "lose": S(lambda k:k>=1)},
+      }
+    }
+```
+
+# 4) Double Chance & DNB strictly from normalized H/D/A
+
+* **Double chance:**
+  `1X = H + D`, `12 = 1 - D`, `X2 = D + A`
+* **DNB:**
+  `DNB_home = H / (1 - D)`, `DNB_away = A / (1 - D)` (guard if `D≈1`)
+
+Compute these **after** normalization and before/independent of Poisson.
+
+# 5) Coherence block + invariants (fail-soft, always return)
+
+Always compute these and include them even if a market fails:
+
+```py
+def make_coherence(h, d, a, Pdiff, ah):
+    eps = 1e-6
+    out = {}
+    out["hda_sum"] = round(h+d+a, 6)
+    out["hda_sum_valid"] = abs((h+d+a) - 1.0) < 1e-6
+    out["ah_minus_05_eq_homewin"] = abs(ah["home"]["_minus_0_5"]["win"] - h) < 1e-6
+    out["dc_1X_eq"] = abs((h+d) - (h+d)) < eps  # placeholder if you compute separately
+    out["dnb_home_eq"] = abs((h/(1-d) if (1-d)>eps else 0) - /* your dnb_home */ 0) < 1e-6
+    out["fit_loss"] = round(/* your Poisson fit loss */, 6)
+    return out
+```
+
+Return something like:
+
+```json
+"coherence": {
+  "hda_sum": 1.0,
+  "hda_sum_valid": true,
+  "ah_minus_05_eq_homewin": true,
+  "dc_1X_eq": true,
+  "dnb_home_eq": true,
+  "fit_loss": 0.0013
+}
+```
+
+# 6) Make market generation unbreakable
+
+Wrap each market block; log, don’t abort:
+
+```py
+additional = {}
+errors = []
+
+try:
+    additional["totals"] = build_totals(lam_h, lam_a)
+except Exception as e:
+    errors.append(f"totals:{type(e).__name__}")
+try:
+    additional["btts"] = build_btts(lam_h, lam_a)
+except Exception as e:
+    errors.append(f"btts:{type(e).__name__}")
+try:
+    diff_pmf = build_diff_pmf(lam_h, lam_a, k=meta_k)
+    additional["asian_handicap"] = ah_from_diff_pmf(diff_pmf)
+except Exception as e:
+    errors.append(f"ah:{type(e).__name__}")
+# …etc
+
+payload["additional_markets_v2"] = additional
+payload["coherence"] = make_coherence(h,d,a,diff_pmf,additional.get("asian_handicap",{}))
+payload["markets_errors"] = errors
+```
+
+Also, **drop the legacy** `additional_markets` block to prevent mixed sources; keep only `additional_markets_v2` + `additional_markets_flat` (derived from v2).
+
+# 7) Micro-tests you can run now
+
+Use your Padova–Virtus sample (`λ_h=1.0, λ_a=0.8` after normalization):
+
+* `clean_sheet_home ≈ exp(-λ_a) = 0.449` ✅
+* `BTTS_yes = 1 - e^{-λ_h} - e^{-λ_a} + e^{-(λ_h+λ_a)} ≈ 0.348` ✅
+* `Totals 0.5`: `over ≈ 1 - e^{-(1.8)} ≈ 0.835` ✅
+* **Invariant:** `AH home -0.5 win == normalized home_win` ✅
+* **DC:** `1X == H + D`, `12 == 1 - D`, `X2 == D + A` ✅
+* **DNB:** `home == H/(1-D)`, `away == A/(1-D)` ✅
+
+If any fails, log which and the two numbers.
+
+# 8) Confidence calc stays consistent
+
+You already replaced the arbitrary `max_prob*(1-avg_dispersion)` with a calibrated method. Keep it, just make sure it uses the **normalized** H/D/A.
+
+---
+
+## TL;DR
+
+* **Normalize H/D/A once**, use everywhere.
+* **Derive everything from λ** (fitted on normalized H/D/A).
+* **Fix AH/DC/DNB mappings** exactly as above.
+* **Always return a coherence block** and **never crash on a bad market**.
+* **Remove the legacy markets block** to eliminate conflicting sources.
+
+Do those four edits and your payloads will be internally coherent (no more `prob_sum_valid=False`), AH −0.5 will equal Home win, and DC/DNB will line up with your 1X2 and Poisson model.

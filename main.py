@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, Union
 import asyncio
 import logging
+import math
+import os
 from datetime import datetime
 
 from utils.config import settings
@@ -31,6 +33,22 @@ from models.clv_api import CLVMonitorAPI
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# CENTRALIZED 1X2 NORMALIZATION UTILITY
+def normalize_hda(p_home: float, p_draw: float, p_away: float, *, eps: float = 1e-12) -> tuple[float, float, float]:
+    """
+    Normalize H/D/A probabilities if sum is close to 1.0 (soft normalization)
+    Returns: (normalized_home, normalized_draw, normalized_away)
+    """
+    p = [max(p_home, 0.0), max(p_draw, 0.0), max(p_away, 0.0)]
+    s = p[0] + p[1] + p[2]
+    
+    # Soft normalization only if close to 1 (covers bookmaker noise)
+    if 0.95 <= s <= 1.05 and s > eps:
+        p = [x / s for x in p]
+        logger.info(f"🔧 SOFT RENORMALIZED: {s:.6f} → 1.000000")
+    
+    return p[0], p[1], p[2]
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -354,72 +372,113 @@ def prob_ah_home_minus_1(lambda_h: float, lambda_a: float):
     
     return {"win": p_win, "push": p_push, "lose": p_lose}
 
-def price_asian_handicap(grid: PoissonGrid, handicap: float) -> dict:
+def ah_from_diff_pmf(Pdiff: dict) -> dict:
     """
-    Calculate Asian Handicap probabilities using CORRECTED goal-difference formulas
+    Calculate Asian Handicap markets using CORRECTED goal-difference formulas
     G = Home_Goals - Away_Goals (positive = home advantage)
-    Home handicap h: Effective goal difference is G + h
     
-    Returns unified dict: {win, lose, push, half_win, half_lose} (zeros where not applicable)
+    Uses precise formulas from architectural guidance:
+    - AH -0.5: win = P(G>0); lose = P(G≤0) 
+    - AH +0.5: win = P(G≥0); lose = P(G<0)
+    - AH +1.0: win = P(G≥1); push = P(G=0); lose = P(G≤-1)
+    - AH +0.75: win = P(G≥1); half_win = P(G=0); lose = P(G≤-1)
+    
+    Returns unified structure preventing KeyError issues
     """
-    diff_pmf = grid.diff_pmf
-    tol = 1e-9
+    def S(cond):
+        """Sum probabilities where condition is met"""
+        return sum(p for k, p in Pdiff.items() if cond(k))
     
-    # Initialize unified return structure (prevents KeyError)
-    result = {"win": 0.0, "lose": 0.0, "push": 0.0, "half_win": 0.0, "half_lose": 0.0}
-    
-    # Quarter-lines: Split-leg logic (ARCHITECT CORRECTED)
-    if abs((handicap % 0.5) - 0.25) < tol:  # Quarter lines like -0.25, +0.25, -0.75, +0.75
-        
-        if abs(handicap - 0.25) < tol:  # +0.25 = (0.0 + 0.5)/2
-            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > 0)    # P(G>0)
-            result["half_win"] = diff_pmf.get(0, 0)  # P(G=0) becomes half-win
-            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < 0)   # P(G<0)
-            
-        elif abs(handicap + 0.25) < tol:  # -0.25 = (0.0 + (-0.5))/2
-            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > 0)    # P(G>0)
-            result["half_lose"] = diff_pmf.get(0, 0)  # P(G=0) becomes half-lose
-            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < 0)   # P(G<0)
-            
-        elif abs(handicap - 0.75) < tol:  # +0.75 = (+0.5 + +1.0)/2 (CORRECTED)
-            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff >= 0)   # P(G≥0)
-            result["half_lose"] = diff_pmf.get(-1, 0)  # P(G=-1) becomes half-lose
-            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff <= -2) # P(G≤-2)
-            
-        elif abs(handicap + 0.75) < tol:  # -0.75 = (-0.5 + -1.0)/2 (CORRECTED)
-            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff >= 2)   # P(G≥2)
-            result["half_win"] = diff_pmf.get(1, 0)  # P(G=1) becomes half-win
-            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff <= 0)  # P(G≤0)
-    
-    # Half-lines: General parameterized formula
-    elif abs((handicap % 1.0) - 0.5) < tol:  # Half lines
-        # For home handicap h.5: win = P(G > -h), lose = P(G < -h)
-        threshold = -handicap
-        
-        if handicap > 0:  # Positive half-lines like +0.5, +1.5, +2.5
-            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > threshold)
-            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < threshold)
-        else:  # Negative half-lines like -0.5, -1.5, -2.5  
-            result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > threshold)
-            result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < threshold)
-    
-    # Whole lines: General parameterized formula (CORRECTED)
-    elif abs(handicap - round(handicap)) < tol:  # Whole lines
-        # For home handicap h.0: win = P(G > -h), push = P(G = -h), lose = P(G < -h)
-        threshold = -handicap
-        
-        result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > threshold)
-        result["push"] = diff_pmf.get(int(threshold), 0)
-        result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < threshold)
-    
-    # Fallback: Use parameterized threshold logic
-    else:
-        threshold = -handicap
-        result["win"] = sum(prob for diff, prob in diff_pmf.items() if diff > threshold)
-        result["push"] = diff_pmf.get(int(threshold), 0) if threshold == int(threshold) else 0.0
-        result["lose"] = sum(prob for diff, prob in diff_pmf.items() if diff < threshold)
-    
-    return result
+    return {
+        "home": {
+            "_minus_0_5": {
+                "win": S(lambda k: k > 0), 
+                "push": 0.0, 
+                "lose": S(lambda k: k <= 0),
+                "half_win": 0.0,
+                "half_lose": 0.0
+            },
+            "_minus_1": {
+                "win": S(lambda k: k > 1), 
+                "push": Pdiff.get(1, 0.0), 
+                "lose": S(lambda k: k < 1),
+                "half_win": 0.0,
+                "half_lose": 0.0
+            },
+            "_minus_0_25": {
+                "win": S(lambda k: k > 0), 
+                "half_win": 0.0, 
+                "half_lose": Pdiff.get(0, 0.0), 
+                "lose": S(lambda k: k < 0),
+                "push": 0.0
+            },
+            "_minus_0_75": {
+                "win": S(lambda k: k >= 2), 
+                "half_win": Pdiff.get(1, 0.0), 
+                "half_lose": 0.0, 
+                "lose": S(lambda k: k <= 0),
+                "push": 0.0
+            },
+            "_minus_1_5": {
+                "win": S(lambda k: k >= 2), 
+                "push": 0.0, 
+                "lose": S(lambda k: k <= 1),
+                "half_win": 0.0,
+                "half_lose": 0.0
+            },
+            "_minus_2": {
+                "win": S(lambda k: k > 2), 
+                "push": Pdiff.get(2, 0.0), 
+                "lose": S(lambda k: k < 2),
+                "half_win": 0.0,
+                "half_lose": 0.0
+            }
+        },
+        "away": {
+            "_plus_0_5": {
+                "win": S(lambda k: k <= 0), 
+                "push": 0.0, 
+                "lose": S(lambda k: k > 0),
+                "half_win": 0.0,
+                "half_lose": 0.0
+            },
+            "_plus_1": {
+                "win": S(lambda k: k <= 0), 
+                "push": Pdiff.get(0, 0.0), 
+                "lose": S(lambda k: k >= 1),
+                "half_win": 0.0,
+                "half_lose": 0.0
+            },
+            "_plus_0_25": {
+                "win": S(lambda k: k < 0), 
+                "half_win": Pdiff.get(0, 0.0), 
+                "half_lose": 0.0, 
+                "lose": S(lambda k: k > 0),
+                "push": 0.0
+            },
+            "_plus_0_75": {
+                "win": S(lambda k: k <= -1), 
+                "half_win": Pdiff.get(0, 0.0), 
+                "half_lose": 0.0, 
+                "lose": S(lambda k: k >= 1),
+                "push": 0.0
+            },
+            "_plus_1_5": {
+                "win": S(lambda k: k <= -2), 
+                "push": 0.0, 
+                "lose": S(lambda k: k >= -1),
+                "half_win": 0.0,
+                "half_lose": 0.0
+            },
+            "_plus_2": {
+                "win": S(lambda k: k < -2), 
+                "push": Pdiff.get(-2, 0.0), 
+                "lose": S(lambda k: k > -2),
+                "half_win": 0.0,
+                "half_lose": 0.0
+            }
+        }
+    }
 
 def validate_market_coherence(v2_markets: dict, grid: PoissonGrid, pH: float, pD: float, pA: float, fit_result: dict) -> dict:
     """
@@ -779,38 +838,46 @@ def derive_comprehensive_markets(home_prob: float, draw_prob: float, away_prob: 
             btts = price_btts(grid)
             v2_markets["btts"] = {k: round(clamp_prob(v), 3) for k, v in btts.items()}
         
-        if markets_config.get("asian"):
-            v2_markets["asian_handicap"] = {"home": {}, "away": {}}
-            for handicap in markets_config["asian"]:
-                ah_probs = price_asian_handicap(grid, handicap)
-                handicap_key = f"{handicap:+g}".replace(".", "_").replace("+", "_plus_").replace("-", "_minus_")
-                
-                # Apply to home handicap
-                if "half_win" in ah_probs:  # Quarter-line
-                    v2_markets["asian_handicap"]["home"][handicap_key] = {
-                        "win": round(clamp_prob(ah_probs["win"]), 3),
-                        "half_win": round(clamp_prob(ah_probs["half_win"]), 3),
-                        "half_lose": round(clamp_prob(ah_probs["half_lose"]), 3),
-                        "lose": round(clamp_prob(ah_probs["lose"]), 3)
-                    }
-                else:  # Whole or half line
-                    v2_markets["asian_handicap"]["home"][handicap_key] = {
-                        "win": round(clamp_prob(ah_probs["win"]), 3),
-                        "push": round(clamp_prob(ah_probs["push"]), 3),
-                        "lose": round(clamp_prob(ah_probs["lose"]), 3)
-                    }
+        # DOUBLE CHANCE: Directly from normalized H/D/A (CORRECTED)
+        v2_markets["double_chance"] = {
+            "1X": round(clamp_prob(pH + pD), 3),     # Home or Draw
+            "12": round(clamp_prob(1.0 - pD), 3),    # Home or Away (not draw)  
+            "X2": round(clamp_prob(pD + pA), 3)      # Draw or Away
+        }
         
-        if markets_config.get("double_chance"):
-            dc_probs = prob_double_chance(pH, pD, pA)
-            v2_markets["double_chance"] = {k: round(clamp_prob(v), 3) for k, v in dc_probs.items()}
-        
-        if markets_config.get("dnb"):
-            dnb_home = pH / (pH + pA)
-            dnb_away = pA / (pH + pA)
+        # DRAW NO BET: Directly from normalized H/D/A (CORRECTED)
+        eps = 1e-6
+        if (1.0 - pD) > eps:
             v2_markets["dnb"] = {
-                "home": round(clamp_prob(dnb_home), 3),
-                "away": round(clamp_prob(dnb_away), 3)
+                "home": round(clamp_prob(pH / (1.0 - pD)), 3),
+                "away": round(clamp_prob(pA / (1.0 - pD)), 3)
             }
+        else:
+            v2_markets["dnb"] = {"home": 0.5, "away": 0.5}  # Fallback
+        
+        # ASIAN HANDICAP: Use new corrected function (CORRECTED)
+        if markets_config.get("asian"):
+            try:
+                ah_markets = ah_from_diff_pmf(grid.diff_pmf)
+                v2_markets["asian_handicap"] = {}
+                
+                # Copy home markets with rounding (only non-zero values)
+                v2_markets["asian_handicap"]["home"] = {}
+                for key, probs in ah_markets["home"].items():
+                    v2_markets["asian_handicap"]["home"][key] = {
+                        k: round(clamp_prob(v), 3) for k, v in probs.items() if v > 0
+                    }
+                
+                # Copy away markets with rounding (only non-zero values)  
+                v2_markets["asian_handicap"]["away"] = {}
+                for key, probs in ah_markets["away"].items():
+                    v2_markets["asian_handicap"]["away"][key] = {
+                        k: round(clamp_prob(v), 3) for k, v in probs.items() if v > 0
+                    }
+                    
+            except Exception as e:
+                logger.error(f"Asian Handicap calculation failed: {e}")
+                v2_markets["asian_handicap"] = {"error": "calculation_failed"}
         
         if markets_config.get("margin"):
             margin_probs = price_winning_margin(grid)
@@ -1826,10 +1893,17 @@ async def predict_match(
         # Step 5: Build comprehensive response with frontend-compatible structure
         # Map new consensus predictor keys to frontend expectations
         probabilities = prediction_result.get('probabilities', {})
+        
+        # APPLY CENTRALIZED NORMALIZATION IMMEDIATELY (single source of truth)
+        h_raw = probabilities.get('home', 0.0)
+        d_raw = probabilities.get('draw', 0.0)
+        a_raw = probabilities.get('away', 0.0)
+        h_norm, d_norm, a_norm = normalize_hda(h_raw, d_raw, a_raw)
+        
         predictions = {
-            "home_win": round(probabilities.get('home', 0.0), 3),
-            "draw": round(probabilities.get('draw', 0.0), 3),
-            "away_win": round(probabilities.get('away', 0.0), 3),
+            "home_win": round(h_norm, 3),
+            "draw": round(d_norm, 3),
+            "away_win": round(a_norm, 3),
             "confidence": prediction_result['confidence'],
             "recommended_bet": prediction_result.get('prediction', 'No Prediction')
         }
@@ -1862,9 +1936,9 @@ async def predict_match(
             "ml_prediction": {
                 "confidence": prediction_result['confidence'],
                 "probabilities": {
-                    "home_win": round(probabilities.get('home', 0.0), 3),
-                    "draw": round(probabilities.get('draw', 0.0), 3),
-                    "away_win": round(probabilities.get('away', 0.0), 3)
+                    "home_win": round(h_norm, 3),
+                    "draw": round(d_norm, 3),
+                    "away_win": round(a_norm, 3)
                 },
                 "model_type": prediction_result.get('model_type', 'robust_weighted_consensus')
             },
@@ -1889,26 +1963,12 @@ async def predict_match(
         
         response["comprehensive_analysis"] = comprehensive_analysis
         
-        # CENTRALIZED 1X2 NORMALIZATION: Apply immediately after consensus for consistency
-        home_prob = predictions['home_win']
-        draw_prob = predictions['draw']
-        away_prob = predictions['away_win']
-        
-        # SOFT RENORMALIZATION: If sum is close to 1.0, normalize for mathematical consistency
-        prob_sum = home_prob + draw_prob + away_prob
-        if 0.95 <= prob_sum <= 1.05:
-            home_prob = home_prob / prob_sum
-            draw_prob = draw_prob / prob_sum  
-            away_prob = away_prob / prob_sum
-            logger.info(f"🔧 SOFT RENORMALIZED: {prob_sum:.6f} → 1.000000")
-            
-            # Update the predictions object with normalized values for ALL uses
-            predictions['home_win'] = home_prob
-            predictions['draw'] = draw_prob
-            predictions['away_win'] = away_prob
-
-        # Add additional markets using mathematically sound Poisson goal model
+        # Add additional markets using mathematically sound Poisson goal model  
         if request.include_additional_markets:
+            # Use normalized probabilities for ALL downstream calculations
+            home_prob = h_norm
+            draw_prob = d_norm
+            away_prob = a_norm
             
             # Calculate injury adjustment factor for goal rates
             home_injuries = len(match_data.get('home_team', {}).get('injuries', []))
