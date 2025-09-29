@@ -1,0 +1,282 @@
+Perfect—here’s a drop-in implementation brief you can hand to your backend AI agent. It’s structured as a tightly scoped task list with models, jobs, endpoints, and acceptance tests. Copy/paste and run.
+
+⸻
+
+Backend AI Agent — Implementation Brief: “CLV Club” Add-On
+
+0) Feature flag & config
+
+Add to your config/env:
+
+ENABLE_CLV_CLUB=true
+CLV_MIN_BOOKS=8
+CLV_MIN_STABILITY=0.70
+CLV_DEFAULT_MIN_CLV_PCT=2.0        # % edge to alert (Basic)
+CLV_PRO_MIN_CLV_PCT=3.0            # % edge to alert (Pro)
+CLV_STALENESS_SEC=120              # drop stale book quotes
+CLV_TRIM_FRACTION=0.10             # 10% trimmed aggregator
+CLV_CLOSING_METHOD=LAST5_VWAP      # or LAST_TICK
+CLV_CLOSING_WINDOW_SEC=300         # last 5 minutes
+
+
+⸻
+
+1) Database schema (SQLAlchemy or SQL migration)
+
+1.1 clv_alerts
+
+Stores live/issued CLV opportunities.
+
+CREATE TABLE IF NOT EXISTS clv_alerts (
+  alert_id UUID PRIMARY KEY,
+  match_id BIGINT NOT NULL,
+  league TEXT NOT NULL,
+  outcome CHAR(1) NOT NULL CHECK (outcome IN ('H','D','A')),
+  best_book_id INT NOT NULL,
+  best_odds_dec NUMERIC(10,4) NOT NULL,
+  market_odds_dec NUMERIC(10,4) NOT NULL,      -- de-juiced composite odds for outcome
+  clv_pct NUMERIC(6,3) NOT NULL,               -- ((best - composite) / composite)*100
+  stability NUMERIC(5,3) NOT NULL,             -- 0..1
+  books_used INT NOT NULL,
+  window_tag TEXT NOT NULL,                     -- e.g., T-72to48, T-48to24, etc.
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_clv_alerts_match ON clv_alerts(match_id);
+CREATE INDEX IF NOT EXISTS idx_clv_alerts_created ON clv_alerts(created_at);
+
+1.2 clv_realized
+
+Settles alerts vs the closing line and result.
+
+CREATE TABLE IF NOT EXISTS clv_realized (
+  alert_id UUID PRIMARY KEY REFERENCES clv_alerts(alert_id) ON DELETE CASCADE,
+  closing_odds_dec NUMERIC(10,4) NOT NULL,
+  realized_clv_pct NUMERIC(6,3) NOT NULL,
+  settled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  match_outcome CHAR(1) NOT NULL CHECK (match_outcome IN ('H','D','A')),
+  win BOOLEAN NOT NULL
+);
+
+1.3 (Optional) clv_subscriptions
+
+Only if you want per-user preferences now; otherwise skip and use global defaults.
+
+CREATE TABLE IF NOT EXISTS clv_subscriptions (
+  user_id UUID PRIMARY KEY,
+  leagues TEXT[] NOT NULL DEFAULT '{}',
+  min_clv_pct NUMERIC(6,3) NOT NULL DEFAULT 2.0,
+  allowed_book_ids INT[] NOT NULL DEFAULT '{}',
+  channels TEXT[] NOT NULL DEFAULT '{}',       -- ["email","webhook"]
+  webhook_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+⸻
+
+2) Book & odds hygiene
+
+2.1 Book metadata (desk grouping)
+
+Add (or ensure you have) a bookmakers table with:
+
+bookmaker_id INT PK,
+name TEXT,
+desk_group TEXT  -- books sharing trading desk; used to dedupe
+
+2.2 De-juice & independence
+	•	De-juice: convert decimals to implied probs p_i = 1/odds_i, then remove overround by proportional renorm:
+
+def dejuice_three_way(pH, pD, pA):
+    s = max(1e-12, (pH + pD + pA))
+    return pH/s, pD/s, pA/s  # naive proportional; fast & stable
+
+	•	Independence: if multiple books share desk_group, keep the most recent quote or take the better odds per outcome for that group (avoid double-counting).
+	•	Staleness: drop any book quote older than CLV_STALENESS_SEC.
+
+⸻
+
+3) Consensus & CLV computation
+
+3.1 Robust consensus (trimmed aggregator)
+
+For each outcome k∈{H,D,A}, gather de-juiced p_k across independent books, sort, drop 10% tails, average remaining; then normalize to (H,D,A) sum=1.
+
+def robust_consensus(ps, trim=0.10):
+    # ps = list of floats
+    if not ps: return None
+    ps = sorted(ps)
+    n = len(ps); a = int(n*trim); b = n - a
+    trimmed = ps[a:b] if b > a else ps
+    return sum(trimmed)/len(trimmed)
+
+def composite_from_books(books_probs):
+    # books_probs: list of dicts {"H":pH,"D":pD,"A":pA} (already de-juiced)
+    Hs = [b["H"] for b in books_probs]; Ds = [b["D"] for b in books_probs]; As = [b["A"] for b in books_probs]
+    H = robust_consensus(Hs); D = robust_consensus(Ds); A = robust_consensus(As)
+    s = max(1e-12, H+D+A); return {"H": H/s, "D": D/s, "A": A/s}
+
+Convert the composite probability for target outcome to composite decimal odds: odds_dec = 1 / p_outcome.
+
+3.2 Best book
+
+For the same outcome, select the highest available decimal odds among the independent books a user can access (global for now).
+
+3.3 CLV % edge
+
+clv_pct = 100 * (best_odds_dec - composite_odds_dec) / composite_odds_dec
+
+3.4 Line Stability (0..1)
+
+Compute stability as an exponential decay over the standard deviation of recent (last 60–90m) composite probabilities:
+
+def stability(last_probs):  # list of floats for target outcome over time
+    if len(last_probs) < 3: return 1.0
+    std = statistics.pstdev(last_probs)
+    # scale to 0..1, pick k so ~3pp std → ~0.7 stability
+    k = 60.0
+    return math.exp(-k * std)
+
+Gate: proceed only if books_used >= CLV_MIN_BOOKS and stability >= CLV_MIN_STABILITY.
+
+3.5 Window tag
+
+Based on (kickoff - now):
+	•	T-72to48, T-48to24, T-24to8, T-8to1, T-1to0.
+
+⸻
+
+4) Alert producer job
+
+A lightweight job (runs every minute):
+	1.	Pull eligible fixtures (next 72h).
+	2.	Load latest book odds per fixture (within staleness).
+	3.	Build independent, de-juiced probs per book; compute composite.
+	4.	For each outcome (H/D/A):
+	•	find best book/odds among independent/allowed books,
+	•	compute clv_pct, stability, books_used.
+	•	If clv_pct ≥ threshold (use CLV_DEFAULT_MIN_CLV_PCT for now), create clv_alerts row with TTL: expires_at = now + 15m.
+
+Idempotency: unique constraint on (match_id, outcome, created_at rounded to minute) or create a hash key, so repeats don’t spam.
+
+⸻
+
+5) Closing line & realization worker
+
+When the match locks (kickoff) or shortly before:
+	•	Compute closing composite odds using CLV_CLOSING_METHOD:
+	•	LAST5_VWAP: volume-weighted median/mean of last 5 minutes across independent books (or fallback to last tick if volume unknown).
+	•	After results arrive (you already save them), for each clv_alerts.alert_id:
+	•	closing_odds_dec for same outcome,
+	•	realized_clv_pct = 100 * (closing_odds_dec - best_odds_dec) / best_odds_dec,
+	•	win = (match_outcome == outcome).
+	•	Insert into clv_realized.
+
+⸻
+
+6) APIs (read-only for Pro tier)
+
+6.1 GET /clv/opportunities?league=...&window=...
+
+Returns currently valid alerts (non-expired).
+
+{
+  "count": 7,
+  "items": [
+    {
+      "match_id": 1419631,
+      "league": "Serie B",
+      "outcome": "H",
+      "best_odds": 2.72,
+      "best_book_id": 160,
+      "market_composite_odds": 2.58,
+      "clv_pct": 5.4,
+      "stability": 0.82,
+      "books_used": 14,
+      "window": "T-48to24",
+      "expires_at": "2025-09-29T14:15:00Z"
+    }
+  ]
+}
+
+6.2 GET /clv/alerts/history?league=...&window=7d
+
+Paged historical alerts with realized CLV if settled.
+
+6.3 GET /clv/realized?match_id=...
+
+Returns all alerts for the match with realized outcomes.
+
+(Optional) 6.4 POST /clv/subscribe to save per-user preferences for allowed books/leagues/min CLV.
+
+⸻
+
+7) Metrics & dashboards
+
+Emit counters/gauges:
+	•	clv.alerts_emitted_total
+	•	clv.alerts_active
+	•	clv.realized_clv_pct_avg (overall & by league/window)
+	•	clv.stability_avg
+	•	clv.books_used_avg
+	•	clv.alert_to_bet_conversion (if/when you wire acted flags)
+
+Add a weekly report job that summarizes:
+	•	Avg realized CLV by league & window bucket,
+	•	Distribution of clv_pct at alert time,
+	•	Win rate stratified by CLV buckets (informative, not promise).
+
+⸻
+
+8) Acceptance tests (must pass)
+	1.	De-juice correctness: three-way probs renormalize to 1.000000 (±1e-9).
+	2.	Independence dedupe: two books with same desk_group do not double-count.
+	3.	Staleness filter: quotes older than CLV_STALENESS_SEC ignored.
+	4.	Consensus robustness: with outliers ±30%, 10% trim yields stable composite.
+	5.	Alert gating: no alert when books_used < CLV_MIN_BOOKS or stability < CLV_MIN_STABILITY.
+	6.	CLV calc: clv_pct matches hand calculation for a fixture.
+	7.	Closing method: LAST5_VWAP produces deterministic closing odds given a synthetic minute-by-minute feed.
+	8.	Realization: realized_clv_pct persisted and sign is correct (positive if you beat the close).
+	9.	APIs: opportunities exclude expired alerts; history includes realized fields when available.
+	10.	Idempotency: rerunning producer doesn’t create duplicate alerts.
+
+⸻
+
+9) Rollout plan
+	•	Phase 1 (internal): ENABLE_CLV_CLUB=true; alerts produced, no external delivery; validate metrics for 1–2 leagues.
+	•	Phase 2 (pilot Basic): expose /clv/opportunities (read-only) for selected leagues; no subscriptions yet.
+	•	Phase 3 (Pro): enable subscriptions/webhooks; add realized CLV to weekly email.
+
+⸻
+
+10) Code snippets (helpers)
+
+# odds utils
+def implied_from_decimal(odds: float) -> float:
+    return 1.0 / max(1e-12, odds)
+
+def composite_odds_from_probs(p: float) -> float:
+    return 1.0 / max(1e-12, p)
+
+def clv_pct(best_odds_dec: float, composite_odds_dec: float) -> float:
+    return 100.0 * (best_odds_dec - composite_odds_dec) / composite_odds_dec
+
+# stability window tagging
+def window_tag(kickoff_utc, now_utc):
+    dt = (kickoff_utc - now_utc).total_seconds()/3600.0
+    if 48 <= dt <= 72: return "T-72to48"
+    if 24 <= dt < 48:  return "T-48to24"
+    if 8  <= dt < 24:  return "T-24to8"
+    if 1  <= dt < 8:   return "T-8to1"
+    return "T-1to0"
+
+
+⸻
+
+Notes
+	•	Keep language in responses informational (not financial advice).
+	•	Respect confidence gating in your main /predict—CLV Club is orthogonal and focuses on price edge vs market, not pick recommendations.
+
+That’s everything your backend agent needs to implement CLV Club as a clean, standalone add-on tied to your monthly subscription tiers—without touching the frontend.
