@@ -1,0 +1,21 @@
+# CLV Club Desk Group Overrides
+# Books sharing the same desk_group are considered dependent
+# Only one quote per desk_group will be used for independence filtering
+#
+# Default policy: Each book_id is its own independent desk_group
+# Add entries here to merge brands that share trading desks
+#
+# Example:
+# desk_groups:
+#   15: "bet365_group"     # Bet365
+#   42: "bet365_group"     # Bet365 variant (same desk)
+#   88: "pinnacle_group"   # Pinnacle
+#   89: "pinnacle_group"   # Pinnacle variant (same desk)
+
+desk_groups: {}
+
+# To add desk group merges, use format:
+#   book_id: "desk_group_name"
+#
+# Book IDs sharing the same desk_group_name will be deduplicated
+# (the most recent quote from that group will be kept)
