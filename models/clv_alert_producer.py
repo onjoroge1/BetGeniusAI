@@ -66,15 +66,17 @@ class CLVAlertProducer:
                 
                 # Find fixtures with odds in the target window
                 cursor.execute("""
-                    SELECT DISTINCT
+                    SELECT 
                         os.match_id,
-                        os.league,
-                        os.kickoff_at
+                        COALESCE(lm.league_name, CAST(os.league_id AS text)) as league_name,
+                        m.match_date_utc as kickoff_at
                     FROM odds_snapshots os
-                    WHERE os.kickoff_at > NOW()
-                      AND os.kickoff_at < NOW() + INTERVAL '%s hours'
+                    LEFT JOIN league_map lm ON os.league_id = lm.league_id
+                    LEFT JOIN matches m ON os.match_id = m.match_id
+                    WHERE m.match_date_utc > NOW()
+                      AND m.match_date_utc < NOW() + make_interval(hours => %s)
                       AND os.ts_snapshot > NOW() - INTERVAL '10 minutes'
-                    GROUP BY os.match_id, os.league, os.kickoff_at
+                    GROUP BY os.match_id, lm.league_name, os.league_id, m.match_date_utc
                     HAVING COUNT(DISTINCT os.book_id) >= %s
                 """, (max_hours_ahead, settings.CLV_MIN_BOOKS_MINOR))
                 
@@ -91,7 +93,7 @@ class CLVAlertProducer:
                 return fixtures
                 
         except Exception as e:
-            logger.error(f"Error fetching upcoming fixtures: {e}")
+            logger.exception(f"Error fetching upcoming fixtures: {e}")
             return []
     
     def _get_match_odds(self, match_id: int) -> List[BookOdds]:
