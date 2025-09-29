@@ -11,7 +11,10 @@ import threading
 import json
 import psycopg2
 import os
+import sys
 from models.automated_collector import AutomatedCollector
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,9 @@ class BackgroundScheduler:
         # Weekends: every 3 hours for better coverage
         self.weekday_hours = [2, 8, 14, 20]  # Every 6 hours
         self.weekend_hours = [2, 5, 8, 11, 14, 17, 20, 23]  # Every 3 hours
+        # Metrics calculation schedule (every 6 hours)
+        self.metrics_hours = [3, 9, 15, 21]  # Offset by 1 hour from data collection
+        self.last_metrics_calculation: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -41,6 +47,7 @@ class BackgroundScheduler:
         self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
         self.scheduler_thread.start()
         logger.info("Background scheduler started - enhanced schedule: 6h weekdays, 3h weekends")
+        logger.info("Automated metrics calculation enabled - runs every 6 hours at 03:00, 09:00, 15:00, 21:00 UTC")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -101,8 +108,9 @@ class BackgroundScheduler:
         return None
 
     async def _scheduler_loop(self):
-        """Enhanced scheduler loop for frequent odds collection"""
+        """Enhanced scheduler loop for frequent odds collection and metrics tracking"""
         logger.info("🚀 Enhanced scheduler started - capturing odds nuances with frequent collection")
+        logger.info("📊 Automated metrics tracking enabled - calculates accuracy every 6 hours")
         
         while self.is_running:
             try:
@@ -153,6 +161,13 @@ class BackgroundScheduler:
                     if current_hour not in target_hours or current_minute >= 15:
                         logger.debug(f"⏰ Next collection: {next_hour:02d}:00 UTC ({'weekend' if is_weekend else 'weekday'} schedule)")
                 
+                # Check for metrics calculation schedule (every 6 hours at offset times)
+                if current_hour in self.metrics_hours and current_minute < 15:
+                    # Check if we already calculated metrics at this hour today
+                    if not self.last_metrics_calculation or (now - self.last_metrics_calculation).total_seconds() > 3600:
+                        logger.info(f"📊 SCHEDULER: Running metrics calculation at {now.strftime('%H:%M:%S')} UTC")
+                        await self._run_metrics_calculation()
+                
                 # Check every 10 minutes for more responsive scheduling
                 await asyncio.sleep(600)
                 
@@ -180,6 +195,27 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"🛡️ Safety net error: {e}")
+    
+    async def _run_metrics_calculation(self):
+        """Run automated metrics calculation for completed matches"""
+        try:
+            logger.info("📊 Running automated metrics calculation...")
+            
+            from calculate_metrics_results import MetricsResultsCalculator
+            
+            calculator = MetricsResultsCalculator()
+            stats = calculator.process_completed_matches(limit=50)
+            
+            if stats['metrics_computed'] > 0:
+                logger.info(f"✅ Metrics calculation complete: {stats['metrics_computed']} matches processed")
+                logger.info(f"   Results fetched: {stats['results_fetched']}, Errors: {stats['errors']}")
+            else:
+                logger.debug("📊 No new metrics computed (no completed matches found)")
+            
+            self.last_metrics_calculation = datetime.utcnow()
+                
+        except Exception as e:
+            logger.error(f"📊 Metrics calculation error: {e}")
     
     def trigger_immediate_collection(self, force=False):
         """Trigger immediate collection cycle (non-blocking)
