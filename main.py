@@ -2172,6 +2172,36 @@ async def predict_match(
                     "both_teams_score": {"yes": 0.50, "no": 0.50}
                 }
         
+        # ACCURACY TRACKING: Auto-log prediction snapshot (100% backend-driven)
+        try:
+            from models.database import DatabaseManager
+            db_manager = DatabaseManager()
+            
+            # Prepare prediction data for logging
+            prediction_snapshot_data = {
+                'match_id': request.match_id,
+                'kickoff_at': datetime.fromisoformat(match_info['date'].replace('Z', '+00:00')) if match_info.get('date') else None,
+                'league': match_info.get('league'),
+                'model_version': response.get('model_info', {}).get('version', '1.0.0'),
+                'probs_h': predictions['home_win'],
+                'probs_d': predictions['draw'],
+                'probs_a': predictions['away_win'],
+                'confidence': predictions['confidence'],
+                'tone': predictions['recommendation_tone'],
+                'recommended': predictions['recommended_bet'],
+                'latency_ms': int(processing_time * 1000),
+                'source': 'api.predict.v2'
+            }
+            
+            # Log the prediction snapshot
+            snapshot_id = db_manager.log_prediction_snapshot(prediction_snapshot_data)
+            if snapshot_id:
+                logger.debug(f"📊 Logged prediction snapshot {snapshot_id} for accuracy tracking")
+            
+        except Exception as e:
+            # Don't break the API if logging fails
+            logger.warning(f"Failed to log prediction snapshot for accuracy tracking: {e}")
+        
         # Comprehensive completion logging
         metadata = prediction_result.get('metadata', {})
         logger.info(f"✅ PREDICTION COMPLETED | match_id={request.match_id} | {match_info['home_team']} vs {match_info['away_team']} | recommendation={predictions['recommended_bet']} | confidence={predictions['confidence']:.3f} | triplets={metadata.get('n_triplets_used', 0)} | books_raw={metadata.get('n_books_raw', 0)} | dispersion={metadata.get('dispersion', 0)} | prob_sum_valid={metadata.get('prob_sum_valid', False)} | reco_aligned={metadata.get('reco_aligned', False)} | processing_time={processing_time:.2f}s")
