@@ -2909,6 +2909,255 @@ async def internal_error_handler(request, exc):
         }
     )
 
+# ===== ACCURACY TRACKING APIs (100% Backend-Driven) =====
+
+@app.get("/metrics/match/{match_id}")
+async def get_match_metrics(
+    match_id: int,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get comprehensive accuracy metrics for a specific match
+    Returns prediction snapshot + result + computed metrics
+    """
+    try:
+        from models.database import DatabaseManager
+        db_manager = DatabaseManager()
+        session = db_manager.SessionLocal()
+        
+        # Get match result
+        result = session.query(MatchResult).filter_by(match_id=match_id).first()
+        if not result:
+            session.close()
+            raise HTTPException(status_code=404, detail=f"No result found for match {match_id}")
+        
+        # Get computed metrics
+        metrics = session.query(MetricsPerMatch).filter_by(match_id=match_id).first()
+        if not metrics:
+            session.close()
+            raise HTTPException(status_code=404, detail=f"No computed metrics found for match {match_id}")
+        
+        # Get evaluation snapshot
+        snapshot = session.query(PredictionSnapshot).filter_by(snapshot_id=metrics.snapshot_id_eval).first()
+        if not snapshot:
+            session.close()
+            raise HTTPException(status_code=404, detail=f"No prediction snapshot found for match {match_id}")
+        
+        session.close()
+        
+        # Build response exactly as suggested in user's specification
+        response = {
+            "match_id": match_id,
+            "result": {
+                "outcome": result.outcome,
+                "home_goals": result.home_goals,
+                "away_goals": result.away_goals,
+                "finalized_at": result.finalized_at.isoformat()
+            },
+            "evaluation_snapshot": {
+                "snapshot_id": str(snapshot.snapshot_id),
+                "served_at": snapshot.served_at.isoformat(),
+                "probs": {"H": snapshot.probs_h, "D": snapshot.probs_d, "A": snapshot.probs_a},
+                "confidence": snapshot.confidence,
+                "tone": snapshot.tone,
+                "recommended": snapshot.recommended,
+                "latency_ms": snapshot.latency_ms
+            },
+            "metrics": {
+                "brier": round(metrics.brier, 4),
+                "logloss": round(metrics.logloss, 4),
+                "hit": metrics.hit
+            }
+        }
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting match metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving metrics: {str(e)}")
+
+@app.get("/metrics/summary")
+async def get_metrics_summary(
+    league: Optional[str] = Query(None, description="Filter by league name"),
+    window: str = Query("14d", description="Time window (7d, 14d, 30d, 90d, 365d)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get aggregated accuracy metrics with league and time filtering
+    Returns summary statistics and confidence band breakdowns
+    """
+    try:
+        from models.database import DatabaseManager
+        import psycopg2
+        
+        db_manager = DatabaseManager()
+        
+        # Parse time window
+        days_map = {"7d": 7, "14d": 14, "30d": 30, "90d": 90, "365d": 365}
+        days = days_map.get(window, 14)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        
+        # Use raw SQL for complex aggregations
+        conn = psycopg2.connect(db_manager.database_url)
+        cursor = conn.cursor()
+        
+        # Build WHERE clause
+        where_clause = "WHERE m.computed_at >= %s"
+        params = [cutoff_date]
+        
+        if league:
+            where_clause += " AND m.league = %s"
+            params.append(league)
+        
+        # Main summary query
+        summary_sql = f"""
+            SELECT 
+                COUNT(*) as n,
+                AVG(m.brier) as avg_brier,
+                AVG(m.logloss) as avg_logloss,
+                AVG(m.hit::float) as hit_rate
+            FROM metrics_per_match m
+            {where_clause}
+        """
+        
+        cursor.execute(summary_sql, params)
+        summary_row = cursor.fetchone()
+        
+        if not summary_row or summary_row[0] == 0:
+            cursor.close()
+            conn.close()
+            return {
+                "league": league or "All Leagues",
+                "window": window,
+                "n": 0,
+                "brier": None,
+                "logloss": None,
+                "hit_rate": None,
+                "by_confidence": {}
+            }
+        
+        n, avg_brier, avg_logloss, hit_rate = summary_row
+        
+        # Confidence band breakdown
+        confidence_sql = f"""
+            SELECT 
+                m.confidence_band,
+                COUNT(*) as n,
+                AVG(m.brier) as avg_brier,
+                AVG(m.logloss) as avg_logloss,
+                AVG(m.hit::float) as hit_rate
+            FROM metrics_per_match m
+            {where_clause}
+            GROUP BY m.confidence_band
+            ORDER BY m.confidence_band
+        """
+        
+        cursor.execute(confidence_sql, params)
+        confidence_rows = cursor.fetchall()
+        
+        by_confidence = {}
+        for row in confidence_rows:
+            band, band_n, band_brier, band_logloss, band_hit_rate = row
+            if band:
+                by_confidence[band] = {
+                    "n": band_n,
+                    "brier": round(band_brier, 4) if band_brier else None,
+                    "logloss": round(band_logloss, 4) if band_logloss else None,
+                    "hit_rate": round(band_hit_rate, 4) if band_hit_rate else None
+                }
+        
+        cursor.close()
+        conn.close()
+        
+        # Build response exactly as suggested in user's specification
+        response = {
+            "league": league or "All Leagues",
+            "window": window,
+            "n": n,
+            "brier": round(avg_brier, 4) if avg_brier else None,
+            "logloss": round(avg_logloss, 4) if avg_logloss else None,
+            "hit_rate": round(hit_rate, 4) if hit_rate else None,
+            "by_confidence": by_confidence
+        }
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting metrics summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving summary: {str(e)}")
+
+@app.post("/metrics/result")
+async def add_match_result(
+    result_data: dict,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Add final match result for accuracy computation
+    Expected: {"match_id": int, "home_goals": int, "away_goals": int, "league": str}
+    """
+    try:
+        from models.database import DatabaseManager
+        db_manager = DatabaseManager()
+        
+        # Validate required fields
+        required_fields = ['match_id', 'home_goals', 'away_goals']
+        for field in required_fields:
+            if field not in result_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        # Save match result
+        success = db_manager.save_match_result(result_data)
+        
+        if success:
+            # Compute accuracy metrics for this match
+            computed_count = db_manager.compute_accuracy_metrics()
+            return {
+                "success": True,
+                "match_id": result_data['match_id'],
+                "metrics_computed": computed_count,
+                "message": f"Match result saved and {computed_count} metrics computed"
+            }
+        else:
+            return {
+                "success": False,
+                "match_id": result_data['match_id'],
+                "message": "Match result already exists or failed to save"
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding match result: {e}")
+        raise HTTPException(status_code=500, detail=f"Error saving result: {str(e)}")
+
+@app.post("/metrics/compute")
+async def compute_all_metrics(
+    force_recompute: bool = Query(False, description="Force recompute existing metrics"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Compute accuracy metrics for all matches with results
+    Joins prediction snapshots with match results
+    """
+    try:
+        from models.database import DatabaseManager
+        db_manager = DatabaseManager()
+        
+        computed_count = db_manager.compute_accuracy_metrics(force_recompute=force_recompute)
+        
+        return {
+            "success": True,
+            "metrics_computed": computed_count,
+            "force_recompute": force_recompute,
+            "message": f"Computed accuracy metrics for {computed_count} matches"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error computing metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Error computing metrics: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
