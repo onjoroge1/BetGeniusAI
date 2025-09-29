@@ -1,0 +1,162 @@
+Yep—you can make **metrics 100% backend-driven**. The frontend doesn’t have to do anything beyond calling `/predict`. Here’s a tight plan that logs every prediction server-side and exposes **one API (plus a couple summaries)** to read accuracy per match/league.
+
+# Architecture (backend-only)
+
+1. **Auto-log on `/predict`**
+   Every successful response writes an immutable **PredictionSnapshot** row. No FE POSTs needed.
+
+2. **Results ingestor**
+   A small job/webhook that writes **MatchResult** once the score is final.
+
+3. **Accuracy worker**
+   Periodically joins `PredictionSnapshot` ↔ `MatchResult`, computes **Brier**, **LogLoss**, **Hit-rate**, and stores a **MetricsPerMatch** row.
+
+4. **Read APIs**
+
+   * `GET /metrics/match/{match_id}` — everything about that match (snapshots + accuracy).
+   * `GET /metrics/summary?league=...&window=14d` — rollups.
+   * `GET /metrics/calibration?league=...&window=14d` — reliability bins (optional).
+
+---
+
+## Tables (minimal)
+
+**prediction_snapshots**
+
+* `snapshot_id` (uuid), `match_id`, `served_at`, `kickoff_at`, `league`, `model_version`
+* `probs_h`, `probs_d`, `probs_a`, `confidence`, `tone`, `recommended`
+* `latency_ms`, `overround_used` (if you add vig), `input_hash`
+* `source` (e.g., “api.predict.v2”) — helps filter A/B variants
+
+**match_results**
+
+* `match_id`, `home_goals`, `away_goals`, `outcome` ∈ {H,D,A}, `finalized_at`
+
+**metrics_per_match**
+
+* `match_id`, `snapshot_id_eval`, `brier`, `logloss`, `hit`, `computed_at`
+* optional: `league`, `confidence_band`, `clv` if you track market odds
+
+> **Evaluation policy**: choose **the snapshot the user actually received** (the same `/predict` response), or fallback to **last pre-kickoff**. Keep the policy column on the row.
+
+---
+
+## Auto-logging in code (middleware or inline)
+
+```python
+# in your predict handler, once you have probs and response ready:
+snapshot = {
+  "snapshot_id": str(uuid4()),
+  "match_id": match_id,
+  "served_at": datetime.utcnow().isoformat(),
+  "kickoff_at": kickoff_iso,
+  "league": league_code,
+  "model_version": model_version,
+  "probs_h": pH, "probs_d": pD, "probs_a": pA,
+  "confidence": confidence,
+  "tone": tone,                      # "avoid" / "lean" / "recommend"
+  "recommended": recommended_bet,    # respects gating
+  "latency_ms": int(latency_ms)
+}
+db.insert("prediction_snapshots", snapshot)
+```
+
+**No FE involvement**—this runs whenever `/predict` is served.
+
+---
+
+## Accuracy math (backend)
+
+* **Multi-class Brier**: `( (pH−yH)^2 + (pD−yD)^2 + (pA−yA)^2 ) / 3`
+* **LogLoss**: `−ln(p_true)`
+* **Hit-rate**: `argmax(p) == outcome`
+
+```sql
+-- example: compute per match from latest snapshot before kickoff
+INSERT INTO metrics_per_match (...)
+SELECT
+  s.match_id,
+  s.snapshot_id,
+  ((POWER(s.probs_h - CASE WHEN r.outcome='H' THEN 1 ELSE 0 END, 2) +
+    POWER(s.probs_d - CASE WHEN r.outcome='D' THEN 1 ELSE 0 END, 2) +
+    POWER(s.probs_a - CASE WHEN r.outcome='A' THEN 1 ELSE 0 END, 2)) / 3.0) AS brier,
+  -LN(CASE r.outcome
+        WHEN 'H' THEN s.probs_h
+        WHEN 'D' THEN s.probs_d
+        ELSE s.probs_a END) AS logloss,
+  CASE WHEN (GREATEST(s.probs_h, s.probs_d, s.probs_a) =
+             CASE r.outcome WHEN 'H' THEN s.probs_h WHEN 'D' THEN s.probs_d ELSE s.probs_a END)
+       THEN 1 ELSE 0 END AS hit,
+  NOW() AS computed_at
+FROM prediction_snapshots s
+JOIN match_results r USING (match_id)
+WHERE s.served_at <= r.finalized_at  -- ensure pre-result
+  AND s.snapshot_id = (
+      SELECT s2.snapshot_id
+      FROM prediction_snapshots s2
+      WHERE s2.match_id = s.match_id
+        AND s2.served_at <= r.finalized_at
+      ORDER BY s2.served_at DESC
+      LIMIT 1
+  );
+```
+
+---
+
+## Read API shapes
+
+**GET `/metrics/match/{match_id}`** → one object
+
+```json
+{
+  "match_id": 1419631,
+  "result": {"outcome":"D","home_goals":1,"away_goals":1},
+  "evaluation_snapshot": {
+    "snapshot_id": "uuid",
+    "served_at": "2025-09-21T22:29:13Z",
+    "probs": {"H":0.377,"D":0.311,"A":0.312},
+    "confidence": 0.1471,
+    "tone": "avoid",
+    "recommended": "No bet - Info only",
+    "latency_ms": 15951
+  },
+  "metrics": {"brier": 0.XX, "logloss": 0.XXX, "hit": 0}
+}
+```
+
+**GET `/metrics/summary?league=Serie%20B&window=14d`**
+
+```json
+{
+  "league": "Serie B",
+  "window": "14d",
+  "n": 412,
+  "brier": 0.224,
+  "logloss": 1.073,
+  "hit_rate": 0.42,
+  "by_confidence": {
+    "[0,0.15)": {"n": 120, "brier": 0.248},
+    "[0.15,0.30)": {"n": 190, "brier": 0.228},
+    "[0.30,1]": {"n": 102, "brier": 0.201}
+  }
+}
+```
+
+*(Optional)* **GET `/metrics/calibration?league=...`** returns reliability bins for charting.
+
+---
+
+## Why you might still pass optional FE context
+
+Not required, but handy:
+
+* **A/B variant** (`X-Variant: copy_v2`) so you can compare summaries without ambiguity.
+* **Shown odds** if the FE displays a specific bookmaker’s price—lets you compute CLV/EV for *that* view.
+
+If you don’t send these, backend metrics still work; you just won’t be able to slice by UI experiment or exact user-shown odds.
+
+---
+
+### Bottom line
+
+You’re right: **keep it all in the backend**. Log on `/predict`, ingest results, compute accuracy, and expose a **single per-match metrics API** (plus optional league summaries). The FE becomes a pure viewer.

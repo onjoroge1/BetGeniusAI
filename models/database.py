@@ -5,12 +5,14 @@ PostgreSQL database for persistent training data storage
 
 import os
 import json
+import uuid
+import math
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 import logging
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,95 @@ class TrainingMatch(Base):
             'features': self.features,
             'home_goals': self.home_goals,
             'away_goals': self.away_goals
+        }
+
+class PredictionSnapshot(Base):
+    """Auto-logged prediction snapshots for accuracy tracking"""
+    __tablename__ = 'prediction_snapshots'
+    
+    snapshot_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    match_id = Column(Integer, nullable=False, index=True)
+    served_at = Column(DateTime, nullable=False, default=datetime.now(timezone.utc))
+    kickoff_at = Column(DateTime, nullable=True)
+    league = Column(String(50), nullable=True)
+    model_version = Column(String(20), nullable=False, default="1.0.0")
+    
+    # Prediction probabilities
+    probs_h = Column(Float, nullable=False)
+    probs_d = Column(Float, nullable=False)  
+    probs_a = Column(Float, nullable=False)
+    confidence = Column(Float, nullable=False)
+    tone = Column(String(20), nullable=False)  # "avoid", "lean", "confident"
+    recommended = Column(String(100), nullable=False)
+    
+    # Performance metadata
+    latency_ms = Column(Integer, nullable=True)
+    overround_used = Column(Float, nullable=True)
+    input_hash = Column(String(64), nullable=True)
+    source = Column(String(50), nullable=False, default="api.predict.v2")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'snapshot_id': str(self.snapshot_id),
+            'match_id': self.match_id,
+            'served_at': self.served_at.isoformat(),
+            'kickoff_at': self.kickoff_at.isoformat() if self.kickoff_at is not None else None,
+            'league': self.league,
+            'model_version': self.model_version,
+            'probs': {'H': self.probs_h, 'D': self.probs_d, 'A': self.probs_a},
+            'confidence': self.confidence,
+            'tone': self.tone,
+            'recommended': self.recommended,
+            'latency_ms': self.latency_ms
+        }
+
+class MatchResult(Base):
+    """Final match results for accuracy computation"""
+    __tablename__ = 'match_results'
+    
+    match_id = Column(Integer, primary_key=True)
+    home_goals = Column(Integer, nullable=False)
+    away_goals = Column(Integer, nullable=False)
+    outcome = Column(String(1), nullable=False)  # 'H', 'D', 'A'
+    finalized_at = Column(DateTime, nullable=False, default=datetime.now(timezone.utc))
+    league = Column(String(50), nullable=True)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'match_id': self.match_id,
+            'home_goals': self.home_goals,
+            'away_goals': self.away_goals,
+            'outcome': self.outcome,
+            'finalized_at': self.finalized_at.isoformat()
+        }
+
+class MetricsPerMatch(Base):
+    """Computed accuracy metrics per match"""
+    __tablename__ = 'metrics_per_match'
+    
+    match_id = Column(Integer, primary_key=True)
+    snapshot_id_eval = Column(UUID(as_uuid=True), nullable=False)
+    brier = Column(Float, nullable=False)
+    logloss = Column(Float, nullable=False)
+    hit = Column(Integer, nullable=False)  # 0 or 1
+    computed_at = Column(DateTime, nullable=False, default=datetime.now(timezone.utc))
+    
+    # Optional enhanced metrics
+    league = Column(String(50), nullable=True)
+    confidence_band = Column(String(20), nullable=True)  # "[0,0.15)", "[0.15,0.30)", "[0.30,1]"
+    clv = Column(Float, nullable=True)  # Closing Line Value if available
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'match_id': self.match_id,
+            'snapshot_id_eval': str(self.snapshot_id_eval),
+            'brier': self.brier,
+            'logloss': self.logloss,
+            'hit': self.hit,
+            'computed_at': self.computed_at.isoformat(),
+            'league': self.league,
+            'confidence_band': self.confidence_band,
+            'clv': self.clv
         }
 
 class DatabaseManager:
@@ -369,3 +460,181 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting recent matches: {e}")
             return []
+    
+    # ===== ACCURACY TRACKING METHODS =====
+    
+    def log_prediction_snapshot(self, prediction_data: Dict[str, Any]) -> str:
+        """Auto-log prediction snapshot for accuracy tracking (100% backend-driven)"""
+        try:
+            session = self.SessionLocal()
+            
+            snapshot = PredictionSnapshot(
+                match_id=prediction_data['match_id'],
+                served_at=datetime.now(timezone.utc),
+                kickoff_at=prediction_data.get('kickoff_at'),
+                league=prediction_data.get('league'),
+                model_version=prediction_data.get('model_version', '1.0.0'),
+                probs_h=prediction_data['probs_h'],
+                probs_d=prediction_data['probs_d'], 
+                probs_a=prediction_data['probs_a'],
+                confidence=prediction_data['confidence'],
+                tone=prediction_data['tone'],
+                recommended=prediction_data['recommended'],
+                latency_ms=prediction_data.get('latency_ms'),
+                overround_used=prediction_data.get('overround_used'),
+                input_hash=prediction_data.get('input_hash'),
+                source=prediction_data.get('source', 'api.predict.v2')
+            )
+            
+            session.add(snapshot)
+            session.commit()
+            snapshot_id = str(snapshot.snapshot_id)
+            session.close()
+            
+            logger.debug(f"📊 Logged prediction snapshot {snapshot_id} for match {prediction_data['match_id']}")
+            return snapshot_id
+            
+        except Exception as e:
+            logger.error(f"Error logging prediction snapshot: {e}")
+            if 'session' in locals():
+                session.rollback()
+                session.close()
+            return ""
+    
+    def save_match_result(self, result_data: Dict[str, Any]) -> bool:
+        """Save final match result for accuracy computation"""
+        try:
+            session = self.SessionLocal()
+            
+            # Check if result already exists
+            existing = session.query(MatchResult).filter_by(match_id=result_data['match_id']).first()
+            if existing:
+                logger.debug(f"Match result {result_data['match_id']} already exists")
+                session.close()
+                return False
+            
+            # Determine outcome from goals
+            home_goals = result_data['home_goals']
+            away_goals = result_data['away_goals']
+            if home_goals > away_goals:
+                outcome = 'H'
+            elif away_goals > home_goals:
+                outcome = 'A'
+            else:
+                outcome = 'D'
+            
+            result = MatchResult(
+                match_id=result_data['match_id'],
+                home_goals=home_goals,
+                away_goals=away_goals,
+                outcome=outcome,
+                finalized_at=result_data.get('finalized_at', datetime.now(timezone.utc)),
+                league=result_data.get('league')
+            )
+            
+            session.add(result)
+            session.commit()
+            session.close()
+            
+            logger.info(f"📊 Saved match result {result_data['match_id']}: {outcome} ({home_goals}-{away_goals})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error saving match result: {e}")
+            if 'session' in locals():
+                session.rollback()
+                session.close()
+            return False
+    
+    def compute_accuracy_metrics(self, force_recompute: bool = False) -> int:
+        """Compute accuracy metrics for matches with results (joining snapshots ↔ results)"""
+        computed_count = 0
+        
+        try:
+            session = self.SessionLocal()
+            
+            # Find matches with results but no computed metrics (or force recompute)
+            if force_recompute:
+                # Get all match results
+                results_query = session.query(MatchResult)
+            else:
+                # Only compute for matches without existing metrics
+                results_query = session.query(MatchResult).filter(
+                    ~MatchResult.match_id.in_(
+                        session.query(MetricsPerMatch.match_id)
+                    )
+                )
+            
+            results = results_query.all()
+            
+            for result in results:
+                match_id = result.match_id
+                
+                # Find the evaluation snapshot (latest before finalization)
+                snapshot = session.query(PredictionSnapshot).filter(
+                    PredictionSnapshot.match_id == match_id,
+                    PredictionSnapshot.served_at <= result.finalized_at
+                ).order_by(PredictionSnapshot.served_at.desc()).first()
+                
+                if not snapshot:
+                    logger.warning(f"No prediction snapshot found for match {match_id}")
+                    continue
+                
+                # Compute accuracy metrics
+                # Multi-class Brier: ((pH-yH)^2 + (pD-yD)^2 + (pA-yA)^2) / 3
+                yH = 1.0 if result.outcome == 'H' else 0.0
+                yD = 1.0 if result.outcome == 'D' else 0.0
+                yA = 1.0 if result.outcome == 'A' else 0.0
+                
+                brier = ((snapshot.probs_h - yH)**2 + (snapshot.probs_d - yD)**2 + (snapshot.probs_a - yA)**2) / 3.0
+                
+                # LogLoss: -ln(p_true)
+                p_true = snapshot.probs_h if result.outcome == 'H' else (
+                    snapshot.probs_d if result.outcome == 'D' else snapshot.probs_a
+                )
+                logloss = -1.0 * math.log(max(p_true, 1e-15))  # Avoid log(0)
+                
+                # Hit rate: argmax(probs) == outcome
+                predicted_outcome = 'H' if snapshot.probs_h == max(snapshot.probs_h, snapshot.probs_d, snapshot.probs_a) else (
+                    'D' if snapshot.probs_d == max(snapshot.probs_h, snapshot.probs_d, snapshot.probs_a) else 'A'
+                )
+                hit = 1 if predicted_outcome == result.outcome else 0
+                
+                # Confidence band
+                confidence_band = (
+                    "[0,0.15)" if snapshot.confidence < 0.15 else
+                    "[0.15,0.30)" if snapshot.confidence < 0.30 else
+                    "[0.30,1]"
+                )
+                
+                # Delete existing metrics if force recompute
+                if force_recompute:
+                    session.query(MetricsPerMatch).filter_by(match_id=match_id).delete()
+                
+                # Save computed metrics
+                metrics = MetricsPerMatch(
+                    match_id=match_id,
+                    snapshot_id_eval=snapshot.snapshot_id,
+                    brier=brier,
+                    logloss=logloss,
+                    hit=hit,
+                    computed_at=datetime.now(timezone.utc),
+                    league=result.league,
+                    confidence_band=confidence_band
+                )
+                
+                session.add(metrics)
+                computed_count += 1
+            
+            session.commit()
+            session.close()
+            
+            logger.info(f"📊 Computed accuracy metrics for {computed_count} matches")
+            return computed_count
+            
+        except Exception as e:
+            logger.error(f"Error computing accuracy metrics: {e}")
+            if 'session' in locals():
+                session.rollback()
+                session.close()
+            return 0
