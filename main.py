@@ -2921,7 +2921,7 @@ async def get_match_metrics(
     Returns prediction snapshot + result + computed metrics
     """
     try:
-        from models.database import DatabaseManager
+        from models.database import DatabaseManager, MatchResult, MetricsPerMatch, PredictionSnapshot
         db_manager = DatabaseManager()
         session = db_manager.SessionLocal()
         
@@ -2990,6 +2990,7 @@ async def get_metrics_summary(
     """
     try:
         from models.database import DatabaseManager
+        from datetime import datetime, timezone, timedelta
         import psycopg2
         
         db_manager = DatabaseManager()
