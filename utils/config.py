@@ -44,6 +44,20 @@ class Settings(BaseSettings):
     OUTLIER_DETECTION: bool = True
     MIN_HISTORICAL_MATCHES: int = 5
     
+    # CLV Club Settings
+    ENABLE_CLV_CLUB: bool = os.getenv("ENABLE_CLV_CLUB", "true").lower() == "true"
+    CLV_MIN_BOOKS_DEFAULT: int = int(os.getenv("CLV_MIN_BOOKS_DEFAULT", "8"))
+    CLV_MIN_BOOKS_MINOR: int = int(os.getenv("CLV_MIN_BOOKS_MINOR", "5"))
+    CLV_MIN_STABILITY: float = float(os.getenv("CLV_MIN_STABILITY", "0.70"))
+    CLV_MIN_CLV_PCT_BASIC: float = float(os.getenv("CLV_MIN_CLV_PCT_BASIC", "2.0"))
+    CLV_MIN_CLV_PCT_PRO: float = float(os.getenv("CLV_MIN_CLV_PCT_PRO", "3.0"))
+    CLV_STALENESS_SEC: int = int(os.getenv("CLV_STALENESS_SEC", "120"))
+    CLV_TRIM_FRACTION: float = float(os.getenv("CLV_TRIM_FRACTION", "0.10"))
+    CLV_CLOSING_METHOD: str = os.getenv("CLV_CLOSING_METHOD", "LAST5_VWAP")
+    CLV_CLOSING_WINDOW_SEC: int = int(os.getenv("CLV_CLOSING_WINDOW_SEC", "300"))
+    CLV_ALERT_TTL_SEC: int = int(os.getenv("CLV_ALERT_TTL_SEC", "900"))
+    CLV_ALERT_TTL_NEAR_KO_SEC: int = int(os.getenv("CLV_ALERT_TTL_NEAR_KO_SEC", "300"))
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

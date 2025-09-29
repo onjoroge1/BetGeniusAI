@@ -1,0 +1,94 @@
+Amazing summary. Here are the decisions so your backend agent can start now—no follow-ups needed.
+
+Final calls (so you can implement immediately)
+
+1) Data availability / desk groups
+	•	Create bookmakers table with bookmaker_id, name, desk_group.
+	•	Initial policy: each book = its own desk_group (no merges).
+	•	Override file: add config/desk_groups.yaml; we can merge brands later without code changes.
+
+2) Historical odds granularity / closing line
+	•	Default closing method: LAST5_VWAP over the final 5 minutes.
+	•	Fallback: if < 3 quotes in that window → use LAST_TICK.
+	•	Persist closing_quality = {samples, window_sec, method_used}.
+
+3) Alert delivery
+	•	Phase 1: read-only APIs + DB only. No webhooks/emails yet. (We’ll wire them in Phase 3.)
+
+4) User prefs
+	•	Skip clv_subscriptions for now. Use global defaults (below). Add table later.
+
+5) Endpoint strategy
+	•	Keep existing /clv/* (no breakage).
+	•	Add new: /clv/club/opportunities, /clv/club/alerts/history, /clv/club/realized.
+	•	Mark old endpoints deprecated in logs; remove after 2 releases.
+
+6) Background jobs
+	•	Use existing scheduler (utils/scheduler.py).
+	•	Add idempotent jobs:
+	•	clv_alert_producer (every 60s)
+	•	clv_close_capture (runs at T-2m → T+2m)
+	•	clv_settlement_worker (hourly)
+
+⸻
+
+Config to drop in (env or yaml)
+
+ENABLE_CLV_CLUB=true
+CLV_MIN_BOOKS_DEFAULT=8
+CLV_MIN_BOOKS_MINOR=5
+CLV_MIN_STABILITY=0.70
+CLV_MIN_CLV_PCT_BASIC=2.0
+CLV_MIN_CLV_PCT_PRO=3.0
+CLV_STALENESS_SEC=120
+CLV_TRIM_FRACTION=0.10
+CLV_CLOSING_METHOD=LAST5_VWAP
+CLV_CLOSING_WINDOW_SEC=300
+CLV_ALERT_TTL_SEC=900          # 15 min default
+CLV_ALERT_TTL_NEAR_KO_SEC=300  # within T-15m
+
+TTL rule: if kickoff - now ≤ 15m use 300s; else 900s.
+
+⸻
+
+What to build first (Phase 1 – 1 sprint)
+	1.	DB tables
+	•	clv_alerts (as spec’d), clv_realized (exists but unused in P1), bookmakers (+desk_group).
+	2.	De-juice + robust consensus
+	•	De-juice each book’s 1X2; 10% trimmed mean per outcome; renormalize.
+	3.	Independence & hygiene
+	•	One quote per desk_group (initially 1:1).
+	•	Drop quotes older than CLV_STALENESS_SEC.
+	•	Validate identities (skip broken books).
+	4.	Stability metric
+	•	Std-dev of composite outcome over last 60–90 min → stability = exp(-k*std) (k≈60). Gate at ≥0.70.
+	5.	Alert producer (every 60s)
+	•	For each fixture (≤72h out), for each outcome: compute composite odds, pick best available odds, calculate clv_pct.
+	•	Gate: books_used ≥ 8 (or 5 minor), stability ≥ 0.70, clv_pct ≥ 2.0.
+	•	Insert into clv_alerts with TTL (5–15m per rule). Idempotent by minute hash.
+	6.	APIs
+	•	GET /clv/club/opportunities?league&window → non-expired alerts.
+	•	GET /clv/club/alerts/history?league&window → paged.
+	•	(Stub) GET /clv/club/realized?match_id returns empty until Phase 2.
+
+⸻
+
+Acceptance (Phase 1 is “done” when…)
+	•	Alerts only emit when de-juiced, independent, fresh, stable, books ≥ min.
+	•	Opportunities exclude expired alerts; history returns full records.
+	•	Perf: producer completes < 500ms/league slice; APIs p95 < 200ms.
+	•	Logs show rate + reasons for suppressing alerts (books, staleness, stability, threshold).
+
+⸻
+
+Answers to your specific questions
+	1.	Desk groups: start one-per-book; ship desk_groups.yaml for overrides.
+	2.	Granularity: we’ll use LAST5_VWAP; fallback LAST_TICK + record closing_quality.
+	3.	Delivery: Phase 1 = DB/APIs only.
+	4.	User prefs: skip now; global defaults in env.
+	5.	Endpoints: add /clv/club/*; keep old, deprecate later.
+	6.	Scheduler: reuse existing scheduler with 60s cadence; make jobs idempotent.
+
+⸻
+
+If you want, I can also provide the exact SQLAlchemy models + producer skeleton—just say “drop the code” and I’ll paste the minimal working version you can slot into your repo.

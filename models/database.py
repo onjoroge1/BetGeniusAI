@@ -151,6 +151,82 @@ class MetricsPerMatch(Base):
             'clv': self.clv
         }
 
+class Bookmaker(Base):
+    """Bookmaker metadata with desk group for independence filtering"""
+    __tablename__ = 'bookmakers'
+    
+    bookmaker_id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    desk_group = Column(String(100), nullable=False)  # For deduplication
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'bookmaker_id': self.bookmaker_id,
+            'name': self.name,
+            'desk_group': self.desk_group,
+            'is_active': self.is_active
+        }
+
+class CLVAlert(Base):
+    """Live CLV opportunities with expiration"""
+    __tablename__ = 'clv_alerts'
+    
+    alert_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    match_id = Column(Integer, nullable=False, index=True)
+    league = Column(String(50), nullable=False)
+    outcome = Column(String(1), nullable=False)  # 'H', 'D', 'A'
+    best_book_id = Column(Integer, nullable=False)
+    best_odds_dec = Column(Float, nullable=False)
+    market_odds_dec = Column(Float, nullable=False)  # De-juiced composite
+    clv_pct = Column(Float, nullable=False)  # ((best - composite) / composite)*100
+    stability = Column(Float, nullable=False)  # 0..1
+    books_used = Column(Integer, nullable=False)
+    window_tag = Column(String(20), nullable=False)  # T-72to48, T-48to24, etc.
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.now(timezone.utc), index=True)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'alert_id': str(self.alert_id),
+            'match_id': self.match_id,
+            'league': self.league,
+            'outcome': self.outcome,
+            'best_odds': self.best_odds_dec,
+            'best_book_id': self.best_book_id,
+            'market_composite_odds': self.market_odds_dec,
+            'clv_pct': self.clv_pct,
+            'stability': self.stability,
+            'books_used': self.books_used,
+            'window': self.window_tag,
+            'expires_at': self.expires_at.isoformat(),
+            'created_at': self.created_at.isoformat()
+        }
+
+class CLVRealized(Base):
+    """Settled CLV alerts vs closing line and result"""
+    __tablename__ = 'clv_realized'
+    
+    alert_id = Column(UUID(as_uuid=True), primary_key=True)
+    closing_odds_dec = Column(Float, nullable=False)
+    realized_clv_pct = Column(Float, nullable=False)
+    settled_at = Column(DateTime, nullable=False, default=datetime.now(timezone.utc))
+    match_outcome = Column(String(1), nullable=False)  # 'H', 'D', 'A'
+    win = Column(Boolean, nullable=False)
+    closing_quality = Column(JSONB, nullable=True)  # {samples, window_sec, method_used}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'alert_id': str(self.alert_id),
+            'closing_odds_dec': self.closing_odds_dec,
+            'realized_clv_pct': self.realized_clv_pct,
+            'settled_at': self.settled_at.isoformat(),
+            'match_outcome': self.match_outcome,
+            'win': self.win,
+            'closing_quality': self.closing_quality
+        }
+
 class DatabaseManager:
     """Database operations for training data"""
     
