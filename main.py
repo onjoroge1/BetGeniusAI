@@ -3261,6 +3261,205 @@ async def get_clv_opportunities(
         logger.error(f"CLV opportunities error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ==========================================
+# CLV CLUB API ENDPOINTS (Professional CLV)
+# ==========================================
+
+@app.get("/clv/club/opportunities")
+async def get_clv_club_opportunities(
+    league: Optional[str] = None,
+    window: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get currently valid CLV Club alerts (non-expired)
+    
+    Query params:
+    - league: Filter by league name (optional)
+    - window: Filter by window tag like 'T-48to24' (optional)
+    """
+    try:
+        from models.database import CLVAlert, DatabaseManager
+        
+        db_manager = DatabaseManager()
+        session = db_manager.SessionLocal()
+        
+        # Query for non-expired alerts
+        query = session.query(CLVAlert).filter(
+            CLVAlert.expires_at > datetime.now(timezone.utc)
+        )
+        
+        # Apply filters
+        if league:
+            query = query.filter(CLVAlert.league == league)
+        if window:
+            query = query.filter(CLVAlert.window_tag == window)
+        
+        # Order by CLV percentage descending
+        alerts = query.order_by(CLVAlert.clv_pct.desc()).all()
+        
+        session.close()
+        
+        # Convert to dicts
+        items = [alert.to_dict() for alert in alerts]
+        
+        return {
+            "status": "success",
+            "count": len(items),
+            "items": items,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"CLV Club opportunities error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/clv/club/alerts/history")
+async def get_clv_club_history(
+    league: Optional[str] = None,
+    window: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get historical CLV Club alerts (paged)
+    
+    Query params:
+    - league: Filter by league name (optional)
+    - window: Filter by window tag (optional)
+    - limit: Results per page (default 100, max 500)
+    - offset: Pagination offset (default 0)
+    """
+    try:
+        from models.database import CLVAlert, CLVRealized, DatabaseManager
+        from sqlalchemy import outerjoin
+        
+        # Validate params
+        limit = min(limit, 500)
+        
+        db_manager = DatabaseManager()
+        session = db_manager.SessionLocal()
+        
+        # Query alerts with optional realized data
+        query = session.query(CLVAlert).outerjoin(
+            CLVRealized, CLVAlert.alert_id == CLVRealized.alert_id
+        )
+        
+        # Apply filters
+        if league:
+            query = query.filter(CLVAlert.league == league)
+        if window:
+            query = query.filter(CLVAlert.window_tag == window)
+        
+        # Order by created_at descending (most recent first)
+        alerts = query.order_by(CLVAlert.created_at.desc()).limit(limit).offset(offset).all()
+        
+        # Get realized data for these alerts
+        alert_ids = [alert.alert_id for alert in alerts]
+        realized_map = {}
+        
+        if alert_ids:
+            realized_records = session.query(CLVRealized).filter(
+                CLVRealized.alert_id.in_(alert_ids)
+            ).all()
+            
+            for rec in realized_records:
+                realized_map[rec.alert_id] = rec.to_dict()
+        
+        session.close()
+        
+        # Build response with realized data if available
+        items = []
+        for alert in alerts:
+            alert_dict = alert.to_dict()
+            if alert.alert_id in realized_map:
+                alert_dict['realized'] = realized_map[alert.alert_id]
+            items.append(alert_dict)
+        
+        return {
+            "status": "success",
+            "count": len(items),
+            "items": items,
+            "pagination": {
+                "limit": limit,
+                "offset": offset
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"CLV Club history error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/clv/club/realized")
+async def get_clv_club_realized(
+    match_id: Optional[int] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get realized CLV data (Phase 2 - stub for now)
+    
+    Query params:
+    - match_id: Filter by match ID (optional)
+    """
+    try:
+        from models.database import CLVAlert, CLVRealized, DatabaseManager
+        
+        db_manager = DatabaseManager()
+        session = db_manager.SessionLocal()
+        
+        if match_id:
+            # Get all alerts for this match with realized data
+            alerts = session.query(CLVAlert).filter(
+                CLVAlert.match_id == match_id
+            ).all()
+            
+            alert_ids = [alert.alert_id for alert in alerts]
+            realized_records = session.query(CLVRealized).filter(
+                CLVRealized.alert_id.in_(alert_ids)
+            ).all() if alert_ids else []
+            
+            realized_map = {rec.alert_id: rec.to_dict() for rec in realized_records}
+            
+            items = []
+            for alert in alerts:
+                if alert.alert_id in realized_map:
+                    alert_dict = alert.to_dict()
+                    alert_dict['realized'] = realized_map[alert.alert_id]
+                    items.append(alert_dict)
+            
+            session.close()
+            
+            return {
+                "status": "success",
+                "match_id": match_id,
+                "count": len(items),
+                "items": items,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        else:
+            # Return all realized CLV (limited)
+            realized_records = session.query(CLVRealized).order_by(
+                CLVRealized.settled_at.desc()
+            ).limit(100).all()
+            
+            session.close()
+            
+            items = [rec.to_dict() for rec in realized_records]
+            
+            return {
+                "status": "success",
+                "count": len(items),
+                "items": items,
+                "note": "Phase 2 feature - closing line capture not yet active",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"CLV Club realized error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/predict/availability", response_model=AvailabilityResponse)
 async def predict_availability(
     req: AvailabilityRequest,

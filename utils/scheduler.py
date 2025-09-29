@@ -36,6 +36,8 @@ class BackgroundScheduler:
         # Metrics calculation schedule (every 6 hours)
         self.metrics_hours = [3, 9, 15, 21]  # Offset by 1 hour from data collection
         self.last_metrics_calculation: Optional[datetime] = None
+        # CLV Club alert producer (runs every 60 seconds)
+        self.last_clv_producer_run: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -48,6 +50,7 @@ class BackgroundScheduler:
         self.scheduler_thread.start()
         logger.info("Background scheduler started - enhanced schedule: 6h weekdays, 3h weekends")
         logger.info("Automated metrics calculation enabled - runs every 6 hours at 03:00, 09:00, 15:00, 21:00 UTC")
+        logger.info("CLV Club alert producer enabled - runs every 60 seconds")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -111,6 +114,7 @@ class BackgroundScheduler:
         """Enhanced scheduler loop for frequent odds collection and metrics tracking"""
         logger.info("🚀 Enhanced scheduler started - capturing odds nuances with frequent collection")
         logger.info("📊 Automated metrics tracking enabled - calculates accuracy every 6 hours")
+        logger.info("🎯 CLV Club alert producer enabled - scanning for opportunities every 60 seconds")
         
         while self.is_running:
             try:
@@ -168,8 +172,12 @@ class BackgroundScheduler:
                         logger.info(f"📊 SCHEDULER: Running metrics calculation at {now.strftime('%H:%M:%S')} UTC")
                         await self._run_metrics_calculation()
                 
-                # Check every 10 minutes for more responsive scheduling
-                await asyncio.sleep(600)
+                # Run CLV Club alert producer every 60 seconds
+                if not self.last_clv_producer_run or (now - self.last_clv_producer_run).total_seconds() >= 60:
+                    await self._run_clv_alert_producer()
+                
+                # Check every 60 seconds (changed from 10 minutes for CLV producer)
+                await asyncio.sleep(60)
                 
                 # Every 15 minutes, run safety net to fill missing buckets
                 if now.minute % 15 == 0:
@@ -216,6 +224,29 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"📊 Metrics calculation error: {e}")
+    
+    async def _run_clv_alert_producer(self):
+        """Run CLV Club alert producer"""
+        try:
+            from models.clv_alert_producer import run_clv_alert_producer
+            
+            stats = run_clv_alert_producer()
+            
+            if not stats.get('enabled'):
+                logger.debug("CLV Club disabled in config")
+                return
+            
+            if stats.get('alerts_created', 0) > 0:
+                logger.info(f"🎯 CLV Producer: {stats['alerts_created']} alerts created " +
+                           f"from {stats['opportunities_found']} opportunities")
+            else:
+                logger.debug(f"🎯 CLV Producer: {stats['fixtures_scanned']} fixtures scanned, " +
+                            f"{stats['opportunities_found']} opportunities, 0 alerts (gated)")
+            
+            self.last_clv_producer_run = datetime.utcnow()
+                
+        except Exception as e:
+            logger.error(f"🎯 CLV Producer error: {e}")
     
     def trigger_immediate_collection(self, force=False):
         """Trigger immediate collection cycle (non-blocking)
