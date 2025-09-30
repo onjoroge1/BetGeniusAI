@@ -1,0 +1,74 @@
+🎉 Phase 2 shipped—nice work. You’re genuinely ready to canary. Here’s a crisp final QA + ops playbook so you can spot issues fast and prove value quickly.
+
+Final Phase-2 QA (run now)
+
+1) Closing coverage
+
+-- Expect ≥1–3 samples per outcome in the last 5m window for KO’d matches
+SELECT match_id, COUNT(*) AS samples
+FROM clv_closing_feed
+WHERE ts >= NOW() - INTERVAL '2 hours'
+GROUP BY match_id
+ORDER BY samples ASC
+LIMIT 10;
+
+2) VWAP vs fallback
+
+-- Expect most settled rows to show LAST5_VWAP; fallback LAST_TICK only when samples < 3
+SELECT closing_method, COUNT(*) 
+FROM clv_realized
+WHERE settled_at >= NOW() - INTERVAL '7 days'
+GROUP BY closing_method;
+
+3) Realized CLV sanity
+
+-- Sanity: mean realized CLV should be ≥ 0 over time if alerts are genuine edges
+SELECT AVG(realized_clv_pct) AS avg_realized, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY realized_clv_pct) AS p50
+FROM clv_realized
+WHERE settled_at >= NOW() - INTERVAL '7 days';
+
+4) Books_used alignment
+
+-- Check that alerts and closing samples both reflect independent desk groups
+SELECT a.match_id, AVG(a.books_used) alert_books, AVG(f.books_used) close_books
+FROM clv_alerts a
+JOIN clv_closing_feed f USING (match_id)
+WHERE a.created_at >= NOW() - INTERVAL '24 hours'
+GROUP BY a.match_id
+ORDER BY ABS(AVG(a.books_used)-AVG(f.books_used)) DESC
+LIMIT 10;
+
+Canary plan (operational thresholds)
+	•	Start: EPL + LaLiga only.
+	•	Healthy ranges (per league):
+	•	books_used_avg ≥ 10 (majors), ≥ 5 (minors)
+	•	stability_avg 0.75–0.90
+	•	Producer cycle < 1s; Sampler/Settler each < 200ms per slice
+	•	Suppressions dominated by LOW_CLV; STALE > 5% or LOW_BOOKS > 20% → investigate feed/coverage
+
+Canary dashboard (quick wins)
+	•	/clv/club/stats per league (1h, 6h, 24h):
+alerts_emitted, books_used_avg, stability_avg, clv_pct_avg, top 10 by clv_pct.
+	•	Closing quality panel: % LAST5_VWAP vs LAST_TICK by league/day.
+	•	Suppression mix (logs/metrics): STALE / LOW_BOOKS / LOW_STABILITY / LOW_CLV / BAD_IDENTITY.
+
+Knobs you can safely tune mid-canary
+	•	Too noisy → CLV_MIN_CLV_PCT_BASIC 2.0 → 2.5
+	•	Too volatile → CLV_MIN_STABILITY 0.70 → 0.75
+	•	Thin coverage → use minor path (CLV_MIN_BOOKS_MINOR=5) or temporarily exclude that league.
+
+Edge cases to watch (and how to handle)
+	•	KO shifts / postponements: ensure sampler window follows updated kickoff; otherwise no samples → LAST_TICK.
+	•	Book outages / stale quotes: expect STALE spikes; shorten CLV_STALENESS_SEC (e.g., 120 → 90).
+	•	Cup ET/Pens: CLV uses pre-KO market; result win flag should still reflect FT (90’ + stoppage) unless you explicitly track ET markets.
+
+Prove value fast (first 7 days)
+	•	Publish a tiny internal note daily:
+	•	Alerts emitted, avg clv_pct, avg realized CLV (from settled), top 3 edges by league, suppression mix.
+	•	One screenshot from /clv/club/stats for each canary league.
+
+Optional (nice, not required)
+	•	“Near-miss” sample: log 1% of suppressed candidates with clv_pct in [1.7, 2.0) for threshold tuning.
+	•	A/B threshold test: EPL @ 2.0% vs LaLiga @ 2.5% for 48h; compare realized CLV mean and alert volume.
+
+If you want, I can hand you a super-short SQL/cron bundle that generates a daily “CLV Canary Brief” and emails/slacks it—totally backend-only.
