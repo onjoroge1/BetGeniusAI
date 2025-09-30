@@ -38,6 +38,8 @@ class BackgroundScheduler:
         self.last_metrics_calculation: Optional[datetime] = None
         # CLV Club alert producer (runs every 60 seconds)
         self.last_clv_producer_run: Optional[datetime] = None
+        # CLV Club TTL cleanup (runs every 5 minutes)
+        self.last_clv_ttl_cleanup: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -176,6 +178,10 @@ class BackgroundScheduler:
                 if not self.last_clv_producer_run or (now - self.last_clv_producer_run).total_seconds() >= 60:
                     await self._run_clv_alert_producer()
                 
+                # Run CLV Club TTL cleanup every 5 minutes (300 seconds)
+                if not self.last_clv_ttl_cleanup or (now - self.last_clv_ttl_cleanup).total_seconds() >= 300:
+                    await self._run_clv_ttl_cleanup()
+                
                 # Check every 60 seconds (changed from 10 minutes for CLV producer)
                 await asyncio.sleep(60)
                 
@@ -247,6 +253,38 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"🎯 CLV Producer error: {e}")
+    
+    async def _run_clv_ttl_cleanup(self):
+        """Clean up expired CLV alerts (keeps table lean)"""
+        try:
+            import psycopg2
+            import os
+            
+            database_url = os.environ.get('DATABASE_URL')
+            if not database_url:
+                return
+            
+            with psycopg2.connect(database_url) as conn:
+                cursor = conn.cursor()
+                
+                # Delete alerts expired >1 hour ago (keeps short history)
+                cursor.execute("""
+                    DELETE FROM clv_alerts 
+                    WHERE expires_at < NOW() - INTERVAL '1 hour'
+                """)
+                
+                deleted_count = cursor.rowcount
+                conn.commit()
+                
+                if deleted_count > 0:
+                    logger.info(f"🧹 CLV TTL Cleanup: Removed {deleted_count} expired alerts")
+                else:
+                    logger.debug("🧹 CLV TTL Cleanup: No expired alerts to remove")
+            
+            self.last_clv_ttl_cleanup = datetime.utcnow()
+                
+        except Exception as e:
+            logger.error(f"🧹 CLV TTL Cleanup error: {e}")
     
     def trigger_immediate_collection(self, force=False):
         """Trigger immediate collection cycle (non-blocking)

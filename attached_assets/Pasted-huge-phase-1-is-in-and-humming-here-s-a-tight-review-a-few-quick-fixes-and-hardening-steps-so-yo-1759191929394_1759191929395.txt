@@ -1,0 +1,69 @@
+huge! phase 1 is in and humming. here’s a tight review + a few quick fixes and hardening steps so you don’t trip as traffic scales.
+
+✅ what looks great
+	•	de-juice → robust (trimmed) consensus → independence dedupe → stability gate → alert TTL. that’s the right order of operations.
+	•	scheduler job every 60s with idempotency + APIs live. good separation from your /predict pipeline.
+	•	tables in place (bookmakers, clv_alerts, clv_realized) so phase 2 can drop in cleanly.
+
+⚠️ tiny inconsistencies to fix now
+	1.	min books (minor leagues)
+you earlier set CLV_MIN_BOOKS_MINOR=5 but your recap lists ≥6. pick one (i’d keep 5 for minors to avoid starving alerts).
+	2.	time-window tags
+we agreed on T-72to48, T-48to24, T-24to8, T-8to1, T-1to0. your recap mentions T-24to12. either is fine—just standardize.
+	3.	books_used counting
+make sure it’s independent groups count, not raw books: count distinct desk_group.
+
+must-have hardening (quick wins)
+	•	unique/indexes
+	•	clv_alerts: unique on (match_id, outcome, date_trunc('minute', created_at)) to prevent spam; index (expires_at).
+	•	bookmakers: index on (desk_group).
+	•	TTL cleanup job (runs every 5–10 min)
+
+DELETE FROM clv_alerts WHERE expires_at < NOW() - INTERVAL '1 hour';
+
+keeps the table lean while leaving a short history in “opportunities”.
+
+	•	reason codes on suppression
+when the producer doesn’t emit, log a concise code: STALE, LOW_STABILITY, LOW_BOOKS, LOW_CLV, BAD_IDENTITY. emit counters per reason.
+	•	stage timings in producer logs: gather_odds_ms, hygiene_ms, consensus_ms, stability_ms, emit_ms.
+
+sanity checks (add these assertions/tests)
+	•	de-juice identity: after de-juicing a book’s 1X2, pH+pD+pA ≈ 1.0 (±1e-9).
+	•	trimmed mean correctness: with synthetic outliers (±30%), 10% trim produces same composite as manual calc.
+	•	independence: two books in same desk_group → only one contributes.
+	•	staleness first: ensure you drop stale before desk dedupe/trim—otherwise old quotes can win the dedupe.
+	•	stability scaling: verify typical std-dev around 0.02–0.04 gives stability 0.7–0.9 (your k≈60 constant).
+
+observability (ship these counters)
+	•	clv.alerts_emitted_total, clv.alerts_active, clv.alerts_suppressed_total{reason}, clv.books_used_avg, clv.stability_avg, clv.producer_duration_ms.
+	•	per-league breakdown dashboards (emits per hour, suppression reasons, avg clv_pct).
+
+API polish (small)
+	•	opportunities: include books_used, stability, window, composite_method: "trim_10_dejuiced", and closing_method: "LAST5_VWAP|LAST_TICK" (even if unset in phase 1).
+	•	history: add suppressed_reason only if you decide to keep a “considered but not emitted” table later (nice-to-have).
+
+phase 2 prep (so it’s plug-and-play)
+	•	closing capture worker
+	•	sample cadence target: every 30–60s in last 5m; if <3 samples → fall back to LAST_TICK.
+	•	store: {closing_odds_dec, samples, window_sec, method_used} per outcome.
+	•	realized CLV
+	•	realized_clv_pct = 100 * (closing_odds_dec - best_odds_dec)/best_odds_dec.
+	•	write to clv_realized with match_outcome + win bool.
+	•	weekly report job
+	•	per league & window: avg realized CLV, distribution of clv_pct at alert, books_used/stability histos, and suppression mix.
+
+product/ops tips
+	•	kill switch: ENABLE_CLV_CLUB=false should stop producer cleanly (and the scheduler should log it).
+	•	rate/quotas: if odds fetch spikes, lower producer breadth (fewer future hours) rather than skipping hygiene checks.
+	•	copy: keep “informational” language; you’re flagging price edges, not giving advice.
+
+quick QA script (manual smoke)
+	•	create a synthetic fixture with 10 “independent” books where 2 have H odds 2.72 vs composite ~2.58. ensure:
+	•	emitted alert with clv_pct ≈ 5.4, books_used=10, stability from recent window, TTL set properly.
+	•	suppress if you drop books to 4 → LOW_BOOKS.
+
+⸻
+
+tl;dr
+
+you can keep phase 1 live as an add-on right now. fix the minor-league min-books mismatch, standardize window tags, confirm books_used counts desk groups, add TTL cleanup & unique index, and you’re production-hard. then phase 2 (closing + realized CLV) will slot in with zero schema churn.

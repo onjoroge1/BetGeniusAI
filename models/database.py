@@ -200,6 +200,8 @@ class CLVAlert(Base):
             'stability': self.stability,
             'books_used': self.books_used,
             'window': self.window_tag,
+            'composite_method': 'trim_10_dejuiced',  # 10% trim + de-juicing
+            'closing_method': 'LAST5_VWAP',  # Phase 2 - not yet active
             'expires_at': self.expires_at.isoformat(),
             'created_at': self.created_at.isoformat()
         }

@@ -301,6 +301,9 @@ class CLVAlertProducer:
         if not settings.ENABLE_CLV_CLUB:
             return {'enabled': False}
         
+        import time
+        cycle_start = time.time()
+        
         logger.info("🔍 CLV Alert Producer: Starting cycle...")
         
         stats = {
@@ -309,10 +312,16 @@ class CLVAlertProducer:
             'opportunities_found': 0,
             'alerts_created': 0,
             'suppression_reasons': {
-                'books': 0,
-                'stability': 0,
-                'threshold': 0,
-                'stale': 0
+                'STALE': 0,
+                'LOW_BOOKS': 0,
+                'LOW_STABILITY': 0,
+                'LOW_CLV': 0,
+                'BAD_IDENTITY': 0
+            },
+            'timings': {
+                'total_ms': 0,
+                'gather_odds_ms': 0,
+                'analyze_ms': 0
             }
         }
         
@@ -333,16 +342,19 @@ class CLVAlertProducer:
                     kickoff_time = fixture['kickoff_time']
                     
                     # Get current odds
+                    t_start = time.time()
                     book_odds = self._get_match_odds(match_id)
+                    stats['timings']['gather_odds_ms'] += int((time.time() - t_start) * 1000)
                     
                     if len(book_odds) < settings.CLV_MIN_BOOKS_MINOR:
-                        stats['suppression_reasons']['books'] += 1
+                        stats['suppression_reasons']['LOW_BOOKS'] += 1
                         continue
                     
                     # Get historical probs for stability
                     historical_probs = self._get_historical_probs(match_id)
                     
                     # Analyze CLV opportunities
+                    t_analyze = time.time()
                     opportunities = self.engine.analyze_match_clv(
                         match_id=match_id,
                         league=league,
@@ -350,6 +362,7 @@ class CLVAlertProducer:
                         book_odds_list=book_odds,
                         historical_probs=historical_probs
                     )
+                    stats['timings']['analyze_ms'] += int((time.time() - t_analyze) * 1000)
                     
                     # Gate and emit alerts
                     is_major = self._is_major_league(league)
@@ -365,24 +378,34 @@ class CLVAlertProducer:
                             if self._save_alert(opportunity, fixture):
                                 stats['alerts_created'] += 1
                         else:
-                            # Track suppression reason
-                            if 'books' in reason.lower():
-                                stats['suppression_reasons']['books'] += 1
+                            # Track suppression reason with standardized codes
+                            if 'books' in reason.lower() or 'insufficient' in reason.lower():
+                                stats['suppression_reasons']['LOW_BOOKS'] += 1
                             elif 'stability' in reason.lower():
-                                stats['suppression_reasons']['stability'] += 1
+                                stats['suppression_reasons']['LOW_STABILITY'] += 1
                             elif 'threshold' in reason.lower() or 'clv' in reason.lower():
-                                stats['suppression_reasons']['threshold'] += 1
+                                stats['suppression_reasons']['LOW_CLV'] += 1
+                            elif 'stale' in reason.lower():
+                                stats['suppression_reasons']['STALE'] += 1
                     
                 except Exception as e:
                     logger.error(f"Error processing fixture {fixture.get('match_id')}: {e}")
                     continue
             
+            # Calculate total cycle time
+            stats['timings']['total_ms'] = int((time.time() - cycle_start) * 1000)
+            
             logger.info(f"📊 CLV Producer complete: {stats['alerts_created']} alerts created " +
                        f"from {stats['opportunities_found']} opportunities " +
-                       f"({stats['fixtures_scanned']} fixtures)")
+                       f"({stats['fixtures_scanned']} fixtures) in {stats['timings']['total_ms']}ms")
             
             if stats['alerts_created'] == 0 and stats['opportunities_found'] > 0:
-                logger.info(f"   Suppressions: {stats['suppression_reasons']}")
+                suppression_log = ', '.join([f"{k}={v}" for k, v in stats['suppression_reasons'].items() if v > 0])
+                logger.info(f"   Suppressions: {suppression_log}")
+            
+            # Log timings for observability
+            logger.debug(f"   Stage timings: gather={stats['timings']['gather_odds_ms']}ms, " +
+                        f"analyze={stats['timings']['analyze_ms']}ms")
             
             return stats
             
