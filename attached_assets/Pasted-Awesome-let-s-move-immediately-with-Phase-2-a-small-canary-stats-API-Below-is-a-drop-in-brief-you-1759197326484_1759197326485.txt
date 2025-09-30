@@ -1,0 +1,198 @@
+Awesome—let’s move immediately with Phase 2 + a small canary stats API. Below is a drop-in brief your backend agent can apply right now. It’s additive (no breaking changes), idempotent, and sticks to your current patterns.
+
+⸻
+
+Phase 2 — Closing Capture + Realized CLV (skeleton)
+
+0) Minimal schema deltas
+
+Add optional columns so you can record how the close was computed—no existing rows break.
+
+-- 2A) raw closing samples near kickoff (optional but recommended)
+CREATE TABLE IF NOT EXISTS clv_closing_feed (
+  match_id BIGINT NOT NULL,
+  ts TIMESTAMPTZ NOT NULL,
+  outcome CHAR(1) NOT NULL CHECK (outcome IN ('H','D','A')),
+  composite_odds_dec NUMERIC(10,4) NOT NULL,
+  volume NUMERIC(14,4),              -- NULL if unknown
+  books_used INT NOT NULL,           -- independent desk groups used
+  desk_groups INT NOT NULL,          -- same as books_used (kept for clarity)
+  PRIMARY KEY (match_id, ts, outcome)
+);
+CREATE INDEX IF NOT EXISTS idx_closing_feed_match_time ON clv_closing_feed(match_id, ts);
+
+-- 2B) enrich realized table with method/quality
+ALTER TABLE clv_realized
+  ADD COLUMN IF NOT EXISTS closing_method TEXT,        -- "LAST5_VWAP" | "LAST_TICK"
+  ADD COLUMN IF NOT EXISTS closing_samples INT,        -- # samples used in window
+  ADD COLUMN IF NOT EXISTS closing_window_sec INT;     -- typically 300
+
+If you’d rather avoid clv_closing_feed, you can compute in-memory; keeping samples lets you audit & graph the close.
+
+1) Closing sampler (every 30–60s, T-6m … T+2m)
+
+Collect composite odds exactly like the producer (de-juiced, deduped, trimmed), but don’t emit alerts—just store one sample.
+
+async def closing_sampler(now_utc):
+    # pick fixtures in a small window around KO, e.g. now ∈ [KO-6m, KO+2m]
+    fixtures = db.fetch_fixtures_in_window(now_utc, pre_minutes=6, post_minutes=2)
+
+    for fx in fixtures:
+        # build independent, fresh book probs (de-juiced), trimmed consensus
+        composite = build_composite_probs(fx)  # {"H":pH,"D":pD,"A":pA}, books_used
+        if not composite: 
+            continue
+        # convert to decimal odds and store 3 rows (H/D/A)
+        odds = {k: 1.0/max(1e-12, v) for k, v in composite.items()}
+        for k in ("H","D","A"):
+            db.upsert_closing_sample(
+                match_id=fx.match_id,
+                ts=now_utc,
+                outcome=k,
+                composite_odds_dec=round(odds[k], 4),
+                volume=None,                              # fill if you have it
+                books_used=composite.meta.books_used,
+                desk_groups=composite.meta.books_used
+            )
+
+Scheduler:
+	•	add closing_sampler every 30–60s.
+
+2) Closing settle (T+2m or on results ingest)
+
+Compute the closing odds from the last 5 minutes of samples.
+
+CLOSE_WIN_SEC = 300
+
+def compute_closing_odds(samples):  # list of (odds_dec, volume, ts)
+    if len(samples) >= 3:
+        # LAST5_VWAP (volume-weighted); fall back to time-weighted mean if volume is None
+        if any(s.volume for s in samples):
+            num = sum(s.odds_dec * (s.volume or 1.0) for s in samples)
+            den = sum((s.volume or 1.0) for s in samples)
+            return round(num/den, 4), "LAST5_VWAP", len(samples)
+        else:
+            # robust central tendency in case of spikes
+            arr = sorted(s.odds_dec for s in samples)
+            a = max(0, int(0.1*len(arr))); b = len(arr) - a
+            trimmed = arr[a:b] if b > a else arr
+            return round(sum(trimmed)/len(trimmed), 4), "LAST5_VWAP", len(samples)
+    # Fallback
+    last = max(samples, key=lambda s: s.ts) if samples else None
+    return (last.odds_dec if last else None, "LAST_TICK", 1 if last else 0)
+
+async def closing_settle(match_id, ko_utc):
+    window_start = ko_utc - timedelta(seconds=CLOSE_WIN_SEC)
+    window_end   = ko_utc + timedelta(seconds=60)      # grace 1m
+    realized = {}
+    for k in ("H","D","A"):
+        samples = db.load_closing_samples(match_id, k, window_start, window_end)
+        val, method, n = compute_closing_odds(samples)
+        realized[k] = {"odds": val, "method": method, "n": n}
+    return realized
+
+Write clv_realized for each alert once per match:
+
+def settle_alerts_for_match(match_id, realized, match_outcome):
+    alerts = db.load_alerts_for_match(match_id)
+    for a in alerts:
+        close = realized[a.outcome]["odds"]
+        if close is None: 
+            continue
+        realized_clv_pct = round(100.0 * (close - a.best_odds_dec) / a.best_odds_dec, 3)
+        db.upsert_clv_realized(
+            alert_id=a.alert_id,
+            closing_odds_dec=close,
+            realized_clv_pct=realized_clv_pct,
+            closing_method=realized[a.outcome]["method"],
+            closing_samples=realized[a.outcome]["n"],
+            closing_window_sec=CLOSE_WIN_SEC,
+            match_outcome=match_outcome,
+            win=(match_outcome == a.outcome)
+        )
+
+When to run
+	•	Trigger closing_settle at KO+2m (cron every minute finds matches crossing KO).
+	•	Or call it inside your results ingestor after saving match_results.
+
+⸻
+
+Canary Stats Endpoint (lightweight)
+
+GET /clv/club/stats?league=&window=24h
+
+Returns emitted-alert stats only (suppression stays in logs/metrics).
+
+Response:
+
+{
+  "league": "EPL",
+  "window": "24h",
+  "alerts_emitted": 123,
+  "books_used_avg": 11.2,
+  "stability_avg": 0.82,
+  "clv_pct_avg": 2.9,
+  "top_opportunities": [
+    {"match_id": 1419631, "outcome":"H", "clv_pct":5.6, "books_used":12, "stability":0.87, "window":"T-48to24"},
+    {"match_id": 1419702, "outcome":"D", "clv_pct":4.8, "books_used":10, "stability":0.80, "window":"T-24to8"}
+  ]
+}
+
+Sketch:
+
+@app.get("/clv/club/stats")
+def clv_stats(league: str, window: str = "24h"):
+    ts_from = now_utc() - parse_window(window)
+    rows = db.q("""
+      SELECT COUNT(*)::int AS n,
+             AVG(books_used)::float AS books_used_avg,
+             AVG(stability)::float AS stability_avg,
+             AVG(clv_pct)::float AS clv_pct_avg
+      FROM clv_alerts
+      WHERE created_at >= :ts_from
+        AND expires_at >= :now         -- still active or just emitted
+        AND league = :league
+    """, {"ts_from": ts_from, "now": now_utc(), "league": league})
+
+    top = db.q("""
+      SELECT match_id, outcome, clv_pct, books_used, stability, window_tag
+      FROM clv_alerts
+      WHERE created_at >= :ts_from AND league = :league
+      ORDER BY clv_pct DESC LIMIT 10
+    """, {"ts_from": ts_from, "league": league})
+
+    return {
+      "league": league,
+      "window": window,
+      "alerts_emitted": rows.n,
+      "books_used_avg": round(rows.books_used_avg or 0, 2),
+      "stability_avg":  round(rows.stability_avg or 0, 2),
+      "clv_pct_avg":    round(rows.clv_pct_avg or 0, 2),
+      "top_opportunities": [
+        {"match_id": r.match_id, "outcome": r.outcome,
+         "clv_pct": float(r.clv_pct), "books_used": r.books_used,
+         "stability": float(r.stability), "window": r.window_tag}
+        for r in top
+      ]
+    }
+
+
+⸻
+
+Acceptance tests for Phase 2
+	•	Closing window selection: last 5-minute samples per outcome are used; <3 samples → LAST_TICK.
+	•	Method fields set: closing_method, closing_samples, closing_window_sec.
+	•	Realized CLV math: sign & magnitude match hand calc for a known alert.
+	•	Idempotency: re-running settle doesn’t create dupes (UPSERT clv_realized).
+	•	Performance: sampler < 200 ms per cycle per league; settle < 100 ms per match; stats endpoint p95 < 200 ms.
+
+⸻
+
+Rollout (safe)
+	1.	Enable sampler (30–60s) + settler (minutely) for the same 2 canary leagues.
+	2.	Validate clv_closing_feed fills near KO; clv_realized rows appear.
+	3.	Start reading /clv/club/stats on a Grafana panel during canary.
+
+⸻
+
+If you want this as a single patch note, say the word and I’ll compact it into a one-file PR plan (migrations + two workers + endpoint).

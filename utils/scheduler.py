@@ -40,6 +40,10 @@ class BackgroundScheduler:
         self.last_clv_producer_run: Optional[datetime] = None
         # CLV Club TTL cleanup (runs every 5 minutes)
         self.last_clv_ttl_cleanup: Optional[datetime] = None
+        # Phase 2: Closing sampler (runs every 60 seconds)
+        self.last_closing_sampler_run: Optional[datetime] = None
+        # Phase 2: Closing settler (runs every 60 seconds)
+        self.last_closing_settler_run: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -53,6 +57,7 @@ class BackgroundScheduler:
         logger.info("Background scheduler started - enhanced schedule: 6h weekdays, 3h weekends")
         logger.info("Automated metrics calculation enabled - runs every 6 hours at 03:00, 09:00, 15:00, 21:00 UTC")
         logger.info("CLV Club alert producer enabled - runs every 60 seconds")
+        logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -182,6 +187,14 @@ class BackgroundScheduler:
                 if not self.last_clv_ttl_cleanup or (now - self.last_clv_ttl_cleanup).total_seconds() >= 300:
                     await self._run_clv_ttl_cleanup()
                 
+                # Phase 2: Run closing sampler every 60 seconds
+                if not self.last_closing_sampler_run or (now - self.last_closing_sampler_run).total_seconds() >= 60:
+                    await self._run_closing_sampler()
+                
+                # Phase 2: Run closing settler every 60 seconds
+                if not self.last_closing_settler_run or (now - self.last_closing_settler_run).total_seconds() >= 60:
+                    await self._run_closing_settler()
+                
                 # Check every 60 seconds (changed from 10 minutes for CLV producer)
                 await asyncio.sleep(60)
                 
@@ -285,6 +298,32 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"🧹 CLV TTL Cleanup error: {e}")
+    
+    async def _run_closing_sampler(self):
+        """Run Phase 2 closing sampler (collects composite odds near kickoff)"""
+        try:
+            from models.clv_closing_sampler import CLVClosingSampler
+            
+            sampler = CLVClosingSampler()
+            sampler.run_cycle()
+            
+            self.last_closing_sampler_run = datetime.utcnow()
+                
+        except Exception as e:
+            logger.error(f"📊 Closing Sampler error: {e}")
+    
+    async def _run_closing_settler(self):
+        """Run Phase 2 closing settler (settles alerts with realized CLV)"""
+        try:
+            from models.clv_closing_settler import CLVClosingSettler
+            
+            settler = CLVClosingSettler()
+            settler.run_cycle()
+            
+            self.last_closing_settler_run = datetime.utcnow()
+                
+        except Exception as e:
+            logger.error(f"⚖️ Closing Settler error: {e}")
     
     def trigger_immediate_collection(self, force=False):
         """Trigger immediate collection cycle (non-blocking)

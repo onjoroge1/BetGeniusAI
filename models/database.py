@@ -206,6 +206,29 @@ class CLVAlert(Base):
             'created_at': self.created_at.isoformat()
         }
 
+class CLVClosingFeed(Base):
+    """Raw closing samples near kickoff for audit and closing line computation"""
+    __tablename__ = 'clv_closing_feed'
+    
+    match_id = Column(Integer, primary_key=True, nullable=False)
+    ts = Column(DateTime, primary_key=True, nullable=False)
+    outcome = Column(String(1), primary_key=True, nullable=False)  # 'H', 'D', 'A'
+    composite_odds_dec = Column(Float, nullable=False)
+    volume = Column(Float, nullable=True)  # NULL if unknown
+    books_used = Column(Integer, nullable=False)  # Independent desk groups
+    desk_groups = Column(Integer, nullable=False)  # Same as books_used
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'match_id': self.match_id,
+            'ts': self.ts.isoformat(),
+            'outcome': self.outcome,
+            'composite_odds_dec': self.composite_odds_dec,
+            'volume': self.volume,
+            'books_used': self.books_used,
+            'desk_groups': self.desk_groups
+        }
+
 class CLVRealized(Base):
     """Settled CLV alerts vs closing line and result"""
     __tablename__ = 'clv_realized'
@@ -218,6 +241,11 @@ class CLVRealized(Base):
     win = Column(Boolean, nullable=False)
     closing_quality = Column(JSONB, nullable=True)  # {samples, window_sec, method_used}
     
+    # Phase 2: Explicit closing fields for better queryability
+    closing_method = Column(String(20), nullable=True)  # "LAST5_VWAP" | "LAST_TICK"
+    closing_samples = Column(Integer, nullable=True)  # Number of samples used
+    closing_window_sec = Column(Integer, nullable=True)  # Typically 300
+    
     def to_dict(self) -> Dict[str, Any]:
         return {
             'alert_id': str(self.alert_id),
@@ -226,7 +254,10 @@ class CLVRealized(Base):
             'settled_at': self.settled_at.isoformat(),
             'match_outcome': self.match_outcome,
             'win': self.win,
-            'closing_quality': self.closing_quality
+            'closing_quality': self.closing_quality,
+            'closing_method': self.closing_method,
+            'closing_samples': self.closing_samples,
+            'closing_window_sec': self.closing_window_sec
         }
 
 class DatabaseManager:
