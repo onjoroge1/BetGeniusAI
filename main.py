@@ -3392,13 +3392,100 @@ async def get_clv_club_history(
         logger.error(f"CLV Club history error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/clv/club/stats")
+async def get_clv_club_stats(
+    league: Optional[str] = None,
+    window: str = "24h",
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get canary monitoring stats for CLV Club alerts
+    
+    Query params:
+    - league: Filter by league (optional, e.g., "Premier League")
+    - window: Time window (default: 24h, options: 1h, 6h, 24h, 7d)
+    
+    Returns:
+    - alerts_emitted: Total alerts created in window
+    - books_used_avg: Average number of books per alert
+    - stability_avg: Average line stability
+    - clv_pct_avg: Average CLV percentage
+    - top_opportunities: Top 10 alerts by CLV%
+    """
+    try:
+        from models.database import CLVAlert, DatabaseManager
+        from datetime import datetime, timezone, timedelta
+        
+        # Parse window
+        window_map = {
+            "1h": 1,
+            "6h": 6,
+            "24h": 24,
+            "7d": 168
+        }
+        hours = window_map.get(window, 24)
+        
+        db_manager = DatabaseManager()
+        session = db_manager.SessionLocal()
+        
+        now = datetime.now(timezone.utc)
+        ts_from = now - timedelta(hours=hours)
+        
+        # Build query with optional league filter
+        query = session.query(CLVAlert).filter(
+            CLVAlert.created_at >= ts_from
+        )
+        
+        if league:
+            query = query.filter(CLVAlert.league == league)
+        
+        alerts = query.all()
+        
+        # Compute stats
+        count = len(alerts)
+        books_used_avg = sum(a.books_used for a in alerts) / count if count > 0 else 0
+        stability_avg = sum(a.stability for a in alerts) / count if count > 0 else 0
+        clv_pct_avg = sum(a.clv_pct for a in alerts) / count if count > 0 else 0
+        
+        # Top opportunities
+        top_alerts = sorted(alerts, key=lambda a: a.clv_pct, reverse=True)[:10]
+        top_opportunities = [
+            {
+                "match_id": a.match_id,
+                "outcome": a.outcome,
+                "clv_pct": float(a.clv_pct),
+                "books_used": a.books_used,
+                "stability": float(a.stability),
+                "window": a.window_tag
+            }
+            for a in top_alerts
+        ]
+        
+        session.close()
+        
+        return {
+            "status": "success",
+            "league": league or "all",
+            "window": window,
+            "alerts_emitted": count,
+            "books_used_avg": round(books_used_avg, 2),
+            "stability_avg": round(stability_avg, 2),
+            "clv_pct_avg": round(clv_pct_avg, 2),
+            "top_opportunities": top_opportunities,
+            "timestamp": now.isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"CLV Club stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/clv/club/realized")
 async def get_clv_club_realized(
     match_id: Optional[int] = None,
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Get realized CLV data (Phase 2 - stub for now)
+    Get realized CLV data (Phase 2)
     
     Query params:
     - match_id: Filter by match ID (optional)
