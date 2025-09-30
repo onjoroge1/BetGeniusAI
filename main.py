@@ -12,7 +12,7 @@ import asyncio
 import logging
 import math
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 
 from utils.config import settings
@@ -2990,7 +2990,7 @@ async def get_metrics_summary(
     """
     try:
         from models.database import DatabaseManager
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timezone, timezone, timedelta
         import psycopg2
         
         db_manager = DatabaseManager()
@@ -3414,7 +3414,7 @@ async def get_clv_club_stats(
     """
     try:
         from models.database import CLVAlert, DatabaseManager
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timezone, timezone, timedelta
         
         # Parse window
         window_map = {

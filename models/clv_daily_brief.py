@@ -115,7 +115,7 @@ class CLVDailyBrief:
         ),
         closing_share AS (
           SELECT
-            a.league,
+            t.league,
             JSONB_OBJECT_AGG(method, share) AS closing_method_share
           FROM (
             SELECT a.league,
