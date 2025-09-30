@@ -3547,6 +3547,42 @@ async def get_clv_club_realized(
         logger.error(f"CLV Club realized error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/clv/club/daily")
+async def get_clv_daily_brief(
+    date: Optional[str] = None,
+    league: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get CLV Daily Brief stats for a specific date and/or league
+    Backend-only daily aggregation and reporting
+    
+    Query params:
+    - date: Date string (YYYY-MM-DD) or None for yesterday
+    - league: League name or None for all leagues
+    
+    Returns: Daily aggregated stats with alerts, realized CLV, closing methods, top opportunities
+    """
+    try:
+        from models.clv_daily_brief import daily_brief
+        
+        result = daily_brief.get_daily_stats(stat_date=date, league=league)
+        
+        if result is None:
+            raise HTTPException(status_code=500, detail="Error fetching daily stats")
+        
+        return {
+            "status": "success",
+            "data": result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"CLV Daily Brief error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/predict/availability", response_model=AvailabilityResponse)
 async def predict_availability(
     req: AvailabilityRequest,

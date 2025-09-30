@@ -1,0 +1,250 @@
+Love it. Since you’re green-lighting Phase 2, here’s a drop-in “CLV Canary Brief” bundle you can hand to your backend agent right now. It’s backend-only, idempotent, and won’t break your current pipeline.
+
+⸻
+
+0) Config (env)
+
+ENABLE_CLV_DAILY_BRIEF=true
+CLV_DAILY_RETAIN_DAYS=90
+CLV_DAILY_SCHEDULE_CRON=5 0 * * *     # 00:05 UTC daily
+
+
+⸻
+
+1) Schema (safe, additive)
+
+1.1 Daily aggregate table
+
+Stores one row per UTC date + league. Idempotent upsert.
+
+CREATE TABLE IF NOT EXISTS clv_daily_stats (
+  stat_date DATE NOT NULL,
+  league TEXT NOT NULL,
+  alerts_emitted INT NOT NULL,
+  books_used_avg NUMERIC(6,3),
+  stability_avg NUMERIC(6,3),
+  clv_pct_avg NUMERIC(6,3),
+  realized_count INT NOT NULL,
+  realized_clv_avg NUMERIC(7,3),
+  realized_clv_p50 NUMERIC(7,3),
+  closing_method_share JSONB,      -- {"LAST5_VWAP":0.92,"LAST_TICK":0.08}
+  top_opportunities JSONB,         -- array of top N alerts
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (stat_date, league)
+);
+
+CREATE INDEX IF NOT EXISTS idx_clv_daily_stats_date ON clv_daily_stats(stat_date);
+
+1.2 (Optional) suppression counters
+
+Tiny table so you can see why alerts didn’t emit (since Phase 1 logs reasons). Add a 1-line increment in the producer where you already log LOW_CLV, LOW_BOOKS, etc.
+
+CREATE TABLE IF NOT EXISTS clv_suppression_counters (
+  stat_date DATE NOT NULL,
+  league TEXT NOT NULL,
+  reason TEXT NOT NULL,            -- STALE | LOW_BOOKS | LOW_STABILITY | LOW_CLV | BAD_IDENTITY
+  count INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (stat_date, league, reason)
+);
+
+If you’d rather not touch the producer now, skip this table—daily brief will just omit suppression mix.
+
+⸻
+
+2) Daily aggregator job (runs once/day)
+
+Window: previous UTC day [00:00, 24:00).
+
+2.1 Core rollup SQL (per league)
+
+WITH day_alerts AS (
+  SELECT *
+  FROM clv_alerts
+  WHERE created_at >= :d_start AND created_at < :d_end
+),
+day_realized AS (
+  SELECT r.*
+  FROM clv_realized r
+  JOIN clv_alerts a ON a.alert_id = r.alert_id
+  WHERE r.settled_at >= :d_start AND r.settled_at < :d_end
+),
+stats AS (
+  SELECT
+    :stat_date::date AS stat_date,
+    a.league,
+    COUNT(*)::int AS alerts_emitted,
+    AVG(a.books_used)::numeric(6,3) AS books_used_avg,
+    AVG(a.stability)::numeric(6,3)  AS stability_avg,
+    AVG(a.clv_pct)::numeric(6,3)    AS clv_pct_avg
+  FROM day_alerts a
+  GROUP BY a.league
+),
+real AS (
+  SELECT
+    a.league,
+    COUNT(*)::int AS realized_count,
+    AVG(r.realized_clv_pct)::numeric(7,3) AS realized_clv_avg,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY r.realized_clv_pct)::numeric(7,3) AS realized_clv_p50
+  FROM day_realized r
+  JOIN clv_alerts a ON a.alert_id = r.alert_id
+  GROUP BY a.league
+),
+closing_share AS (
+  SELECT
+    a.league,
+    JSONB_OBJECT_AGG(method, share) AS closing_method_share
+  FROM (
+    SELECT a.league,
+           r.closing_method AS method,
+           (COUNT(*) * 1.0 / SUM(COUNT(*)) OVER (PARTITION BY a.league))::numeric(6,3) AS share
+    FROM day_realized r
+    JOIN clv_alerts a ON a.alert_id = r.alert_id
+    GROUP BY a.league, r.closing_method
+  ) t
+  GROUP BY t.league
+),
+topN AS (
+  SELECT a.league,
+         JSONB_AGG(
+           JSONB_BUILD_OBJECT(
+             'match_id', a.match_id,
+             'outcome',  a.outcome,
+             'clv_pct',  a.clv_pct,
+             'books_used', a.books_used,
+             'stability',  a.stability,
+             'window',     a.window_tag
+           )
+           ORDER BY a.clv_pct DESC
+         ) FILTER (WHERE true) AS top_opportunities
+  FROM (
+    SELECT * FROM day_alerts ORDER BY clv_pct DESC LIMIT 10
+  ) a
+  GROUP BY a.league
+)
+INSERT INTO clv_daily_stats AS s
+(stat_date, league, alerts_emitted, books_used_avg, stability_avg, clv_pct_avg,
+ realized_count, realized_clv_avg, realized_clv_p50, closing_method_share, top_opportunities)
+SELECT
+  :stat_date::date,
+  coalesce(st.league, re.league) AS league,
+  COALESCE(st.alerts_emitted, 0),
+  st.books_used_avg,
+  st.stability_avg,
+  st.clv_pct_avg,
+  COALESCE(re.realized_count, 0),
+  re.realized_clv_avg,
+  re.realized_clv_p50,
+  cs.closing_method_share,
+  tn.top_opportunities
+FROM stats st
+FULL JOIN real re ON re.league = st.league
+LEFT JOIN closing_share cs ON cs.league = COALESCE(st.league, re.league)
+LEFT JOIN topN tn         ON tn.league = COALESCE(st.league, re.league)
+ON CONFLICT (stat_date, league) DO UPDATE
+SET alerts_emitted     = EXCLUDED.alerts_emitted,
+    books_used_avg     = EXCLUDED.books_used_avg,
+    stability_avg      = EXCLUDED.stability_avg,
+    clv_pct_avg        = EXCLUDED.clv_pct_avg,
+    realized_count     = EXCLUDED.realized_count,
+    realized_clv_avg   = EXCLUDED.realized_clv_avg,
+    realized_clv_p50   = EXCLUDED.realized_clv_p50,
+    closing_method_share = EXCLUDED.closing_method_share,
+    top_opportunities  = EXCLUDED.top_opportunities,
+    updated_at         = NOW();
+
+2.2 Suppression mix (optional)
+
+If you add a one-liner in producer: db.inc_suppression(stat_date, league, reason), then:
+
+UPDATE clv_daily_stats s
+SET top_opportunities = s.top_opportunities, -- no-op, preserve json
+    updated_at = NOW()
+FROM (
+  SELECT stat_date, league,
+         JSONB_OBJECT_AGG(reason, cnt) AS suppression_mix
+  FROM (
+    SELECT stat_date, league, reason, SUM(count)::int AS cnt
+    FROM clv_suppression_counters
+    WHERE stat_date = :stat_date
+    GROUP BY stat_date, league, reason
+  ) x
+  GROUP BY stat_date, league
+) sup
+WHERE s.stat_date = sup.stat_date AND s.league = sup.league;
+-- (If you want the mix in its own column, add suppression_mix JSONB to clv_daily_stats)
+
+2.3 Retention
+
+DELETE FROM clv_daily_stats WHERE stat_date < (CURRENT_DATE - INTERVAL ':retain_days days');
+
+
+⸻
+
+3) Cron/Worker sketch (Python-ish)
+
+def run_daily_brief():
+    if not env("ENABLE_CLV_DAILY_BRIEF", True): return
+    today = utc_today()
+    stat_date = today - timedelta(days=1)
+    d_start = datetime.combine(stat_date, time.min, tzinfo=timezone.utc)
+    d_end   = d_start + timedelta(days=1)
+
+    db.exec(ROLLUP_SQL, {"stat_date": str(stat_date), "d_start": d_start, "d_end": d_end})
+    if table_exists("clv_suppression_counters"):
+        db.exec(SUPPRESSION_SQL, {"stat_date": str(stat_date)})
+    db.exec("DELETE FROM clv_daily_stats WHERE stat_date < CURRENT_DATE - INTERVAL %s", (f"{env('CLV_DAILY_RETAIN_DAYS',90)} days",))
+
+Hook it into your existing scheduler with CLV_DAILY_SCHEDULE_CRON or a simple “run at 00:05 UTC” check.
+
+⸻
+
+4) Read API (tiny)
+
+GET /clv/club/daily?date=YYYY-MM-DD&league=EPL
+Returns the row or “latest” if date omitted.
+
+@app.get("/clv/club/daily")
+def clv_daily(date: Optional[str]=None, league: Optional[str]=None):
+    if not date:
+        date = (utc_today() - timedelta(days=1)).isoformat()
+    if league:
+        row = db.one("SELECT * FROM clv_daily_stats WHERE stat_date=%s AND league=%s", (date, league))
+    else:
+        row = db.one("""
+          SELECT * FROM clv_daily_stats
+          WHERE stat_date=%s
+          ORDER BY alerts_emitted DESC NULLS LAST LIMIT 20
+        """, (date,))
+    return serialize(row) if row else {"stat_date": date, "league": league, "alerts_emitted": 0}
+
+
+⸻
+
+5) Slack/email (optional, backend-only)
+	•	Serialize each league row to a compact JSON or markdown block.
+	•	Send via your notifier (webhook/email). Keep copy neutral (“informational”).
+
+Snippet for a section:
+
+EPL — 2025-09-28
+Alerts: 143 | Avg CLV%: 2.9 | Realized (n=97): avg +1.8%, p50 +1.3%
+Books_used: 11.1 | Stability: 0.82 | Close: VWAP 94%, Tick 6%
+Top: #1419631 H +5.6% (books=12, stab=0.87, win? pending)
+
+
+⸻
+
+Acceptance (for this bundle)
+	•	A row per league exists in clv_daily_stats for yesterday by 00:10 UTC.
+	•	closing_method_share sums ≈ 1.0 when realized_count > 0.
+	•	top_opportunities contains up to 10 items (or empty array).
+	•	Endpoint /clv/club/daily returns JSON in < 200 ms.
+	•	Retention removes rows older than CLV_DAILY_RETAIN_DAYS.
+	•	(Optional) clv_suppression_counters increments appear in the daily brief if you enabled producer increments.
+
+⸻
+
+TL;DR
+
+This adds a daily snapshot (no FE, no LLM), uses the data you already collect, and gives you a simple API (and optional Slack) to track canary health and value. If you want, I can also supply the single-file migration + worker code in your project’s style—you’re basically 15 minutes from daily reports.

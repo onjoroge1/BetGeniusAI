@@ -44,6 +44,8 @@ class BackgroundScheduler:
         self.last_closing_sampler_run: Optional[datetime] = None
         # Phase 2: Closing settler (runs every 60 seconds)
         self.last_closing_settler_run: Optional[datetime] = None
+        # Daily Brief: Runs once per day at 00:05 UTC
+        self.last_daily_brief_run: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -58,6 +60,7 @@ class BackgroundScheduler:
         logger.info("Automated metrics calculation enabled - runs every 6 hours at 03:00, 09:00, 15:00, 21:00 UTC")
         logger.info("CLV Club alert producer enabled - runs every 60 seconds")
         logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
+        logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -195,6 +198,15 @@ class BackgroundScheduler:
                 if not self.last_closing_settler_run or (now - self.last_closing_settler_run).total_seconds() >= 60:
                     await self._run_closing_settler()
                 
+                # CLV Daily Brief: Run once per day at 00:05 UTC
+                if current_hour == 0 and current_minute >= 5 and current_minute < 15:
+                    # Check if we already ran today
+                    today_date = now.date()
+                    last_run_date = self.last_daily_brief_run.date() if self.last_daily_brief_run else None
+                    
+                    if last_run_date != today_date:
+                        await self._run_daily_brief()
+                
                 # Check every 60 seconds (changed from 10 minutes for CLV producer)
                 await asyncio.sleep(60)
                 
@@ -324,6 +336,28 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"⚖️ Closing Settler error: {e}")
+    
+    async def _run_daily_brief(self):
+        """Run CLV Daily Brief aggregation (once per day at 00:05 UTC)"""
+        try:
+            from models.clv_daily_brief import daily_brief
+            
+            logger.info("📊 Running CLV Daily Brief aggregation...")
+            
+            result = await daily_brief.run_daily_brief()
+            
+            if result.get('status') == 'success':
+                logger.info(f"✅ CLV Daily Brief complete: {result['leagues_processed']} leagues processed, " +
+                           f"{result['old_rows_deleted']} old rows deleted ({result['duration_ms']}ms)")
+            elif result.get('status') == 'disabled':
+                logger.debug("CLV Daily Brief disabled in config")
+            else:
+                logger.error(f"❌ CLV Daily Brief failed: {result.get('error', 'unknown error')}")
+            
+            self.last_daily_brief_run = datetime.utcnow()
+                
+        except Exception as e:
+            logger.error(f"📊 CLV Daily Brief error: {e}")
     
     def trigger_immediate_collection(self, force=False):
         """Trigger immediate collection cycle (non-blocking)

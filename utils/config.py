@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     CLV_ALERT_TTL_SEC: int = int(os.getenv("CLV_ALERT_TTL_SEC", "900"))
     CLV_ALERT_TTL_NEAR_KO_SEC: int = int(os.getenv("CLV_ALERT_TTL_NEAR_KO_SEC", "300"))
     
+    # CLV Daily Brief Settings
+    ENABLE_CLV_DAILY_BRIEF: bool = os.getenv("ENABLE_CLV_DAILY_BRIEF", "true").lower() == "true"
+    CLV_DAILY_RETAIN_DAYS: int = int(os.getenv("CLV_DAILY_RETAIN_DAYS", "90"))
+    CLV_DAILY_SCHEDULE_CRON: str = os.getenv("CLV_DAILY_SCHEDULE_CRON", "5 0 * * *")
+    
+    # Database
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
