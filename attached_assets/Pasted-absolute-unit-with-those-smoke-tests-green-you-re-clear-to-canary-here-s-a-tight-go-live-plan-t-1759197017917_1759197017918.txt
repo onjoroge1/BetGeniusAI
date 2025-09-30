@@ -1,0 +1,54 @@
+absolute unit. with those smoke tests green, you’re clear to canary. here’s a tight go-live plan + the few knobs to watch in week one.
+
+✅ Ready to ship (canary)
+	•	Math & hygiene: de-juiced, deduped-by-desk, staleness & stability gates, TTL + uniqueness.
+	•	Ops: producer @60s, TTL cleanup @5m, reason-coded logs, indexed APIs.
+	•	Contracts: opportunities/history include books_used, stability, window, composite_method="trim_10_dejuiced", closing_method="LAST5_VWAP" (future-ready).
+
+🚀 7-day canary plan
+
+Day 0–1
+	•	Enable 2 high-liquidity leagues (e.g., EPL, LaLiga).
+	•	Targets: books_used p50 ≥ 10, stability p50 ≥ 0.8, producer run < 1s per cycle.
+	•	Watch suppression mix: mostly LOW_CLV; spikes in LOW_BOOKS or STALE → feed/coverage issue.
+
+Day 2–3
+	•	Add Serie A + Bundesliga if healthy.
+	•	Spot-check 3–5 alerts manually: confirm best odds truly beat composite; TTL expiry behaving.
+
+Day 4–7
+	•	Expand to 6–8 leagues.
+	•	Tune thresholds if firehose-y or too quiet (see “knobs” below).
+
+🎛 Tuning knobs (quick edits, no code churn)
+	•	Coverage: CLV_MIN_BOOKS_DEFAULT=8, CLV_MIN_BOOKS_MINOR=5
+	•	Noise: CLV_MIN_CLV_PCT_BASIC 2.0 → 2.5 if too many alerts
+	•	Choppiness: CLV_MIN_STABILITY 0.70 → 0.75 to filter volatile spots
+	•	Load: widen scan horizon fewer hours ahead if producer nears 2s/cycle
+
+🔭 What to monitor (with “good” ranges)
+	•	clv.alerts_emitted_total{league} (steady, not bursty)
+	•	clv.alerts_suppressed_total{reason}
+	•	ok: LOW_CLV dominant; investigate: STALE > 5% or LOW_BOOKS > 20%
+	•	clv.books_used_avg{league}: ≥ 8 majors, ≥ 5 minors
+	•	clv.stability_avg{league}: 0.75–0.90
+	•	clv.producer_duration_ms p95 < 500–1000ms per slice
+	•	API p95: /opportunities < 200ms
+
+🧯 Runbook snippets
+	•	Spam prevention hit: if you see duplicate alert attempts, confirm the minute-level unique key; if still noisy, widen de-dup window to 2 minutes for specific leagues.
+	•	STALE spike: shorten CLV_STALENESS_SEC to 90; if persists, throttle those books or mark desk_group as “laggy”.
+	•	BAD_IDENTITY: auto-suppress book; log once; reopen after 15m.
+
+📦 Phase 2 (when ready)
+	•	Closing capture worker (30–60s cadence, last 5m; fallback LAST_TICK); persist {closing_odds_dec, samples, window_sec, method_used}.
+	•	Realized CLV: compute & store realized_clv_pct + win; expose in /clv/club/realized.
+	•	Weekly CLV report: per league & time-window: avg realized CLV, alert distribution, suppression histogram.
+
+🧪 Optional quick checks this week
+	•	Sample 10 alerts → verify best book isn’t from the same desk_group as composite majority (independence truly in effect).
+	•	One league with thin liquidity → confirm minor-league path uses 5 min-books and still emits.
+
+✅ TL;DR
+
+You’re production-hard. Roll a 2-league canary, watch suppression mix & timings, then scale. If you want, I can draft the Phase-2 closing capture skeleton next so realized CLV lands cleanly in your dashboards.
