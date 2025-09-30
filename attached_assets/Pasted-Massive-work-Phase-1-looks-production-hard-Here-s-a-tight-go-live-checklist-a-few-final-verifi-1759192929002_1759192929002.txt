@@ -1,0 +1,83 @@
+Massive work. Phase 1 looks production-hard. Here’s a tight “go live” checklist + a few final verifications so you can flip the flag with confidence.
+
+Go / No-Go (short)
+
+Go with canary (10–20% leagues). Core hygiene is in: de-juicing, desk-group dedupe, staleness, stability, TTL + indexes, reason-coded logs, metadata in APIs. ✅
+
+⸻
+
+Final smoke tests (run these today)
+
+1) Dedup sanity (desk groups)
+
+-- Should equal number of DISTINCT desk_group we actually ingest
+SELECT COUNT(DISTINCT desk_group) AS groups, COUNT(*) AS books FROM bookmakers;
+
+Ensure books_used in API equals the groups count used by the producer for each alert.
+
+2) De-juice identity
+Add an assert in your engine (or log once per cycle): abs(pH+pD+pA-1.0) < 1e-9. If it ever fires, suppress with BAD_IDENTITY.
+
+3) TTL + uniqueness
+	•	Insert same opportunity twice in a minute → confirm second insert is skipped (unique constraint).
+	•	Expire > 1h → confirm TTL cleanup removes rows (check clv_alerts count before/after).
+
+4) Stability gate
+Feed a synthetic volatile series (std≈0.05): stability should drop <0.70 and produce LOW_STABILITY suppressions in logs.
+
+5) API contract
+GET /clv/club/opportunities should include:
+
+{"books_used":10,"stability":0.83,"window":"T-48to24",
+ "composite_method":"trim_10_dejuiced","closing_method":"LAST5_VWAP"}
+
+…plus clv_pct, best_odds, market_composite_odds.
+
+⸻
+
+Monitors to wire (Prometheus/log-based)
+	•	clv.alerts_emitted_total{league}
+	•	clv.alerts_suppressed_total{reason,league} (expect mostly LOW_CLV early)
+	•	clv.books_used_avg{league}, clv.stability_avg{league}
+	•	Producer timings: clv.producer_duration_ms (p95 < 500ms per slice)
+	•	DB size: clv_alerts row count + TTL delete count
+
+Alert if:
+	•	LOW_BOOKS spikes (feed issue or league coverage dip)
+	•	STALE > 5% (odds feed lag)
+	•	producer_duration_ms p95 > 2s
+
+⸻
+
+Canary plan (1–2 days)
+	•	Enable EPL + LaLiga only.
+	•	Verify emitted rate, suppression mix, books_used/stability distributions.
+	•	If healthy, add Serie A + Bundesliga.
+
+⸻
+
+Phase 2 prep (keep it lightweight)
+	1.	Closing capture (LAST5_VWAP with LAST_TICK fallback)
+	•	Sample every 30–60s in final 5m. Persist {closing_odds_dec, samples, window_sec, method_used} by outcome.
+	2.	Realization
+	•	realized_clv_pct = 100 * (closing - best) / best; store with win flag.
+	3.	Weekly report job
+	•	By league & window: avg realized CLV, suppression histogram, books_used/stability histos.
+
+⸻
+
+Nice-to-have (not blockers)
+	•	Shin de-juicing option behind a flag (sometimes better than proportional).
+	•	Adaptive stability k: auto-tune k per league to keep typical stability ~0.75–0.9.
+	•	Suppression sampling: write 1% of suppressed “near misses” (e.g., clv_pct in [1.7,2.0)) to a small table for diagnostics.
+
+⸻
+
+Rollback & flags
+	•	ENABLE_CLV_CLUB=false cleanly halts producer & TTL job.
+	•	Keep Phase 1 read-only APIs; no webhooks/emails yet (Phase 3).
+	•	Log a deprecation header on any legacy /clv/* paths you plan to retire.
+
+⸻
+
+Bottom line: you’re ready to canary. Run the five smokes, watch the suppression mix and timings, and then scale leagues. When you’re set, I’ll hand you the Phase 2 closing-capture skeleton so realized CLV flows into the dashboard.

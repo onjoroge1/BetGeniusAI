@@ -89,7 +89,17 @@ class CLVClubEngine:
         # Remove overround by proportional renormalization
         total = max(1e-12, p_h + p_d + p_a)
         
-        return p_h / total, p_d / total, p_a / total
+        pH_dejuiced = p_h / total
+        pD_dejuiced = p_d / total
+        pA_dejuiced = p_a / total
+        
+        # De-juice identity check: pH + pD + pA ≈ 1.0 (within numerical tolerance)
+        prob_sum = pH_dejuiced + pD_dejuiced + pA_dejuiced
+        if abs(prob_sum - 1.0) > 1e-9:
+            logger.warning(f"BAD_IDENTITY: De-juice sum={prob_sum:.12f} (expected 1.0), " +
+                          f"odds=[{odds_h:.3f}, {odds_d:.3f}, {odds_a:.3f}]")
+        
+        return pH_dejuiced, pD_dejuiced, pA_dejuiced
     
     def robust_consensus(self, probs: List[float], trim_fraction: float = None) -> Optional[float]:
         """
