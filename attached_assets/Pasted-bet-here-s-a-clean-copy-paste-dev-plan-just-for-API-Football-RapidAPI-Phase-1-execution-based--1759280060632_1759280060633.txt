@@ -1,0 +1,168 @@
+bet. here’s a clean, copy-paste dev plan just for API-Football (RapidAPI) – Phase 1 execution based on your agent’s findings. It assumes: 31 API-Football books; 9,586 matches missing odds; existing odds_snapshots / odds_consensus; bookmaker_xwalk table created.
+
+Goal (Phase 1 scope only)
+	•	Fill soccer odds gaps with API-Football (pre-match first, live optional) and feed them into your existing snapshots → consensus pipeline without touching CLV logic.
+
+⸻
+
+0) Config & flags (enable but dark-launch)
+	•	ENV: RAPIDAPI_KEY, APIFOOTBALL_HOST=api-football-v1.p.rapidapi.com, APIFOOTBALL_VERSION=v3
+	•	Flags:
+	•	ODDS_SOURCES.active=["theodds","api_football"]
+	•	APIFOOTBALL.LIVE_ENABLED=false (flip later)
+	•	APIFOOTBALL.BACKFILL_BATCH=200 (tune)
+
+⸻
+
+1) Minimal SQL (idempotent, no PK change)
+
+-- A) add source + vendor ids (traceability)
+ALTER TABLE odds_snapshots
+  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'theodds',
+  ADD COLUMN IF NOT EXISTS vendor_fixture_id BIGINT,
+  ADD COLUMN IF NOT EXISTS vendor_book_id TEXT;
+
+-- B) fast lookups
+CREATE INDEX IF NOT EXISTS idx_snapshots_event_mkt_ts
+  ON odds_snapshots (match_id, market, ts_snapshot DESC);
+
+-- C) optional: consensus blend
+ALTER TABLE odds_consensus
+  ADD COLUMN IF NOT EXISTS source_mix JSONB;
+
+-- D) ensure xwalk exists (agent created it already; keep for completeness)
+CREATE TABLE IF NOT EXISTS bookmaker_xwalk (
+  canonical_name TEXT PRIMARY KEY,
+  theodds_book_id TEXT,
+  api_football_book_id TEXT,
+  desk_group TEXT
+);
+
+Book ID rule going forward: for new API-Football rows, store book_id = 'apif:' || api_football_book_id. (Avoids collision with legacy numeric book_id from The Odds API. No PK migration needed.)
+
+⸻
+
+2) API-Football client (RapidAPI)
+	•	Endpoints:
+	•	/v3/odds?fixture={fixture_id} (pre-match)
+	•	/v3/odds/live?fixture={fixture_id} (optional later)
+	•	/v3/odds/bookmakers (seed xwalk)
+	•	Headers: x-rapidapi-key, x-rapidapi-host
+
+Agent tasks
+	1.	Build ApiFootballClient with retries/backoff for 429/503 (exponential 1s, 2s, 4s, 8s).
+	2.	Method: bookmakers() → returns [{"id":8,"name":"Bet365"}, ...]
+	3.	Method: odds_by_fixture(fixture_id:int, live=False) → returns normalized response list.
+
+⸻
+
+3) Seed bookmaker crosswalk
+	•	On boot + nightly: pull /v3/odds/bookmakers, upsert into bookmaker_xwalk:
+	•	canonical_name = lower(trim(name))
+	•	api_football_book_id = str(id)
+	•	desk_group = canonicalize(name) (e.g., “bet365” → “bet365”, “william hill” → “williamhill”)
+	•	(Optional) For legacy The Odds API rows, don’t mutate existing book_id now. We’ll dedupe by desk_group in consensus.
+
+⸻
+
+4) Mapping helpers
+	•	Market: "Match Winner"/"1X2"/"Winner" → h2h; "Over/Under" → totals; "Asian Handicap"/"Handicap" → spread
+	•	Selection: "Home"→H, "Draw"→D, "Away"→A. (Totals/spread parsing can be added later; H2H first.)
+
+⸻
+
+5) Ingestion (fixture-level)
+
+ingest_fixture_odds_from_apifootball(fixture_id, match_id, league_id, kickoff_ts)
+	•	For each bookmaker block:
+	•	vendor_book_id = str(bookmaker.id)
+	•	book_id = 'apif:' + vendor_book_id
+	•	Map market & selection; parse odd → float; last_update → ts_snapshot
+	•	Compute implied_prob = 1/odds_decimal
+	•	secs_to_kickoff = kickoff_ts - ts_snapshot
+	•	UPSERT into odds_snapshots with:
+	•	match_id, league_id, book_id, market, outcome, ts_snapshot, secs_to_kickoff, odds_decimal, implied_prob, source='api_football', vendor_fixture_id, vendor_book_id
+	•	After insertions per match:
+	•	Optional: compute market_margin for H/D/A set and fill
+	•	refresh_consensus_for_match(match_id)
+
+Idempotency: upsert on the existing PK (match_id, book_id, market, outcome) + keep the newest ts_snapshot.
+
+⸻
+
+6) Gap-fill worker (post The Odds API sweep)
+
+gap_fill_soccer_with_apifootball()
+	•	Query: fixtures in next 72h (or historical batch) where exists_h2h=false or n_books < MIN_BOOKS in odds_snapshots.
+	•	For each, call ingest_fixture_odds_from_apifootball(...).
+	•	Run cadence: after your The Odds API job + again at T-60m to KO.
+	•	Metrics to log: filled_fixtures_count, rows_inserted, rate_limit_hits, errors.
+
+⸻
+
+7) Consensus (no algorithm change)
+	•	Include API-Football rows when building de-vigged trimmed mean.
+	•	Desk dedupe: collapse books by desk_group via bookmaker_xwalk (e.g., Bet365 mobile/web same desk).
+	•	Write source_mix JSONB, e.g., {"theodds":0.62,"api_football":0.38} by row share used in the calc.
+	•	Update n_books to count distinct desk_group (not raw rows).
+
+⸻
+
+8) Backfill (historical) — controlled batches
+	•	Target set: the 9,586 matches with zero authentic odds.
+	•	Hit-rate assumption: start with 20–30%.
+	•	Batcher: process in chunks of APIFOOTBALL.BACKFILL_BATCH (e.g., 200) with a 200–300ms pause per fixture to stay well under limits.
+	•	Resume-safe: write progress to backfill_state table (match_id, status, attempts, last_error).
+	•	After each batch, call rebuild_consensus_for(match_ids).
+
+⸻
+
+9) QA / Acceptance (agent must check all)
+	1.	Connectivity: /v3/odds?fixture= returns 200; retries/backoff working; logs contain attempt counts.
+	2.	Crosswalk: bookmaker_xwalk populated with ~31 rows; no null names; desk_group reasonable.
+	3.	Insertions: For a known missing UEFA match, odds_snapshots shows H/D/A rows with source='api_football' and book_id like apif:8.
+	4.	Consensus: For that match, odds_consensus.n_books > 0; source_mix includes api_football.
+	5.	No PK conflicts: Upserts do not violate the existing PK; reruns only update ts_snapshot/prices.
+	6.	Perf: Gap-fill job completes within SLA; EXPLAIN uses idx_snapshots_event_mkt_ts.
+	7.	Backfill pilot: Run on 100 historical matches; success rate reported; no timeouts; progress persisted.
+
+⸻
+
+10) Monitoring & Alerts
+	•	Metrics:
+	•	odds.gap_fill.filled_fixtures_count
+	•	odds.source_share.api_football (by league)
+	•	odds.missing_before_ko (≤60m, n_books=0)
+	•	api.apif.429_count, api.apif.avg_latency_ms
+	•	Alerts:
+	•	missing_before_ko > threshold for 3 consecutive runs
+	•	filled_fixtures_count == 0 for 2+ runs (possible API outage or mapping bug)
+
+⸻
+
+11) Rollout
+	•	Stage 1 – Dark: ingest + consensus includes API-Football but UI badges hidden; watch metrics 48–72h.
+	•	Stage 2 – Blend: display n_books bump + subtle tooltip “+API-Football” in admin only.
+	•	Stage 3 – Full: show in public UI; enable LIVE_ENABLED if needed.
+
+⸻
+
+12) One-shot “Agent run order” (paste to agent)
+	1.	Apply SQL in §1.
+	2.	Implement ApiFootballClient with retries/backoff & timeouts.
+	3.	Implement crosswalk loader; run once and nightly.
+	4.	Implement market/selection mappers.
+	5.	Implement ingest_fixture_odds_from_apifootball() (H2H only for v1).
+	6.	Implement gap_fill_soccer_with_apifootball(); hook to post-OddsAPI cron + T-60m cron.
+	7.	Update consensus to dedupe by desk_group and emit source_mix.
+	8.	Ship to staging (dark). Validate §9.
+	9.	Run backfill pilot (100 matches); record hit-rate + runtime.
+	10.	Promote to prod; monitor §10; then scale backfill.
+
+⸻
+
+13) Nice-to-have (still Phase 1)
+	•	Add a canary dashboard: per-league fill-rate before KO with pie of source_mix.
+	•	Store raw API payloads for 7 days in object storage for replay.
+
+if you want, I can turn this into a single make apif:bootstrap script (runs the migration, seeds the xwalk, ingests a fixture, prints a tiny report) so your agent can verify end-to-end in one go.
