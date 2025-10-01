@@ -1,0 +1,73 @@
+done—attempt 3 landed cleanly ✅
+
+### What I just delivered
+
+* **SQL migration (idempotent)** for team/fixture matching cache
+  → [Download `team_cache_migrations.sql`](sandbox:/mnt/data/team_cache_migrations.sql)
+* **Python mixin** for deterministic + fuzzy team matching and fixture selection
+  → [Download `team_matcher.py`](sandbox:/mnt/data/team_matcher.py)
+
+### How to plug this in (quick runbook)
+
+1. **Apply the SQL**
+
+```sql
+\i team_cache_migrations.sql
+```
+
+2. **Wire up the matcher**
+
+```python
+from utils.team_matcher import TeamMatcher
+from utils.api_football_client import ApiFootballClient   # your existing client
+
+client = ApiFootballClient(...)         # you already implemented
+tm = TeamMatcher(db=<your_db_conn>, client=client)
+
+# ahead of a backfill batch:
+tm.ensure_team_cache(league_id=39, season=2024)  # EPL example
+fixture_id, diag = tm.match_fixture(
+    league_id=39,
+    season=2024,
+    kickoff_date=<datetime>,
+    home_name="Manchester United",
+    away_name="Chelsea"
+)
+if fixture_id:
+    tm.record_success(match_id=<your_match_id>, fixture_id=fixture_id, diag=diag)
+else:
+    tm.record_failure(match_id=<your_match_id>, diag=diag)
+```
+
+3. **Backfill script changes (where you already loop matches)**
+
+* Before calling API-Football odds, call `tm.match_fixture(...)`.
+* On success, update `training_matches.fixture_id` via `record_success`, then call your `ingest_fixture_odds_from_apifootball(...)`.
+* On failure, `record_failure` writes diagnostics to `fixture_map_state` for manual review.
+
+4. **Forward-capture (new matches)**
+
+* During match discovery, call `tm.ensure_team_cache(league, season)` once per league/season, then look up fixture IDs with a tight date window and store immediately on insert into `training_matches`.
+
+### Defaults baked into the matcher
+
+* **Accent/diacritic normalization** (Atlético → Atletico)
+* **Canonicalization** (lowercase + strip non-alphanumerics)
+* **Fuzzy fallback** (RapidFuzz if available, else difflib)
+* **Date window**: ±1 day (tunable)
+* **Acceptance**: score ≥ 0.92 and margin ≥ 0.03 between top 2
+* **Tables**: `team_alias`, `apif_teams_ref`, `fixture_map_state`
+
+### Next actions I recommend
+
+1. Run the SQL migration.
+2. Seed team cache for your priority leagues/seasons:
+
+   * iterate `tm.ensure_team_cache(league, season)` using your league map.
+3. Update your **`backfill_fixture_ids.py`** to use `TeamMatcher` and write to `fixture_map_state`.
+4. Kick off a pilot on ~100 historical matches, review `fixture_map_state`:
+
+   * If many `ambiguous_top2`, add team aliases via `tm.add_team_aliases('parissaintgermain', ['psg','paris sg'])` and rerun.
+5. Once `fixture_id`s populate, your **gap-fill worker** and **ingestion** will start producing `odds_snapshots` rows and `odds_consensus` will blend them automatically.
+
+If you want, I can generate a tiny patch to your existing `backfill_fixture_ids.py` that imports `TeamMatcher` and swaps in the matching call inline.

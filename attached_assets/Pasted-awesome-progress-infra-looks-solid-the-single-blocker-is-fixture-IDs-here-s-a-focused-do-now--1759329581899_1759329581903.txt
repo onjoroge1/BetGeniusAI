@@ -1,0 +1,138 @@
+awesome progress — infra looks solid. the single blocker is fixture IDs. here’s a focused, do-now **dev plan for your agent** to finish Phase 1 (API-Football only) by unblocking fixture_id and turning on gap-fill + backfill.
+
+# TL;DR
+
+* Infra is done: client, ingestion, gap-fill worker, schema, crosswalk.    
+* You already seeded 31 API-Football bookmakers. 
+* Blocker: **ALL training matches have `fixture_id` = NULL**, so workers find nothing to fill. 
+
+Below is a crisp plan (forward-capture + historical backfill) that plugs straight into the code you already wrote.
+
+---
+
+# A) Forward-capture fixture_ids (unblocks new matches immediately)
+
+**Goal:** ensure every *new* `training_matches` row gets an `api_football.fixture_id` at insert time.
+
+1. **Extend discovery pipeline** (where you create `training_matches`) to also call API-Football **fixtures** for the league+date window and store `fixture_id`. You already have client methods for fixtures-by-date and by teams — reuse them. 
+2. **Constraint:** add a check constraint or NOT NULL default for future rows if feasible; at minimum, add an assertion in the ingest path that logs when a new row lacks `fixture_id`.
+3. **Smoke test:** run `GapFillWorker.run_gap_fill_for_upcoming()` and confirm it now finds candidates and inserts odds. 
+
+---
+
+# B) Historical fixture_id backfill (unblocks the 9,586 legacy matches)
+
+Keep and upgrade your backfill script; it’s close. 
+
+## B1) Add robust team mapping cache
+
+Create two small tables for reliable matching:
+
+```sql
+-- canonical names & aliases for your internal teams
+CREATE TABLE IF NOT EXISTS team_alias (
+  team_canonical TEXT PRIMARY KEY,       -- e.g., 'parissaintgermain'
+  aliases TEXT[] NOT NULL                -- ['psg','paris sg','paris saint-germain']
+);
+
+-- API-Football teams per league+season (pre-fetched & cached)
+CREATE TABLE IF NOT EXISTS apif_teams_ref (
+  league_id INT,
+  season INT,
+  team_id INT,
+  team_name TEXT,
+  team_canonical TEXT,
+  PRIMARY KEY (league_id, season, team_id)
+);
+
+-- optional: track backfill outcomes per match
+CREATE TABLE IF NOT EXISTS fixture_map_state (
+  match_id BIGINT PRIMARY KEY,
+  status TEXT,                -- 'matched' | 'ambiguous' | 'no_match' | 'error'
+  candidate_count INT,
+  chosen_fixture_id INT,
+  last_msg TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+## B2) Preload API-Football teams (per league+season)
+
+* Add a client method `get_teams(league_id, season)` and seed `apif_teams_ref`. (Use the same retry/backoff pattern you already have.) 
+* Canonicalize names with your existing `OddsMapper.canonicalize_bookmaker_name()` (lowercase, strip spaces/dashes/underscores). 
+* Insert a small alias list for common variants (e.g., “PSG”, “Atletico/Atlético”, “Man Utd/Manchester United”).
+
+## B3) Deterministic fixture search + scoring
+
+Extend `backfill_fixture_ids.py` matching logic:
+
+* Query fixtures with a **tight date window** (±1 day is already in your script) and **league+season** (you’ve implemented season logic). 
+* Resolve **team name → api_football team_id** by:
+
+  * exact canonical match against `apif_teams_ref.team_canonical`
+  * else any alias hit from `team_alias`
+  * else fuzzy (Jaro-Winkler or token set ratio) with a **threshold ≥ 0.92**
+* Score a candidate fixture as:
+
+  ```
+  score = w1*home_name_score + w1*away_name_score + w2*same_league + w3*date_proximity
+  ```
+
+  where `same_league` ∈ {0,1}, `date_proximity` = 1 – (|Δdays| / 2) capped ≥ 0
+* **Choose exactly one** candidate only if `score ≥ 0.92` **and** the margin vs #2 ≥ 0.03. Otherwise mark `ambiguous` in `fixture_map_state` and skip for manual review.
+
+## B4) Rate limits & batching
+
+* You already sleep 300ms between queries; keep it. Add an exponential cooldown if you log repeated 429/503s (mirror your client’s backoff). 
+* Keep your batch envelope (`batch_size=50`, `max_batches=5`) and extend later; you already wrote this. 
+
+## B5) Writebacks & observability
+
+* On success, `UPDATE training_matches SET fixture_id = ? WHERE match_id = ?`. (You already do this.) 
+* Also write into `fixture_map_state` with status and candidate_count for quick QA dashboards.
+
+---
+
+# C) Turn on odds ingestion once fixture_ids exist
+
+You already have all the pieces:
+
+* **Ingestion:** `ApiFootballIngestion.ingest_fixture_odds()` to pull H/D/A odds for a known fixture_id and upsert into `odds_snapshots` with `source='api_football'` and `book_id='apif:{id}'`. 
+* **Consensus recompute:** `refresh_consensus_for_match(match_id)` does multi-source calc + desk-dedupe + `source_mix`. 
+* **Gap-fill worker:** finds <MIN_BOOKS matches and fills via APIF; it’s wired. 
+
+---
+
+# D) Exact agent run order (copy/paste to your agent)
+
+1. **Forward-capture:** modify match discovery to set `fixture_id` using the fixtures endpoint (by league+date+season). Use `search_fixtures_by_date_and_league` you already wrote. 
+2. **Create the 3 tables** `team_alias`, `apif_teams_ref`, `fixture_map_state`.
+3. **Add client: `get_teams(league, season)`**; seed `apif_teams_ref` for the 9 leagues in your `LEAGUE_MAPPING`. 
+4. **Extend backfill script** to resolve teams via `apif_teams_ref` (+ aliases, + fuzzy ≥0.92), score candidates, and update `fixture_id` or `fixture_map_state`. Start with `batch_size=50`. 
+5. **Run backfill batch**; then run `GapFillWorker.run_historical_backfill(batch_size=100)` and confirm `odds_snapshots` fills + `odds_consensus` recomputes. 
+6. **Enable gap-fill for upcoming** (post-OddsAPI cron and T-60m cron). 
+7. **Metrics:** log match-rate, ambiguous rate, 429/503 counts; alert if match-rate < 50% or filled_fixtures=0 for 2 runs.
+
+---
+
+# E) Quick QA checklist (5 mins)
+
+* `bookmaker_xwalk` has ~31 rows after seeding (check log). 
+* A test match with fresh `fixture_id` shows H/D/A rows in `odds_snapshots` with `source='api_football'`. 
+* `odds_consensus` updates and `source_mix` includes `"api_football"`. 
+* `GapFillWorker.find_matches_without_odds()` returns candidates once `fixture_id` is present. 
+
+---
+
+# Notes on what you’ve already delivered
+
+* **Integration status doc** correctly calls out the fixture_id blocker and what works today. Keep it as your living runbook. 
+* **Client**: nice retry/backoff + fixture search methods; reuse them for forward-capture and backfill. 
+* **Ingestion & consensus**: correctly source-tagged and desk-deduped. 
+* **Gap-fill worker**: sound batch flow and stats. 
+* **Backfill script**: great start with league mapping + season inference; just add the team cache + scoring and you’re set. 
+* **Bookmaker list**: seeded and ready (31 APIF books). 
+
+---
+
+want me to draft the SQL + a tiny Python mixin for the team cache + fuzzy scoring (so your agent can just drop it in)?

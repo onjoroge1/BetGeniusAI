@@ -124,6 +124,27 @@ class ApiFootballClient:
             return data['response'][0]
         return None
     
+    def get_teams(self, league_id: int, season: int) -> List[Dict]:
+        """
+        Get all teams for a league and season.
+        
+        Args:
+            league_id: API-Football league ID
+            season: Season year (e.g., 2024)
+        
+        Returns:
+            List of team dictionaries
+        """
+        params = {
+            'league': league_id,
+            'season': season
+        }
+        
+        data = self._make_request('teams', params)
+        if data and 'response' in data:
+            return data['response']
+        return []
+    
     def search_fixtures_by_date_and_league(
         self, 
         date: str, 
