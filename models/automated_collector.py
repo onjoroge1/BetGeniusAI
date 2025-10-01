@@ -312,19 +312,29 @@ class AutomatedCollector:
             # Phase A: Collect recent matches (existing functionality)
             completed_results = await self.collect_recent_matches(days_back=3)
             
-            # Phase B: Collect upcoming match odds (NEW)
-            odds_results = await self.collect_upcoming_odds_snapshots()
+            # Phase B: Collect upcoming match odds - MULTI-SOURCE
+            # B1: The Odds API (21+ bookmakers)
+            theodds_results = await self.collect_upcoming_odds_snapshots()
+            
+            # B2: API-Football (data consistency with training)
+            apifootball_results = await self.collect_upcoming_odds_apifootball()
             
             # Combine results
+            total_odds_collected = (
+                theodds_results.get("new_odds_collected", 0) + 
+                apifootball_results.get("rows_inserted", 0)
+            )
+            
             total_collection_results = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "phase_a_completed": completed_results,
-                "phase_b_odds": odds_results,
+                "phase_b_theodds": theodds_results,
+                "phase_b_apifootball": apifootball_results,
                 "new_matches_collected": completed_results.get("new_matches_collected", 0),
-                "new_odds_collected": odds_results.get("new_odds_collected", 0),
+                "new_odds_collected": total_odds_collected,
                 "total_new_data_points": (
                     completed_results.get("new_matches_collected", 0) + 
-                    odds_results.get("new_odds_collected", 0)
+                    total_odds_collected
                 ),
                 "auto_retrained": False
             }
@@ -334,9 +344,11 @@ class AutomatedCollector:
                 retrain_success = await self.auto_retrain_if_needed(min_new_matches=10)
                 total_collection_results["auto_retrained"] = retrain_success
             
-            logger.info(f"✅ DUAL collection completed:")
+            logger.info(f"✅ MULTI-SOURCE collection completed:")
             logger.info(f"   • Training matches: {completed_results.get('new_matches_collected', 0)} new")
-            logger.info(f"   • Odds snapshots: {odds_results.get('new_odds_collected', 0)} new")
+            logger.info(f"   • The Odds API: {theodds_results.get('new_odds_collected', 0)} snapshots")
+            logger.info(f"   • API-Football: {apifootball_results.get('rows_inserted', 0)} rows")
+            logger.info(f"   • Total odds collected: {total_odds_collected}")
             logger.info(f"   • Total data points: {total_collection_results['total_new_data_points']}")
             
             return total_collection_results
@@ -354,12 +366,14 @@ class AutomatedCollector:
         """
         NEW: Collect odds snapshots for upcoming matches at optimal timing windows
         Populates odds_snapshots table for T-48h/T-24h model predictions
+        Uses The Odds API as primary source
         """
         try:
-            logger.info("🎯 Starting odds snapshots collection for upcoming matches...")
+            logger.info("🎯 Starting The Odds API collection for upcoming matches...")
             
             odds_summary = {
                 "timestamp": datetime.utcnow().isoformat(),
+                "source": "theodds",
                 "leagues_processed": [],
                 "new_odds_collected": 0,
                 "upcoming_matches_found": 0,
@@ -429,7 +443,7 @@ class AutomatedCollector:
                     logger.error(error_msg)
                     odds_summary["errors"].append(error_msg)
             
-            logger.info(f"✅ Odds collection completed: {odds_summary['new_odds_collected']} new snapshots")
+            logger.info(f"✅ The Odds API collection completed: {odds_summary['new_odds_collected']} new snapshots")
             return odds_summary
             
         except Exception as e:
@@ -439,6 +453,130 @@ class AutomatedCollector:
                 "error": str(e),
                 "new_odds_collected": 0,
                 "upcoming_matches_found": 0
+            }
+    
+    async def collect_upcoming_odds_apifootball(self) -> Dict[str, Any]:
+        """
+        NEW: Collect real-time odds from API-Football for upcoming matches
+        Provides data consistency with training data (same source)
+        Complements The Odds API collection for multi-source odds
+        """
+        try:
+            logger.info("🎯 Starting API-Football real-time collection for upcoming matches...")
+            
+            from utils.api_football_integration import ApiFootballIngestion
+            
+            odds_summary = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "source": "apifootball",
+                "fixtures_processed": 0,
+                "rows_inserted": 0,
+                "matches_found": 0,
+                "errors": []
+            }
+            
+            # Find upcoming matches with fixture_ids (required for API-Football)
+            conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+            cursor = conn.cursor()
+            
+            # Get upcoming matches in next 7 days that have fixture_ids
+            query = """
+                SELECT 
+                    match_id, 
+                    league_id, 
+                    fixture_id, 
+                    match_date,
+                    home_team,
+                    away_team
+                FROM training_matches
+                WHERE match_date BETWEEN NOW() AND NOW() + INTERVAL '7 days'
+                    AND fixture_id IS NOT NULL
+                ORDER BY match_date ASC
+                LIMIT 100
+            """
+            
+            cursor.execute(query)
+            upcoming_matches = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            if not upcoming_matches:
+                logger.info("📭 No upcoming matches with fixture_ids found")
+                return odds_summary
+            
+            logger.info(f"📅 Found {len(upcoming_matches)} upcoming matches with fixture_ids")
+            odds_summary["matches_found"] = len(upcoming_matches)
+            
+            # Process each match and collect odds at timing windows
+            for match_id, league_id, fixture_id, kickoff, home_team, away_team in upcoming_matches:
+                try:
+                    # Calculate hours to kickoff
+                    current_time = datetime.utcnow()
+                    hours_to_kickoff = (kickoff - current_time).total_seconds() / 3600
+                    
+                    logger.info(
+                        f"🕐 Match {match_id}: {home_team} vs {away_team} "
+                        f"(fixture {fixture_id}) - T-{hours_to_kickoff:.1f}h"
+                    )
+                    
+                    # Check if we should collect at current timing window
+                    timing_windows = [72, 48, 24, 12, 6, 3, 1]
+                    should_collect = False
+                    
+                    for window in timing_windows:
+                        tolerance = 12 if window >= 48 else 8
+                        if abs(hours_to_kickoff - window) <= tolerance:
+                            logger.info(
+                                f"🎯 Collecting API-Football odds for T-{window}h window "
+                                f"(actual: T-{hours_to_kickoff:.1f}h, tolerance: ±{tolerance}h)"
+                            )
+                            should_collect = True
+                            break
+                    
+                    if not should_collect:
+                        logger.debug(f"⏭️  Skipping - not in timing window (T-{hours_to_kickoff:.1f}h)")
+                        continue
+                    
+                    # Collect odds using API-Football
+                    rows = ApiFootballIngestion.ingest_fixture_odds(
+                        fixture_id=fixture_id,
+                        match_id=match_id,
+                        league_id=league_id,
+                        kickoff_ts=kickoff,
+                        live=False
+                    )
+                    
+                    if rows > 0:
+                        odds_summary["fixtures_processed"] += 1
+                        odds_summary["rows_inserted"] += rows
+                        logger.info(f"✅ Collected {rows} odds rows for match {match_id}")
+                        
+                        # Refresh consensus for this match
+                        ApiFootballIngestion.refresh_consensus_for_match(match_id)
+                    
+                    # Rate limiting: 0.3s between fixtures (~200 req/min max)
+                    await asyncio.sleep(0.3)
+                    
+                except Exception as match_error:
+                    error_msg = f"Failed to collect odds for match {match_id}: {match_error}"
+                    logger.warning(error_msg)
+                    odds_summary["errors"].append(error_msg)
+            
+            logger.info(
+                f"✅ API-Football real-time collection completed: "
+                f"{odds_summary['fixtures_processed']} fixtures, "
+                f"{odds_summary['rows_inserted']} rows inserted"
+            )
+            return odds_summary
+            
+        except Exception as e:
+            logger.error(f"❌ API-Football real-time collection failed: {e}")
+            return {
+                "timestamp": datetime.utcnow().isoformat(),
+                "source": "apifootball",
+                "error": str(e),
+                "fixtures_processed": 0,
+                "rows_inserted": 0
             }
     
     async def _get_upcoming_matches(self, league_id: int, days_ahead: int = 7) -> List[Dict]:
