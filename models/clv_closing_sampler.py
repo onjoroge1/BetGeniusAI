@@ -47,13 +47,13 @@ class CLVClosingSampler:
                     SELECT 
                         m.match_id,
                         COALESCE(lm.league_name, CAST(m.league_id AS text)) as league_name,
-                        m.match_date_utc as kickoff_at
-                    FROM matches m
+                        m.match_date as kickoff_at
+                    FROM training_matches m
                     LEFT JOIN league_map lm ON m.league_id = lm.league_id
-                    WHERE m.match_date_utc >= %s
-                      AND m.match_date_utc <= %s
-                      AND m.status = 'scheduled'
-                    ORDER BY m.match_date_utc
+                    WHERE m.match_date >= %s
+                      AND m.match_date <= %s
+                      AND m.match_date > NOW()
+                    ORDER BY m.match_date
                 """, (window_start, window_end))
                 
                 fixtures = []
