@@ -1,0 +1,126 @@
+heck yeah—everything’s wired. Here’s a crisp “launch checklist” to run the **full backfill** safely, plus exact commands and sanity checks.
+
+# 1) Pre-flight
+
+* Confirm creds & rate limits:
+
+  * `RAPIDAPI_KEY` set and valid
+  * choose a safe envelope (e.g., **batch_size=100**, **sleep=300ms** per match)
+* Make sure the 3 helper tables exist (you ran the migration already):
+
+  * `team_alias`, `apif_teams_ref`, `fixture_map_state`
+
+# 2) Seed team caches (fast + saves calls)
+
+Do this once per priority league/season (example uses your 9 priority leagues):
+
+```python
+# seed_teams.py (quick helper)
+from utils.api_football_client import ApiFootballClient
+from utils.team_matcher import TeamMatcher
+import os, psycopg2
+
+LEAGUES = [2, 3, 39, 40, 78, 135, 140, 141, 61]  # FR, NL, EPL, CHAMP, GER, ITA, ESP, ESP2, FRA
+SEASONS = [2024]  # add more if backfilling further back
+
+conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+client = ApiFootballClient()
+tm = TeamMatcher(conn, client)
+for lg in LEAGUES:
+    for ssn in SEASONS:
+        tm.ensure_team_cache(lg, ssn)
+conn.close()
+print("✅ team caches seeded")
+```
+
+Run:
+
+```bash
+python seed_teams.py
+```
+
+# 3) Kick off the backfill (prime season window first)
+
+Use the script you just updated:
+
+```bash
+# conservative pass (recommended first)
+python backfill_fixture_ids.py
+# or, if you want to push harder, edit inside to:
+#   batch_size = 100
+#   max_batches = 20   # ≈ 2,000 matches this run
+```
+
+# 4) Watch it live (DB sanity queries)
+
+```sql
+-- progress by result
+SELECT status, COUNT(*) 
+FROM fixture_map_state 
+GROUP BY status ORDER BY COUNT(*) DESC;
+
+-- how many matches got fixture_id set
+SELECT COUNT(*) AS matched
+FROM training_matches
+WHERE fixture_id IS NOT NULL;
+
+-- recent detailed sample
+SELECT tm.match_id, tm.league_id, tm.home_team, tm.away_team, tm.match_date, fms.status
+FROM training_matches tm
+JOIN fixture_map_state fms USING (match_id)
+ORDER BY fms.updated_at DESC
+LIMIT 20;
+```
+
+# 5) Start odds ingestion on mapped fixtures
+
+As soon as `fixture_id`s land, run your gap-fill to pull odds:
+
+```python
+# quick trigger
+from utils.gap_fill_worker import GapFillWorker
+GapFillWorker().run_historical_backfill(batch_size=50)   # adjust to taste
+```
+
+Verify odds arriving:
+
+```sql
+-- snapshots by source
+SELECT source, COUNT(*) 
+FROM odds_snapshots
+GROUP BY source;
+
+-- a few matches that now have blended consensus
+SELECT match_id, n_books, source_mix
+FROM odds_consensus
+WHERE source_mix IS NOT NULL
+ORDER BY ts_effective DESC
+LIMIT 20;
+```
+
+# 6) Rollout guardrails (so you don’t trip limits)
+
+* If you see many 429/503s in logs, reduce `batch_size` or increase the per-match sleep (e.g., **500–800ms**).
+* If `fixture_map_state` shows many `ambiguous_top2`, add aliases:
+
+```python
+from utils.team_matcher import TeamMatcher
+tm.add_team_aliases("parissaintgermain", ["psg", "paris sg", "paris saint-germain"])
+tm.add_team_aliases("atleticomadrid", ["atletico", "atlético madrid"])
+```
+
+* Re-run the batch; ambiguous cases often drop after a couple of alias tweaks.
+
+# 7) What “good” looks like
+
+* **Match rate**: 60–80% in the Aug 2024–May 2025 window you scoped.
+* **Odds fill**: `odds_snapshots` shows new rows with `source='api_football'` and `book_id='apif:{id}'`.
+* **Consensus**: `n_books` up, `source_mix` includes `"api_football"`.
+
+# 8) Optional next step (forward-capture)
+
+Update your match discovery path to call the matcher and set `fixture_id` at insert time. That guarantees **all future** matches flow into the gap-fill automatically.
+
+---
+
+If you want, tell me your preferred **batch size** and **sleep** and I’ll hand you a one-liner command for a supervised run (with periodic progress prints and a safe stop on high 429 rates).

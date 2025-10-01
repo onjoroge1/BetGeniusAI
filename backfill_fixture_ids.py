@@ -109,13 +109,29 @@ def seed_team_cache(matcher: TeamMatcher):
     logger.info(f"\n✅ Team cache seeded: {total_cached} total teams cached")
 
 
-def backfill_fixtures_for_matches(batch_size: int = 50, max_batches: int = 5, seed_cache: bool = True):
+def backfill_fixtures_for_matches(
+    batch_size: int = 100, 
+    max_batches: int = 10, 
+    sleep_ms: int = 1200,
+    seed_cache: bool = True
+):
     """
     Backfill fixture_id for training_matches using TeamMatcher.
+    
+    Conservative defaults for safe API usage:
+    - batch_size: 100 matches per batch
+    - max_batches: 10 (1,000 matches per run)
+    - sleep_ms: 1200ms between matches (~0.8 req/sec)
+    
+    Auto-throttle rules:
+    - 429s ≥ 2% in last 100 calls → bump sleep to 1800ms
+    - 429s ≥ 5% → bump to 2500ms and halve batch_size
+    - 0% 429s across two batches → try 1000ms
     
     Args:
         batch_size: Matches to process per batch
         max_batches: Maximum batches to process (safety limit)
+        sleep_ms: Sleep time between matches in milliseconds
         seed_cache: Whether to pre-seed team cache (recommended: True)
     """
     client = ApiFootballClient()
@@ -131,14 +147,20 @@ def backfill_fixtures_for_matches(batch_size: int = 50, max_batches: int = 5, se
         'matched': 0,
         'ambiguous': 0,
         'no_candidates': 0,
-        'errors': 0
+        'errors': 0,
+        'rate_limit_429s': 0,
+        'last_100_calls': []
     }
+    
+    current_sleep = sleep_ms
+    current_batch_size = batch_size
     
     cursor = conn.cursor()
     
     for batch_num in range(max_batches):
         logger.info(f"\n{'='*80}")
         logger.info(f"BATCH {batch_num + 1}/{max_batches}")
+        logger.info(f"Settings: batch_size={current_batch_size}, sleep={current_sleep}ms")
         logger.info(f"{'='*80}")
         
         cursor.execute("""
@@ -150,7 +172,7 @@ def backfill_fixtures_for_matches(batch_size: int = 50, max_batches: int = 5, se
             AND league_id IN (2, 3, 39, 40, 78, 135, 140, 141, 61)
             ORDER BY match_date DESC
             LIMIT %s
-        """, (batch_size,))
+        """, (current_batch_size,))
         
         matches = cursor.fetchall()
         
@@ -181,6 +203,9 @@ def backfill_fixtures_for_matches(batch_size: int = 50, max_batches: int = 5, se
                     away_name=away_team
                 )
                 
+                # Track API call success/failure for auto-throttle
+                call_success = True
+                
                 if fixture_id:
                     # Success - update training_matches
                     cursor.execute("""
@@ -210,17 +235,53 @@ def backfill_fixtures_for_matches(batch_size: int = 50, max_batches: int = 5, se
                         stats['errors'] += 1
                         logger.error(f"❌ {match_id}: Error - {diag['message']}")
                 
-                time.sleep(0.3)  # Rate limiting
+                # Track for auto-throttle
+                stats['last_100_calls'].append(call_success)
+                if len(stats['last_100_calls']) > 100:
+                    stats['last_100_calls'].pop(0)
+                
+                # Conservative rate limiting
+                time.sleep(current_sleep / 1000.0)
                 
             except Exception as e:
-                stats['errors'] += 1
-                logger.error(f"Error processing match {match_id}: {str(e)}")
+                # Check if 429 (rate limit) error
+                if '429' in str(e) or 'rate limit' in str(e).lower():
+                    stats['rate_limit_429s'] += 1
+                    stats['last_100_calls'].append(False)
+                    if len(stats['last_100_calls']) > 100:
+                        stats['last_100_calls'].pop(0)
+                    logger.warning(f"⚠️  Rate limit hit on match {match_id}, backing off...")
+                    time.sleep(4)  # Extra backoff on 429
+                else:
+                    stats['errors'] += 1
+                    logger.error(f"Error processing match {match_id}: {str(e)}")
         
         conn.commit()
+        
+        # Auto-throttle logic
+        if len(stats['last_100_calls']) >= 50:
+            recent_failures = stats['last_100_calls'].count(False)
+            failure_rate = recent_failures / len(stats['last_100_calls'])
+            
+            if failure_rate >= 0.05:  # ≥5% 429s
+                current_sleep = 2500
+                current_batch_size = max(50, current_batch_size // 2)
+                logger.warning(
+                    f"⚠️  High 429 rate ({failure_rate:.1%}) → "
+                    f"sleep={current_sleep}ms, batch_size={current_batch_size}"
+                )
+            elif failure_rate >= 0.02:  # ≥2% 429s
+                current_sleep = 1800
+                logger.warning(f"⚠️  Elevated 429 rate ({failure_rate:.1%}) → sleep={current_sleep}ms")
+            elif failure_rate == 0 and batch_num >= 1:  # Two clean batches
+                current_sleep = max(1000, current_sleep - 100)
+                logger.info(f"✅ Clean batch → sleep={current_sleep}ms")
+        
         logger.info(
             f"\nBatch {batch_num + 1} complete: "
             f"{stats['matched']} matched, {stats['ambiguous']} ambiguous, "
-            f"{stats['no_candidates']} no candidates, {stats['errors']} errors"
+            f"{stats['no_candidates']} no candidates, {stats['errors']} errors, "
+            f"{stats['rate_limit_429s']} rate limits"
         )
     
     cursor.close()
@@ -235,6 +296,7 @@ def backfill_fixtures_for_matches(batch_size: int = 50, max_batches: int = 5, se
     logger.info(f"⚠️  Ambiguous: {stats['ambiguous']}")
     logger.info(f"❌ No candidates: {stats['no_candidates']}")
     logger.info(f"⚠️  Errors: {stats['errors']}")
+    logger.info(f"🚦 Rate limit hits (429s): {stats['rate_limit_429s']}")
     
     if stats['processed'] > 0:
         match_rate = stats['matched'] / stats['processed'] * 100
@@ -254,6 +316,16 @@ if __name__ == '__main__':
     logger.info("Starting fixture ID backfill with TeamMatcher...")
     logger.info("Features: Accent normalization, team aliases, fuzzy matching")
     logger.info("Targeting major European leagues (9 leagues)")
-    logger.info("Batch size: 50 matches, Max batches: 5 (250 matches total)\n")
+    logger.info("Date range: Aug 2024 - May 2025 (prime season)")
+    logger.info("\nConservative settings:")
+    logger.info("  Batch size: 100 matches")
+    logger.info("  Max batches: 10 (1,000 matches per run)")
+    logger.info("  Sleep: 1200ms between matches (~0.8 req/sec)")
+    logger.info("  Auto-throttle: Enabled\n")
     
-    backfill_fixtures_for_matches(batch_size=50, max_batches=5, seed_cache=True)
+    backfill_fixtures_for_matches(
+        batch_size=100, 
+        max_batches=10, 
+        sleep_ms=1200,
+        seed_cache=True
+    )
