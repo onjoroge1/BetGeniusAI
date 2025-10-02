@@ -1,0 +1,212 @@
+got it. here’s what your run is telling us — and the quickest ways to level it up.
+
+## What the numbers say
+
+* **Overall (simulated)**: Acc 48.5%, Brier 0.205, LogLoss 1.03 → **worse than prod** (0.191 / 0.963).
+* **Confidence slices** are sane (monotonic):
+  high 64.4% > medium 47.3% > low 37.5%. That means your confidence signal is meaningful.
+* **Consensus block** only has **20 matches** and keeps spitting **0.650** max-prob everywhere — looks like a fixed horizon sample or rounding in `odds_consensus`. Tiny N + weird probs = noisy.
+
+The biggest reason you’re “worse than prod”: you’re **simulating outcomes**. Simulation adds variance and can’t beat a real truth set. Let’s switch to ground truth + add CLV.
+
+---
+
+## High-impact fixes (do these first)
+
+### 1) Use real results (no simulation)
+
+Wire actual outcomes (H/D/A) and recompute metrics.
+
+**SQL (example, adjust table/columns):**
+
+```sql
+-- Get latest authentic snapshot per match (already refactored)
+WITH last_ts AS (
+  SELECT match_id, MAX(created_at) AS created_at
+  FROM odds_snapshots
+  WHERE market='1X2'
+  GROUP BY match_id
+),
+snap AS (
+  SELECT s.match_id,
+         COUNT(DISTINCT s.book_id) AS n_books,
+         AVG(CASE WHEN s.outcome='H' THEN s.implied_prob END) AS ph,
+         AVG(CASE WHEN s.outcome='D' THEN s.implied_prob END) AS pd,
+         AVG(CASE WHEN s.outcome='A' THEN s.implied_prob END) AS pa
+  FROM odds_snapshots s
+  JOIN last_ts t ON t.match_id=s.match_id AND t.created_at=s.created_at
+  WHERE s.market='1X2'
+  GROUP BY s.match_id
+)
+SELECT m.match_id, m.result, snap.n_books, snap.ph, snap.pd, snap.pa
+FROM matches m
+JOIN snap ON snap.match_id=m.match_id
+WHERE m.result IN ('H','D','A');   -- finished matches only
+```
+
+**Python drop-in to replace the simulation block:**
+
+```python
+# df_preds: columns ['match_id','bookmakers','probabilities','confidence','data_source']
+# df_truth: columns ['match_id','result'] from SQL above
+
+dfp = pd.DataFrame([{
+    'match_id': r['match_id'],
+    'bookmakers': r['bookmakers'],
+    'pH': r['probabilities']['H'],
+    'pD': r['probabilities']['D'],
+    'pA': r['probabilities']['A'],
+    'pred': r['predicted_outcome'],
+    'confidence': r['confidence'],
+    'data_source': r['data_source'],
+} for r in all_results])
+
+# join ground truth
+df = dfp.merge(df_truth, on='match_id', how='inner').rename(columns={'result':'actual'})
+
+# metrics
+outcome_map = {'H':0, 'D':1, 'A':2}
+y_true = df['actual'].map(outcome_map).values
+P = df[['pH','pD','pA']].values
+
+# accuracy
+df['accuracy'] = (df['pred'] == df['actual']).astype(float)
+
+# brier
+true_mat = np.eye(3)[y_true]
+df['brier_score'] = ((P - true_mat)**2).mean(axis=1)
+
+# log loss (clip)
+eps = 1e-15
+pf = np.clip(P[np.arange(len(P)), y_true], eps, 1.0)
+df['log_loss'] = -np.log(pf)
+```
+
+### 2) De-vig before normalization
+
+Books’ probs include margin; normalize after removing margin to prevent bias.
+
+```python
+def devig_1x2(pH,pD,pA):
+    s = pH + pD + pA
+    if s <= 0: return pH,pD,pA
+    # proportional de-vig (simple + stable)
+    pH,pD,pA = pH/s, pD/s, pA/s
+    return pH,pD,pA
+
+# when creating norm_probs
+pH,pD,pA = devig_1x2(home_prob, draw_prob, away_prob)
+norm_probs = {'H':pH,'D':pD,'A':pA}
+```
+
+### 3) Drop weak data
+
+Filter any row with **n_books < 3** and any probability outside **[0.02, 0.98]** (dirty feed / micro leagues).
+
+```python
+df = df[(df['bookmakers'] >= 3) &
+        (df[['pH','pD','pA']].min(axis=1) >= 0.02) &
+        (df[['pH','pD','pA']].max(axis=1) <= 0.98)]
+```
+
+### 4) Weight by bookmaker count
+
+Heavier snapshots should count more.
+
+```python
+w = df['bookmakers'].clip(1, 25)  # cap to avoid over-dominance
+overall_brier = np.average(df['brier_score'], weights=w)
+overall_logloss = np.average(df['log_loss'], weights=w)
+overall_accuracy = np.average(df['accuracy'], weights=w)
+```
+
+---
+
+## Add CLV (closing line value) now
+
+If you store a reference close (e.g., pinnacle/betfair), compute CLV in **prob** space:
+
+**SQL sketch:**
+
+```sql
+WITH close AS (
+  SELECT DISTINCT ON (match_id) match_id,
+         ph_close, pd_close, pa_close, closed_at
+  FROM close_1x2_reference
+  ORDER BY match_id, closed_at DESC
+)
+SELECT p.match_id, p.pred, p.pH, p.pD, p.pA,
+       c.ph_close, c.pd_close, c.pa_close
+FROM preds_latest p
+JOIN close c USING(match_id);
+```
+
+**Python:**
+
+```python
+def prob_of_pick(row):
+    return {'H':row.pH,'D':row.pD,'A':row.pA}[row.pred]
+def prob_close_of_pick(row):
+    return {'H':row.ph_close,'D':row.pd_close,'A':row.pa_close}[row.pred]
+
+df['prob_at_tip']   = df.apply(prob_of_pick, axis=1)
+df['prob_at_close'] = df.apply(prob_close_of_pick, axis=1)
+df['clv_pct'] = df['prob_at_close'] - df['prob_at_tip']
+
+clv_overall = df['clv_pct'].mean()
+clv_high = df[df['confidence']>0.6]['clv_pct'].mean()
+```
+
+**Targets:** CLV% > 0 overall; monotonic improvement by confidence bucket.
+
+---
+
+## Quick diagnostics to add to your printout
+
+* **ECE (calibration error):**
+
+```python
+bins = np.linspace(0.3, 0.9, 13)
+df['maxp'] = df[['pH','pD','pA']].max(axis=1)
+df['is_correct'] = df['accuracy']
+ece = 0.0; N = len(df)
+for i in range(len(bins)-1):
+    m = (df['maxp']>=bins[i]) & (df['maxp']<bins[i+1])
+    if m.sum()==0: continue
+    ece += (m.sum()/N) * abs(df.loc[m,'is_correct'].mean() - df.loc[m,'maxp'].mean())
+print(f"   • ECE: {ece:.3f}")
+```
+
+* **By-horizon metrics** (if you store tip time & KO):
+
+```python
+df['hours_to_ko'] = (df['kickoff_at'] - df['tipped_at']).dt.total_seconds()/3600
+bins = [0,24,48,72,9999]; labels = ['<24','24-48','48-72','>72']
+df['hbin'] = pd.cut(df['hours_to_ko'], bins=bins, labels=labels, right=False)
+for lb in labels:
+    d = df[df['hbin']==lb]
+    if len(d)==0: continue
+    print(f"   • {lb}: acc {d['accuracy'].mean():.3f}, brier {d['brier_score'].mean():.4f}, n={len(d)}")
+```
+
+* **League segmentation** (needs league_id join).
+
+---
+
+## What to expect after these fixes
+
+* Replacing simulation with ground truth typically **drops** variance and gives you fairer Brier/LogLoss.
+* De-vig + data filters + weights usually **tighten** Brier by 0.005–0.015.
+* If CLV turns **positive** (esp. in high-confidence), that’s strong alpha even if raw accuracy looks mid.
+
+---
+
+## Next moves (fast path)
+
+1. Hook ground truth join and re-run.
+2. Add CLV vs close; print overall + by confidence.
+3. De-vig + filters + bookmaker weighting.
+4. Print ECE (calibration).
+5. If consensus stays at “0.650 everywhere,” inspect `odds_consensus` generation (rounding? horizon fixed?).
+
+If you want, drop me your table names for **results** and **close odds** and I’ll hand you an exact, copy-paste block that rewires your script end-to-end (truth join, CLV, ECE, horizon and league breakdowns).

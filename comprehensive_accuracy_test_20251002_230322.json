@@ -1,0 +1,6073 @@
+{
+  "test_timestamp": "20251002_230322",
+  "test_type": "comprehensive_authentic_data",
+  "predictions_tested": 377,
+  "data_sources": {
+    "odds_snapshots": 357,
+    "odds_consensus": 20
+  },
+  "overall_metrics": {
+    "accuracy_3way": 0.4854111405835544,
+    "brier_score": 0.20517134621374167,
+    "log_loss": 1.0301220825757573,
+    "model_score": 6.5,
+    "model_grade": "B (Average)"
+  },
+  "vs_production": {
+    "logloss_delta": 0.06664708257575735,
+    "brier_delta": 0.014171346213741665,
+    "accuracy_delta": -5.758885941644557,
+    "assessment": "NEEDS WORK"
+  },
+  "confidence_breakdown": {
+    "high_confidence": {
+      "count": 73,
+      "accuracy": 0.6438356164383562,
+      "brier": 0.1757199564643571
+    },
+    "medium_confidence": {
+      "count": 224,
+      "accuracy": 0.4732142857142857,
+      "brier": 0.2099581738145111
+    },
+    "low_confidence": {
+      "count": 80,
+      "accuracy": 0.375,
+      "brier": 0.21864262207790047
+    }
+  },
+  "detailed_results": [
+    {
+      "match_id": 1391332,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.11726777659287983,
+      "log_loss": 0.6584251703456643,
+      "confidence": 0.5176659285552281,
+      "probabilities": {
+        "H": 0.5176659285552281,
+        "D": 0.27881072751731995,
+        "A": 0.20352334392745208
+      }
+    },
+    {
+      "match_id": 1391331,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3716622604673972,
+      "log_loss": 1.8289398743611007,
+      "confidence": 0.5900860098279802,
+      "probabilities": {
+        "H": 0.5900860098279802,
+        "D": 0.249330273687252,
+        "A": 0.16058371648476788
+      }
+    },
+    {
+      "match_id": 1391327,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.291497658075495,
+      "log_loss": 1.3838163809203416,
+      "confidence": 0.5014534069307248,
+      "probabilities": {
+        "H": 0.5014534069307248,
+        "D": 0.25062026323250364,
+        "A": 0.24792632983677165
+      }
+    },
+    {
+      "match_id": 1391325,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25893721999736447,
+      "log_loss": 1.2626994894525503,
+      "confidence": 0.41070946676316544,
+      "probabilities": {
+        "H": 0.41070946676316544,
+        "D": 0.28288933804564154,
+        "A": 0.30640119519119285
+      }
+    },
+    {
+      "match_id": 1391323,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.10343635867563632,
+      "log_loss": 0.60492194017801,
+      "confidence": 0.5461170547759969,
+      "probabilities": {
+        "H": 0.5461170547759969,
+        "D": 0.2523824246292306,
+        "A": 0.2015005205947724
+      }
+    },
+    {
+      "match_id": 1396954,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17906666050187323,
+      "log_loss": 0.9121682106642879,
+      "confidence": 0.40165241219585623,
+      "probabilities": {
+        "H": 0.40165241219585623,
+        "D": 0.28994807552724444,
+        "A": 0.3083995122768995
+      }
+    },
+    {
+      "match_id": 1391330,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.179055668697088,
+      "log_loss": 0.9107532663480923,
+      "confidence": 0.40222113025088446,
+      "probabilities": {
+        "H": 0.40222113025088446,
+        "D": 0.32294811743895585,
+        "A": 0.2748307523101597
+      }
+    },
+    {
+      "match_id": 1391322,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2744008824390231,
+      "log_loss": 1.3256360661243134,
+      "confidence": 0.45162943765525776,
+      "probabilities": {
+        "H": 0.45162943765525776,
+        "D": 0.28273661775593695,
+        "A": 0.26563394458880524
+      }
+    },
+    {
+      "match_id": 1391328,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24896551507045428,
+      "log_loss": 1.2217906605263171,
+      "confidence": 0.37173573095577994,
+      "probabilities": {
+        "H": 0.37173573095577994,
+        "D": 0.29470198295814815,
+        "A": 0.33356228608607186
+      }
+    },
+    {
+      "match_id": 1390891,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.10627564281805772,
+      "log_loss": 0.6175782860563548,
+      "confidence": 0.5392487638551934,
+      "probabilities": {
+        "H": 0.2164225531631781,
+        "D": 0.24432868298162852,
+        "A": 0.5392487638551934
+      }
+    },
+    {
+      "match_id": 1390896,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.14393132565877773,
+      "log_loss": 0.7688030919828434,
+      "confidence": 0.46356758415076565,
+      "probabilities": {
+        "H": 0.46356758415076565,
+        "D": 0.2770017590047794,
+        "A": 0.259430656844455
+      }
+    },
+    {
+      "match_id": 1390892,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.20756719915395175,
+      "log_loss": 1.028755909428356,
+      "confidence": 0.36249636028912163,
+      "probabilities": {
+        "H": 0.36249636028912163,
+        "D": 0.2800522537526795,
+        "A": 0.35745138595819886
+      }
+    },
+    {
+      "match_id": 1390898,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.05726506428049827,
+      "log_loss": 0.41286128027953006,
+      "confidence": 0.661754074801299,
+      "probabilities": {
+        "H": 0.1596431426852642,
+        "D": 0.17860278251343664,
+        "A": 0.661754074801299
+      }
+    },
+    {
+      "match_id": 1390889,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18045839605575076,
+      "log_loss": 0.917884704530457,
+      "confidence": 0.3993629188173603,
+      "probabilities": {
+        "H": 0.3993629188173603,
+        "D": 0.31099171326515196,
+        "A": 0.28964536791748774
+      }
+    },
+    {
+      "match_id": 1390895,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.05833962270195154,
+      "log_loss": 0.41744796375483467,
+      "confidence": 0.6587257685718021,
+      "probabilities": {
+        "H": 0.6587257685718021,
+        "D": 0.18322116415833745,
+        "A": 0.1580530672698604
+      }
+    },
+    {
+      "match_id": 1390890,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.07115476129865729,
+      "log_loss": 0.46625041253937466,
+      "confidence": 0.6273501680275981,
+      "probabilities": {
+        "H": 0.6273501680275981,
+        "D": 0.23713061444800151,
+        "A": 0.1355192175244005
+      }
+    },
+    {
+      "match_id": 1390893,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1859015302459579,
+      "log_loss": 0.9391549225292033,
+      "confidence": 0.3909580856655416,
+      "probabilities": {
+        "H": 0.3909580856655416,
+        "D": 0.2789620975134719,
+        "A": 0.33007981682098664
+      }
+    },
+    {
+      "match_id": 1390897,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2541996662147187,
+      "log_loss": 1.245893832361048,
+      "confidence": 0.3836093092761245,
+      "probabilities": {
+        "H": 0.3836093092761245,
+        "D": 0.287683652217971,
+        "A": 0.3287070385059045
+      }
+    },
+    {
+      "match_id": 1390894,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.15791586586451292,
+      "log_loss": 0.8198705819123767,
+      "confidence": 0.4404886580170173,
+      "probabilities": {
+        "H": 0.4404886580170173,
+        "D": 0.3254075323015271,
+        "A": 0.23410380968145564
+      }
+    },
+    {
+      "match_id": 1419652,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.12371265702918445,
+      "log_loss": 0.6849225337957946,
+      "confidence": 0.5041292810440527,
+      "probabilities": {
+        "H": 0.5041292810440527,
+        "D": 0.2818935411925573,
+        "A": 0.21397717776338987
+      }
+    },
+    {
+      "match_id": 1419654,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.27548592379154374,
+      "log_loss": 1.27914221393324,
+      "confidence": 0.5110773209904895,
+      "probabilities": {
+        "H": 0.5110773209904895,
+        "D": 0.2782758992943131,
+        "A": 0.21064677971519724
+      }
+    },
+    {
+      "match_id": 1419657,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.20019515093419527,
+      "log_loss": 1.001193702837055,
+      "confidence": 0.3674405644351383,
+      "probabilities": {
+        "H": 0.3674405644351383,
+        "D": 0.30234606213537896,
+        "A": 0.3302133734294826
+      }
+    },
+    {
+      "match_id": 1419653,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18187878421870338,
+      "log_loss": 0.9240889146438279,
+      "confidence": 0.3968928576698779,
+      "probabilities": {
+        "H": 0.3968928576698779,
+        "D": 0.30536243987511436,
+        "A": 0.2977447024550078
+      }
+    },
+    {
+      "match_id": 1419660,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.10118364955564534,
+      "log_loss": 0.5951272929654806,
+      "confidence": 0.5514923603016045,
+      "probabilities": {
+        "H": 0.5514923603016045,
+        "D": 0.254356098543654,
+        "A": 0.1941515411547414
+      }
+    },
+    {
+      "match_id": 1419659,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.23785842209113187,
+      "log_loss": 1.1701569612042635,
+      "confidence": 0.35131581666936396,
+      "probabilities": {
+        "H": 0.3383659538109886,
+        "D": 0.31031822951964755,
+        "A": 0.35131581666936396
+      }
+    },
+    {
+      "match_id": 1419658,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2816951823744083,
+      "log_loss": 1.353643718970921,
+      "confidence": 0.47060446540846107,
+      "probabilities": {
+        "H": 0.47060446540846107,
+        "D": 0.271098153763656,
+        "A": 0.25829738082788284
+      }
+    },
+    {
+      "match_id": 1419655,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1070463615930131,
+      "log_loss": 0.6191034669759741,
+      "confidence": 0.5384269388048853,
+      "probabilities": {
+        "H": 0.5384269388048853,
+        "D": 0.2587556970804514,
+        "A": 0.20281736411466322
+      }
+    },
+    {
+      "match_id": 1419651,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2495379593919614,
+      "log_loss": 1.2071900829412645,
+      "confidence": 0.42660295923287983,
+      "probabilities": {
+        "H": 0.42660295923287983,
+        "D": 0.2990363673839096,
+        "A": 0.2743606733832107
+      }
+    },
+    {
+      "match_id": 1377918,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24583982029787352,
+      "log_loss": 1.207845221178767,
+      "confidence": 0.3570038819289092,
+      "probabilities": {
+        "H": 0.3570038819289092,
+        "D": 0.2988405213853386,
+        "A": 0.34415559668575235
+      }
+    },
+    {
+      "match_id": 1377920,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0672151484141739,
+      "log_loss": 0.4473322650614344,
+      "confidence": 0.6393314454777648,
+      "probabilities": {
+        "H": 0.6393314454777648,
+        "D": 0.23744266504603015,
+        "A": 0.12322588947620505
+      }
+    },
+    {
+      "match_id": 1377916,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2520854453684245,
+      "log_loss": 1.2335339469247855,
+      "confidence": 0.3917246392208367,
+      "probabilities": {
+        "H": 0.31701390651350286,
+        "D": 0.29126145426566025,
+        "A": 0.3917246392208367
+      }
+    },
+    {
+      "match_id": 1377915,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0842659675318691,
+      "log_loss": 0.5231181428195797,
+      "confidence": 0.592669635197308,
+      "probabilities": {
+        "H": 0.592669635197308,
+        "D": 0.24794194526950317,
+        "A": 0.15938841953318894
+      }
+    },
+    {
+      "match_id": 1377922,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1575060851764196,
+      "log_loss": 0.8228599846164647,
+      "confidence": 0.43917382629154805,
+      "probabilities": {
+        "H": 0.43917382629154805,
+        "D": 0.2995083723268847,
+        "A": 0.2613178013815673
+      }
+    },
+    {
+      "match_id": 1377921,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.31812564313410124,
+      "log_loss": 1.5325846240176793,
+      "confidence": 0.519169392445411,
+      "probabilities": {
+        "H": 0.519169392445411,
+        "D": 0.2648538808881407,
+        "A": 0.21597672666644824
+      }
+    },
+    {
+      "match_id": 1377919,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3520468271880268,
+      "log_loss": 1.7276591895999964,
+      "confidence": 0.5558467461360808,
+      "probabilities": {
+        "H": 0.5558467461360808,
+        "D": 0.2664533686187154,
+        "A": 0.1776998852452038
+      }
+    },
+    {
+      "match_id": 1380938,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.20098496282317335,
+      "log_loss": 0.9896751189203657,
+      "confidence": 0.3876655941623863,
+      "probabilities": {
+        "H": 0.3876655941623863,
+        "D": 0.24063697696736247,
+        "A": 0.37169742887025115
+      }
+    },
+    {
+      "match_id": 1380937,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.05983286403641721,
+      "log_loss": 0.4217182354340954,
+      "confidence": 0.6559188280426245,
+      "probabilities": {
+        "H": 0.6559188280426245,
+        "D": 0.20295023468188442,
+        "A": 0.14113093727549123
+      }
+    },
+    {
+      "match_id": 1380934,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08600557218746248,
+      "log_loss": 0.5353442702623338,
+      "confidence": 0.585467696328004,
+      "probabilities": {
+        "H": 0.585467696328004,
+        "D": 0.21869353957269289,
+        "A": 0.19583876409930318
+      }
+    },
+    {
+      "match_id": 1380932,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.29914491718815955,
+      "log_loss": 1.4162877400733076,
+      "confidence": 0.5146753542607514,
+      "probabilities": {
+        "H": 0.5146753542607514,
+        "D": 0.24261298973371584,
+        "A": 0.24271165600553285
+      }
+    },
+    {
+      "match_id": 1380931,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3065651716773175,
+      "log_loss": 1.4487763852558566,
+      "confidence": 0.5266735085617031,
+      "probabilities": {
+        "H": 0.23846900400661128,
+        "D": 0.23485748743168566,
+        "A": 0.5266735085617031
+      }
+    },
+    {
+      "match_id": 1380930,
+      "data_source": "odds_snapshots",
+      "bookmakers": 13,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.20414241487884244,
+      "log_loss": 1.013927176288377,
+      "confidence": 0.36279143238063294,
+      "probabilities": {
+        "H": 0.36279143238063294,
+        "D": 0.2775244428579522,
+        "A": 0.3596841247614149
+      }
+    },
+    {
+      "match_id": 1388677,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.27759204414898736,
+      "log_loss": 1.3607580831674781,
+      "confidence": 0.41367476075378096,
+      "probabilities": {
+        "H": 0.41367476075378096,
+        "D": 0.2564662804703651,
+        "A": 0.329858958775854
+      }
+    },
+    {
+      "match_id": 1388685,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17006196168445897,
+      "log_loss": 0.8718936762355027,
+      "confidence": 0.41815894136321735,
+      "probabilities": {
+        "H": 0.41815894136321735,
+        "D": 0.25644329929610654,
+        "A": 0.3253977593406762
+      }
+    },
+    {
+      "match_id": 1388683,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2582559845628917,
+      "log_loss": 1.2365928867499103,
+      "confidence": 0.45332756240803634,
+      "probabilities": {
+        "H": 0.45332756240803634,
+        "D": 0.2563005732935249,
+        "A": 0.2903718642984387
+      }
+    },
+    {
+      "match_id": 1388682,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18903001895099744,
+      "log_loss": 0.9503185506993022,
+      "confidence": 0.38661784645113284,
+      "probabilities": {
+        "H": 0.38661784645113284,
+        "D": 0.2697211064294143,
+        "A": 0.34366104711945283
+      }
+    },
+    {
+      "match_id": 1388679,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.28267799314298697,
+      "log_loss": 1.3807800271177288,
+      "confidence": 0.4351014590522392,
+      "probabilities": {
+        "H": 0.4351014590522392,
+        "D": 0.2513823914817521,
+        "A": 0.3135161494660088
+      }
+    },
+    {
+      "match_id": 1388355,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18590585157035341,
+      "log_loss": 0.9368714498254131,
+      "confidence": 0.3918518478348855,
+      "probabilities": {
+        "H": 0.3918518478348855,
+        "D": 0.26565993650937847,
+        "A": 0.3424882156557362
+      }
+    },
+    {
+      "match_id": 1388358,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.27202059613926943,
+      "log_loss": 1.335038112223727,
+      "confidence": 0.397024935083048,
+      "probabilities": {
+        "H": 0.33982691881306026,
+        "D": 0.2631481461038918,
+        "A": 0.397024935083048
+      }
+    },
+    {
+      "match_id": 1388360,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.05745070871745537,
+      "log_loss": 0.4124346481909368,
+      "confidence": 0.6620364605574959,
+      "probabilities": {
+        "H": 0.6620364605574959,
+        "D": 0.19159918738561565,
+        "A": 0.14636435205688852
+      }
+    },
+    {
+      "match_id": 1388353,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.21589348294904043,
+      "log_loss": 1.0597385921173275,
+      "confidence": 0.38663513229286384,
+      "probabilities": {
+        "H": 0.3465463884482767,
+        "D": 0.26681847925885954,
+        "A": 0.38663513229286384
+      }
+    },
+    {
+      "match_id": 1388354,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3388301397714881,
+      "log_loss": 1.6147391566610234,
+      "confidence": 0.5647707347425871,
+      "probabilities": {
+        "H": 0.5647707347425871,
+        "D": 0.23628670874325006,
+        "A": 0.19894255651416282
+      }
+    },
+    {
+      "match_id": 1388356,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.31803327039021334,
+      "log_loss": 1.4761937662610098,
+      "confidence": 0.5608111228754904,
+      "probabilities": {
+        "H": 0.5608111228754904,
+        "D": 0.21068309545596553,
+        "A": 0.22850578166854402
+      }
+    },
+    {
+      "match_id": 1388361,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.22806483933947375,
+      "log_loss": 1.1103471698667193,
+      "confidence": 0.40501879760769155,
+      "probabilities": {
+        "H": 0.40501879760769155,
+        "D": 0.2655366343996474,
+        "A": 0.329444567992661
+      }
+    },
+    {
+      "match_id": 1389194,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.17259492882966435,
+      "log_loss": 0.8840543724850574,
+      "confidence": 0.4131046317421462,
+      "probabilities": {
+        "H": 0.31706469669625037,
+        "D": 0.2698306715616034,
+        "A": 0.4131046317421462
+      }
+    },
+    {
+      "match_id": 1389195,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2622672010041634,
+      "log_loss": 1.2639839063323481,
+      "confidence": 0.44431922569619425,
+      "probabilities": {
+        "H": 0.44431922569619425,
+        "D": 0.2825262234499189,
+        "A": 0.2731545508538869
+      }
+    },
+    {
+      "match_id": 1389200,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.23985671837705605,
+      "log_loss": 1.1733189695899664,
+      "confidence": 0.39033238101352935,
+      "probabilities": {
+        "H": 0.39033238101352935,
+        "D": 0.30032906861769537,
+        "A": 0.3093385503687753
+      }
+    },
+    {
+      "match_id": 1387755,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.32132089894243804,
+      "log_loss": 1.5191741457194932,
+      "confidence": 0.5467098915082188,
+      "probabilities": {
+        "H": 0.21889258570540115,
+        "D": 0.23439752278637999,
+        "A": 0.5467098915082188
+      }
+    },
+    {
+      "match_id": 1387754,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.24099201431191442,
+      "log_loss": 1.1737509069216816,
+      "confidence": 0.4053115021023368,
+      "probabilities": {
+        "H": 0.3092049643532028,
+        "D": 0.28548353354446027,
+        "A": 0.4053115021023368
+      }
+    },
+    {
+      "match_id": 1387760,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09018287383329715,
+      "log_loss": 0.5502687949474094,
+      "confidence": 0.5767947500272009,
+      "probabilities": {
+        "H": 0.5767947500272009,
+        "D": 0.24238083231790652,
+        "A": 0.1808244176548925
+      }
+    },
+    {
+      "match_id": 1387758,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.12107661058810582,
+      "log_loss": 0.6773880392438406,
+      "confidence": 0.5079419857300911,
+      "probabilities": {
+        "H": 0.5079419857300911,
+        "D": 0.24111995155121077,
+        "A": 0.2509380627186982
+      }
+    },
+    {
+      "match_id": 1387756,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.12047428919096564,
+      "log_loss": 0.6748640917916293,
+      "confidence": 0.509225623846992,
+      "probabilities": {
+        "H": 0.509225623846992,
+        "D": 0.25356138957682123,
+        "A": 0.23721298657618684
+      }
+    },
+    {
+      "match_id": 1387757,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3554866999400428,
+      "log_loss": 1.5850217180136283,
+      "confidence": 0.6407231746243706,
+      "probabilities": {
+        "H": 0.15433348326946233,
+        "D": 0.20494334210616702,
+        "A": 0.6407231746243706
+      }
+    },
+    {
+      "match_id": 1387759,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.30564959230905137,
+      "log_loss": 1.4530030197910506,
+      "confidence": 0.5181756509038677,
+      "probabilities": {
+        "H": 0.5181756509038677,
+        "D": 0.24795742358540968,
+        "A": 0.23386692551072255
+      }
+    },
+    {
+      "match_id": 1379032,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3316859684023385,
+      "log_loss": 1.5288830568573013,
+      "confidence": 0.5851338499483597,
+      "probabilities": {
+        "H": 0.19808848958573855,
+        "D": 0.21677766046590158,
+        "A": 0.5851338499483597
+      }
+    },
+    {
+      "match_id": 1379030,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08025808302294879,
+      "log_loss": 0.5082923640191614,
+      "confidence": 0.6015218826963065,
+      "probabilities": {
+        "H": 0.6015218826963065,
+        "D": 0.23527400081915273,
+        "A": 0.1632041164845408
+      }
+    },
+    {
+      "match_id": 1379034,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2468841815858345,
+      "log_loss": 1.2112167239623628,
+      "confidence": 0.37451695331985985,
+      "probabilities": {
+        "H": 0.37451695331985985,
+        "D": 0.29783467629318994,
+        "A": 0.3276483703869502
+      }
+    },
+    {
+      "match_id": 1379037,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08200517502930217,
+      "log_loss": 0.5176928778671168,
+      "confidence": 0.5958937629631081,
+      "probabilities": {
+        "H": 0.5958937629631081,
+        "D": 0.22510467887486812,
+        "A": 0.17900155816202376
+      }
+    },
+    {
+      "match_id": 1379033,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.1724021772106147,
+      "log_loss": 0.8800817027282227,
+      "confidence": 0.41474902417044673,
+      "probabilities": {
+        "H": 0.334028836617978,
+        "D": 0.25122213921157516,
+        "A": 0.41474902417044673
+      }
+    },
+    {
+      "match_id": 1379029,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.022286826876749793,
+      "log_loss": 0.23159737139469616,
+      "confidence": 0.7932654503791848,
+      "probabilities": {
+        "H": 0.7932654503791848,
+        "D": 0.14045985910880507,
+        "A": 0.06627469051201008
+      }
+    },
+    {
+      "match_id": 1379036,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.38532208972633647,
+      "log_loss": 1.8489235007803138,
+      "confidence": 0.6346281921695183,
+      "probabilities": {
+        "H": 0.6346281921695183,
+        "D": 0.20796528469012085,
+        "A": 0.15740652314036088
+      }
+    },
+    {
+      "match_id": 1379031,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3071528626122772,
+      "log_loss": 1.4711684214190437,
+      "confidence": 0.5103035608681639,
+      "probabilities": {
+        "H": 0.5103035608681639,
+        "D": 0.26003944691977143,
+        "A": 0.22965699221206462
+      }
+    },
+    {
+      "match_id": 1390887,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09455003423472902,
+      "log_loss": 0.5639419370487426,
+      "confidence": 0.5689618258228281,
+      "probabilities": {
+        "H": 0.5689618258228281,
+        "D": 0.2653148766053815,
+        "A": 0.1657232975717904
+      }
+    },
+    {
+      "match_id": 1419650,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.22704538519078152,
+      "log_loss": 1.1172169475012348,
+      "confidence": 0.3689970176760912,
+      "probabilities": {
+        "H": 0.32718911317447696,
+        "D": 0.30381386914943176,
+        "A": 0.3689970176760912
+      }
+    },
+    {
+      "match_id": 1419649,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.1979845502875197,
+      "log_loss": 0.991487914717448,
+      "confidence": 0.3710242277058873,
+      "probabilities": {
+        "H": 0.33088708830898783,
+        "D": 0.2980886839851249,
+        "A": 0.3710242277058873
+      }
+    },
+    {
+      "match_id": 1419648,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.20307475633575814,
+      "log_loss": 1.0137151641929505,
+      "confidence": 0.36286835670657036,
+      "probabilities": {
+        "H": 0.33119857033010625,
+        "D": 0.3059330729633233,
+        "A": 0.36286835670657036
+      }
+    },
+    {
+      "match_id": 1419645,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.13878674150626605,
+      "log_loss": 0.7468443862333206,
+      "confidence": 0.4738595135026336,
+      "probabilities": {
+        "H": 0.23935835571025516,
+        "D": 0.2867821307871111,
+        "A": 0.4738595135026336
+      }
+    },
+    {
+      "match_id": 1419646,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.262443547261838,
+      "log_loss": 1.280601636531765,
+      "confidence": 0.41167719195291186,
+      "probabilities": {
+        "H": 0.41167719195291186,
+        "D": 0.3104527346810334,
+        "A": 0.27787007336605474
+      }
+    },
+    {
+      "match_id": 1419643,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09509204620913976,
+      "log_loss": 0.569521753270057,
+      "confidence": 0.5657959640750766,
+      "probabilities": {
+        "H": 0.5657959640750766,
+        "D": 0.25229023621219004,
+        "A": 0.18191379971273336
+      }
+    },
+    {
+      "match_id": 1419641,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1655644509101278,
+      "log_loss": 0.8560663860833879,
+      "confidence": 0.4248299167314895,
+      "probabilities": {
+        "H": 0.4248299167314895,
+        "D": 0.3027905620088675,
+        "A": 0.27237952125964304
+      }
+    },
+    {
+      "match_id": 1419644,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1499836030276731,
+      "log_loss": 0.7932558377460597,
+      "confidence": 0.4523695531447302,
+      "probabilities": {
+        "H": 0.4523695531447302,
+        "D": 0.28096188693817076,
+        "A": 0.26666855991709904
+      }
+    },
+    {
+      "match_id": 1419647,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2201106064337894,
+      "log_loss": 1.0864341363965035,
+      "confidence": 0.3613622881825667,
+      "probabilities": {
+        "H": 0.3613622881825667,
+        "D": 0.30122017584909494,
+        "A": 0.3374175359683384
+      }
+    },
+    {
+      "match_id": 1391311,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.26179915349563115,
+      "log_loss": 1.2798590395748148,
+      "confidence": 0.40360645241107607,
+      "probabilities": {
+        "H": 0.40360645241107607,
+        "D": 0.27807649547169166,
+        "A": 0.3183170521172323
+      }
+    },
+    {
+      "match_id": 1377906,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.23436675439535493,
+      "log_loss": 1.1510534005286746,
+      "confidence": 0.37298269596054096,
+      "probabilities": {
+        "H": 0.310713904383919,
+        "D": 0.31630339965554005,
+        "A": 0.37298269596054096
+      }
+    },
+    {
+      "match_id": 1377910,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18251813848066126,
+      "log_loss": 0.9264950657642523,
+      "confidence": 0.39593902147291526,
+      "probabilities": {
+        "H": 0.39593902147291526,
+        "D": 0.31251659371979756,
+        "A": 0.2915443848072872
+      }
+    },
+    {
+      "match_id": 1379023,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09212147394570062,
+      "log_loss": 0.5578228706602122,
+      "confidence": 0.5724540145785086,
+      "probabilities": {
+        "H": 0.5724540145785086,
+        "D": 0.24672043086647105,
+        "A": 0.1808255545550203
+      }
+    },
+    {
+      "match_id": 1391321,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16451764478568467,
+      "log_loss": 0.8510309989136774,
+      "confidence": 0.4269744947023732,
+      "probabilities": {
+        "H": 0.4269744947023732,
+        "D": 0.3090470573269398,
+        "A": 0.26397844797068715
+      }
+    },
+    {
+      "match_id": 1390881,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3088164856468845,
+      "log_loss": 1.4036613511693241,
+      "confidence": 0.5681849488973284,
+      "probabilities": {
+        "H": 0.5681849488973284,
+        "D": 0.24569573672077918,
+        "A": 0.18611931438189244
+      }
+    },
+    {
+      "match_id": 1391320,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2752106913601832,
+      "log_loss": 1.3125089504043685,
+      "confidence": 0.47589567904615643,
+      "probabilities": {
+        "H": 0.47589567904615643,
+        "D": 0.269143939771309,
+        "A": 0.2549603811825346
+      }
+    },
+    {
+      "match_id": 1391319,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3949495130306755,
+      "log_loss": 1.937093153942366,
+      "confidence": 0.635373834920238,
+      "probabilities": {
+        "H": 0.635373834920238,
+        "D": 0.22050388232196177,
+        "A": 0.14412228275780015
+      }
+    },
+    {
+      "match_id": 1391314,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2488537863032753,
+      "log_loss": 1.1925676611978513,
+      "confidence": 0.4451555615775291,
+      "probabilities": {
+        "H": 0.4451555615775291,
+        "D": 0.30344112892138125,
+        "A": 0.2514033095010895
+      }
+    },
+    {
+      "match_id": 1391318,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.11662857509567115,
+      "log_loss": 0.6552686326532502,
+      "confidence": 0.5193025422282668,
+      "probabilities": {
+        "H": 0.5193025422282668,
+        "D": 0.28084969445894,
+        "A": 0.1998477633127933
+      }
+    },
+    {
+      "match_id": 1391315,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.15195618342359968,
+      "log_loss": 0.8013267215022121,
+      "confidence": 0.4487332249962958,
+      "probabilities": {
+        "H": 0.27923647203611845,
+        "D": 0.2720303029675858,
+        "A": 0.4487332249962958
+      }
+    },
+    {
+      "match_id": 1390880,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.4070261368074048,
+      "log_loss": 1.7583308753389102,
+      "confidence": 0.7249026674055687,
+      "probabilities": {
+        "H": 0.7249026674055687,
+        "D": 0.17233226793799428,
+        "A": 0.10276506465643696
+      }
+    },
+    {
+      "match_id": 1390882,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24226045175739044,
+      "log_loss": 1.190788435632876,
+      "confidence": 0.355713994163953,
+      "probabilities": {
+        "H": 0.3403045061224115,
+        "D": 0.3039814997136354,
+        "A": 0.355713994163953
+      }
+    },
+    {
+      "match_id": 1390886,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2857061627030838,
+      "log_loss": 1.3839420006887921,
+      "confidence": 0.46041654278513944,
+      "probabilities": {
+        "H": 0.46041654278513944,
+        "D": 0.28899467486444125,
+        "A": 0.2505887823504193
+      }
+    },
+    {
+      "match_id": 1419640,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2513923018651819,
+      "log_loss": 1.211535415600782,
+      "confidence": 0.43604998127035216,
+      "probabilities": {
+        "H": 0.43604998127035216,
+        "D": 0.2977397739953116,
+        "A": 0.2662102447343363
+      }
+    },
+    {
+      "match_id": 1419632,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08217904456548093,
+      "log_loss": 0.5163466849520724,
+      "confidence": 0.5966964911171774,
+      "probabilities": {
+        "H": 0.5966964911171774,
+        "D": 0.2374047492855308,
+        "A": 0.16589875959729194
+      }
+    },
+    {
+      "match_id": 1377909,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25073627501070733,
+      "log_loss": 1.2194737414337034,
+      "confidence": 0.41348970014023867,
+      "probabilities": {
+        "H": 0.41348970014023867,
+        "D": 0.29538557521727327,
+        "A": 0.29112472464248806
+      }
+    },
+    {
+      "match_id": 1377908,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.2994389088029023,
+      "log_loss": 1.4631595461112619,
+      "confidence": 0.4631050471508854,
+      "probabilities": {
+        "H": 0.23150367146738524,
+        "D": 0.3053912813817294,
+        "A": 0.4631050471508854
+      }
+    },
+    {
+      "match_id": 1377911,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.26124068736518896,
+      "log_loss": 1.2696545181619134,
+      "confidence": 0.42327998595843125,
+      "probabilities": {
+        "H": 0.2809286607649031,
+        "D": 0.2957913532766658,
+        "A": 0.42327998595843125
+      }
+    },
+    {
+      "match_id": 1377913,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17758521628754834,
+      "log_loss": 0.9061892307721733,
+      "confidence": 0.4040610773969471,
+      "probabilities": {
+        "H": 0.4040610773969471,
+        "D": 0.2934500778970309,
+        "A": 0.3024888447060221
+      }
+    },
+    {
+      "match_id": 1380928,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.298553107090544,
+      "log_loss": 1.4136181821256086,
+      "confidence": 0.5137938305804547,
+      "probabilities": {
+        "H": 0.5137938305804547,
+        "D": 0.24326152443400562,
+        "A": 0.24294464498553953
+      }
+    },
+    {
+      "match_id": 1380922,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.28428037744641493,
+      "log_loss": 1.3349310029531145,
+      "confidence": 0.5071155796397198,
+      "probabilities": {
+        "H": 0.2297080871408724,
+        "D": 0.26317633321940775,
+        "A": 0.5071155796397198
+      }
+    },
+    {
+      "match_id": 1380926,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.29619184774658686,
+      "log_loss": 1.4494779197710705,
+      "confidence": 0.4534803056172832,
+      "probabilities": {
+        "H": 0.3118269098054974,
+        "D": 0.2346927845772194,
+        "A": 0.4534803056172832
+      }
+    },
+    {
+      "match_id": 1388671,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3004958379054272,
+      "log_loss": 1.4193910783761052,
+      "confidence": 0.519294124204796,
+      "probabilities": {
+        "H": 0.519294124204796,
+        "D": 0.23884462918535176,
+        "A": 0.2418612466098522
+      }
+    },
+    {
+      "match_id": 1388351,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1419350480388634,
+      "log_loss": 0.7609723027147547,
+      "confidence": 0.4672119346612055,
+      "probabilities": {
+        "H": 0.4672119346612055,
+        "D": 0.26868098100800153,
+        "A": 0.26410708433079294
+      }
+    },
+    {
+      "match_id": 1388346,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2785118411619583,
+      "log_loss": 1.36613927988588,
+      "confidence": 0.41244829787539716,
+      "probabilities": {
+        "H": 0.33246181053006324,
+        "D": 0.25508989159453954,
+        "A": 0.41244829787539716
+      }
+    },
+    {
+      "match_id": 1387746,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.20139241014609746,
+      "log_loss": 1.0032240128981127,
+      "confidence": 0.3666953029722552,
+      "probabilities": {
+        "H": 0.35246415887153926,
+        "D": 0.2808405381562055,
+        "A": 0.3666953029722552
+      }
+    },
+    {
+      "match_id": 1387744,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16674956298778545,
+      "log_loss": 0.8608956102036687,
+      "confidence": 0.4227832637012499,
+      "probabilities": {
+        "H": 0.4227832637012499,
+        "D": 0.27311727444548944,
+        "A": 0.30409946185326053
+      }
+    },
+    {
+      "match_id": 1387747,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.11916690770377869,
+      "log_loss": 0.6698072884219758,
+      "confidence": 0.5118071994565199,
+      "probabilities": {
+        "H": 0.5118071994565199,
+        "D": 0.24519352323813154,
+        "A": 0.24299927730534868
+      }
+    },
+    {
+      "match_id": 1379026,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2614436528390405,
+      "log_loss": 1.2565038969218367,
+      "confidence": 0.44915590111681,
+      "probabilities": {
+        "H": 0.26619665313204727,
+        "D": 0.28464744575114265,
+        "A": 0.44915590111681
+      }
+    },
+    {
+      "match_id": 1379019,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1725640684953028,
+      "log_loss": 0.8853157597266121,
+      "confidence": 0.41258387533703,
+      "probabilities": {
+        "H": 0.41258387533703,
+        "D": 0.3009761506226244,
+        "A": 0.28643997404034555
+      }
+    },
+    {
+      "match_id": 1391316,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2593180620180748,
+      "log_loss": 1.2538854004801683,
+      "confidence": 0.4346371038409646,
+      "probabilities": {
+        "H": 0.4346371038409646,
+        "D": 0.279969125385789,
+        "A": 0.2853937707732465
+      }
+    },
+    {
+      "match_id": 1391317,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.22426214240937095,
+      "log_loss": 1.104541569604293,
+      "confidence": 0.3672790347252837,
+      "probabilities": {
+        "H": 0.3672790347252837,
+        "D": 0.30135821108822863,
+        "A": 0.33136275418648764
+      }
+    },
+    {
+      "match_id": 1390888,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2621805393262944,
+      "log_loss": 1.2490641986735085,
+      "confidence": 0.4650168046202136,
+      "probabilities": {
+        "H": 0.4650168046202136,
+        "D": 0.28677303391786013,
+        "A": 0.2482101614619261
+      }
+    },
+    {
+      "match_id": 1390885,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.26470764959306964,
+      "log_loss": 1.2952334541367565,
+      "confidence": 0.40275169569057584,
+      "probabilities": {
+        "H": 0.40275169569057584,
+        "D": 0.3234143751042052,
+        "A": 0.2738339292052189
+      }
+    },
+    {
+      "match_id": 1419635,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.25562458874053196,
+      "log_loss": 1.2528160491547864,
+      "confidence": 0.38485554706853053,
+      "probabilities": {
+        "H": 0.38485554706853053,
+        "D": 0.3294453327173738,
+        "A": 0.28569912021409566
+      }
+    },
+    {
+      "match_id": 1380925,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.4010548597105686,
+      "log_loss": 1.789000407540398,
+      "confidence": 0.701610751982653,
+      "probabilities": {
+        "H": 0.13126210278379788,
+        "D": 0.16712714523354905,
+        "A": 0.701610751982653
+      }
+    },
+    {
+      "match_id": 1388668,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2477603095305724,
+      "log_loss": 1.1907815665922716,
+      "confidence": 0.43917470071263154,
+      "probabilities": {
+        "H": 0.43917470071263154,
+        "D": 0.25684171150529705,
+        "A": 0.3039835877820714
+      }
+    },
+    {
+      "match_id": 1388345,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.275132193398499,
+      "log_loss": 1.3425090361121654,
+      "confidence": 0.4270037427011727,
+      "probabilities": {
+        "H": 0.31180674545209025,
+        "D": 0.26118951184673694,
+        "A": 0.4270037427011727
+      }
+    },
+    {
+      "match_id": 1389185,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3342656056304247,
+      "log_loss": 1.5226010018810219,
+      "confidence": 0.5981092476576834,
+      "probabilities": {
+        "H": 0.5981092476576834,
+        "D": 0.21814375609785436,
+        "A": 0.18374699624446225
+      }
+    },
+    {
+      "match_id": 1387748,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.48618172184724623,
+      "log_loss": 2.1529272565580277,
+      "confidence": 0.8205719034413201,
+      "probabilities": {
+        "H": 0.8205719034413201,
+        "D": 0.11614367733866758,
+        "A": 0.06328441922001225
+      }
+    },
+    {
+      "match_id": 1387751,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.10217785691949842,
+      "log_loss": 0.5983552842866249,
+      "confidence": 0.5497150179150875,
+      "probabilities": {
+        "H": 0.5497150179150875,
+        "D": 0.25977429089230736,
+        "A": 0.1905106911926052
+      }
+    },
+    {
+      "match_id": 1379027,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09992213972317143,
+      "log_loss": 0.5898755067088178,
+      "confidence": 0.5543962990583967,
+      "probabilities": {
+        "H": 0.5543962990583967,
+        "D": 0.2538053319707358,
+        "A": 0.19179836897086763
+      }
+    },
+    {
+      "match_id": 1390879,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.23871792365578262,
+      "log_loss": 1.1561477506724775,
+      "confidence": 0.41911006939991774,
+      "probabilities": {
+        "H": 0.31469613684181885,
+        "D": 0.2661937937582635,
+        "A": 0.41911006939991774
+      }
+    },
+    {
+      "match_id": 1390883,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.14799034128079167,
+      "log_loss": 0.7825837439936963,
+      "confidence": 0.4572231363079705,
+      "probabilities": {
+        "H": 0.4572231363079705,
+        "D": 0.303489352419583,
+        "A": 0.23928751127244635
+      }
+    },
+    {
+      "match_id": 1419638,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2968506166573929,
+      "log_loss": 1.342961279033863,
+      "confidence": 0.558578905726119,
+      "probabilities": {
+        "H": 0.558578905726119,
+        "D": 0.26107141744447415,
+        "A": 0.18034967682940675
+      }
+    },
+    {
+      "match_id": 1419634,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.21104884206223093,
+      "log_loss": 1.0449272186627745,
+      "confidence": 0.3611619944071324,
+      "probabilities": {
+        "H": 0.3611619944071324,
+        "D": 0.2871205886823951,
+        "A": 0.35171741691047254
+      }
+    },
+    {
+      "match_id": 1419637,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16190612650944805,
+      "log_loss": 0.8416875370981064,
+      "confidence": 0.4309826102681266,
+      "probabilities": {
+        "H": 0.4309826102681266,
+        "D": 0.28936641050357176,
+        "A": 0.2796509792283016
+      }
+    },
+    {
+      "match_id": 1419636,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2430592633395333,
+      "log_loss": 1.1946323936196797,
+      "confidence": 0.3548344779103909,
+      "probabilities": {
+        "H": 0.3548344779103909,
+        "D": 0.3028152505424212,
+        "A": 0.3423502715471878
+      }
+    },
+    {
+      "match_id": 1419639,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.15441323134711912,
+      "log_loss": 0.8111571929676978,
+      "confidence": 0.44434357733595775,
+      "probabilities": {
+        "H": 0.44434357733595775,
+        "D": 0.28519719937842847,
+        "A": 0.27045922328561384
+      }
+    },
+    {
+      "match_id": 1419633,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.21405457401393382,
+      "log_loss": 1.0607081576034507,
+      "confidence": 0.3492862213643382,
+      "probabilities": {
+        "H": 0.34621055186478555,
+        "D": 0.30450322677087627,
+        "A": 0.3492862213643382
+      }
+    },
+    {
+      "match_id": 1377905,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.05865913507897319,
+      "log_loss": 0.41458887448849724,
+      "confidence": 0.6606118192550415,
+      "probabilities": {
+        "H": 0.6606118192550415,
+        "D": 0.20969971118293954,
+        "A": 0.12968846956201893
+      }
+    },
+    {
+      "match_id": 1380923,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03221354667674234,
+      "log_loss": 0.2906199897975366,
+      "confidence": 0.7477997955826068,
+      "probabilities": {
+        "H": 0.7477997955826068,
+        "D": 0.1509317893036629,
+        "A": 0.10126841511373035
+      }
+    },
+    {
+      "match_id": 1388672,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2469070862041051,
+      "log_loss": 1.1848100050026147,
+      "confidence": 0.4415957518842167,
+      "probabilities": {
+        "H": 0.4415957518842167,
+        "D": 0.2525999728537196,
+        "A": 0.30580427526206366
+      }
+    },
+    {
+      "match_id": 1388350,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2678595894849493,
+      "log_loss": 1.3002824867951408,
+      "confidence": 0.43303939110589845,
+      "probabilities": {
+        "H": 0.2945057916200475,
+        "D": 0.2724548172740542,
+        "A": 0.43303939110589845
+      }
+    },
+    {
+      "match_id": 1388348,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.26803488047395563,
+      "log_loss": 1.3162443840529323,
+      "confidence": 0.3843285667715957,
+      "probabilities": {
+        "H": 0.3475309873766962,
+        "D": 0.2681404458517081,
+        "A": 0.3843285667715957
+      }
+    },
+    {
+      "match_id": 1388349,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.14744034332158643,
+      "log_loss": 0.7820937835611655,
+      "confidence": 0.45744721244333647,
+      "probabilities": {
+        "H": 0.2909707969998066,
+        "D": 0.2515819905568571,
+        "A": 0.45744721244333647
+      }
+    },
+    {
+      "match_id": 1388352,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.20317751971378015,
+      "log_loss": 1.004088047591336,
+      "confidence": 0.3773022097946447,
+      "probabilities": {
+        "H": 0.3663786023485111,
+        "D": 0.2563191878568442,
+        "A": 0.3773022097946447
+      }
+    },
+    {
+      "match_id": 1387745,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.09092508831938395,
+      "log_loss": 0.5555023023798592,
+      "confidence": 0.573783975742722,
+      "probabilities": {
+        "H": 0.20116824752394702,
+        "D": 0.225047776733331,
+        "A": 0.573783975742722
+      }
+    },
+    {
+      "match_id": 1379024,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.18299213611751583,
+      "log_loss": 0.9281007339579965,
+      "confidence": 0.3953037849055289,
+      "probabilities": {
+        "H": 0.3180028117632085,
+        "D": 0.28669340333126275,
+        "A": 0.3953037849055289
+      }
+    },
+    {
+      "match_id": 1379022,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2892794132896073,
+      "log_loss": 1.3713931470538807,
+      "confidence": 0.5006220381879667,
+      "probabilities": {
+        "H": 0.24562476414292475,
+        "D": 0.2537531976691086,
+        "A": 0.5006220381879667
+      }
+    },
+    {
+      "match_id": 1379025,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.01852288401374436,
+      "log_loss": 0.21020321939392414,
+      "confidence": 0.8104195362676664,
+      "probabilities": {
+        "H": 0.8104195362676664,
+        "D": 0.12357845600194062,
+        "A": 0.06600200773039296
+      }
+    },
+    {
+      "match_id": 1379020,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.28441106928454046,
+      "log_loss": 1.3721550502603037,
+      "confidence": 0.46669209731117617,
+      "probabilities": {
+        "H": 0.2797479667619399,
+        "D": 0.2535599359268839,
+        "A": 0.46669209731117617
+      }
+    },
+    {
+      "match_id": 1391312,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.21857314864134667,
+      "log_loss": 1.0800094653202241,
+      "confidence": 0.3576990525136858,
+      "probabilities": {
+        "H": 0.33959231127975475,
+        "D": 0.3027086362065595,
+        "A": 0.3576990525136858
+      }
+    },
+    {
+      "match_id": 1390884,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18854017715681984,
+      "log_loss": 0.950924572524925,
+      "confidence": 0.3863836185787781,
+      "probabilities": {
+        "H": 0.3863836185787781,
+        "D": 0.2864006412772774,
+        "A": 0.32721574014394444
+      }
+    },
+    {
+      "match_id": 1388669,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.32465000535824456,
+      "log_loss": 1.5178750570110824,
+      "confidence": 0.5627823828896807,
+      "probabilities": {
+        "H": 0.5627823828896807,
+        "D": 0.2191771313768629,
+        "A": 0.21804048573345639
+      }
+    },
+    {
+      "match_id": 1387750,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.282458785205773,
+      "log_loss": 1.3553293040903684,
+      "confidence": 0.47408326399530587,
+      "probabilities": {
+        "H": 0.2680543706675111,
+        "D": 0.2578623653371831,
+        "A": 0.47408326399530587
+      }
+    },
+    {
+      "match_id": 1390877,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.4860670274939391,
+      "log_loss": 2.4439189679515194,
+      "confidence": 0.7785794305230508,
+      "probabilities": {
+        "H": 0.08681993932666034,
+        "D": 0.13460063015028886,
+        "A": 0.7785794305230508
+      }
+    },
+    {
+      "match_id": 1390875,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1385148013619618,
+      "log_loss": 0.7422402151577876,
+      "confidence": 0.47604627401533706,
+      "probabilities": {
+        "H": 0.47604627401533706,
+        "D": 0.3052962791129837,
+        "A": 0.21865744687167935
+      }
+    },
+    {
+      "match_id": 1390876,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3371063411414034,
+      "log_loss": 1.638423208793182,
+      "confidence": 0.5398912462747344,
+      "probabilities": {
+        "H": 0.5398912462747344,
+        "D": 0.2658226041391676,
+        "A": 0.19428614958609794
+      }
+    },
+    {
+      "match_id": 1390870,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.06597483192973898,
+      "log_loss": 0.44671032122141974,
+      "confidence": 0.6397291974088677,
+      "probabilities": {
+        "H": 0.6397291974088677,
+        "D": 0.22033439997543972,
+        "A": 0.1399364026156927
+      }
+    },
+    {
+      "match_id": 1390873,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17897425959382185,
+      "log_loss": 0.9061253621600776,
+      "confidence": 0.40408688504130275,
+      "probabilities": {
+        "H": 0.40408688504130275,
+        "D": 0.34407660687112246,
+        "A": 0.2518365080875747
+      }
+    },
+    {
+      "match_id": 1390874,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.03648469784097393,
+      "log_loss": 0.3129443039152528,
+      "confidence": 0.7312906414601932,
+      "probabilities": {
+        "H": 0.11040666815613702,
+        "D": 0.1583026903836697,
+        "A": 0.7312906414601932
+      }
+    },
+    {
+      "match_id": 1390878,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.17390584558221303,
+      "log_loss": 0.890836303608178,
+      "confidence": 0.41031246343165656,
+      "probabilities": {
+        "H": 0.3026042634544917,
+        "D": 0.2870832731138517,
+        "A": 0.41031246343165656
+      }
+    },
+    {
+      "match_id": 1389176,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.2049595399163983,
+      "log_loss": 1.0213993670156745,
+      "confidence": 0.3600906884067124,
+      "probabilities": {
+        "H": 0.3600906884067124,
+        "D": 0.30188909251312007,
+        "A": 0.33802021908016744
+      }
+    },
+    {
+      "match_id": 1389175,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2652791632975518,
+      "log_loss": 1.2645431416653732,
+      "confidence": 0.46685414074464304,
+      "probabilities": {
+        "H": 0.46685414074464304,
+        "D": 0.28236826897423806,
+        "A": 0.2507775902811189
+      }
+    },
+    {
+      "match_id": 1389177,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.08920109121817825,
+      "log_loss": 0.5473521212648493,
+      "confidence": 0.5784795278740827,
+      "probabilities": {
+        "H": 0.18747922424376987,
+        "D": 0.23404124788214745,
+        "A": 0.5784795278740827
+      }
+    },
+    {
+      "match_id": 1389174,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08661299957703437,
+      "log_loss": 0.5334537045624851,
+      "confidence": 0.5865756084333684,
+      "probabilities": {
+        "H": 0.5865756084333684,
+        "D": 0.248301902549196,
+        "A": 0.16512248901743562
+      }
+    },
+    {
+      "match_id": 1390872,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2587261301505143,
+      "log_loss": 1.2577907681834979,
+      "confidence": 0.4203039627267504,
+      "probabilities": {
+        "H": 0.4203039627267504,
+        "D": 0.2954146605473766,
+        "A": 0.2842813767258731
+      }
+    },
+    {
+      "match_id": 1390869,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.056085763496687445,
+      "log_loss": 0.4028637839405951,
+      "confidence": 0.668403140364668,
+      "probabilities": {
+        "H": 0.668403140364668,
+        "D": 0.2065573215472087,
+        "A": 0.12503953808812335
+      }
+    },
+    {
+      "match_id": 1391305,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24905042918486675,
+      "log_loss": 1.2056869662565743,
+      "confidence": 0.42466085081667426,
+      "probabilities": {
+        "H": 0.42466085081667426,
+        "D": 0.2994861919217446,
+        "A": 0.27585295726158116
+      }
+    },
+    {
+      "match_id": 1377900,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03685464328652153,
+      "log_loss": 0.30901901008090527,
+      "confidence": 0.7341668133230855,
+      "probabilities": {
+        "H": 0.7341668133230855,
+        "D": 0.1806816702846932,
+        "A": 0.0851515163922213
+      }
+    },
+    {
+      "match_id": 1387739,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.10501224167071273,
+      "log_loss": 0.6129367919820504,
+      "confidence": 0.5417575014386097,
+      "probabilities": {
+        "H": 0.2237619685239412,
+        "D": 0.23448053003744918,
+        "A": 0.5417575014386097
+      }
+    },
+    {
+      "match_id": 1391308,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.20113326647782578,
+      "log_loss": 1.0057910576270133,
+      "confidence": 0.36575518690390485,
+      "probabilities": {
+        "H": 0.36575518690390485,
+        "D": 0.3173160873759667,
+        "A": 0.31692872572012853
+      }
+    },
+    {
+      "match_id": 1391310,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3161685176149514,
+      "log_loss": 1.396141609495469,
+      "confidence": 0.5989743400046252,
+      "probabilities": {
+        "H": 0.5989743400046252,
+        "D": 0.2475502692551413,
+        "A": 0.1534753907402335
+      }
+    },
+    {
+      "match_id": 1391309,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.22620406168083715,
+      "log_loss": 1.1062173749923656,
+      "confidence": 0.3932693926404431,
+      "probabilities": {
+        "H": 0.3308079197247518,
+        "D": 0.27592268763480504,
+        "A": 0.3932693926404431
+      }
+    },
+    {
+      "match_id": 1391306,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.19201658188492532,
+      "log_loss": 0.9664529271560393,
+      "confidence": 0.380430060835015,
+      "probabilities": {
+        "H": 0.380430060835015,
+        "D": 0.2986184710395001,
+        "A": 0.32095146812548486
+      }
+    },
+    {
+      "match_id": 1390860,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.02411298574386325,
+      "log_loss": 0.24268081495354563,
+      "confidence": 0.7845218814657989,
+      "probabilities": {
+        "H": 0.7845218814657989,
+        "D": 0.14443189154420158,
+        "A": 0.0710462269899995
+      }
+    },
+    {
+      "match_id": 1390862,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.26062337585461115,
+      "log_loss": 1.216491384358447,
+      "confidence": 0.4915294067301091,
+      "probabilities": {
+        "H": 0.4915294067301091,
+        "D": 0.2962678354310114,
+        "A": 0.21220275783887965
+      }
+    },
+    {
+      "match_id": 1390864,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.10412497552190451,
+      "log_loss": 0.6053200535931871,
+      "confidence": 0.5458996815227087,
+      "probabilities": {
+        "H": 0.18790761394616726,
+        "D": 0.2661927045311241,
+        "A": 0.5458996815227087
+      }
+    },
+    {
+      "match_id": 1390865,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16653156388760373,
+      "log_loss": 0.8606563407318041,
+      "confidence": 0.42288443493257977,
+      "probabilities": {
+        "H": 0.42288443493257977,
+        "D": 0.2893089476885325,
+        "A": 0.2878066173788877
+      }
+    },
+    {
+      "match_id": 1419631,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2384694954049061,
+      "log_loss": 1.1701238337908528,
+      "confidence": 0.3759672362514073,
+      "probabilities": {
+        "H": 0.3759672362514073,
+        "D": 0.31032850973020315,
+        "A": 0.31370425401838953
+      }
+    },
+    {
+      "match_id": 1419624,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.2633908581657439,
+      "log_loss": 1.2798079673101135,
+      "confidence": 0.4259277749878322,
+      "probabilities": {
+        "H": 0.27809069783074586,
+        "D": 0.29598152718142196,
+        "A": 0.4259277749878322
+      }
+    },
+    {
+      "match_id": 1419626,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24717713047241915,
+      "log_loss": 1.1896140963708672,
+      "confidence": 0.4361890105217903,
+      "probabilities": {
+        "H": 0.4361890105217903,
+        "D": 0.3043386868120413,
+        "A": 0.25947230266616833
+      }
+    },
+    {
+      "match_id": 1377896,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.20108778715002548,
+      "log_loss": 1.0041077102265616,
+      "confidence": 0.36637139845052275,
+      "probabilities": {
+        "H": 0.36637139845052275,
+        "D": 0.2940595826073212,
+        "A": 0.339569018942156
+      }
+    },
+    {
+      "match_id": 1377895,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2173708519681253,
+      "log_loss": 1.074807511223748,
+      "confidence": 0.3558645840286757,
+      "probabilities": {
+        "H": 0.3558645840286757,
+        "D": 0.30277195835979936,
+        "A": 0.3413634576115249
+      }
+    },
+    {
+      "match_id": 1377898,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24024136494010392,
+      "log_loss": 1.17936544336893,
+      "confidence": 0.37210164112104566,
+      "probabilities": {
+        "H": 0.32042457263881546,
+        "D": 0.30747378624013894,
+        "A": 0.37210164112104566
+      }
+    },
+    {
+      "match_id": 1380920,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2228327550428498,
+      "log_loss": 1.0876349704155328,
+      "confidence": 0.39920566409020386,
+      "probabilities": {
+        "H": 0.39920566409020386,
+        "D": 0.26378173921617704,
+        "A": 0.3370125966936192
+      }
+    },
+    {
+      "match_id": 1380918,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18392531103643175,
+      "log_loss": 0.9229976092245225,
+      "confidence": 0.39732622542161483,
+      "probabilities": {
+        "H": 0.39732622542161483,
+        "D": 0.2423775145717954,
+        "A": 0.3602962600065897
+      }
+    },
+    {
+      "match_id": 1380919,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09575919012967961,
+      "log_loss": 0.5753777872750404,
+      "confidence": 0.5624923262183877,
+      "probabilities": {
+        "H": 0.5624923262183877,
+        "D": 0.22764550327968727,
+        "A": 0.20986217050192504
+      }
+    },
+    {
+      "match_id": 1388667,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.14413429862109609,
+      "log_loss": 0.7695385752084491,
+      "confidence": 0.46322676331805435,
+      "probabilities": {
+        "H": 0.46322676331805435,
+        "D": 0.2580272159385614,
+        "A": 0.2787460207433843
+      }
+    },
+    {
+      "match_id": 1388661,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.20440615593119174,
+      "log_loss": 1.0115236967081107,
+      "confidence": 0.37217729592216464,
+      "probabilities": {
+        "H": 0.37217729592216464,
+        "D": 0.2641582611863728,
+        "A": 0.3636644428914625
+      }
+    },
+    {
+      "match_id": 1388666,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.16333583624195042,
+      "log_loss": 0.8464690407081582,
+      "confidence": 0.42892678424785163,
+      "probabilities": {
+        "H": 0.30579225031962004,
+        "D": 0.26528096543252844,
+        "A": 0.42892678424785163
+      }
+    },
+    {
+      "match_id": 1388337,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.06862950351931378,
+      "log_loss": 0.4625113984849948,
+      "confidence": 0.6297002298420817,
+      "probabilities": {
+        "H": 0.6297002298420817,
+        "D": 0.19528968018119508,
+        "A": 0.17501008997672324
+      }
+    },
+    {
+      "match_id": 1388336,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.34532872796846287,
+      "log_loss": 1.585787292922685,
+      "confidence": 0.6066993410740724,
+      "probabilities": {
+        "H": 0.6066993410740724,
+        "D": 0.20478650266950144,
+        "A": 0.18851415625642617
+      }
+    },
+    {
+      "match_id": 1388338,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3418093282759392,
+      "log_loss": 1.5434501536094734,
+      "confidence": 0.614415326368185,
+      "probabilities": {
+        "H": 0.614415326368185,
+        "D": 0.21364272817908903,
+        "A": 0.1719419454527261
+      }
+    },
+    {
+      "match_id": 1387734,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2522744920462769,
+      "log_loss": 1.2388194445048415,
+      "confidence": 0.3618398894832571,
+      "probabilities": {
+        "H": 0.34843405671058825,
+        "D": 0.2897260538061547,
+        "A": 0.3618398894832571
+      }
+    },
+    {
+      "match_id": 1387736,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2719162171909814,
+      "log_loss": 1.3166125694721407,
+      "confidence": 0.44377471852326295,
+      "probabilities": {
+        "H": 0.44377471852326295,
+        "D": 0.268041738621642,
+        "A": 0.2881835428550951
+      }
+    },
+    {
+      "match_id": 1387740,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03519296747110094,
+      "log_loss": 0.3062079617475784,
+      "confidence": 0.7362334951303777,
+      "probabilities": {
+        "H": 0.7362334951303777,
+        "D": 0.15657888743978834,
+        "A": 0.10718761742983399
+      }
+    },
+    {
+      "match_id": 1387742,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1826669496619909,
+      "log_loss": 0.9252233684483325,
+      "confidence": 0.3964428563586255,
+      "probabilities": {
+        "H": 0.3964428563586255,
+        "D": 0.2736804355375595,
+        "A": 0.32987670810381514
+      }
+    },
+    {
+      "match_id": 1379009,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.29580012597271715,
+      "log_loss": 1.4089714019292467,
+      "confidence": 0.5022835647221087,
+      "probabilities": {
+        "H": 0.5022835647221087,
+        "D": 0.25332189761661683,
+        "A": 0.2443945376612745
+      }
+    },
+    {
+      "match_id": 1379010,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2302235098542882,
+      "log_loss": 1.1220617391092116,
+      "confidence": 0.40224700226255083,
+      "probabilities": {
+        "H": 0.40224700226255083,
+        "D": 0.27214521393398844,
+        "A": 0.3256077838034607
+      }
+    },
+    {
+      "match_id": 1379016,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.1590576991089097,
+      "log_loss": 0.8298070017821185,
+      "confidence": 0.43613345117827657,
+      "probabilities": {
+        "H": 0.27064456309052815,
+        "D": 0.2932219857311953,
+        "A": 0.43613345117827657
+      }
+    },
+    {
+      "match_id": 1390866,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.020958632372771846,
+      "log_loss": 0.2241804705942294,
+      "confidence": 0.7991708945080072,
+      "probabilities": {
+        "H": 0.7991708945080072,
+        "D": 0.1348921012322545,
+        "A": 0.06593700425973838
+      }
+    },
+    {
+      "match_id": 1390863,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.11011064489141374,
+      "log_loss": 0.6323846676914218,
+      "confidence": 0.5313232596722327,
+      "probabilities": {
+        "H": 0.5313232596722327,
+        "D": 0.2548944433279033,
+        "A": 0.2137822969998641
+      }
+    },
+    {
+      "match_id": 1419623,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.16046602241997046,
+      "log_loss": 0.8358364541507873,
+      "confidence": 0.43351171706110875,
+      "probabilities": {
+        "H": 0.2790845021021801,
+        "D": 0.28740378083671114,
+        "A": 0.43351171706110875
+      }
+    },
+    {
+      "match_id": 1419628,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.31066887243351077,
+      "log_loss": 1.5014010219699612,
+      "confidence": 0.5025829716945609,
+      "probabilities": {
+        "H": 0.5025829716945609,
+        "D": 0.2745992595288521,
+        "A": 0.22281776877658696
+      }
+    },
+    {
+      "match_id": 1419622,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3018591300420855,
+      "log_loss": 1.4690248016835945,
+      "confidence": 0.47595650033973397,
+      "probabilities": {
+        "H": 0.47595650033973397,
+        "D": 0.2938936821610212,
+        "A": 0.23014981749924485
+      }
+    },
+    {
+      "match_id": 1419629,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.29373300031185706,
+      "log_loss": 1.4216575373601414,
+      "confidence": 0.47366081962546375,
+      "probabilities": {
+        "H": 0.47366081962546375,
+        "D": 0.28502548162817737,
+        "A": 0.2413136987463589
+      }
+    },
+    {
+      "match_id": 1377902,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11312565695389985,
+      "log_loss": 0.6437244213161583,
+      "confidence": 0.5253322174825291,
+      "probabilities": {
+        "H": 0.21075650216932368,
+        "D": 0.2639112803481472,
+        "A": 0.5253322174825291
+      }
+    },
+    {
+      "match_id": 1377894,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1189473685890029,
+      "log_loss": 0.6631718569990886,
+      "confidence": 0.5152145531593264,
+      "probabilities": {
+        "H": 0.5152145531593264,
+        "D": 0.2888508312393243,
+        "A": 0.1959346156013493
+      }
+    },
+    {
+      "match_id": 1380915,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.2805970545881642,
+      "log_loss": 1.3448528082733373,
+      "confidence": 0.47381177614005604,
+      "probabilities": {
+        "H": 0.26057805997192723,
+        "D": 0.2656101638880167,
+        "A": 0.47381177614005604
+      }
+    },
+    {
+      "match_id": 1380913,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2290469904382418,
+      "log_loss": 1.10994430792024,
+      "confidence": 0.41565109395998534,
+      "probabilities": {
+        "H": 0.41565109395998534,
+        "D": 0.25477159062978916,
+        "A": 0.32957731541022567
+      }
+    },
+    {
+      "match_id": 1388665,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.27940921857256407,
+      "log_loss": 1.3622653771162974,
+      "confidence": 0.4356082892983826,
+      "probabilities": {
+        "H": 0.4356082892983826,
+        "D": 0.25608000158877975,
+        "A": 0.3083117091128376
+      }
+    },
+    {
+      "match_id": 1388664,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16970508965182984,
+      "log_loss": 0.8724303539778467,
+      "confidence": 0.41793458497555036,
+      "probabilities": {
+        "H": 0.41793458497555036,
+        "D": 0.26964289797459323,
+        "A": 0.3124225170498565
+      }
+    },
+    {
+      "match_id": 1388341,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0992822682931264,
+      "log_loss": 0.5898118166601016,
+      "confidence": 0.5544316097101485,
+      "probabilities": {
+        "H": 0.5544316097101485,
+        "D": 0.22778515710963904,
+        "A": 0.21778323318021262
+      }
+    },
+    {
+      "match_id": 1388335,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.2027835561623017,
+      "log_loss": 1.0089386573624286,
+      "confidence": 0.364605745913454,
+      "probabilities": {
+        "H": 0.3548581368358481,
+        "D": 0.28053611725069794,
+        "A": 0.364605745913454
+      }
+    },
+    {
+      "match_id": 1388339,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.12495612509346815,
+      "log_loss": 0.6928812891838719,
+      "confidence": 0.5001329633641592,
+      "probabilities": {
+        "H": 0.5001329633641592,
+        "D": 0.25575562308161975,
+        "A": 0.24411141355422109
+      }
+    },
+    {
+      "match_id": 1388343,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1841341577415961,
+      "log_loss": 0.9286502646867023,
+      "confidence": 0.3950866130053311,
+      "probabilities": {
+        "H": 0.3950866130053311,
+        "D": 0.2604914425345128,
+        "A": 0.34442194446015617
+      }
+    },
+    {
+      "match_id": 1387741,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.14690838748954396,
+      "log_loss": 0.7808756284079705,
+      "confidence": 0.45800479366375785,
+      "probabilities": {
+        "H": 0.2644037829008756,
+        "D": 0.2775914234353665,
+        "A": 0.45800479366375785
+      }
+    },
+    {
+      "match_id": 1379013,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.26529350523050804,
+      "log_loss": 1.2686883507731919,
+      "confidence": 0.4615537503427061,
+      "probabilities": {
+        "H": 0.4615537503427061,
+        "D": 0.2812002160382918,
+        "A": 0.25724603361900206
+      }
+    },
+    {
+      "match_id": 1379015,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2032013396937075,
+      "log_loss": 1.0051019041890104,
+      "confidence": 0.3748062389545913,
+      "probabilities": {
+        "H": 0.3748062389545913,
+        "D": 0.2591864258225205,
+        "A": 0.36600733522288814
+      }
+    },
+    {
+      "match_id": 1379017,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.24261356802035636,
+      "log_loss": 1.1793913025160443,
+      "confidence": 0.4112107125626241,
+      "probabilities": {
+        "H": 0.30746583533306904,
+        "D": 0.28132345210430676,
+        "A": 0.4112107125626241
+      }
+    },
+    {
+      "match_id": 1379012,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.15704792571711226,
+      "log_loss": 0.821977476756992,
+      "confidence": 0.4395615717139511,
+      "probabilities": {
+        "H": 0.2820805714074617,
+        "D": 0.27835785687858716,
+        "A": 0.4395615717139511
+      }
+    },
+    {
+      "match_id": 1379014,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.06155695271203518,
+      "log_loss": 0.42931399257271197,
+      "confidence": 0.6509555018956262,
+      "probabilities": {
+        "H": 0.6509555018956262,
+        "D": 0.20552842303983218,
+        "A": 0.14351607506454153
+      }
+    },
+    {
+      "match_id": 1391300,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.10689734999198719,
+      "log_loss": 0.6197415526123642,
+      "confidence": 0.5380834858968253,
+      "probabilities": {
+        "H": 0.5380834858968253,
+        "D": 0.24887125476440697,
+        "A": 0.21304525933876775
+      }
+    },
+    {
+      "match_id": 1396952,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.27426470531615316,
+      "log_loss": 1.289749356744714,
+      "confidence": 0.4947979866450966,
+      "probabilities": {
+        "H": 0.4947979866450966,
+        "D": 0.2753397865021698,
+        "A": 0.22986222685273353
+      }
+    },
+    {
+      "match_id": 1391302,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2408856557110155,
+      "log_loss": 1.175800046700432,
+      "confidence": 0.3983826142787878,
+      "probabilities": {
+        "H": 0.3983826142787878,
+        "D": 0.3085720088895492,
+        "A": 0.2930453768316631
+      }
+    },
+    {
+      "match_id": 1391301,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.18276857659374157,
+      "log_loss": 0.9226533645030406,
+      "confidence": 0.3974630264225828,
+      "probabilities": {
+        "H": 0.34445137106868084,
+        "D": 0.2580856025087364,
+        "A": 0.3974630264225828
+      }
+    },
+    {
+      "match_id": 1390867,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.19177056727422592,
+      "log_loss": 0.9657382624169937,
+      "confidence": 0.3807020379598213,
+      "probabilities": {
+        "H": 0.3067547503796592,
+        "D": 0.31254321166051935,
+        "A": 0.3807020379598213
+      }
+    },
+    {
+      "match_id": 1390868,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08177009989660104,
+      "log_loss": 0.5156512712273724,
+      "confidence": 0.5971115863613171,
+      "probabilities": {
+        "H": 0.5971115863613171,
+        "D": 0.23170712904573432,
+        "A": 0.1711812845929487
+      }
+    },
+    {
+      "match_id": 1390859,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1728427042702605,
+      "log_loss": 0.8864179265181382,
+      "confidence": 0.41212938959646767,
+      "probabilities": {
+        "H": 0.41212938959646767,
+        "D": 0.30231178854649293,
+        "A": 0.2855588218570394
+      }
+    },
+    {
+      "match_id": 1391307,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09208654278502514,
+      "log_loss": 0.5548371689960683,
+      "confidence": 0.5741657455699266,
+      "probabilities": {
+        "H": 0.5741657455699266,
+        "D": 0.2590550182919527,
+        "A": 0.16677923613812054
+      }
+    },
+    {
+      "match_id": 1390861,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.12516133380817238,
+      "log_loss": 0.6936889296992623,
+      "confidence": 0.49972919879012584,
+      "probabilities": {
+        "H": 0.49972919879012584,
+        "D": 0.25636796066332473,
+        "A": 0.24390284054654957
+      }
+    },
+    {
+      "match_id": 1419630,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09801668414127772,
+      "log_loss": 0.5822223404813465,
+      "confidence": 0.5586554633485478,
+      "probabilities": {
+        "H": 0.5586554633485478,
+        "D": 0.2512708988155497,
+        "A": 0.19007363783590256
+      }
+    },
+    {
+      "match_id": 1419627,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.28509457313016806,
+      "log_loss": 1.3826263904568035,
+      "confidence": 0.45700118416405666,
+      "probabilities": {
+        "H": 0.45700118416405666,
+        "D": 0.2920801393609818,
+        "A": 0.2509186764749614
+      }
+    },
+    {
+      "match_id": 1377899,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.23055797097108546,
+      "log_loss": 1.1364214589537744,
+      "confidence": 0.34411351689831343,
+      "probabilities": {
+        "H": 0.33492092554939346,
+        "D": 0.32096555755229306,
+        "A": 0.34411351689831343
+      }
+    },
+    {
+      "match_id": 1388342,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3136590855185614,
+      "log_loss": 1.4865362262914465,
+      "confidence": 0.5330772436449459,
+      "probabilities": {
+        "H": 0.5330772436449459,
+        "D": 0.24076810739444987,
+        "A": 0.22615464896060414
+      }
+    },
+    {
+      "match_id": 1389171,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24925027745442382,
+      "log_loss": 1.2241929164816874,
+      "confidence": 0.35955978979427256,
+      "probabilities": {
+        "H": 0.35955978979427256,
+        "D": 0.29399488302209004,
+        "A": 0.34644532718363735
+      }
+    },
+    {
+      "match_id": 1389173,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.23836604580584933,
+      "log_loss": 1.1672070706029665,
+      "confidence": 0.38622907407833024,
+      "probabilities": {
+        "H": 0.38622907407833024,
+        "D": 0.30253594007270124,
+        "A": 0.3112349858489685
+      }
+    },
+    {
+      "match_id": 1387738,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.06138426970843313,
+      "log_loss": 0.427856615881754,
+      "confidence": 0.651904880904323,
+      "probabilities": {
+        "H": 0.651904880904323,
+        "D": 0.20867046539027925,
+        "A": 0.13942465370539775
+      }
+    },
+    {
+      "match_id": 1380911,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.031489652079400576,
+      "log_loss": 0.2844850465430069,
+      "confidence": 0.7524016063849354,
+      "probabilities": {
+        "H": 0.7524016063849354,
+        "D": 0.15923582656447316,
+        "A": 0.08836256705059153
+      }
+    },
+    {
+      "match_id": 1390853,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25006149743021877,
+      "log_loss": 1.2082795567526667,
+      "confidence": 0.4296211370349041,
+      "probabilities": {
+        "H": 0.4296211370349041,
+        "D": 0.29871075249963996,
+        "A": 0.27166811046545597
+      }
+    },
+    {
+      "match_id": 1377886,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08692580798439632,
+      "log_loss": 0.5332071405967866,
+      "confidence": 0.5867202546731082,
+      "probabilities": {
+        "H": 0.5867202546731082,
+        "D": 0.2544791980506108,
+        "A": 0.15880054727628107
+      }
+    },
+    {
+      "match_id": 1389162,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.2049366953719054,
+      "log_loss": 1.0178856376634182,
+      "confidence": 0.3613581751266235,
+      "probabilities": {
+        "H": 0.3581475489078107,
+        "D": 0.2804942759655658,
+        "A": 0.3613581751266235
+      }
+    },
+    {
+      "match_id": 1391291,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16111562392903464,
+      "log_loss": 0.8384019146374754,
+      "confidence": 0.4324009852589452,
+      "probabilities": {
+        "H": 0.4324009852589452,
+        "D": 0.29065186041819413,
+        "A": 0.27694715432286066
+      }
+    },
+    {
+      "match_id": 1391292,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.18884687601929726,
+      "log_loss": 0.9533290673624727,
+      "confidence": 0.38545567722477186,
+      "probabilities": {
+        "H": 0.38545567722477186,
+        "D": 0.30260627052969125,
+        "A": 0.31193805224553683
+      }
+    },
+    {
+      "match_id": 1391293,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25429416183851844,
+      "log_loss": 1.199379766434732,
+      "confidence": 0.47336568431599413,
+      "probabilities": {
+        "H": 0.47336568431599413,
+        "D": 0.3013810806172255,
+        "A": 0.2252532350667804
+      }
+    },
+    {
+      "match_id": 1391297,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09576041482880715,
+      "log_loss": 0.5744661387449501,
+      "confidence": 0.5630053553363608,
+      "probabilities": {
+        "H": 0.5630053553363608,
+        "D": 0.2389272671355991,
+        "A": 0.19806737752804013
+      }
+    },
+    {
+      "match_id": 1396950,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.22910580868099614,
+      "log_loss": 1.11854075293618,
+      "confidence": 0.3975797873953115,
+      "probabilities": {
+        "H": 0.3975797873953115,
+        "D": 0.2756639475899013,
+        "A": 0.32675626501478733
+      }
+    },
+    {
+      "match_id": 1390851,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.4624796369822961,
+      "log_loss": 2.2988218250107173,
+      "confidence": 0.7443082514931497,
+      "probabilities": {
+        "H": 0.7443082514931497,
+        "D": 0.15531471271011707,
+        "A": 0.10037703579673321
+      }
+    },
+    {
+      "match_id": 1390856,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.23119617242251458,
+      "log_loss": 1.1350625779939874,
+      "confidence": 0.3770194491501724,
+      "probabilities": {
+        "H": 0.3770194491501724,
+        "D": 0.30157854283768026,
+        "A": 0.3214020080121473
+      }
+    },
+    {
+      "match_id": 1390855,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25766323955261283,
+      "log_loss": 1.247862806381091,
+      "confidence": 0.4295441369554347,
+      "probabilities": {
+        "H": 0.2833380951751911,
+        "D": 0.2871177678693742,
+        "A": 0.4295441369554347
+      }
+    },
+    {
+      "match_id": 1390852,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08980349561874652,
+      "log_loss": 0.5503327220784975,
+      "confidence": 0.5767578783721672,
+      "probabilities": {
+        "H": 0.5767578783721672,
+        "D": 0.23045781446463517,
+        "A": 0.1927843071631976
+      }
+    },
+    {
+      "match_id": 1419612,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.24482551109263131,
+      "log_loss": 1.1994125231309862,
+      "confidence": 0.3836163699672242,
+      "probabilities": {
+        "H": 0.3836163699672242,
+        "D": 0.3150124215023755,
+        "A": 0.30137120853040034
+      }
+    },
+    {
+      "match_id": 1419619,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2534169755134406,
+      "log_loss": 1.213519074393671,
+      "confidence": 0.44954038023283066,
+      "probabilities": {
+        "H": 0.2533098744912322,
+        "D": 0.29714974527593707,
+        "A": 0.44954038023283066
+      }
+    },
+    {
+      "match_id": 1419615,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.27696103055872723,
+      "log_loss": 1.347350831943927,
+      "confidence": 0.43831163022930975,
+      "probabilities": {
+        "H": 0.43831163022930975,
+        "D": 0.30176042761769123,
+        "A": 0.2599279421529991
+      }
+    },
+    {
+      "match_id": 1377889,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3128028615894135,
+      "log_loss": 1.5116574244976868,
+      "confidence": 0.5060925023826083,
+      "probabilities": {
+        "H": 0.5060925023826083,
+        "D": 0.2733633580087963,
+        "A": 0.22054413960859548
+      }
+    },
+    {
+      "match_id": 1377892,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.14295073743836365,
+      "log_loss": 0.7650042689478734,
+      "confidence": 0.4653319444922584,
+      "probabilities": {
+        "H": 0.2624699788002364,
+        "D": 0.2721980767075052,
+        "A": 0.4653319444922584
+      }
+    },
+    {
+      "match_id": 1377890,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.22052515874482279,
+      "log_loss": 1.089915796372355,
+      "confidence": 0.35083859653736743,
+      "probabilities": {
+        "H": 0.3362448055471407,
+        "D": 0.3129165979154918,
+        "A": 0.35083859653736743
+      }
+    },
+    {
+      "match_id": 1377891,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.07020436939170493,
+      "log_loss": 0.46351295734561004,
+      "confidence": 0.6290698637244316,
+      "probabilities": {
+        "H": 0.6290698637244316,
+        "D": 0.23145071361002503,
+        "A": 0.13947942266554322
+      }
+    },
+    {
+      "match_id": 1380909,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.3206036880200194,
+      "log_loss": 1.5221307372296016,
+      "confidence": 0.5410482967665473,
+      "probabilities": {
+        "H": 0.5410482967665473,
+        "D": 0.2407053377132764,
+        "A": 0.21824636552017634
+      }
+    },
+    {
+      "match_id": 1380907,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2768421792043019,
+      "log_loss": 1.3482899086560272,
+      "confidence": 0.4350609794766261,
+      "probabilities": {
+        "H": 0.305255056072856,
+        "D": 0.259683964450518,
+        "A": 0.4350609794766261
+      }
+    },
+    {
+      "match_id": 1388328,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.13049292063468915,
+      "log_loss": 0.7143383174982938,
+      "confidence": 0.4895159087702619,
+      "probabilities": {
+        "H": 0.4895159087702619,
+        "D": 0.23809925112140912,
+        "A": 0.272384840108329
+      }
+    },
+    {
+      "match_id": 1388332,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.26271257510013324,
+      "log_loss": 1.2675457985203913,
+      "confidence": 0.4423688537257973,
+      "probabilities": {
+        "H": 0.4423688537257973,
+        "D": 0.2815216855915243,
+        "A": 0.27610946068267833
+      }
+    },
+    {
+      "match_id": 1387732,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.22338367258023487,
+      "log_loss": 1.0923965024856077,
+      "confidence": 0.3940785840944665,
+      "probabilities": {
+        "H": 0.3940785840944665,
+        "D": 0.2705097011491243,
+        "A": 0.3354117147564091
+      }
+    },
+    {
+      "match_id": 1387733,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3140310533057406,
+      "log_loss": 1.4341427299315463,
+      "confidence": 0.5703891060074954,
+      "probabilities": {
+        "H": 0.5703891060074954,
+        "D": 0.23831958071101964,
+        "A": 0.19129131328148521
+      }
+    },
+    {
+      "match_id": 1387729,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25560281799790263,
+      "log_loss": 1.2456428067693417,
+      "confidence": 0.4103019395086591,
+      "probabilities": {
+        "H": 0.4103019395086591,
+        "D": 0.28775587724177865,
+        "A": 0.3019421832495623
+      }
+    },
+    {
+      "match_id": 1387727,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.10732952582616152,
+      "log_loss": 0.6217426000961016,
+      "confidence": 0.537007831867652,
+      "probabilities": {
+        "H": 0.537007831867652,
+        "D": 0.24642852945609506,
+        "A": 0.21656363867625295
+      }
+    },
+    {
+      "match_id": 1379006,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3086757923987841,
+      "log_loss": 1.4409336578005416,
+      "confidence": 0.5430503224457494,
+      "probabilities": {
+        "H": 0.5430503224457494,
+        "D": 0.23670665246689648,
+        "A": 0.22024302508735416
+      }
+    },
+    {
+      "match_id": 1379002,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.03765444637033629,
+      "log_loss": 0.31705798086236053,
+      "confidence": 0.7282885271046562,
+      "probabilities": {
+        "H": 0.10251917726279855,
+        "D": 0.16919229563254526,
+        "A": 0.7282885271046562
+      }
+    },
+    {
+      "match_id": 1391294,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17228384392090548,
+      "log_loss": 0.883551959814539,
+      "confidence": 0.41331223288973984,
+      "probabilities": {
+        "H": 0.41331223288973984,
+        "D": 0.2767950520634187,
+        "A": 0.30989271504684157
+      }
+    },
+    {
+      "match_id": 1391299,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.23655392912783776,
+      "log_loss": 1.1422545366606036,
+      "confidence": 0.4247776507444589,
+      "probabilities": {
+        "H": 0.4247776507444589,
+        "D": 0.3190987903061067,
+        "A": 0.25612355894943445
+      }
+    },
+    {
+      "match_id": 1391296,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.2561033624907008,
+      "log_loss": 1.2512934787902195,
+      "confidence": 0.40111449794689763,
+      "probabilities": {
+        "H": 0.40111449794689763,
+        "D": 0.3127510535004712,
+        "A": 0.28613444855263115
+      }
+    },
+    {
+      "match_id": 1391298,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.17796504469755425,
+      "log_loss": 0.9077730051281128,
+      "confidence": 0.4034216423184324,
+      "probabilities": {
+        "H": 0.2940154912288827,
+        "D": 0.3025628664526848,
+        "A": 0.4034216423184324
+      }
+    },
+    {
+      "match_id": 1390850,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2928177071666354,
+      "log_loss": 1.3578891177558732,
+      "confidence": 0.5308229251071354,
+      "probabilities": {
+        "H": 0.5308229251071354,
+        "D": 0.2572031298505554,
+        "A": 0.21197394504230915
+      }
+    },
+    {
+      "match_id": 1390849,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3137525129483829,
+      "log_loss": 1.3810615540245799,
+      "confidence": 0.5984603677582935,
+      "probabilities": {
+        "H": 0.5984603677582935,
+        "D": 0.25131163053566397,
+        "A": 0.1502280017060426
+      }
+    },
+    {
+      "match_id": 1390857,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3371337236147973,
+      "log_loss": 1.5154127119887941,
+      "confidence": 0.6116587151585531,
+      "probabilities": {
+        "H": 0.16862379874928765,
+        "D": 0.21971748609215927,
+        "A": 0.6116587151585531
+      }
+    },
+    {
+      "match_id": 1419621,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.2018438000814944,
+      "log_loss": 1.008819715837936,
+      "confidence": 0.3646491152558685,
+      "probabilities": {
+        "H": 0.3646491152558685,
+        "D": 0.31412015569183405,
+        "A": 0.32123072905229744
+      }
+    },
+    {
+      "match_id": 1377887,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.14845881986255846,
+      "log_loss": 0.7856135370126175,
+      "confidence": 0.45583994129689276,
+      "probabilities": {
+        "H": 0.24747103347584043,
+        "D": 0.29668902522726676,
+        "A": 0.45583994129689276
+      }
+    },
+    {
+      "match_id": 1380905,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3931834228091547,
+      "log_loss": 1.736565335199799,
+      "confidence": 0.6960095816329658,
+      "probabilities": {
+        "H": 0.6960095816329658,
+        "D": 0.17612429084529801,
+        "A": 0.12786612752173623
+      }
+    },
+    {
+      "match_id": 1380904,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.09204879956509542,
+      "log_loss": 0.5604564380758773,
+      "confidence": 0.5709484017753611,
+      "probabilities": {
+        "H": 0.21148542194733755,
+        "D": 0.21756617627730152,
+        "A": 0.5709484017753611
+      }
+    },
+    {
+      "match_id": 1380903,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.36905382481366994,
+      "log_loss": 1.7272803718650878,
+      "confidence": 0.6268260851864933,
+      "probabilities": {
+        "H": 0.6268260851864933,
+        "D": 0.19540670094844836,
+        "A": 0.17776721386505842
+      }
+    },
+    {
+      "match_id": 1388330,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0769274706695957,
+      "log_loss": 0.4971163107874689,
+      "confidence": 0.6082822299113708,
+      "probabilities": {
+        "H": 0.17827771750665,
+        "D": 0.21344005258197918,
+        "A": 0.6082822299113708
+      }
+    },
+    {
+      "match_id": 1388331,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.27581452067257534,
+      "log_loss": 1.3528005646803063,
+      "confidence": 0.40778374242518994,
+      "probabilities": {
+        "H": 0.40778374242518994,
+        "D": 0.25851525721157875,
+        "A": 0.33370100036323125
+      }
+    },
+    {
+      "match_id": 1388329,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.19215022437179133,
+      "log_loss": 0.9623534782307126,
+      "confidence": 0.38199281546689545,
+      "probabilities": {
+        "H": 0.35114236843276275,
+        "D": 0.26686481610034174,
+        "A": 0.38199281546689545
+      }
+    },
+    {
+      "match_id": 1388334,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.28137248841395573,
+      "log_loss": 1.3407178203850696,
+      "confidence": 0.48404845818662917,
+      "probabilities": {
+        "H": 0.48404845818662917,
+        "D": 0.26165777786563726,
+        "A": 0.2542937639477337
+      }
+    },
+    {
+      "match_id": 1387725,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.08106517505656326,
+      "log_loss": 0.5149463036033273,
+      "confidence": 0.5975326791085813,
+      "probabilities": {
+        "H": 0.1906127237776111,
+        "D": 0.2118545971138076,
+        "A": 0.5975326791085813
+      }
+    },
+    {
+      "match_id": 1387730,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.32405102300152727,
+      "log_loss": 1.4557914491795299,
+      "confidence": 0.595778411650728,
+      "probabilities": {
+        "H": 0.595778411650728,
+        "D": 0.2332157124553961,
+        "A": 0.1710058758938759
+      }
+    },
+    {
+      "match_id": 1379001,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.12000849439614197,
+      "log_loss": 0.6729183023250523,
+      "confidence": 0.5102174343162423,
+      "probabilities": {
+        "H": 0.23501604317948635,
+        "D": 0.2547665225042713,
+        "A": 0.5102174343162423
+      }
+    },
+    {
+      "match_id": 1379005,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.13058122828522864,
+      "log_loss": 0.7148933446783813,
+      "confidence": 0.48924428952081506,
+      "probabilities": {
+        "H": 0.48924428952081506,
+        "D": 0.27015268476552123,
+        "A": 0.24060302571366377
+      }
+    },
+    {
+      "match_id": 1379004,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25280930980661487,
+      "log_loss": 1.2408560608628756,
+      "confidence": 0.3702262165239393,
+      "probabilities": {
+        "H": 0.3702262165239393,
+        "D": 0.289136593441682,
+        "A": 0.34063719003437876
+      }
+    },
+    {
+      "match_id": 1379003,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.09905254032105054,
+      "log_loss": 0.5845659829058424,
+      "confidence": 0.5573477077582968,
+      "probabilities": {
+        "H": 0.5573477077582968,
+        "D": 0.2616128884990851,
+        "A": 0.1810394037426181
+      }
+    },
+    {
+      "match_id": 1390854,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2532015432770272,
+      "log_loss": 1.175412480375398,
+      "confidence": 0.491845371168739,
+      "probabilities": {
+        "H": 0.491845371168739,
+        "D": 0.3086916241869762,
+        "A": 0.1994630046442847
+      }
+    },
+    {
+      "match_id": 1419618,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.19005331805875433,
+      "log_loss": 0.9584648726485466,
+      "confidence": 0.38348112671375145,
+      "probabilities": {
+        "H": 0.38348112671375145,
+        "D": 0.3111466930436641,
+        "A": 0.30537218024258445
+      }
+    },
+    {
+      "match_id": 1419614,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25119916366844997,
+      "log_loss": 1.2126795120760587,
+      "confidence": 0.4323124653484371,
+      "probabilities": {
+        "H": 0.4323124653484371,
+        "D": 0.29739932575928335,
+        "A": 0.27028820889227945
+      }
+    },
+    {
+      "match_id": 1419613,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11856520998299995,
+      "log_loss": 0.6660646475593257,
+      "confidence": 0.5137262990050732,
+      "probabilities": {
+        "H": 0.22074866689489617,
+        "D": 0.26552503410003075,
+        "A": 0.5137262990050732
+      }
+    },
+    {
+      "match_id": 1419617,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.14946307990010044,
+      "log_loss": 0.7885357854732504,
+      "confidence": 0.4545098081664492,
+      "probabilities": {
+        "H": 0.4545098081664492,
+        "D": 0.30476005820314367,
+        "A": 0.24073013363040713
+      }
+    },
+    {
+      "match_id": 1377885,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24556176660018747,
+      "log_loss": 1.186963453469106,
+      "confidence": 0.4263353170103351,
+      "probabilities": {
+        "H": 0.4263353170103351,
+        "D": 0.30514645006499824,
+        "A": 0.26851823292466676
+      }
+    },
+    {
+      "match_id": 1388655,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.13488106423166868,
+      "log_loss": 0.7326826883200699,
+      "confidence": 0.48061791102681745,
+      "probabilities": {
+        "H": 0.48061791102681745,
+        "D": 0.2578798051614905,
+        "A": 0.2615022838116921
+      }
+    },
+    {
+      "match_id": 1388658,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16086763063752135,
+      "log_loss": 0.8363823610247891,
+      "confidence": 0.43327512461940054,
+      "probabilities": {
+        "H": 0.43327512461940054,
+        "D": 0.26290192266953144,
+        "A": 0.3038229527110679
+      }
+    },
+    {
+      "match_id": 1388651,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.34911545969720503,
+      "log_loss": 1.6653965917735172,
+      "confidence": 0.5801508146877931,
+      "probabilities": {
+        "H": 0.5801508146877931,
+        "D": 0.23073354391234396,
+        "A": 0.189115641399863
+      }
+    },
+    {
+      "match_id": 1378999,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0447123181884734,
+      "log_loss": 0.35097185499565114,
+      "confidence": 0.7040035677602646,
+      "probabilities": {
+        "H": 0.7040035677602646,
+        "D": 0.1848501001791788,
+        "A": 0.11114633206055657
+      }
+    },
+    {
+      "match_id": 1396951,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08224434382151387,
+      "log_loss": 0.5159676025255515,
+      "confidence": 0.5969227311500276,
+      "probabilities": {
+        "H": 0.5969227311500276,
+        "D": 0.2404366065393026,
+        "A": 0.1626406623106697
+      }
+    },
+    {
+      "match_id": 1390858,
+      "data_source": "odds_snapshots",
+      "bookmakers": 17,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.27918705115532955,
+      "log_loss": 1.2893110276937985,
+      "confidence": 0.5205810371892157,
+      "probabilities": {
+        "H": 0.5205810371892157,
+        "D": 0.2754605023841728,
+        "A": 0.20395846042661162
+      }
+    },
+    {
+      "match_id": 1419620,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.15651965285674493,
+      "log_loss": 0.8190321108249536,
+      "confidence": 0.44085814990358724,
+      "probabilities": {
+        "H": 0.2622569743670954,
+        "D": 0.2968848757293174,
+        "A": 0.44085814990358724
+      }
+    },
+    {
+      "match_id": 1388650,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.15691669098009167,
+      "log_loss": 0.8199710747035236,
+      "confidence": 0.4404443943064338,
+      "probabilities": {
+        "H": 0.4404443943064338,
+        "D": 0.2563645678542157,
+        "A": 0.3031910378393506
+      }
+    },
+    {
+      "match_id": 1388326,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2830786499434719,
+      "log_loss": 1.3766369151801001,
+      "confidence": 0.44773205336775873,
+      "probabilities": {
+        "H": 0.44773205336775873,
+        "D": 0.2524260573882385,
+        "A": 0.2998418892440029
+      }
+    },
+    {
+      "match_id": 1387728,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.04483333150324088,
+      "log_loss": 0.35376685443135736,
+      "confidence": 0.7020386254711151,
+      "probabilities": {
+        "H": 0.7020386254711151,
+        "D": 0.1747539625996514,
+        "A": 0.1232074119292335
+      }
+    },
+    {
+      "match_id": 1396949,
+      "data_source": "odds_snapshots",
+      "bookmakers": 10,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.119201535211651,
+      "log_loss": 0.6657621234418725,
+      "confidence": 0.5138817371109946,
+      "probabilities": {
+        "H": 0.5138817371109946,
+        "D": 0.2826707292639344,
+        "A": 0.2034475336250709
+      }
+    },
+    {
+      "match_id": 1396948,
+      "data_source": "odds_snapshots",
+      "bookmakers": 10,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2478294598043472,
+      "log_loss": 1.2102391512406965,
+      "confidence": 0.3986216869764357,
+      "probabilities": {
+        "H": 0.30325233931625917,
+        "D": 0.29812597370730526,
+        "A": 0.3986216869764357
+      }
+    },
+    {
+      "match_id": 1391284,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.246599992590778,
+      "log_loss": 1.1935998512965205,
+      "confidence": 0.4237827300556512,
+      "probabilities": {
+        "H": 0.27308918836179363,
+        "D": 0.30312808158255516,
+        "A": 0.4237827300556512
+      }
+    },
+    {
+      "match_id": 1391289,
+      "data_source": "odds_snapshots",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.23872679343721895,
+      "log_loss": 1.1734778497776799,
+      "confidence": 0.36206897922943887,
+      "probabilities": {
+        "H": 0.36206897922943887,
+        "D": 0.3092894065059221,
+        "A": 0.32864161426463895
+      }
+    },
+    {
+      "match_id": 1391288,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.20752080679822793,
+      "log_loss": 1.0333685758400453,
+      "confidence": 0.3558063788076842,
+      "probabilities": {
+        "H": 0.32858865229864664,
+        "D": 0.3156049688936693,
+        "A": 0.3558063788076842
+      }
+    },
+    {
+      "match_id": 1391281,
+      "data_source": "odds_snapshots",
+      "bookmakers": 13,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.29589540991651747,
+      "log_loss": 1.4356585787431226,
+      "confidence": 0.47219520962976813,
+      "probabilities": {
+        "H": 0.47219520962976813,
+        "D": 0.2898461924456225,
+        "A": 0.23795859792460944
+      }
+    },
+    {
+      "match_id": 1391283,
+      "data_source": "odds_snapshots",
+      "bookmakers": 13,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24326316037644158,
+      "log_loss": 1.1956313364556368,
+      "confidence": 0.35408735795037405,
+      "probabilities": {
+        "H": 0.35408735795037405,
+        "D": 0.30251290645464557,
+        "A": 0.3433997355949804
+      }
+    },
+    {
+      "match_id": 1391290,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.14557984352556178,
+      "log_loss": 0.7754695864435881,
+      "confidence": 0.46048749153617324,
+      "probabilities": {
+        "H": 0.46048749153617324,
+        "D": 0.2777846536143928,
+        "A": 0.2617278548494338
+      }
+    },
+    {
+      "match_id": 1391287,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.238918731998664,
+      "log_loss": 1.1573389555049136,
+      "confidence": 0.41874601385925636,
+      "probabilities": {
+        "H": 0.41874601385925636,
+        "D": 0.26693249367448374,
+        "A": 0.31432149246625996
+      }
+    },
+    {
+      "match_id": 1391285,
+      "data_source": "odds_snapshots",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1281640605184092,
+      "log_loss": 0.7037162299752598,
+      "confidence": 0.4947433033686701,
+      "probabilities": {
+        "H": 0.4947433033686701,
+        "D": 0.28060769175883765,
+        "A": 0.22464900487249229
+      }
+    },
+    {
+      "match_id": 1390845,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.049710313993098075,
+      "log_loss": 0.37765303494863767,
+      "confidence": 0.6854682929521497,
+      "probabilities": {
+        "H": 0.13808709089905624,
+        "D": 0.17644461614879406,
+        "A": 0.6854682929521497
+      }
+    },
+    {
+      "match_id": 1390843,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17993703961534394,
+      "log_loss": 0.9160129155089843,
+      "confidence": 0.4001111419838844,
+      "probabilities": {
+        "H": 0.4001111419838844,
+        "D": 0.297582661850514,
+        "A": 0.3023061961656015
+      }
+    },
+    {
+      "match_id": 1390841,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.2218211087392394,
+      "log_loss": 1.0850728606762137,
+      "confidence": 0.39372463266526125,
+      "probabilities": {
+        "H": 0.3378771670389831,
+        "D": 0.26839820029575556,
+        "A": 0.39372463266526125
+      }
+    },
+    {
+      "match_id": 1377877,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.4580673579148984,
+      "log_loss": 2.331729328280522,
+      "confidence": 0.7266036906854131,
+      "probabilities": {
+        "H": 0.7266036906854131,
+        "D": 0.1762686731107206,
+        "A": 0.09712763620386644
+      }
+    },
+    {
+      "match_id": 1377878,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.33221703288397003,
+      "log_loss": 1.4646102374870291,
+      "confidence": 0.6189338770754442,
+      "probabilities": {
+        "H": 0.6189338770754442,
+        "D": 0.2311680745703466,
+        "A": 0.14989804835420914
+      }
+    },
+    {
+      "match_id": 1377876,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.11501456848832427,
+      "log_loss": 0.6495976543073239,
+      "confidence": 0.5222558618912652,
+      "probabilities": {
+        "H": 0.2022352486472559,
+        "D": 0.27550888946147906,
+        "A": 0.5222558618912652
+      }
+    },
+    {
+      "match_id": 1377883,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.23731505356293237,
+      "log_loss": 1.1625545939578887,
+      "confidence": 0.3845538055116377,
+      "probabilities": {
+        "H": 0.3027598214821782,
+        "D": 0.3126863730061841,
+        "A": 0.3845538055116377
+      }
+    },
+    {
+      "match_id": 1380901,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.3491371541351891,
+      "log_loss": 1.6416385802243012,
+      "confidence": 0.5930912552699579,
+      "probabilities": {
+        "H": 0.1936624507003944,
+        "D": 0.2132462940296478,
+        "A": 0.5930912552699579
+      }
+    },
+    {
+      "match_id": 1380899,
+      "data_source": "odds_snapshots",
+      "bookmakers": 1,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.28696629389790984,
+      "log_loss": 1.356885447711076,
+      "confidence": 0.5013722126929675,
+      "probabilities": {
+        "H": 0.2574614065180103,
+        "D": 0.2411663807890223,
+        "A": 0.5013722126929675
+      }
+    },
+    {
+      "match_id": 1380898,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.24058452604427227,
+      "log_loss": 1.161027899704163,
+      "confidence": 0.4274961115300115,
+      "probabilities": {
+        "H": 0.3131641140845575,
+        "D": 0.2593397743854309,
+        "A": 0.4274961115300115
+      }
+    },
+    {
+      "match_id": 1388319,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25542848768762383,
+      "log_loss": 1.253404204105672,
+      "confidence": 0.3743636901747894,
+      "probabilities": {
+        "H": 0.3743636901747894,
+        "D": 0.28553113426780363,
+        "A": 0.340105175557407
+      }
+    },
+    {
+      "match_id": 1388318,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.38194543544358917,
+      "log_loss": 1.6873133905910105,
+      "confidence": 0.6809310047638288,
+      "probabilities": {
+        "H": 0.6809310047638288,
+        "D": 0.18501592239802567,
+        "A": 0.13405307283814544
+      }
+    },
+    {
+      "match_id": 1388325,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2788253022362558,
+      "log_loss": 1.3411075502926344,
+      "confidence": 0.465467089957752,
+      "probabilities": {
+        "H": 0.465467089957752,
+        "D": 0.26155582187299636,
+        "A": 0.2729770881692518
+      }
+    },
+    {
+      "match_id": 1387720,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.22218152309874592,
+      "log_loss": 1.0822951659074465,
+      "confidence": 0.4040765806970517,
+      "probabilities": {
+        "H": 0.33881699134660986,
+        "D": 0.25710642795633837,
+        "A": 0.4040765806970517
+      }
+    },
+    {
+      "match_id": 1387723,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.32298120761566823,
+      "log_loss": 1.5480025592728008,
+      "confidence": 0.5335144251409655,
+      "probabilities": {
+        "H": 0.5335144251409655,
+        "D": 0.2538132245928096,
+        "A": 0.21267235026622502
+      }
+    },
+    {
+      "match_id": 1387717,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.14484571072689015,
+      "log_loss": 0.7726778980286156,
+      "confidence": 0.46177482521271795,
+      "probabilities": {
+        "H": 0.27106502413652006,
+        "D": 0.2671601506507621,
+        "A": 0.46177482521271795
+      }
+    },
+    {
+      "match_id": 1387721,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.0777038178639386,
+      "log_loss": 0.5005533859096989,
+      "confidence": 0.6061951070453703,
+      "probabilities": {
+        "H": 0.6061951070453703,
+        "D": 0.212523154196633,
+        "A": 0.1812817387579967
+      }
+    },
+    {
+      "match_id": 1387716,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.136209120671649,
+      "log_loss": 0.7378017446290193,
+      "confidence": 0.4781638873787187,
+      "probabilities": {
+        "H": 0.25203072371275154,
+        "D": 0.2698053889085298,
+        "A": 0.4781638873787187
+      }
+    },
+    {
+      "match_id": 1378989,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.1176003277575427,
+      "log_loss": 0.662560638477701,
+      "confidence": 0.5155295580953246,
+      "probabilities": {
+        "H": 0.5155295580953246,
+        "D": 0.2613868482155881,
+        "A": 0.2230835936890872
+      }
+    },
+    {
+      "match_id": 1378993,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.16986191088675984,
+      "log_loss": 0.8738389327307154,
+      "confidence": 0.41734630561523545,
+      "probabilities": {
+        "H": 0.41734630561523545,
+        "D": 0.27795259412991846,
+        "A": 0.3047011002548461
+      }
+    },
+    {
+      "match_id": 1378990,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2935659158453601,
+      "log_loss": 1.3962701864252296,
+      "confidence": 0.5014506127525955,
+      "probabilities": {
+        "H": 0.2510309451996793,
+        "D": 0.24751844204772525,
+        "A": 0.5014506127525955
+      }
+    },
+    {
+      "match_id": 1378995,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.31247522700588265,
+      "log_loss": 1.4152334696281355,
+      "confidence": 0.5754848675400905,
+      "probabilities": {
+        "H": 0.5754848675400905,
+        "D": 0.24286890431629363,
+        "A": 0.18164622814361592
+      }
+    },
+    {
+      "match_id": 1390832,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.47087439462872566,
+      "log_loss": 2.348806186426115,
+      "confidence": 0.7567226637884241,
+      "probabilities": {
+        "H": 0.09548308320261298,
+        "D": 0.14779425300896298,
+        "A": 0.7567226637884241
+      }
+    },
+    {
+      "match_id": 1390833,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.22909946846226562,
+      "log_loss": 1.127196328936358,
+      "confidence": 0.3672970989307326,
+      "probabilities": {
+        "H": 0.3239402062162296,
+        "D": 0.3087626948530379,
+        "A": 0.3672970989307326
+      }
+    },
+    {
+      "match_id": 1377870,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.04538453480263527,
+      "log_loss": 0.35433226500804393,
+      "confidence": 0.7016417976029399,
+      "probabilities": {
+        "H": 0.7016417976029399,
+        "D": 0.18542257648373253,
+        "A": 0.11293562591332756
+      }
+    },
+    {
+      "match_id": 1377871,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.15272827937112032,
+      "log_loss": 0.8039915203439549,
+      "confidence": 0.4475390330653895,
+      "probabilities": {
+        "H": 0.4475390330653895,
+        "D": 0.28974266563514517,
+        "A": 0.26271830129946533
+      }
+    },
+    {
+      "match_id": 1377872,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.0779229652845932,
+      "log_loss": 0.4972845161677927,
+      "confidence": 0.6081799221721417,
+      "probabilities": {
+        "H": 0.15417015528785663,
+        "D": 0.23764992254000175,
+        "A": 0.6081799221721417
+      }
+    },
+    {
+      "match_id": 1377867,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2617041562547428,
+      "log_loss": 1.2381726279913372,
+      "confidence": 0.47499790611420717,
+      "probabilities": {
+        "H": 0.47499790611420717,
+        "D": 0.2899135140217948,
+        "A": 0.23508857986399792
+      }
+    },
+    {
+      "match_id": 1380887,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2823523376783977,
+      "log_loss": 1.3840934629042927,
+      "confidence": 0.42240018921721884,
+      "probabilities": {
+        "H": 0.42240018921721884,
+        "D": 0.25055083049247373,
+        "A": 0.32704898029030754
+      }
+    },
+    {
+      "match_id": 1380886,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.01524208783349513,
+      "log_loss": 0.18900469751256532,
+      "confidence": 0.8277826181663502,
+      "probabilities": {
+        "H": 0.8277826181663502,
+        "D": 0.11098863858587885,
+        "A": 0.06122874324777076
+      }
+    },
+    {
+      "match_id": 1380885,
+      "data_source": "odds_snapshots",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.28377576152521977,
+      "log_loss": 1.3697738691964625,
+      "confidence": 0.4648993949721939,
+      "probabilities": {
+        "H": 0.4648993949721939,
+        "D": 0.2541644274611357,
+        "A": 0.28093617756667033
+      }
+    },
+    {
+      "match_id": 1388315,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.10114681452340897,
+      "log_loss": 0.5962268353891684,
+      "confidence": 0.5508863043083109,
+      "probabilities": {
+        "H": 0.20351194248307053,
+        "D": 0.24560175320861846,
+        "A": 0.5508863043083109
+      }
+    },
+    {
+      "match_id": 1388311,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.10212195994586837,
+      "log_loss": 0.6012081699746463,
+      "confidence": 0.5481489787355285,
+      "probabilities": {
+        "H": 0.5481489787355285,
+        "D": 0.23340420406712792,
+        "A": 0.21844681719734366
+      }
+    },
+    {
+      "match_id": 1388313,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2694884659863877,
+      "log_loss": 1.3109088000544133,
+      "confidence": 0.4291823553121467,
+      "probabilities": {
+        "H": 0.3012426893942787,
+        "D": 0.26957495529357456,
+        "A": 0.4291823553121467
+      }
+    },
+    {
+      "match_id": 1388316,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2825693143135404,
+      "log_loss": 1.3566928766016682,
+      "confidence": 0.47315880686146783,
+      "probabilities": {
+        "H": 0.26933020221773035,
+        "D": 0.2575109909208017,
+        "A": 0.47315880686146783
+      }
+    },
+    {
+      "match_id": 1388312,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.28809823639406235,
+      "log_loss": 1.342908226064091,
+      "confidence": 0.5199602534277256,
+      "probabilities": {
+        "H": 0.5199602534277256,
+        "D": 0.26108526842590674,
+        "A": 0.2189544781463676
+      }
+    },
+    {
+      "match_id": 1387710,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.053923337646965885,
+      "log_loss": 0.39569180807376014,
+      "confidence": 0.673214143132513,
+      "probabilities": {
+        "H": 0.673214143132513,
+        "D": 0.19155778746029598,
+        "A": 0.135228069407191
+      }
+    },
+    {
+      "match_id": 1387712,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.08922120908670589,
+      "log_loss": 0.5478607816577395,
+      "confidence": 0.5781853530740328,
+      "probabilities": {
+        "H": 0.5781853530740328,
+        "D": 0.23055716720536745,
+        "A": 0.19125747972059964
+      }
+    },
+    {
+      "match_id": 1387711,
+      "data_source": "odds_snapshots",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.048937430252278646,
+      "log_loss": 0.3713282834541412,
+      "confidence": 0.6898174487291032,
+      "probabilities": {
+        "H": 0.6898174487291032,
+        "D": 0.1903933158558958,
+        "A": 0.11978923541500087
+      }
+    },
+    {
+      "match_id": 1387713,
+      "data_source": "odds_snapshots",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.007542364578492812,
+      "log_loss": 0.12777537827773008,
+      "confidence": 0.8800510355241394,
+      "probabilities": {
+        "H": 0.8800510355241394,
+        "D": 0.08283780020833391,
+        "A": 0.037111164267526434
+      }
+    },
+    {
+      "match_id": 1378979,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.03288014587813581,
+      "log_loss": 0.29273516499028185,
+      "confidence": 0.7462197396425073,
+      "probabilities": {
+        "H": 0.7462197396425073,
+        "D": 0.15877905312804227,
+        "A": 0.09500120722945041
+      }
+    },
+    {
+      "match_id": 1378981,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.15654940935577616,
+      "log_loss": 0.8194036480462463,
+      "confidence": 0.44069438511582876,
+      "probabilities": {
+        "H": 0.2940415496714652,
+        "D": 0.2652640652127062,
+        "A": 0.44069438511582876
+      }
+    },
+    {
+      "match_id": 1378982,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2449669702940845,
+      "log_loss": 1.1980858198625648,
+      "confidence": 0.3916345966591008,
+      "probabilities": {
+        "H": 0.3916345966591008,
+        "D": 0.30177130404309255,
+        "A": 0.30659409929780673
+      }
+    },
+    {
+      "match_id": 1378986,
+      "data_source": "odds_snapshots",
+      "bookmakers": 22,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.05903167260727805,
+      "log_loss": 0.4195594386795721,
+      "confidence": 0.6573363530034563,
+      "probabilities": {
+        "H": 0.6573363530034563,
+        "D": 0.1933256335635638,
+        "A": 0.1493380134329799
+      }
+    },
+    {
+      "match_id": 1378988,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.34516559661728735,
+      "log_loss": 1.6467684308726955,
+      "confidence": 0.5737052780692911,
+      "probabilities": {
+        "H": 0.1926715350497706,
+        "D": 0.23362318688093833,
+        "A": 0.5737052780692911
+      }
+    },
+    {
+      "match_id": 1390826,
+      "data_source": "odds_snapshots",
+      "bookmakers": 18,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.024841735862935612,
+      "log_loss": 0.24769427063734523,
+      "confidence": 0.7805985587001458,
+      "probabilities": {
+        "H": 0.7805985587001458,
+        "D": 0.1437574301366553,
+        "A": 0.0756440111631989
+      }
+    },
+    {
+      "match_id": 1378978,
+      "data_source": "odds_snapshots",
+      "bookmakers": 21,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.17533698295919745,
+      "log_loss": 0.8968716729502282,
+      "confidence": 0.4078435341137218,
+      "probabilities": {
+        "H": 0.4078435341137218,
+        "D": 0.2917754000854686,
+        "A": 0.30038106580080953
+      }
+    },
+    {
+      "match_id": 1451190,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1451195,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.4316666666666667,
+      "log_loss": 2.3025850929940455,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    },
+    {
+      "match_id": 1451193,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1451189,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    },
+    {
+      "match_id": 1451196,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    },
+    {
+      "match_id": 1451192,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    },
+    {
+      "match_id": 1452155,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1451191,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.4316666666666667,
+      "log_loss": 2.3025850929940455,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    },
+    {
+      "match_id": 1451194,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1451181,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1451184,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.4316666666666667,
+      "log_loss": 2.3025850929940455,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    },
+    {
+      "match_id": 1451187,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.065,
+      "log_loss": 0.4307829160924542,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    },
+    {
+      "match_id": 1451182,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.4316666666666667,
+      "log_loss": 2.3025850929940455,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1451186,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3316666666666667,
+      "log_loss": 1.3862943611198906,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1451183,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "D",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.24666666666666662,
+      "log_loss": 1.2039728043259361,
+      "confidence": 0.4,
+      "probabilities": {
+        "H": 0.3,
+        "D": 0.4,
+        "A": 0.3
+      }
+    },
+    {
+      "match_id": 1451188,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.4316666666666667,
+      "log_loss": 2.3025850929940455,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1451185,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3316666666666667,
+      "log_loss": 1.3862943611198906,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    },
+    {
+      "match_id": 1451180,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "A",
+      "actual_outcome": "H",
+      "accuracy": 0.0,
+      "brier_score": 0.4316666666666667,
+      "log_loss": 2.3025850929940455,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.1,
+        "D": 0.25,
+        "A": 0.65
+      }
+    },
+    {
+      "match_id": 1351296,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "D",
+      "actual_outcome": "D",
+      "accuracy": 1.0,
+      "brier_score": 0.17999999999999997,
+      "log_loss": 0.916290731874155,
+      "confidence": 0.4,
+      "probabilities": {
+        "H": 0.3,
+        "D": 0.4,
+        "A": 0.3
+      }
+    },
+    {
+      "match_id": 1351294,
+      "data_source": "odds_consensus",
+      "bookmakers": 4,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.3316666666666667,
+      "log_loss": 1.3862943611198906,
+      "confidence": 0.65,
+      "probabilities": {
+        "H": 0.65,
+        "D": 0.25,
+        "A": 0.1
+      }
+    }
+  ]
+}
