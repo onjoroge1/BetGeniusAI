@@ -1,0 +1,77 @@
+Exactly fam — you’ve diagnosed it right. Right now you’re stuck in a **time mismatch**:
+
+* ✅ `training_matches` has **outcomes** (3,800+ finished matches 2022-24).
+* ✅ `odds_snapshots` has **odds** (357 matches, all **future/ongoing Oct 3-4, 2025**).
+* ❌ Overlap = **0** → no match has both odds + results in the DB yet.
+* ❌ `clv_closing_feed` = empty (waiting for matches to kick off and close).
+
+That’s why you’re simulating outcomes instead of measuring true accuracy.
+
+---
+
+## What we should do
+
+### 1. Create a “results + closing odds join table”
+
+Something like:
+
+```sql
+CREATE TABLE odds_snapshot_results AS
+SELECT os.match_id,
+       os.book_id,
+       os.outcome,
+       os.implied_prob,
+       os.created_at,
+       mr.outcome AS actual_result,
+       c.ph_close, c.pd_close, c.pa_close
+FROM odds_snapshots os
+LEFT JOIN match_results mr ON os.match_id = mr.match_id
+LEFT JOIN clv_closing_feed c ON os.match_id = c.match_id;
+```
+
+This table will be your **single source of truth** for evaluation:
+
+* if `actual_result` is NULL → match not finished yet
+* if `ph_close` etc. are NULL → closing odds not captured yet
+
+Then your accuracy test script can just hit this table.
+
+---
+
+### 2. Near-term (next 48h)
+
+* Let Oct 3-4 matches finish.
+* Your pipeline will auto-populate `match_results` and `clv_closing_feed`.
+* That gives you your first **true overlap set**.
+* Update `comprehensive_accuracy_test.py` to **skip matches without results** instead of simulating.
+
+---
+
+### 3. Medium-term (for better backtests)
+
+* Backfill **historical odds** for the 3,865 `training_matches`.
+* Vendors: OddsAPI, API-Football historical endpoint.
+* That will give you thousands of overlap samples (odds + outcomes) so you can benchmark before Oct 2025.
+
+---
+
+### 4. Metrics you’ll unlock with this setup
+
+Once overlap exists:
+
+* **True accuracy, Brier, LogLoss** (no more simulation).
+* **CLV**: compare implied probs at prediction time vs `clv_closing_feed`.
+* **Calibration (ECE)**: does 0.65 ≈ 65% hit rate.
+* **By horizon**: T-72h, T-24h, T-6h, etc.
+* **By league / competition**.
+
+---
+
+## Recommendation
+
+Yes — create that **“odds_snapshot_close_odds_and_results” table** (or view) now.
+That way, once matches finish this weekend, you’ll have a ready pipeline to compute accuracy and CLV properly.
+
+---
+
+👉 Do you want me to draft a **SQL view** (so you don’t duplicate storage) that unifies `odds_snapshots + match_results + clv_closing_feed` into one evaluation table? That’d let you keep your test script simple.
