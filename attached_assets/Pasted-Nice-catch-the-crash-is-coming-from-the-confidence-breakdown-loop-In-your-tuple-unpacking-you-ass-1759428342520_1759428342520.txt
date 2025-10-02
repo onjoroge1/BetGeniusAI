@@ -1,0 +1,137 @@
+Nice catch — the crash is coming from the confidence breakdown loop.
+In your tuple unpacking you assign:
+
+for conf_level, conf_data, conf_name in [
+    (high_conf, "High (>60%)", "high"),
+    ...
+]:
+    conf_accuracy = conf_data['accuracy'].mean()  # <- conf_data is a *string*
+
+conf_data is actually the label string (“High (>60%)”), so conf_data['accuracy'] raises TypeError: string indices must be integers, not 'str'.
+
+Minimal fix
+
+Swap the variable names (or better, rename them clearly) and use the DataFrame variable for the metrics:
+
+# ---- Confidence analysis (fixed) ----
+print(f"\n🎯 Confidence Analysis:")
+
+high_conf = df[df['confidence'] > 0.6]
+med_conf  = df[(df['confidence'] > 0.4) & (df['confidence'] <= 0.6)]
+low_conf  = df[df['confidence'] <= 0.4]
+
+for conf_df, conf_label, conf_key in [
+    (high_conf, "High (>60%)", "high"),
+    (med_conf,  "Medium (40-60%)", "medium"),
+    (low_conf,  "Low (≤40%)", "low"),
+]:
+    if len(conf_df) > 0:
+        conf_accuracy = conf_df['accuracy'].mean()
+        conf_brier    = conf_df['brier_score'].mean()
+        conf_count    = len(conf_df)
+        avg_conf      = conf_df['confidence'].mean()
+        print(f"   • {conf_label} confidence ({conf_count} matches, avg {avg_conf:.3f}):")
+        print(f"     Accuracy: {conf_accuracy*100:.1f}%, Brier: {conf_brier:.4f}")
+
+That removes the error you’re seeing at the end of the run.
+
+⸻
+
+Targeted improvements (high-impact, low-diff)
+	1.	Stabilize the simulation
+Your simulated outcomes make the metrics jumpy between runs. If you want repeatable results during development:
+
+np.random.seed(42)
+
+	2.	Use the latest snapshot per match in odds_snapshots
+Your current query groups by match_id, created_at, which often returns multiple rows per match (one per collection time). If your goal is “current authentic odds,” select the latest snapshot per match first, then aggregate:
+
+WITH latest AS (
+  SELECT DISTINCT ON (match_id, created_at)
+         match_id, book_id, outcome, implied_prob, created_at
+  FROM odds_snapshots
+  ORDER BY match_id, created_at DESC
+)
+SELECT
+  match_id,
+  COUNT(DISTINCT book_id) AS bookmakers,
+  AVG(CASE WHEN outcome = 'H' THEN implied_prob END) AS avg_home_prob,
+  AVG(CASE WHEN outcome = 'D' THEN implied_prob END) AS avg_draw_prob,
+  AVG(CASE WHEN outcome = 'A' THEN implied_prob END) AS avg_away_prob,
+  MAX(created_at) AS collection_time
+FROM latest
+GROUP BY match_id
+ORDER BY collection_time DESC;
+
+This yields one row per match (the most recent snapshot period) and prevents over-counting.
+	3.	Guard rails for env + DB
+Fail fast if DATABASE_URL is missing:
+
+database_url = os.environ.get('DATABASE_URL')
+if not database_url:
+    print("❌ DATABASE_URL is not set.")
+    return
+
+	4.	Make JSON serialization bullet-proof
+Convert NumPy types before writing:
+
+def _py(v):
+    if isinstance(v, (np.floating, np.float32, np.float64)): return float(v)
+    if isinstance(v, (np.integer,  np.int32,   np.int64)):   return int(v)
+    return v
+
+summary['detailed_results'] = [
+    {k: _py(v) for k, v in row.items()} for row in test_results
+]
+
+(You already set default=str, but this keeps numbers as numbers.)
+	5.	Optionally: vectorize metric calculation
+Your loop is fine for a few thousand rows, but if it grows, you can compute Brier, log loss, and accuracy in a vectorized way from df for speed and simplicity. (Happy to sketch that if you want it baked in.)
+	6.	Prefer real outcomes when available
+If your DB has ground-truth outcomes (e.g., matches.result), replace the simulation:
+
+# Example: join to results table
+cursor.execute("""
+  SELECT match_id, result   -- result in {'H','D','A'}
+  FROM match_results
+  WHERE match_id = ANY(%s)
+""", (list(df['match_id'].unique()),))
+truth = dict(cursor.fetchall())
+df['actual_outcome'] = df['match_id'].map(truth).fillna(df['actual_outcome'])  # or drop NA
+
+	7.	Tidy printing
+A tiny readability tweak — align numeric prints to 3 decimals consistently and show counts with thousands separators.
+
+⸻
+
+Drop-in patch (combines 1, 3, and the confidence fix)
+
+# Add near the imports or before simulation
+np.random.seed(42)
+
+# After pulling DATABASE_URL
+database_url = os.environ.get('DATABASE_URL')
+if not database_url:
+    print("❌ DATABASE_URL is not set.")
+    return
+
+# Replace your confidence section with:
+print(f"\n🎯 Confidence Analysis:")
+high_conf = df[df['confidence'] > 0.6]
+med_conf  = df[(df['confidence'] > 0.4) & (df['confidence'] <= 0.6)]
+low_conf  = df[df['confidence'] <= 0.4]
+
+for conf_df, conf_label, conf_key in [
+    (high_conf, "High (>60%)", "high"),
+    (med_conf,  "Medium (40-60%)", "medium"),
+    (low_conf,  "Low (≤40%)", "low"),
+]:
+    if len(conf_df) > 0:
+        conf_accuracy = conf_df['accuracy'].mean()
+        conf_brier    = conf_df['brier_score'].mean()
+        conf_count    = len(conf_df)
+        avg_conf      = conf_df['confidence'].mean()
+        print(f"   • {conf_label} confidence ({conf_count} matches, avg {avg_conf:.3f}):")
+        print(f"     Accuracy: {conf_accuracy*100:.1f}%, Brier: {conf_brier:.4f}")
+
+If you want, I can also refactor the odds_snapshots SQL in your script to the “latest per match” version and return a compact diff.

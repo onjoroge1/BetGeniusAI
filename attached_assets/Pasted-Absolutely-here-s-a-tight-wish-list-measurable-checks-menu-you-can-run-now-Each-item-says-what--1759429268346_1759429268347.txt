@@ -1,0 +1,164 @@
+Absolutely—here’s a tight “wish-list → measurable checks” menu you can run now. Each item says what to verify, how to compute it (brief SQL/Python), and what “good” looks like.
+
+1) Closing Line Value (CLV) — 1X2
+
+What: Did our pick beat the close?
+How (SQL sketch):
+
+-- pick_time odds vs close odds, normalized to probs (vigless optional)
+WITH tips AS (
+  SELECT match_id, pick, book_id, odds_pick, tipped_at
+  FROM model_tips WHERE market='1X2'
+),
+close AS (
+  SELECT DISTINCT ON (match_id, ref_book) match_id, ref_book, 
+         prob_h, prob_d, prob_a, closed_at
+  FROM reference_close_1x2
+  ORDER BY match_id, ref_book, closed_at DESC
+)
+SELECT t.match_id, t.pick,
+       1/odds_pick                   AS prob_at_tip_raw,
+       CASE t.pick WHEN 'H' THEN prob_h WHEN 'D' THEN prob_d ELSE prob_a END AS prob_at_close,
+       (prob_at_close - 1/odds_pick) AS clv_prob_delta
+FROM tips t JOIN close c USING (match_id);
+
+Metric: CLV% = mean(prob_at_close - prob_at_tip_raw).
+Good: >0.0% overall; >+1–2% on high-confidence buckets.
+
+2) Hit-rate / Brier / LogLoss by Horizon
+
+What: Quality decay from T-72h → kickoff.
+How (Python): bin by tipped_at → kickoff (72+, 48–72, 24–48, <24) and recompute accuracy/Brier/LogLoss per bin.
+Good: Later bins shouldn’t be worse; if they are, market is out-moving us.
+
+3) Calibration (Reliability)
+
+What: Are 0.65 picks winning ~65%?
+How: bucket confidence (0.35–0.45, …, 0.85–0.95) → win_rate vs avg_conf.
+Good: Points lie on y=x; ECE (expected calibration error) < 0.03 is strong.
+
+4) Sharpness
+
+What: Are we making confident calls or all ~0.34/0.33/0.33?
+How: distribution of max(probabilities); report mean & % above 0.6/0.7.
+Good: More mass at 0.6–0.8 without calibration drift.
+
+5) Market Coverage & Book Depth
+
+What: Do we have enough books & markets per match?
+How (SQL):
+
+SELECT date_trunc('day', created_at) d, 
+       COUNT(DISTINCT match_id) matches,
+       AVG(book_count) avg_books
+FROM (
+  SELECT match_id, created_at, COUNT(DISTINCT book_id) book_count
+  FROM odds_snapshots WHERE market='1X2'
+  GROUP BY match_id, created_at
+) s GROUP BY 1 ORDER BY 1 DESC;
+
+Good: avg_books ≥ 6–8 on Euro top leagues; ≥3 on minors.
+
+6) League/Competition Segmentation
+
+What: Where do we over/underperform?
+How: join test_results → matches(league_id); compute Accuracy/Brier per league & tier.
+Good: Consistency; use weak leagues to downweight or exclude.
+
+7) Bookmaker Specificity
+
+What: Some books are “soft.”
+How: compute CLV vs close by source book used at tip time (or by consensus vs ref close e.g., Pinnacle/Betfair).
+Good: Positive CLV regardless of source; exploit soft books for odds shopping.
+
+8) Line Movement Win-Rate
+
+What: Do picks that move our way win more?
+How: sign(prob_close - prob_tip) → 3 bins (with us / flat / against us).
+Good: With-us bin should have highest hit rate.
+
+9) Price Edge vs Fair (De-vig)
+
+What: Are we actually pricing an edge or just selecting favorites?
+How: remove margin per book, compare our prob to fair prob; edge = our_prob - fair_prob.
+Good: Positive mean edge; positive realized ROI increases monotonically with edge buckets.
+
+10) ROI Backtest (Unit Stakes)
+
+What: Realistic profitability proxy.
+How: Stake 1u per pick at tip odds, settle on result. Track bankroll curve + max DD.
+Good: Positive EV & smooth equity on high-confidence/edge buckets.
+
+11) EV vs Confidence Matrix
+
+What: Do confidence & price edge agree?
+How: 3×3 grid (low/med/high confidence × low/med/high price edge).
+Good: Top-right cell (high×high) has best Brier/ROI; if not, re-calibrate.
+
+12) Model vs Market Disagreement
+
+What: Spots where we deviate ≥7–10 pts of probability.
+How: abs(our_prob - market_consensus_prob) histogram; evaluate accuracy/ROI for |Δ| bins.
+Good: Larger |Δ| → better outcomes (we’re adding info, not noise).
+
+13) Time-to-Close Degradation
+
+What: Does our edge decay as kickoff nears?
+How: compute CLV at t-bins against intermediate snapshots, not just final close.
+Good: Edge decays slowly; if it vanishes early, place earlier.
+
+14) Market Types Beyond 1X2
+	•	O/U 2.5: Brier/LogLoss on binary; CLV using total price vs close.
+	•	BTTS: same as O/U.
+	•	Asian Handicap: use fair push handling; CLV via closing handicap and price (AH CLV is very telling).
+
+15) Data Health & Freshness
+
+Checks: % matches with missing outcomes, duplicate snapshots, outlier odds (implied prob <0.02 or >0.98), stale captures (>90 min without update pre-KO).
+Good: Outliers <0.5%; stale <5% in last 24h.
+
+16) Post-Result Drift (Leakage Guard)
+
+What: Ensure no post-KO or post-final odds leaked into training/validation.
+How: assert snapshot_time < kickoff_time for training; hard fail if violated.
+
+17) Confidence-Weighted Stake (Kelly Lite)
+
+What: Does Kelly-scaled staking outperform flat?
+How: stake = k*(our_prob*odds−1)/(odds−1), clip at 0–1%, compare curves.
+Good: Higher Sharpe / lower DD with Kelly-lite.
+
+⸻
+
+Tiny code helpers (drop-in)
+
+De-vig (1X2) – simple proportional method
+
+def devig_1x2(pH, pD, pA):
+    s = pH + pD + pA
+    if s <= 0: return pH, pD, pA
+    return pH/s, pD/s, pA/s
+
+Reliability buckets
+
+def reliability(df, bins=(0.35,0.45,0.55,0.65,0.75,0.85,0.95)):
+    out=[]
+    for lo,hi in zip(bins[:-1], bins[1:]):
+        d=df[(df.max_prob>=lo)&(df.max_prob<hi)]
+        if len(d)==0: continue
+        out.append(dict(
+            bin=f"{lo:.2f}-{hi:.2f}",
+            n=len(d),
+            avg_conf=d.max_prob.mean(),
+            win_rate=d.accuracy.mean()
+        ))
+    return out
+
+CLV% (probability space)
+
+clv_pct = (df['prob_close'] - df['prob_at_tip']).mean()
+
+
+⸻
+
+If you tell me which tables you already have for results/close (e.g., match_results, pinnacle_close_*, exchange_close_*), I’ll wire exact SQL + a compact Python report that prints: Hit-rate, Brier, LogLoss, CLV%, ROI, by league, horizon, confidence, and market type—all off your live DB.

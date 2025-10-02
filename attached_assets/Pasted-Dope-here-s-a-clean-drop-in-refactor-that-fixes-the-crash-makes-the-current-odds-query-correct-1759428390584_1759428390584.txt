@@ -1,0 +1,121 @@
+Dope — here’s a clean, drop-in refactor that fixes the crash, makes the “current odds” query correct (latest snapshot per match), and tightens a few edges so runs are stable and reproducible.
+
+1) Replace the odds_snapshots SQL (latest snapshot per match)
+
+-            cursor.execute("""
+-                SELECT 
+-                    match_id,
+-                    COUNT(DISTINCT book_id) as bookmakers,
+-                    AVG(CASE WHEN outcome = 'H' THEN implied_prob END) as avg_home_prob,
+-                    AVG(CASE WHEN outcome = 'D' THEN implied_prob END) as avg_draw_prob,
+-                    AVG(CASE WHEN outcome = 'A' THEN implied_prob END) as avg_away_prob,
+-                    MIN(created_at) as collection_time
+-                FROM odds_snapshots
+-                GROUP BY match_id, created_at
+-                ORDER BY collection_time DESC
+-            """)
++            # One row per match: use the most recent snapshot timestamp for each match
++            cursor.execute("""
++                WITH last_ts AS (
++                  SELECT match_id, MAX(created_at) AS created_at
++                  FROM odds_snapshots
++                  GROUP BY match_id
++                )
++                SELECT 
++                    s.match_id,
++                    COUNT(DISTINCT s.book_id) AS bookmakers,
++                    AVG(CASE WHEN s.outcome = 'H' THEN s.implied_prob END) AS avg_home_prob,
++                    AVG(CASE WHEN s.outcome = 'D' THEN s.implied_prob END) AS avg_draw_prob,
++                    AVG(CASE WHEN s.outcome = 'A' THEN s.implied_prob END) AS avg_away_prob,
++                    MAX(s.created_at) AS collection_time
++                FROM odds_snapshots s
++                JOIN last_ts t 
++                  ON t.match_id = s.match_id
++                 AND t.created_at = s.created_at
++                GROUP BY s.match_id
++                ORDER BY collection_time DESC
++            """)
+
+Why: your old query grouped by (match_id, created_at), which often yields multiple rows per match (one per collection time) and can bias averages. The CTE locks each match to its latest snapshot window, then aggregates.
+
+⸻
+
+2) Guard DATABASE_URL and seed RNG (stable dev runs)
+
+     database_url = os.environ.get('DATABASE_URL')
++    if not database_url:
++        print("❌ DATABASE_URL is not set.")
++        return
++    # Stable, repeatable simulations during development
++    np.random.seed(42)
+
+
+⸻
+
+3) Fix the confidence breakdown crash
+
+-            for conf_level, conf_data, conf_name in [
+-                (high_conf, "High (>60%)", "high"),
+-                (med_conf, "Medium (40-60%)", "medium"), 
+-                (low_conf, "Low (≤40%)", "low")
+-            ]:
+-                if len(conf_data) > 0:
+-                    conf_accuracy = conf_data['accuracy'].mean()
+-                    conf_brier = conf_data['brier_score'].mean()
+-                    conf_count = len(conf_data)
+-                    avg_conf = conf_data['confidence'].mean()
+-                    print(f"   • {conf_name} confidence ({conf_count} matches, avg {avg_conf:.3f}):")
+-                    print(f"     Accuracy: {conf_accuracy*100:.1f}%, Brier: {conf_brier:.4f}")
++            for conf_df, conf_label, conf_key in [
++                (high_conf, "High (>60%)", "high"),
++                (med_conf,  "Medium (40-60%)", "medium"), 
++                (low_conf,  "Low (≤40%)", "low"),
++            ]:
++                if len(conf_df) > 0:
++                    conf_accuracy = conf_df['accuracy'].mean()
++                    conf_brier    = conf_df['brier_score'].mean()
++                    conf_count    = len(conf_df)
++                    avg_conf      = conf_df['confidence'].mean()
++                    print(f"   • {conf_label} confidence ({conf_count} matches, avg {avg_conf:.3f}):")
++                    print(f"     Accuracy: {conf_accuracy*100:.1f}%, Brier: {conf_brier:.4f}")
+
+Cause: the middle tuple element was a string label, but you treated it like a DataFrame. The rename makes intent explicit and fixes the TypeError: string indices must be integers.
+
+⸻
+
+4) Bullet-proof JSON numbers (keep numerics as numerics)
+
+-            with open(results_file, 'w') as f:
+-                json.dump(summary, f, indent=2, default=str)
++            # Keep numpy numerics as real numbers in JSON
++            def _py(v):
++                import numpy as _np
++                if isinstance(v, (_np.floating, _np.float32, _np.float64)): return float(v)
++                if isinstance(v, (_np.integer,  _np.int32,   _np.int64)):   return int(v)
++                return v
++            summary['detailed_results'] = [{k: _py(v) for k, v in r.items()} for r in test_results]
++            with open(results_file, 'w') as f:
++                json.dump(summary, f, indent=2, default=str)
+
+
+⸻
+
+5) (Optional) Tiny polish on prints
+
+If you want always-consistent decimals, change a few lines:
+
+-            print(f"   • Brier Score: {overall_brier:.6f}")
+-            print(f"   • Log Loss: {overall_logloss:.6f}")
++            print(f"   • Brier Score: {overall_brier:.6f}")
++            print(f"   • Log Loss:    {overall_logloss:.6f}")
+
+…and similarly in other print blocks.
+
+⸻
+
+Sanity checks you’ll see after these changes
+	•	The “Confidence Analysis” section prints without errors.
+	•	The number of “current authentic odds” rows matches unique matches, not multiple timestamps.
+	•	Re-running the script yields identical metrics (until you remove the np.random.seed(42) for live/stochastic testing).
+
+Want me to also swap the simulated outcomes for your actual results table if you’ve got one (e.g., match_results(result in {'H','D','A'}))? I can wire that join so accuracy/Brier/LogLoss are against ground truth instead of a simulation.

@@ -19,6 +19,12 @@ async def comprehensive_accuracy_test():
     print("Testing prediction accuracy using authentic bookmaker odds data")
     
     database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        print("❌ DATABASE_URL is not set.")
+        return
+    
+    # Stable, repeatable simulations during development
+    np.random.seed(42)
     
     try:
         with psycopg2.connect(database_url) as conn:
@@ -28,16 +34,25 @@ async def comprehensive_accuracy_test():
             print("\n📊 TEST 1: Current Authentic Odds (odds_snapshots)")
             print("-" * 40)
             
+            # One row per match: use the most recent snapshot timestamp for each match
             cursor.execute("""
+                WITH last_ts AS (
+                  SELECT match_id, MAX(created_at) AS created_at
+                  FROM odds_snapshots
+                  GROUP BY match_id
+                )
                 SELECT 
-                    match_id,
-                    COUNT(DISTINCT book_id) as bookmakers,
-                    AVG(CASE WHEN outcome = 'H' THEN implied_prob END) as avg_home_prob,
-                    AVG(CASE WHEN outcome = 'D' THEN implied_prob END) as avg_draw_prob,
-                    AVG(CASE WHEN outcome = 'A' THEN implied_prob END) as avg_away_prob,
-                    MIN(created_at) as collection_time
-                FROM odds_snapshots
-                GROUP BY match_id, created_at
+                    s.match_id,
+                    COUNT(DISTINCT s.book_id) AS bookmakers,
+                    AVG(CASE WHEN s.outcome = 'H' THEN s.implied_prob END) AS avg_home_prob,
+                    AVG(CASE WHEN s.outcome = 'D' THEN s.implied_prob END) AS avg_draw_prob,
+                    AVG(CASE WHEN s.outcome = 'A' THEN s.implied_prob END) AS avg_away_prob,
+                    MAX(s.created_at) AS collection_time
+                FROM odds_snapshots s
+                JOIN last_ts t 
+                  ON t.match_id = s.match_id
+                 AND t.created_at = s.created_at
+                GROUP BY s.match_id
                 ORDER BY collection_time DESC
             """)
             
@@ -242,17 +257,17 @@ async def comprehensive_accuracy_test():
             med_conf = df[(df['confidence'] > 0.4) & (df['confidence'] <= 0.6)]
             low_conf = df[df['confidence'] <= 0.4]
             
-            for conf_level, conf_data, conf_name in [
+            for conf_df, conf_label, conf_key in [
                 (high_conf, "High (>60%)", "high"),
-                (med_conf, "Medium (40-60%)", "medium"), 
-                (low_conf, "Low (≤40%)", "low")
+                (med_conf,  "Medium (40-60%)", "medium"), 
+                (low_conf,  "Low (≤40%)", "low"),
             ]:
-                if len(conf_data) > 0:
-                    conf_accuracy = conf_data['accuracy'].mean()
-                    conf_brier = conf_data['brier_score'].mean()
-                    conf_count = len(conf_data)
-                    avg_conf = conf_data['confidence'].mean()
-                    print(f"   • {conf_name} confidence ({conf_count} matches, avg {avg_conf:.3f}):")
+                if len(conf_df) > 0:
+                    conf_accuracy = conf_df['accuracy'].mean()
+                    conf_brier    = conf_df['brier_score'].mean()
+                    conf_count    = len(conf_df)
+                    avg_conf      = conf_df['confidence'].mean()
+                    print(f"   • {conf_label} confidence ({conf_count} matches, avg {avg_conf:.3f}):")
                     print(f"     Accuracy: {conf_accuracy*100:.1f}%, Brier: {conf_brier:.4f}")
             
             # 5. Compare with Production Baseline
@@ -327,6 +342,13 @@ async def comprehensive_accuracy_test():
                 },
                 'detailed_results': test_results
             }
+            
+            # Keep numpy numerics as real numbers in JSON
+            def _py(v):
+                if isinstance(v, (np.floating, np.float32, np.float64)): return float(v)
+                if isinstance(v, (np.integer,  np.int32,   np.int64)):   return int(v)
+                return v
+            summary['detailed_results'] = [{k: _py(v) for k, v in r.items()} for r in test_results]
             
             with open(results_file, 'w') as f:
                 json.dump(summary, f, indent=2, default=str)
