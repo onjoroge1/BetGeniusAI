@@ -142,58 +142,139 @@ async def comprehensive_accuracy_test():
                     
                     print(f"   Match {match_id}: T-{horizon_hours}h, {bookmaker_count} books, predicted {predicted} ({max_prob:.3f})")
             
-            # 3. Model Quality Analysis
-            print(f"\n📊 TEST 3: Model Quality Assessment")
+            # 3. Real Accuracy Test (No Simulation)
+            print(f"\n📊 TEST 3: Real Match Results (odds_accuracy_evaluation)")
             print("-" * 40)
             
-            all_results = current_results + consensus_results
+            # Query the unified view for matches with actual results
+            cursor.execute("""
+                SELECT 
+                    match_id,
+                    n_books,
+                    ph_snapshot,
+                    pd_snapshot,
+                    pa_snapshot,
+                    ph_close,
+                    pd_close,
+                    pa_close,
+                    actual_outcome,
+                    home_goals,
+                    away_goals,
+                    has_closing_odds,
+                    league
+                FROM odds_accuracy_evaluation
+                WHERE has_result = TRUE
+                ORDER BY match_id
+            """)
             
-            if len(all_results) == 0:
-                print("No prediction data available for testing")
-                return
+            real_matches = cursor.fetchall()
             
-            # Simulate outcomes for testing (probabilistic based on consensus)
-            print("Simulating outcomes based on market consensus...")
-            
-            test_results = []
-            
-            for result in all_results:
-                probs = result['probabilities']
+            if len(real_matches) == 0:
+                print("⚠️  No matches with results found yet - using simulated outcomes for testing")
+                print("   (Real accuracy testing will activate once Oct 3-4 matches complete)")
                 
-                # Simulate outcome based on probabilities
-                rand = np.random.random()
-                if rand < probs['H']:
-                    actual_outcome = 'H'
-                elif rand < probs['H'] + probs['D']:
-                    actual_outcome = 'D'
-                else:
-                    actual_outcome = 'A'
+                # Fallback to simulation for current development
+                all_results = current_results + consensus_results
+                if len(all_results) == 0:
+                    print("No prediction data available for testing")
+                    return
                 
-                # Calculate metrics
-                predicted_outcome = result['predicted_outcome']
-                accuracy = 1.0 if predicted_outcome == actual_outcome else 0.0
+                test_results = []
+                for result in all_results:
+                    probs = result['probabilities']
+                    rand = np.random.random()
+                    if rand < probs['H']:
+                        actual_outcome = 'H'
+                    elif rand < probs['H'] + probs['D']:
+                        actual_outcome = 'D'
+                    else:
+                        actual_outcome = 'A'
+                    
+                    predicted_outcome = result['predicted_outcome']
+                    accuracy = 1.0 if predicted_outcome == actual_outcome else 0.0
+                    true_vector = np.array([1.0 if outcome == actual_outcome else 0.0 for outcome in ['H', 'D', 'A']])
+                    pred_vector = np.array([probs['H'], probs['D'], probs['A']])
+                    brier_score = np.mean((pred_vector - true_vector) ** 2)
+                    actual_prob = probs[actual_outcome]
+                    log_loss = -np.log(max(actual_prob, 1e-15))
+                    
+                    test_results.append({
+                        'match_id': result['match_id'],
+                        'data_source': 'simulated',
+                        'bookmakers': result['bookmakers'],
+                        'predicted_outcome': predicted_outcome,
+                        'actual_outcome': actual_outcome,
+                        'accuracy': accuracy,
+                        'brier_score': brier_score,
+                        'log_loss': log_loss,
+                        'confidence': result['confidence'],
+                        'probabilities': probs,
+                        'clv': None
+                    })
+            else:
+                print(f"✅ Found {len(real_matches)} matches with real results!")
                 
-                # Brier Score
-                true_vector = np.array([1.0 if outcome == actual_outcome else 0.0 for outcome in ['H', 'D', 'A']])
-                pred_vector = np.array([probs['H'], probs['D'], probs['A']])
-                brier_score = np.mean((pred_vector - true_vector) ** 2)
+                test_results = []
                 
-                # Log Loss
-                actual_prob = probs[actual_outcome]
-                log_loss = -np.log(max(actual_prob, 1e-15))
-                
-                test_results.append({
-                    'match_id': result['match_id'],
-                    'data_source': result['data_source'],
-                    'bookmakers': result['bookmakers'],
-                    'predicted_outcome': predicted_outcome,
-                    'actual_outcome': actual_outcome,
-                    'accuracy': accuracy,
-                    'brier_score': brier_score,
-                    'log_loss': log_loss,
-                    'confidence': result['confidence'],
-                    'probabilities': probs
-                })
+                for match in real_matches:
+                    match_id, n_books, ph, pd_snap, pa, ph_close, pd_close, pa_close, actual_outcome, home_goals, away_goals, has_closing, league = match
+                    
+                    # Normalize probabilities
+                    total = ph + pd_snap + pa
+                    if total > 0:
+                        norm_probs = {
+                            'H': ph / total,
+                            'D': pd_snap / total,
+                            'A': pa / total
+                        }
+                        
+                        predicted_outcome = max(norm_probs, key=norm_probs.get)
+                        max_prob = max(norm_probs.values())
+                        
+                        # Calculate metrics
+                        accuracy = 1.0 if predicted_outcome == actual_outcome else 0.0
+                        
+                        # Brier Score
+                        true_vector = np.array([1.0 if outcome == actual_outcome else 0.0 for outcome in ['H', 'D', 'A']])
+                        pred_vector = np.array([norm_probs['H'], norm_probs['D'], norm_probs['A']])
+                        brier_score = np.mean((pred_vector - true_vector) ** 2)
+                        
+                        # Log Loss
+                        actual_prob = norm_probs[actual_outcome]
+                        log_loss = -np.log(max(actual_prob, 1e-15))
+                        
+                        # CLV (if closing odds available)
+                        clv = None
+                        if has_closing and all(x is not None for x in [ph_close, pd_close, pa_close]):
+                            close_total = ph_close + pd_close + pa_close
+                            if close_total > 0:
+                                norm_close = {
+                                    'H': ph_close / close_total,
+                                    'D': pd_close / close_total,
+                                    'A': pa_close / close_total
+                                }
+                                # CLV = closing prob - snapshot prob for actual outcome
+                                clv = (norm_close[actual_outcome] - norm_probs[actual_outcome]) * 100
+                        
+                        test_results.append({
+                            'match_id': match_id,
+                            'data_source': 'real_results',
+                            'bookmakers': n_books,
+                            'predicted_outcome': predicted_outcome,
+                            'actual_outcome': actual_outcome,
+                            'accuracy': accuracy,
+                            'brier_score': brier_score,
+                            'log_loss': log_loss,
+                            'confidence': max_prob,
+                            'probabilities': norm_probs,
+                            'clv': clv,
+                            'league': league,
+                            'score': f"{home_goals}-{away_goals}"
+                        })
+                        
+                        clv_str = f", CLV: {clv:+.1f}%" if clv is not None else ""
+                        result_emoji = "✅" if accuracy == 1.0 else "❌"
+                        print(f"   {result_emoji} Match {match_id}: {home_goals}-{away_goals} (actual: {actual_outcome}, pred: {predicted_outcome}){clv_str}")
             
             # 4. Calculate Performance Metrics
             print(f"\n📈 PERFORMANCE ANALYSIS")
@@ -240,16 +321,33 @@ async def comprehensive_accuracy_test():
             print(f"   • Model Score: {score:.1f}/10")
             
             # Breakdown by data source
-            print(f"\n📊 Breakdown by Data Source:")
-            for source in ['odds_snapshots', 'odds_consensus']:
-                source_data = df[df['data_source'] == source]
-                if len(source_data) > 0:
-                    source_accuracy = source_data['accuracy'].mean()
-                    source_brier = source_data['brier_score'].mean()
-                    source_count = len(source_data)
-                    avg_books = source_data['bookmakers'].mean()
-                    print(f"   • {source} ({source_count} matches, {avg_books:.1f} avg bookmakers):")
-                    print(f"     Accuracy: {source_accuracy*100:.1f}%, Brier: {source_brier:.4f}")
+            print(f"\n📊 Data Source:")
+            is_real = df['data_source'].iloc[0] == 'real_results' if len(df) > 0 else False
+            if is_real:
+                print(f"   ✅ REAL MATCH RESULTS (No simulation)")
+                print(f"   • {len(df)} matches with actual outcomes")
+                print(f"   • {df['bookmakers'].mean():.1f} avg bookmakers per match")
+                
+                # CLV Analysis (if available)
+                clv_data = df[df['clv'].notna()]
+                if len(clv_data) > 0:
+                    avg_clv = clv_data['clv'].mean()
+                    print(f"\n💰 Closing Line Value (CLV):")
+                    print(f"   • {len(clv_data)} matches with closing odds")
+                    print(f"   • Average CLV: {avg_clv:+.2f}%")
+                    positive_clv = len(clv_data[clv_data['clv'] > 0])
+                    print(f"   • Positive CLV: {positive_clv}/{len(clv_data)} ({positive_clv/len(clv_data)*100:.1f}%)")
+            else:
+                print(f"   ⚠️  SIMULATED OUTCOMES (No real results yet)")
+                for source in ['odds_snapshots', 'odds_consensus']:
+                    source_data = df[df['data_source'] == source]
+                    if len(source_data) > 0:
+                        source_accuracy = source_data['accuracy'].mean()
+                        source_brier = source_data['brier_score'].mean()
+                        source_count = len(source_data)
+                        avg_books = source_data['bookmakers'].mean()
+                        print(f"   • {source} ({source_count} matches, {avg_books:.1f} avg bookmakers):")
+                        print(f"     Accuracy: {source_accuracy*100:.1f}%, Brier: {source_brier:.4f}")
             
             # Confidence analysis
             print(f"\n🎯 Confidence Analysis:")

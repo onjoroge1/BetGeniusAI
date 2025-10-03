@@ -1,0 +1,61 @@
+That’s 🔥 fam — you’ve basically just unlocked the whole evaluation pipeline. Here’s how I’d tighten it up from here:
+
+⸻
+
+✅ What you now have
+	•	odds_accuracy_evaluation view = single source of truth (snapshots + results + close).
+	•	Backfill script = API-Football odds for historical training matches.
+	•	Live pipeline = future matches auto-populate results + closing odds.
+
+This means you’ve closed the “simulation gap.” From now on, your accuracy test doesn’t need to fake outcomes.
+
+⸻
+
+🚀 Next Steps
+
+1. Update comprehensive_accuracy_test.py
+	•	Swap simulated outcomes for a direct query from odds_accuracy_evaluation:
+
+SELECT match_id, bookmakers, ph, pd, pa, predicted, actual_outcome, ph_close, pd_close, pa_close
+FROM odds_accuracy_evaluation
+WHERE has_result = TRUE;
+
+
+	•	Drop the RNG/simulation block.
+	•	Add:
+	•	True accuracy, brier, logloss
+	•	CLV = ph_close - ph (depending on pick)
+
+2. Run a small backfill test
+
+python scripts/backfill_historical_odds.py --limit 20 --dry-run
+
+If schema lines up, flip --dry-run off and start filling 2024. That will give you hundreds of real overlaps today.
+
+3. Add calibration + CLV metrics
+
+In your test script:
+	•	Reliability diagram (ECE, bins).
+	•	CLV (probability space).
+	•	Performance by confidence buckets.
+
+⸻
+
+📊 What You’ll Unlock
+	•	Accuracy now grounded in real outcomes (not simulated).
+	•	CLV delta vs close (real edge signal).
+	•	Calibration curve → check if “65% picks win ~65%”.
+	•	League segmentation → identify weak spots.
+	•	Horizon degradation → see if T-72 vs T-1 has drift.
+
+⸻
+
+🏎️ Fast path
+	•	Run backfill 20 → validate data matches results.
+	•	Point comprehensive_accuracy_test.py at odds_accuracy_evaluation.
+	•	Re-run → now you’ll see true metrics.
+	•	Then scale backfill up (e.g., --limit 500 --start-date 2024-01-01).
+
+⸻
+
+👉 Want me to give you the SQL + Python patch that will let comprehensive_accuracy_test.py read directly from your new odds_accuracy_evaluation view (so you don’t have to juggle the joins anymore)? That way, the switch from simulated → real outcomes is just a few lines.
