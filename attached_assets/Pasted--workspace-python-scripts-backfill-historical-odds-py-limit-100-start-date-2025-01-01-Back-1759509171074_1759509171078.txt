@@ -1,0 +1,620 @@
+~/workspace$ python scripts/backfill_historical_odds.py --limit 100 --start-date 2025-01-01
+🔧 Backfiller initialized (dry_run=False)
+
+======================================================================
+📊 HISTORICAL ODDS BACKFILL - BetGenius AI
+======================================================================
+
+🔍 Finding matches needing odds backfill...
+📋 Found 100 matches needing odds
+   Date range: 2025-01-01 to latest
+
+[1/100] Tottenham vs Manchester United
+   Match ID: 1374897 | Fixture: 1374897
+   Date: 2025-05-21 19:00:00 | Result: H (1-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[2/100] Crystal Palace vs Manchester City
+   Match ID: 1373151 | Fixture: 1373151
+   Date: 2025-05-17 15:30:00 | Result: H (1-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[3/100] Aldershot Town vs Spennymoor Town
+   Match ID: 1372076 | Fixture: 1372076
+   Date: 2025-05-11 15:15:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[4/100] Bodo/Glimt vs Tottenham
+   Match ID: 1371991 | Fixture: 1371991
+   Date: 2025-05-08 19:00:00 | Result: A (0-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[5/100] Manchester United vs Athletic Club
+   Match ID: 1371993 | Fixture: 1371993
+   Date: 2025-05-08 19:00:00 | Result: H (4-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[6/100] Paris Saint Germain vs Arsenal
+   Match ID: 1371731 | Fixture: 1371731
+   Date: 2025-05-07 19:00:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[7/100] Athletic Club vs Manchester United
+   Match ID: 1371992 | Fixture: 1371992
+   Date: 2025-05-01 19:00:00 | Result: A (0-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[8/100] Tottenham vs Bodo/Glimt
+   Match ID: 1371990 | Fixture: 1371990
+   Date: 2025-05-01 19:00:00 | Result: H (3-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[9/100] Barcelona vs Inter
+   Match ID: 1371732 | Fixture: 1371732
+   Date: 2025-04-30 19:00:00 | Result: D (3-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[10/100] Arsenal vs Paris Saint Germain
+   Match ID: 1371730 | Fixture: 1371730
+   Date: 2025-04-29 19:00:00 | Result: A (0-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[11/100] Nottingham Forest vs Manchester City
+   Match ID: 1367448 | Fixture: 1367448
+   Date: 2025-04-27 15:30:00 | Result: A (0-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[12/100] Crystal Palace vs Aston Villa
+   Match ID: 1367449 | Fixture: 1367449
+   Date: 2025-04-26 16:15:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[13/100] Eintracht Frankfurt vs Tottenham
+   Match ID: 1361279 | Fixture: 1361279
+   Date: 2025-04-17 19:00:00 | Result: A (0-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[14/100] Athletic Club vs Rangers
+   Match ID: 1361281 | Fixture: 1361281
+   Date: 2025-04-17 19:00:00 | Result: H (2-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[15/100] Real Madrid vs Arsenal
+   Match ID: 1360765 | Fixture: 1360765
+   Date: 2025-04-16 19:00:00 | Result: A (1-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[16/100] Inter vs Bayern München
+   Match ID: 1360334 | Fixture: 1360334
+   Date: 2025-04-16 19:00:00 | Result: D (2-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[17/100] Borussia Dortmund vs Barcelona
+   Match ID: 1360767 | Fixture: 1360767
+   Date: 2025-04-15 19:00:00 | Result: H (3-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[18/100] Aston Villa vs Paris Saint Germain
+   Match ID: 1360763 | Fixture: 1360763
+   Date: 2025-04-15 19:00:00 | Result: H (3-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[19/100] Lyon vs Manchester United
+   Match ID: 1361282 | Fixture: 1361282
+   Date: 2025-04-10 19:00:00 | Result: D (2-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[20/100] Tottenham vs Eintracht Frankfurt
+   Match ID: 1361278 | Fixture: 1361278
+   Date: 2025-04-10 19:00:00 | Result: D (1-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[21/100] Rangers vs Athletic Club
+   Match ID: 1361280 | Fixture: 1361280
+   Date: 2025-04-10 19:00:00 | Result: D (0-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[22/100] Bodo/Glimt vs Lazio
+   Match ID: 1361276 | Fixture: 1361276
+   Date: 2025-04-10 16:45:00 | Result: H (2-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[23/100] Paris Saint Germain vs Aston Villa
+   Match ID: 1360762 | Fixture: 1360762
+   Date: 2025-04-09 19:00:00 | Result: H (3-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[24/100] Barcelona vs Borussia Dortmund
+   Match ID: 1360766 | Fixture: 1360766
+   Date: 2025-04-09 19:00:00 | Result: H (4-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[25/100] Arsenal vs Real Madrid
+   Match ID: 1360764 | Fixture: 1360764
+   Date: 2025-04-08 19:00:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[26/100] Bayern München vs Inter
+   Match ID: 1360333 | Fixture: 1360333
+   Date: 2025-04-08 19:00:00 | Result: A (1-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[27/100] Tottenham vs AZ Alkmaar
+   Match ID: 1353187 | Fixture: 1353187
+   Date: 2025-03-13 20:00:00 | Result: H (3-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[28/100] Manchester United vs Real Sociedad
+   Match ID: 1353193 | Fixture: 1353193
+   Date: 2025-03-13 20:00:00 | Result: H (4-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[29/100] Lyon vs FCSB
+   Match ID: 1353191 | Fixture: 1353191
+   Date: 2025-03-13 20:00:00 | Result: H (4-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[30/100] Olympiakos Piraeus vs Bodo/Glimt
+   Match ID: 1353197 | Fixture: 1353197
+   Date: 2025-03-13 17:45:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[31/100] Lazio vs Plzen
+   Match ID: 1353195 | Fixture: 1353195
+   Date: 2025-03-13 17:45:00 | Result: D (1-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[32/100] Athletic Club vs AS Roma
+   Match ID: 1353201 | Fixture: 1353201
+   Date: 2025-03-13 17:45:00 | Result: H (3-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[33/100] Eintracht Frankfurt vs Ajax
+   Match ID: 1353199 | Fixture: 1353199
+   Date: 2025-03-13 17:45:00 | Result: H (4-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[34/100] Arsenal vs PSV Eindhoven
+   Match ID: 1353173 | Fixture: 1353173
+   Date: 2025-03-12 20:00:00 | Result: D (2-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[35/100] Aston Villa vs Club Brugge KV
+   Match ID: 1353167 | Fixture: 1353167
+   Date: 2025-03-12 20:00:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[36/100] Lille vs Borussia Dortmund
+   Match ID: 1353169 | Fixture: 1353169
+   Date: 2025-03-12 17:45:00 | Result: A (1-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[37/100] Inter vs Feyenoord
+   Match ID: 1353175 | Fixture: 1353175
+   Date: 2025-03-11 20:00:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[38/100] Bayer Leverkusen vs Bayern München
+   Match ID: 1353181 | Fixture: 1353181
+   Date: 2025-03-11 20:00:00 | Result: A (0-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[39/100] Barcelona vs Benfica
+   Match ID: 1353177 | Fixture: 1353177
+   Date: 2025-03-11 17:45:00 | Result: H (3-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[40/100] Bodo/Glimt vs Olympiakos Piraeus
+   Match ID: 1353196 | Fixture: 1353196
+   Date: 2025-03-06 20:00:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[41/100] Plzen vs Lazio
+   Match ID: 1353194 | Fixture: 1353194
+   Date: 2025-03-06 20:00:00 | Result: A (1-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[42/100] Ajax vs Eintracht Frankfurt
+   Match ID: 1353198 | Fixture: 1353198
+   Date: 2025-03-06 20:00:00 | Result: A (1-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[43/100] AS Roma vs Athletic Club
+   Match ID: 1353200 | Fixture: 1353200
+   Date: 2025-03-06 20:00:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[44/100] Real Sociedad vs Manchester United
+   Match ID: 1353192 | Fixture: 1353192
+   Date: 2025-03-06 17:45:00 | Result: D (1-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[45/100] FCSB vs Lyon
+   Match ID: 1353190 | Fixture: 1353190
+   Date: 2025-03-06 17:45:00 | Result: A (1-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[46/100] Fenerbahce vs Rangers
+   Match ID: 1353188 | Fixture: 1353188
+   Date: 2025-03-06 17:45:00 | Result: A (1-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[47/100] AZ Alkmaar vs Tottenham
+   Match ID: 1353186 | Fixture: 1353186
+   Date: 2025-03-06 17:45:00 | Result: H (1-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[48/100] Benfica vs Barcelona
+   Match ID: 1353176 | Fixture: 1353176
+   Date: 2025-03-05 20:00:00 | Result: A (0-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[49/100] Bayern München vs Bayer Leverkusen
+   Match ID: 1353180 | Fixture: 1353180
+   Date: 2025-03-05 20:00:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[50/100] Paris Saint Germain vs Liverpool
+   Match ID: 1353178 | Fixture: 1353178
+   Date: 2025-03-05 20:00:00 | Result: A (0-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[51/100] Feyenoord vs Inter
+   Match ID: 1353174 | Fixture: 1353174
+   Date: 2025-03-05 17:45:00 | Result: A (0-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[52/100] Borussia Dortmund vs Lille
+   Match ID: 1353168 | Fixture: 1353168
+   Date: 2025-03-04 20:00:00 | Result: D (1-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[53/100] Real Madrid vs Atletico Madrid
+   Match ID: 1353170 | Fixture: 1353170
+   Date: 2025-03-04 20:00:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[54/100] PSV Eindhoven vs Arsenal
+   Match ID: 1353172 | Fixture: 1353172
+   Date: 2025-03-04 20:00:00 | Result: A (1-7)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[55/100] Club Brugge KV vs Aston Villa
+   Match ID: 1353166 | Fixture: 1353166
+   Date: 2025-03-04 17:45:00 | Result: A (1-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[56/100] Anderlecht vs Fenerbahce
+   Match ID: 1345760 | Fixture: 1345760
+   Date: 2025-02-20 20:00:00 | Result: D (2-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[57/100] Plzen vs Ferencvarosi TC
+   Match ID: 1345754 | Fixture: 1345754
+   Date: 2025-02-20 20:00:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[58/100] Real Sociedad vs FC Midtjylland
+   Match ID: 1345756 | Fixture: 1345756
+   Date: 2025-02-20 20:00:00 | Result: H (5-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[59/100] Galatasaray vs AZ Alkmaar
+   Match ID: 1345764 | Fixture: 1345764
+   Date: 2025-02-20 17:45:00 | Result: D (2-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[60/100] AS Roma vs FC Porto
+   Match ID: 1345762 | Fixture: 1345762
+   Date: 2025-02-20 17:45:00 | Result: H (3-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[61/100] FCSB vs PAOK
+   Match ID: 1345766 | Fixture: 1345766
+   Date: 2025-02-20 17:45:00 | Result: H (2-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[62/100] Real Madrid vs Manchester City
+   Match ID: 1345744 | Fixture: 1345744
+   Date: 2025-02-19 20:00:00 | Result: H (3-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[63/100] Paris Saint Germain vs Stade Brestois 29
+   Match ID: 1345738 | Fixture: 1345738
+   Date: 2025-02-19 20:00:00 | Result: H (7-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[64/100] Borussia Dortmund vs Sporting CP
+   Match ID: 1345740 | Fixture: 1345740
+   Date: 2025-02-19 17:45:00 | Result: D (0-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[65/100] Atalanta vs Club Brugge KV
+   Match ID: 1345746 | Fixture: 1345746
+   Date: 2025-02-18 20:00:00 | Result: A (1-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[66/100] Benfica vs Monaco
+   Match ID: 1345750 | Fixture: 1345750
+   Date: 2025-02-18 20:00:00 | Result: D (3-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[67/100] Bayern München vs Celtic
+   Match ID: 1345752 | Fixture: 1345752
+   Date: 2025-02-18 20:00:00 | Result: D (1-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[68/100] AC Milan vs Feyenoord
+   Match ID: 1345748 | Fixture: 1345748
+   Date: 2025-02-18 17:45:00 | Result: D (1-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[69/100] PAOK vs FCSB
+   Match ID: 1345765 | Fixture: 1345765
+   Date: 2025-02-13 20:00:00 | Result: A (1-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[70/100] FC Porto vs AS Roma
+   Match ID: 1345761 | Fixture: 1345761
+   Date: 2025-02-13 20:00:00 | Result: D (1-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[71/100] AZ Alkmaar vs Galatasaray
+   Match ID: 1345763 | Fixture: 1345763
+   Date: 2025-02-13 20:00:00 | Result: H (4-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[72/100] Twente vs Bodo/Glimt
+   Match ID: 1345767 | Fixture: 1345767
+   Date: 2025-02-13 20:00:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[73/100] Union St. Gilloise vs Ajax
+   Match ID: 1345757 | Fixture: 1345757
+   Date: 2025-02-13 17:45:00 | Result: A (0-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[74/100] Fenerbahce vs Anderlecht
+   Match ID: 1345759 | Fixture: 1345759
+   Date: 2025-02-13 17:45:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[75/100] FC Midtjylland vs Real Sociedad
+   Match ID: 1345755 | Fixture: 1345755
+   Date: 2025-02-13 17:45:00 | Result: A (1-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[76/100] Ferencvarosi TC vs Plzen
+   Match ID: 1345753 | Fixture: 1345753
+   Date: 2025-02-13 17:45:00 | Result: H (1-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[77/100] Celtic vs Bayern München
+   Match ID: 1345751 | Fixture: 1345751
+   Date: 2025-02-12 20:00:00 | Result: A (1-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[78/100] Monaco vs Benfica
+   Match ID: 1345749 | Fixture: 1345749
+   Date: 2025-02-12 20:00:00 | Result: A (0-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[79/100] Feyenoord vs AC Milan
+   Match ID: 1345747 | Fixture: 1345747
+   Date: 2025-02-12 20:00:00 | Result: H (1-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[80/100] Club Brugge KV vs Atalanta
+   Match ID: 1345745 | Fixture: 1345745
+   Date: 2025-02-12 17:45:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[81/100] Sporting CP vs Borussia Dortmund
+   Match ID: 1345739 | Fixture: 1345739
+   Date: 2025-02-11 20:00:00 | Result: A (0-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[82/100] Juventus vs PSV Eindhoven
+   Match ID: 1345741 | Fixture: 1345741
+   Date: 2025-02-11 20:00:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[83/100] Manchester City vs Real Madrid
+   Match ID: 1345743 | Fixture: 1345743
+   Date: 2025-02-11 20:00:00 | Result: A (2-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[84/100] Stade Brestois 29 vs Paris Saint Germain
+   Match ID: 1345737 | Fixture: 1345737
+   Date: 2025-02-11 17:45:00 | Result: A (0-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[85/100] Tottenham vs IF Elfsborg
+   Match ID: 1299271 | Fixture: 1299271
+   Date: 2025-01-30 20:00:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[86/100] Real Sociedad vs PAOK
+   Match ID: 1299266 | Fixture: 1299266
+   Date: 2025-01-30 20:00:00 | Result: H (2-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[87/100] SC Braga vs Lazio
+   Match ID: 1299270 | Fixture: 1299270
+   Date: 2025-01-30 20:00:00 | Result: H (1-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[88/100] AS Roma vs Eintracht Frankfurt
+   Match ID: 1299267 | Fixture: 1299267
+   Date: 2025-01-30 20:00:00 | Result: H (2-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[89/100] Athletic Club vs Plzen
+   Match ID: 1299255 | Fixture: 1299255
+   Date: 2025-01-30 20:00:00 | Result: H (3-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[90/100] Twente vs Besiktas
+   Match ID: 1299258 | Fixture: 1299258
+   Date: 2025-01-30 20:00:00 | Result: H (1-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[91/100] Olympiakos Piraeus vs Qarabag
+   Match ID: 1299264 | Fixture: 1299264
+   Date: 2025-01-30 20:00:00 | Result: H (3-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[92/100] Anderlecht vs 1899 Hoffenheim
+   Match ID: 1299268 | Fixture: 1299268
+   Date: 2025-01-30 20:00:00 | Result: A (3-4)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[93/100] Slavia Praha vs Malmo FF
+   Match ID: 1299269 | Fixture: 1299269
+   Date: 2025-01-30 20:00:00 | Result: D (2-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[94/100] FCSB vs Manchester United
+   Match ID: 1299259 | Fixture: 1299259
+   Date: 2025-01-30 20:00:00 | Result: A (0-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[95/100] Maccabi Tel Aviv vs FC Porto
+   Match ID: 1299262 | Fixture: 1299262
+   Date: 2025-01-30 20:00:00 | Result: A (0-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[96/100] Ferencvarosi TC vs AZ Alkmaar
+   Match ID: 1299260 | Fixture: 1299260
+   Date: 2025-01-30 20:00:00 | Result: H (4-3)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[97/100] FC Midtjylland vs Fenerbahce
+   Match ID: 1299257 | Fixture: 1299257
+   Date: 2025-01-30 20:00:00 | Result: D (2-2)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[98/100] Dynamo Kyiv vs Rīgas FS
+   Match ID: 1299256 | Fixture: 1299256
+   Date: 2025-01-30 20:00:00 | Result: H (1-0)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[99/100] Nice vs Bodo/Glimt
+   Match ID: 1299263 | Fixture: 1299263
+   Date: 2025-01-30 20:00:00 | Result: D (1-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+[100/100] Ajax vs Galatasaray
+   Match ID: 1299254 | Fixture: 1299254
+   Date: 2025-01-30 20:00:00 | Result: H (2-1)
+   Fetching historical odds from API-Football...
+   ⚠️  No odds available for this match
+
+======================================================================
+📊 BACKFILL SUMMARY
+======================================================================
+Total processed:  100
+✅ Success:       0
+❌ Failed:        0
+⚠️  Skipped:       100
+
+✅ Backfill complete! 0 matches now have odds data
