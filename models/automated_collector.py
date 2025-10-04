@@ -511,13 +511,13 @@ class AutomatedCollector:
             cursor = conn.cursor()
             
             # Get distinct upcoming matches with team names for resolver Step 3
+            # JOIN with matches table to get team names (no raw_data column needed)
             query = """
                 WITH latest_snapshots AS (
                     SELECT DISTINCT ON (o.match_id)
                         o.match_id,
                         o.league_id,
-                        (o.ts_snapshot + (o.secs_to_kickoff || ' seconds')::interval) as kickoff_time,
-                        o.raw_data
+                        (o.ts_snapshot + (o.secs_to_kickoff || ' seconds')::interval) as kickoff_time
                     FROM odds_snapshots o
                     WHERE o.ts_snapshot > NOW() - INTERVAL '24 hours'
                         AND o.secs_to_kickoff > 0
@@ -525,14 +525,16 @@ class AutomatedCollector:
                     ORDER BY o.match_id, o.ts_snapshot DESC
                 )
                 SELECT 
-                    match_id,
-                    league_id, 
-                    kickoff_time,
-                    raw_data->>'home_team' as home_team,
-                    raw_data->>'away_team' as away_team
-                FROM latest_snapshots
-                WHERE kickoff_time BETWEEN NOW() AND NOW() + INTERVAL '7 days'
-                ORDER BY kickoff_time ASC
+                    ls.match_id,
+                    ls.league_id, 
+                    ls.kickoff_time,
+                    m.home_team,
+                    m.away_team
+                FROM latest_snapshots ls
+                JOIN matches m ON ls.match_id = m.id
+                WHERE ls.kickoff_time BETWEEN NOW() AND NOW() + INTERVAL '7 days'
+                    AND m.status = 'NS'
+                ORDER BY ls.kickoff_time ASC
                 LIMIT 100
             """
             

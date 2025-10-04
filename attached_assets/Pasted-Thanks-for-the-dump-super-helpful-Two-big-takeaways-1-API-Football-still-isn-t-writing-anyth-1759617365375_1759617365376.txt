@@ -1,0 +1,169 @@
+Thanks for the dump—super helpful. Two big takeaways:
+
+1. **API-Football still isn’t writing anything.**
+   Your 24h snapshot query shows only `theodds` (8,208 rows). No `api_football` rows = APIF phase either **never ran** or **bailed before insert**.
+
+2. **The Odds API phase is healthy but noisy.**
+   You’re saving lots of EPL/Ligue 1/Serie A etc., but there are many “📭 No team match found …” near-misses (diacritics, U21, aliasing).
+
+Here’s a tight, do-now plan to get APIF flowing and reduce misses.
+
+---
+
+# A) Confirm APIF phase is actually running
+
+### 1) Look for the phase start log
+
+Search your logs for the exact banner:
+
+```
+🎯 Starting API-Football real-time collection for upcoming matches...
+```
+
+If it’s missing, the APIF phase isn’t invoked.
+
+**Likely causes**
+
+* Guard/flag short-circuiting (e.g., `ENABLE_APIF=false`, `RESOLVE_USE_APIF_SEARCH=false`)
+* Missing/blank `APIFOOTBALL_API_KEY`
+* Function not called after TheOdds phase
+
+**Action**
+
+* In `trigger_manual_collection.py` (or `run_manual_multi_source_collection()`), verify you call:
+
+  ```python
+  collect_upcoming_odds_apifootball(db, horizon_hours=...)
+  ```
+* Log right before the call:
+
+  ```python
+  logger.info("🎯 Starting API-Football real-time collection for upcoming matches...")
+  ```
+
+### 2) Quick env/feature-flag sanity
+
+At startup, log your critical toggles once:
+
+```
+APIF enabled: {ENABLE_APIF}
+Resolver: snapshots={RESOLVE_USE_SNAPSHOTS}, live_search={RESOLVE_USE_APIF_SEARCH}
+API key present: {bool(APIFOOTBALL_API_KEY)}
+```
+
+---
+
+# B) If APIF phase *does* run, check resolver inputs
+
+Even when APIF runs, it can insert 0 rows if the resolver returns no `fixture_id`s.
+
+### 3) Are fixture IDs available anywhere?
+
+```sql
+-- From matches (canonical, if you added it)
+SELECT COUNT(*) FROM matches
+WHERE status='NS' AND kickoff_at > NOW()
+  AND api_football_fixture_id IS NOT NULL;
+
+-- From snapshots (fallback path)
+SELECT COUNT(*) FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '24 hours'
+  AND api_football_fixture_id IS NOT NULL;
+```
+
+**If both are 0:** your step-2 write-through from TheOdds into `api_football_fixture_id` isn’t happening, or you never added the column.
+
+### 4) Ensure TheOdds save path sets `api_football_fixture_id`
+
+You said you wired it—double-check the INSERT/UPSERT for `odds_snapshots` includes:
+
+* `provider = 'the_odds_api'` (or consistently `'theodds'`; pick one and **standardize**)
+* `api_football_fixture_id = match_id`  (your intended mapping)
+
+---
+
+# C) Fix the high “No team match found…” miss rate (helps both providers)
+
+This noise shows your team matcher needs normalization + aliasing:
+
+**Implement all three:**
+
+1. **Normalization:** lowercase, strip punctuation, remove accents/diacritics, collapse whitespace.
+   Examples that failed in your log:
+
+   * `Bodo/Glimt` ↔ `Bodø/Glimt`
+   * `Vélez Sarsfield BA` ↔ `Velez Sarsfield`
+   * `Südtirol` ↔ `Sudtirol`
+   * `U21` suffixes; `FC`, `CF`, `SC` noise tokens
+
+2. **Alias table** (`team_alias`):
+
+   * `canonical_name TEXT` | `alias TEXT` | `league_id INT` (nullable)
+   * Seed immediately with near-misses you saw:
+
+     * `Bodo/Glimt` → `Bodø/Glimt`
+     * `Belgrano Cordoba` → `Belgrano de Cordoba`
+     * `Hammarby FF` → `Hammarby IF`
+     * `Sirius` → `IK Sirius`
+     * `Rio Ave` → `Rio Ave FC`
+     * `Las Palmas` → `UD Las Palmas`
+     * `Arouca vs Famalicao` → keep diacritics for `Famalicão`
+   * Add UK EFL Cup quirks (U21 squads), J-League long/short names, Turkish spellings.
+
+3. **Fuzzy match with floor + logging:**
+
+   * Token Jaccard / trigram similarity ≥ **0.90**; otherwise fallback to alias table.
+   * When similarity 0.85–0.90, log a `NEAR-MISS` with both names (you already do—great), and auto-suggest alias insert.
+
+This will flip many of those “📭 No team match found…” lines into “🎯 MATCH FOUND”.
+
+---
+
+# D) Make APIF independent (no circular dependency)
+
+You already planned/added the 3-step resolver. Verify it’s **called** inside the APIF loop and that step-3 (live search) uses correct **season rules** per league (calendar vs July-June). For MLS/Liga MX/K-League use calendar logic; for Europe use July-June (you fixed this—nice).
+
+Also persist the winning fixture id back to `matches`:
+
+```python
+if fid and not m.api_football_fixture_id:
+    repo.update_fixture_id(m.id, fid, source='search'|'snapshot'|'matches')
+```
+
+---
+
+# E) Minimal checks to run right now
+
+1. **Is APIF phase invoked?**
+   If not, wire the call + banner log and re-run.
+
+2. **Any fixture ids in DB?**
+
+```sql
+SELECT 
+  SUM((api_football_fixture_id IS NOT NULL)::int) as matches_with_fid
+FROM matches
+WHERE status='NS' AND kickoff_at > NOW();
+```
+
+3. **Provider breakdown (last 24h) after re-run**
+
+```sql
+SELECT provider, COUNT(*) 
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '24 hours'
+GROUP BY provider;
+```
+
+Expect **both** `the_odds_api` (or `theodds`) **and** `api_football`.
+
+---
+
+## What “good” will look like
+
+* A new banner in logs: `🎯 Starting API-Football real-time collection for upcoming matches...`
+* Resolver stats like: `{'from_matches': 5, 'from_snapshots': 40, 'from_live_search': 6, 'failed': 0}`
+* `odds_snapshots` shows two sources.
+* Far fewer “📭 No team match found …” lines; replaced by “🎯 MATCH FOUND …”.
+
+If you paste the tiny section of code where you **invoke** the APIF collector (or your env flags), I’ll point at the exact guard/condition that’s skipping it.
