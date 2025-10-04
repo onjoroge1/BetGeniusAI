@@ -1,0 +1,1538 @@
+INFO:models.automated_collector:Database manager initialized for automated collection
+INFO:models.automated_collector:📋 Found 35 configured leagues in league_map: [2, 3, 4, 13, 39, 45, 46, 47, 48, 61, 62, 71, 72, 72, 78, 79, 88, 94, 98, 103, 113, 119, 128, 135, 136, 140, 141, 144, 179, 203, 207, 218, 253, 262, 292]
+INFO:models.automated_collector:Collecting recent matches for League 2 (ID: 2)
+INFO:models.automated_collector:Found 9 completed matches for league 2 in last 3 days
+INFO:models.data_collector:Collecting data for match 1451047
+INFO:models.data_collector:Collecting data for match 1451048
+INFO:models.data_collector:Collecting data for match 1451052
+INFO:models.data_collector:Collecting data for match 1451051
+INFO:models.data_collector:Collecting data for match 1451049
+INFO:models.data_collector:Collecting data for match 1451054
+INFO:models.data_collector:Collecting data for match 1451053
+INFO:models.data_collector:Collecting data for match 1451050
+INFO:models.data_collector:Collecting data for match 1451055
+INFO:models.automated_collector:💾 DUAL SAVE: 9 processed matches from League 2
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 2
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 3 (ID: 3)
+INFO:models.automated_collector:Found 18 completed matches for league 3 in last 3 days
+INFO:models.data_collector:Collecting data for match 1451180
+INFO:models.data_collector:Collecting data for match 1451185
+INFO:models.data_collector:Collecting data for match 1451188
+INFO:models.data_collector:Collecting data for match 1451183
+INFO:models.data_collector:Collecting data for match 1451186
+INFO:utils.scheduler:🛡️ Running 15-minute safety net check...
+INFO:models.bucket_filler:🛡️ SAFETY NET: Starting bucket fill check...
+INFO:models.bucket_filler:✅ SAFETY NET: No missing buckets found - all windows covered
+INFO:models.data_collector:Collecting data for match 1451182
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.data_collector:Collecting data for match 1451187
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.data_collector:Collecting data for match 1451184
+INFO:models.data_collector:Collecting data for match 1451181
+INFO:models.data_collector:Collecting data for match 1451194
+INFO:models.data_collector:Collecting data for match 1451191
+INFO:models.data_collector:Collecting data for match 1452155
+INFO:models.data_collector:Collecting data for match 1451192
+INFO:models.data_collector:Collecting data for match 1451196
+INFO:models.data_collector:Collecting data for match 1451189
+INFO:models.data_collector:Collecting data for match 1451193
+INFO:models.data_collector:Collecting data for match 1451195
+INFO:models.data_collector:Collecting data for match 1451190
+INFO:models.automated_collector:💾 DUAL SAVE: 18 processed matches from League 3
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 3
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 18 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 4 (ID: 4)
+INFO:models.automated_collector:Found 0 completed matches for league 4 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for League 13 (ID: 13)
+INFO:models.automated_collector:Found 0 completed matches for league 13 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for Premier League (ID: 39)
+INFO:models.automated_collector:Found 5 completed matches for league 39 in last 3 days
+INFO:models.data_collector:Collecting data for match 1379031
+INFO:models.data_collector:Collecting data for match 1379035
+INFO:models.data_collector:Collecting data for match 1379036
+INFO:models.data_collector:Collecting data for match 1379029
+INFO:models.data_collector:Collecting data for match 1379033
+INFO:models.automated_collector:💾 DUAL SAVE: 5 processed matches from Premier League
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: Premier League
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 5 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 45 (ID: 45)
+INFO:models.automated_collector:Found 0 completed matches for league 45 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for League 46 (ID: 46)
+INFO:models.automated_collector:Found 0 completed matches for league 46 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for League 47 (ID: 47)
+INFO:models.automated_collector:Found 50 completed matches for league 47 in last 3 days
+INFO:models.data_collector:Collecting data for match 1475977
+INFO:models.data_collector:Collecting data for match 1475959
+INFO:models.data_collector:Collecting data for match 1476017
+INFO:models.data_collector:Collecting data for match 1476013
+INFO:models.data_collector:Collecting data for match 1475966
+INFO:models.data_collector:Collecting data for match 1475965
+INFO:models.data_collector:Collecting data for match 1476006
+INFO:models.data_collector:Collecting data for match 1475987
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.data_collector:Collecting data for match 1476012
+INFO:models.data_collector:Collecting data for match 1475978
+INFO:models.data_collector:Collecting data for match 1475988
+INFO:models.data_collector:Collecting data for match 1475971
+INFO:models.data_collector:Collecting data for match 1475979
+INFO:models.data_collector:Collecting data for match 1476015
+INFO:models.data_collector:Collecting data for match 1475975
+INFO:models.data_collector:Collecting data for match 1475995
+INFO:models.data_collector:Collecting data for match 1475970
+INFO:models.data_collector:Collecting data for match 1475960
+INFO:models.data_collector:Collecting data for match 1475972
+INFO:models.data_collector:Collecting data for match 1475998
+INFO:models.data_collector:Collecting data for match 1475996
+INFO:models.data_collector:Collecting data for match 1475958
+INFO:models.data_collector:Collecting data for match 1466820
+INFO:models.data_collector:Collecting data for match 1476011
+INFO:models.data_collector:Collecting data for match 1475974
+INFO:models.data_collector:Collecting data for match 1476004
+INFO:models.data_collector:Collecting data for match 1476019
+INFO:models.data_collector:Collecting data for match 1475976
+INFO:models.data_collector:Collecting data for match 1476016
+INFO:models.data_collector:Collecting data for match 1475997
+INFO:models.data_collector:Collecting data for match 1475983
+INFO:models.data_collector:Collecting data for match 1475989
+INFO:models.data_collector:Collecting data for match 1476003
+INFO:models.data_collector:Collecting data for match 1475985
+INFO:models.data_collector:Collecting data for match 1475999
+INFO:models.data_collector:Collecting data for match 1475969
+INFO:models.data_collector:Collecting data for match 1475994
+INFO:models.data_collector:Collecting data for match 1475973
+INFO:models.data_collector:Collecting data for match 1475990
+INFO:models.data_collector:Collecting data for match 1476008
+INFO:models.data_collector:Collecting data for match 1476005
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.data_collector:Collecting data for match 1476007
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.data_collector:Collecting data for match 1475980
+INFO:models.data_collector:Collecting data for match 1475991
+INFO:models.data_collector:Collecting data for match 1476000
+INFO:models.data_collector:Collecting data for match 1476014
+INFO:models.data_collector:Collecting data for match 1475961
+INFO:models.data_collector:Collecting data for match 1475962
+INFO:models.data_collector:Collecting data for match 1476009
+INFO:models.data_collector:Collecting data for match 1476001
+INFO:models.automated_collector:💾 DUAL SAVE: 50 processed matches from League 47
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 47
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 50 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 48 (ID: 48)
+INFO:models.automated_collector:Found 0 completed matches for league 48 in last 3 days
+INFO:models.automated_collector:Collecting recent matches for Ligue 1 (ID: 61)
+INFO:models.automated_collector:Found 4 completed matches for league 61 in last 3 days
+INFO:models.data_collector:Collecting data for match 1387759
+INFO:models.data_collector:Collecting data for match 1387757
+INFO:models.data_collector:Collecting data for match 1387753
+INFO:models.data_collector:Collecting data for match 1387752
+INFO:models.automated_collector:💾 DUAL SAVE: 4 processed matches from Ligue 1
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: Ligue 1
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 4 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 62 (ID: 62)
+INFO:models.automated_collector:Found 9 completed matches for league 62 in last 3 days
+INFO:models.data_collector:Collecting data for match 1389200
+INFO:models.data_collector:Collecting data for match 1389195
+INFO:models.data_collector:Collecting data for match 1389199
+INFO:models.data_collector:Collecting data for match 1389192
+INFO:models.data_collector:Collecting data for match 1389198
+INFO:models.data_collector:Collecting data for match 1389196
+INFO:models.data_collector:Collecting data for match 1389193
+INFO:models.data_collector:Collecting data for match 1389197
+INFO:models.data_collector:Collecting data for match 1389194
+INFO:models.automated_collector:💾 DUAL SAVE: 9 processed matches from League 62
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 62
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 71 (ID: 71)
+INFO:models.automated_collector:Found 10 completed matches for league 71 in last 3 days
+INFO:models.data_collector:Collecting data for match 1351298
+INFO:models.data_collector:Collecting data for match 1351295
+INFO:models.data_collector:Collecting data for match 1351302
+INFO:models.data_collector:Collecting data for match 1351297
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.data_collector:Collecting data for match 1351299
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.data_collector:Collecting data for match 1351294
+INFO:models.data_collector:Collecting data for match 1351296
+INFO:models.data_collector:Collecting data for match 1351300
+INFO:models.data_collector:Collecting data for match 1351301
+INFO:models.data_collector:Collecting data for match 1351293
+INFO:models.automated_collector:💾 DUAL SAVE: 10 processed matches from League 71
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 71
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 10 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 72 (ID: 72)
+INFO:models.automated_collector:Found 7 completed matches for league 72 in last 3 days
+INFO:models.data_collector:Collecting data for match 1353541
+INFO:models.data_collector:Collecting data for match 1353553
+INFO:models.data_collector:Collecting data for match 1353551
+INFO:models.data_collector:Collecting data for match 1353557
+INFO:models.data_collector:Collecting data for match 1353550
+INFO:models.data_collector:Collecting data for match 1353556
+INFO:models.data_collector:Collecting data for match 1353554
+INFO:models.automated_collector:💾 DUAL SAVE: 7 processed matches from League 72
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 72
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 7 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 72 (ID: 72)
+INFO:models.automated_collector:Found 7 completed matches for league 72 in last 3 days
+INFO:models.data_collector:Collecting data for match 1353541
+INFO:models.data_collector:Collecting data for match 1353553
+INFO:models.data_collector:Collecting data for match 1353551
+INFO:models.data_collector:Collecting data for match 1353557
+INFO:models.data_collector:Collecting data for match 1353550
+INFO:models.data_collector:Collecting data for match 1353556
+INFO:models.data_collector:Collecting data for match 1353554
+INFO:models.automated_collector:💾 DUAL SAVE: 7 processed matches from League 72
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 72
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 7 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for Bundesliga (ID: 78)
+INFO:models.automated_collector:Found 6 completed matches for league 78 in last 3 days
+INFO:models.data_collector:Collecting data for match 1388359
+INFO:models.data_collector:Collecting data for match 1388361
+INFO:models.data_collector:Collecting data for match 1388356
+INFO:models.data_collector:Collecting data for match 1388354
+INFO:models.data_collector:Collecting data for match 1388353
+INFO:models.data_collector:Collecting data for match 1388357
+INFO:models.automated_collector:💾 DUAL SAVE: 6 processed matches from Bundesliga
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: Bundesliga
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 6 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 79 (ID: 79)
+INFO:models.automated_collector:Found 6 completed matches for league 79 in last 3 days
+INFO:models.data_collector:Collecting data for match 1388679
+INFO:models.data_collector:Collecting data for match 1388678
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.data_collector:Collecting data for match 1388681
+INFO:models.data_collector:Collecting data for match 1388682
+INFO:models.data_collector:Collecting data for match 1388683
+INFO:models.data_collector:Collecting data for match 1388685
+INFO:models.automated_collector:💾 DUAL SAVE: 6 processed matches from League 79
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 79
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 6 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for Eredivisie (ID: 88)
+INFO:models.automated_collector:Found 5 completed matches for league 88 in last 3 days
+INFO:models.data_collector:Collecting data for match 1380930
+INFO:models.data_collector:Collecting data for match 1380931
+INFO:models.data_collector:Collecting data for match 1380932
+INFO:models.data_collector:Collecting data for match 1380933
+INFO:models.data_collector:Collecting data for match 1380934
+INFO:models.automated_collector:💾 DUAL SAVE: 5 processed matches from Eredivisie
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 1 training matches to database
+INFO:models.database:Saved 1 matches to odds_consensus table
+INFO:models.database:DUAL-TABLE: Also saved 1 matches to odds_consensus
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: Eredivisie
+INFO:models.automated_collector:   • training_matches: 1 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 4 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 94 (ID: 94)
+INFO:models.automated_collector:Found 5 completed matches for league 94 in last 3 days
+INFO:models.data_collector:Collecting data for match 1396302
+INFO:models.data_collector:Collecting data for match 1396305
+INFO:models.data_collector:Collecting data for match 1396304
+INFO:models.data_collector:Collecting data for match 1396300
+INFO:models.data_collector:Collecting data for match 1396308
+INFO:models.automated_collector:💾 DUAL SAVE: 5 processed matches from League 94
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 1 training matches to database
+INFO:models.database:Saved 1 matches to odds_consensus table
+INFO:models.database:DUAL-TABLE: Also saved 1 matches to odds_consensus
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 94
+INFO:models.automated_collector:   • training_matches: 1 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 4 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 98 (ID: 98)
+INFO:models.automated_collector:Found 9 completed matches for league 98 in last 3 days
+INFO:models.data_collector:Collecting data for match 1324272
+INFO:models.data_collector:Collecting data for match 1324277
+INFO:models.data_collector:Collecting data for match 1324278
+INFO:models.data_collector:Collecting data for match 1324276
+INFO:models.data_collector:Collecting data for match 1324281
+INFO:models.data_collector:Collecting data for match 1324280
+INFO:models.data_collector:Collecting data for match 1324274
+INFO:models.data_collector:Collecting data for match 1324275
+INFO:models.data_collector:Collecting data for match 1324279
+INFO:models.automated_collector:💾 DUAL SAVE: 9 processed matches from League 98
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 98
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 9 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 103 (ID: 103)
+INFO:models.automated_collector:Found 4 completed matches for league 103 in last 3 days
+INFO:models.data_collector:Collecting data for match 1342366
+INFO:models.data_collector:Collecting data for match 1342377
+INFO:models.data_collector:Collecting data for match 1342374
+INFO:models.data_collector:Collecting data for match 1342372
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:💾 DUAL SAVE: 4 processed matches from League 103
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 103
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 4 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 113 (ID: 113)
+INFO:models.automated_collector:Found 4 completed matches for league 113 in last 3 days
+INFO:models.data_collector:Collecting data for match 1342153
+INFO:models.data_collector:Collecting data for match 1342150
+INFO:models.data_collector:Collecting data for match 1342151
+INFO:models.data_collector:Collecting data for match 1342148
+INFO:models.automated_collector:💾 DUAL SAVE: 4 processed matches from League 113
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 113
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 4 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 119 (ID: 119)
+INFO:models.automated_collector:Found 1 completed matches for league 119 in last 3 days
+INFO:models.data_collector:Collecting data for match 1379412
+INFO:models.automated_collector:💾 DUAL SAVE: 1 processed matches from League 119
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 119
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 1 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 128 (ID: 128)
+INFO:models.automated_collector:Found 5 completed matches for league 128 in last 3 days
+INFO:models.data_collector:Collecting data for match 1374215
+INFO:models.data_collector:Collecting data for match 1374217
+INFO:models.data_collector:Collecting data for match 1374216
+INFO:models.data_collector:Collecting data for match 1374220
+INFO:models.data_collector:Collecting data for match 1374224
+INFO:models.automated_collector:💾 DUAL SAVE: 5 processed matches from League 128
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 1 training matches to database
+INFO:models.database:Saved 1 matches to odds_consensus table
+INFO:models.database:DUAL-TABLE: Also saved 1 matches to odds_consensus
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 128
+INFO:models.automated_collector:   • training_matches: 1 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 4 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for Serie A (ID: 135)
+INFO:models.automated_collector:Found 5 completed matches for league 135 in last 3 days
+INFO:models.data_collector:Collecting data for match 1377923
+INFO:models.data_collector:Collecting data for match 1377919
+INFO:models.data_collector:Collecting data for match 1377921
+INFO:models.data_collector:Collecting data for match 1377917
+INFO:models.data_collector:Collecting data for match 1377914
+INFO:models.automated_collector:💾 DUAL SAVE: 5 processed matches from Serie A
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: Serie A
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 5 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 136 (ID: 136)
+INFO:models.automated_collector:Found 10 completed matches for league 136 in last 3 days
+INFO:models.data_collector:Collecting data for match 1419642
+INFO:models.data_collector:Collecting data for match 1419648
+INFO:models.data_collector:Collecting data for match 1419649
+INFO:models.data_collector:Collecting data for match 1419650
+INFO:models.data_collector:Collecting data for match 1419651
+INFO:models.data_collector:Collecting data for match 1419655
+INFO:models.data_collector:Collecting data for match 1419658
+INFO:models.data_collector:Collecting data for match 1419656
+INFO:models.data_collector:Collecting data for match 1419659
+INFO:models.data_collector:Collecting data for match 1419660
+INFO:models.automated_collector:💾 DUAL SAVE: 10 processed matches from League 136
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 136
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 10 matches already existed in both tables
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:Collecting recent matches for La Liga (ID: 140)
+INFO:models.automated_collector:Found 5 completed matches for league 140 in last 3 days
+INFO:models.data_collector:Collecting data for match 1390894
+INFO:models.data_collector:Collecting data for match 1390897
+INFO:models.data_collector:Collecting data for match 1390893
+INFO:models.data_collector:Collecting data for match 1390890
+INFO:models.data_collector:Collecting data for match 1390895
+INFO:models.automated_collector:💾 DUAL SAVE: 5 processed matches from La Liga
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: La Liga
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 5 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 141 (ID: 141)
+INFO:models.automated_collector:Found 5 completed matches for league 141 in last 3 days
+INFO:models.data_collector:Collecting data for match 1391328
+INFO:models.data_collector:Collecting data for match 1391322
+INFO:models.data_collector:Collecting data for match 1391330
+INFO:models.data_collector:Collecting data for match 1396954
+INFO:models.data_collector:Collecting data for match 1391323
+INFO:models.automated_collector:💾 DUAL SAVE: 5 processed matches from League 141
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 141
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 5 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 144 (ID: 144)
+INFO:models.automated_collector:Found 4 completed matches for league 144 in last 3 days
+INFO:models.data_collector:Collecting data for match 1382498
+INFO:models.data_collector:Collecting data for match 1382503
+INFO:models.data_collector:Collecting data for match 1382499
+INFO:models.data_collector:Collecting data for match 1382501
+INFO:models.automated_collector:💾 DUAL SAVE: 4 processed matches from League 144
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 144
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 4 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 179 (ID: 179)
+INFO:models.automated_collector:Found 3 completed matches for league 179 in last 3 days
+INFO:models.data_collector:Collecting data for match 1382707
+INFO:models.data_collector:Collecting data for match 1382704
+INFO:models.data_collector:Collecting data for match 1382706
+INFO:models.automated_collector:💾 DUAL SAVE: 3 processed matches from League 179
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 179
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 3 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 203 (ID: 203)
+INFO:models.automated_collector:Found 5 completed matches for league 203 in last 3 days
+INFO:models.data_collector:Collecting data for match 1394504
+INFO:models.data_collector:Collecting data for match 1394496
+INFO:models.data_collector:Collecting data for match 1394498
+INFO:models.data_collector:Collecting data for match 1394502
+INFO:models.data_collector:Collecting data for match 1394497
+INFO:models.automated_collector:💾 DUAL SAVE: 5 processed matches from League 203
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 203
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 5 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 207 (ID: 207)
+INFO:models.automated_collector:Found 3 completed matches for league 207 in last 3 days
+INFO:models.data_collector:Collecting data for match 1382336
+INFO:models.data_collector:Collecting data for match 1382337
+INFO:models.data_collector:Collecting data for match 1382338
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.automated_collector:💾 DUAL SAVE: 3 processed matches from League 207
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 207
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 3 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 218 (ID: 218)
+INFO:models.automated_collector:Found 3 completed matches for league 218 in last 3 days
+INFO:models.data_collector:Collecting data for match 1390076
+INFO:models.data_collector:Collecting data for match 1390078
+INFO:models.data_collector:Collecting data for match 1390075
+INFO:models.automated_collector:💾 DUAL SAVE: 3 processed matches from League 218
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 218
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 3 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 253 (ID: 253)
+INFO:models.automated_collector:Found 2 completed matches for league 253 in last 3 days
+INFO:models.data_collector:Collecting data for match 1326684
+INFO:models.data_collector:Collecting data for match 1326681
+INFO:models.automated_collector:💾 DUAL SAVE: 2 processed matches from League 253
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 253
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 2 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 262 (ID: 262)
+INFO:models.automated_collector:Found 3 completed matches for league 262 in last 3 days
+INFO:models.data_collector:Collecting data for match 1379580
+INFO:models.data_collector:Collecting data for match 1379581
+INFO:models.data_collector:Collecting data for match 1379582
+INFO:models.automated_collector:💾 DUAL SAVE: 3 processed matches from League 262
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 262
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 3 matches already existed in both tables
+INFO:models.automated_collector:Collecting recent matches for League 292 (ID: 292)
+INFO:models.automated_collector:Found 2 completed matches for league 292 in last 3 days
+INFO:models.data_collector:Collecting data for match 1340887
+INFO:models.data_collector:Collecting data for match 1340888
+INFO:models.automated_collector:💾 DUAL SAVE: 2 processed matches from League 292
+INFO:models.automated_collector:🎯 TARGET TABLES: training_matches + odds_consensus
+INFO:models.database:Saved 0 training matches to database
+INFO:models.database:Saved 0 matches to odds_consensus table
+INFO:models.automated_collector:✅ DUAL SAVE COMPLETE: League 292
+INFO:models.automated_collector:   • training_matches: 0 new
+INFO:models.automated_collector:   • odds_consensus: 0 new
+INFO:models.automated_collector:⚠️ DUPLICATES SKIPPED: 2 matches already existed in both tables
+INFO:models.automated_collector:Collection results logged to data/collection_log.json
+INFO:models.automated_collector:🎯 Starting The Odds API collection for upcoming matches...
+INFO:models.automated_collector:📋 Found 35 configured leagues in league_map: [2, 3, 4, 13, 39, 45, 46, 47, 48, 61, 62, 71, 72, 72, 78, 79, 88, 94, 98, 103, 113, 119, 128, 135, 136, 140, 141, 144, 179, 203, 207, 218, 253, 262, 292]
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 2 (ID: 2)
+INFO:models.data_collector:Found 50 NS matches for league 2, season 2025
+INFO:     127.0.0.1:33408 - "GET /matches/upcoming?league_id=2&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 0 upcoming matches for league 2 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📭 No upcoming matches found for League 2
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 3 (ID: 3)
+INFO:models.data_collector:Found 50 NS matches for league 3, season 2025
+INFO:     127.0.0.1:33410 - "GET /matches/upcoming?league_id=3&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 0 upcoming matches for league 3 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📭 No upcoming matches found for League 3
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 4 (ID: 4)
+INFO:models.data_collector:Found 0 NS matches for league 4, season 2025
+INFO:models.data_collector:Found 0 FT matches for league 4, season 2025
+INFO:models.data_collector:Found 0 NS matches for league 4, season 2024
+INFO:models.data_collector:Found 46 FT matches for league 4, season 2024
+INFO:     127.0.0.1:33414 - "GET /matches/upcoming?league_id=4&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 0 upcoming matches for league 4 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📭 No upcoming matches found for League 4
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 13 (ID: 13)
+INFO:models.data_collector:Found 4 NS matches for league 13, season 2025
+INFO:     127.0.0.1:32842 - "GET /matches/upcoming?league_id=13&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 0 upcoming matches for league 13 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📭 No upcoming matches found for League 13
+INFO:models.automated_collector:🔍 Checking upcoming matches for Premier League (ID: 39)
+INFO:models.data_collector:Found 50 NS matches for league 39, season 2025
+INFO:     127.0.0.1:32850 - "GET /matches/upcoming?league_id=39&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 5 upcoming matches for league 39 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 5 upcoming matches in Premier League
+INFO:models.automated_collector:🕐 Match 1379037 (Newcastle vs Nottingham Forest) - T-14.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379037 (Newcastle vs Nottingham Forest) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Newcastle vs Nottingham Forest → Newcastle United vs Nottingham Forest
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1379037, T-12h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1379038 (Wolves vs Brighton) - T-14.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379038 (Wolves vs Brighton) at T-12h
+INFO:models.automated_collector:📭 No team match found for Wolves vs Brighton in 25 API events
+INFO:models.automated_collector:🕐 Match 1379034 (Everton vs Crystal Palace) - T-14.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379034 (Everton vs Crystal Palace) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Everton vs Crystal Palace → Everton vs Crystal Palace
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1379034, T-12h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1379030 (Aston Villa vs Burnley) - T-14.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379030 (Aston Villa vs Burnley) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Aston Villa vs Burnley → Aston Villa vs Burnley
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1379030, T-12h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1379032 (Brentford vs Manchester City) - T-17.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-17.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379032 (Brentford vs Manchester City) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Brentford vs Manchester City → Brentford vs Manchester City
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1379032, T-24h (72 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 45 (ID: 45)
+INFO:models.data_collector:Found 32 NS matches for league 45, season 2025
+INFO:     127.0.0.1:33244 - "GET /matches/upcoming?league_id=45&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 32 upcoming matches for league 45 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 32 upcoming matches in League 45
+INFO:models.automated_collector:🕐 Match 1478188 (Farnham Town vs Sutton Utd) - T-157.1h
+INFO:models.automated_collector:🕐 Match 1478193 (Rochdale vs York) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478194 (Scunthorpe vs King's Lynn Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478196 (Southend vs Folkestone Invicta) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478184 (Carlisle vs Boston United) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478192 (Morecambe vs Chester) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478191 (Macclesfield vs Stamford) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478197 (Southport vs FC Halifax Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478183 (Braintree vs Farnborough) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478202 (Woking vs Brackley Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478187 (Ebbsfleet United vs Solihull Moors) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478190 (Hampton & Richmond vs Eastleigh) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478195 (Slough Town vs Enfield Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478201 (Weston-super-Mare vs Needham Market) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478185 (Chelmsford City vs Chippenham Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478189 (Gainsborough Trinity vs Hartlepool) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478180 (Altrincham vs Harborough Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478186 (Eastbourne Borough vs Boreham Wood) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1479217 (Spennymoor Town vs Billericay Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478181 (Aveley vs Gateshead) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478179 (AFC Totton vs Truro City) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1479215 (Maldon & Tiptree vs Flackwell Heath) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1479216 (Runcorn Linnets vs Buxton) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478182 (Banbury United vs St Albans City) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478198 (South Shields vs Spalding United) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478199 (Tamworth vs Hyde United) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478203 (Worthing vs Forest Green) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1479213 (Dorking Wanderers vs Aldershot Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1479214 (Hemel Hempstead Town vs Yeovil Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1479218 (Tonbridge Angels vs Chatham Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1478200 (Wealdstone vs Whitstable Town) - T-159.6h
+INFO:models.automated_collector:🕐 Match 1479212 (Darlington 1883 vs AFC Telford United) - T-159.6h
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 46 (ID: 46)
+INFO:models.data_collector:Found 50 NS matches for league 46, season 2025
+INFO:     127.0.0.1:46924 - "GET /matches/upcoming?league_id=46&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 17 upcoming matches for league 46 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 17 upcoming matches in League 46
+INFO:models.automated_collector:🕐 Match 1444593 (Reading vs Milton Keynes Dons) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444593 (Reading vs Milton Keynes Dons) at T-72h
+INFO:models.automated_collector:📭 No team match found for Reading vs Milton Keynes Dons in 13 API events
+INFO:models.automated_collector:🕐 Match 1444543 (Wigan vs Wolves U21) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444543 (Wigan vs Wolves U21) at T-72h
+INFO:models.automated_collector:📭 No team match found for Wigan vs Wolves U21 in 13 API events
+INFO:models.automated_collector:🕐 Match 1444546 (Rotherham vs Oldham) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444546 (Rotherham vs Oldham) at T-72h
+INFO:models.automated_collector:📭 No team match found for Rotherham vs Oldham in 13 API events
+INFO:models.automated_collector:🕐 Match 1444547 (Fleetwood Town vs Leeds United U21) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444547 (Fleetwood Town vs Leeds United U21) at T-72h
+INFO:models.automated_collector:📭 No team match found for Fleetwood Town vs Leeds United U21 in 13 API events
+INFO:models.automated_collector:🕐 Match 1444592 (Walsall vs Northampton) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444592 (Walsall vs Northampton) at T-72h
+INFO:models.automated_collector:📭 No team match found for Walsall vs Northampton in 13 API events
+INFO:models.automated_collector:🕐 Match 1444548 (Chesterfield vs Burton Albion) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444548 (Chesterfield vs Burton Albion) at T-72h
+INFO:models.automated_collector:📭 No team match found for Chesterfield vs Burton Albion in 13 API events
+INFO:models.automated_collector:🕐 Match 1444596 (Wycombe vs Fulham U21) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444596 (Wycombe vs Fulham U21) at T-72h
+INFO:models.automated_collector:📭 No team match found for Wycombe vs Fulham U21 in 13 API events
+INFO:models.automated_collector:🕐 Match 1444545 (Grimsby vs Doncaster) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444545 (Grimsby vs Doncaster) at T-72h
+INFO:models.automated_collector:📭 No team match found for Grimsby vs Doncaster in 13 API events
+INFO:models.automated_collector:🕐 Match 1444594 (Stevenage vs Bromley) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444594 (Stevenage vs Bromley) at T-72h
+INFO:models.automated_collector:📭 No team match found for Stevenage vs Bromley in 13 API events
+INFO:models.automated_collector:🕐 Match 1444597 (Cambridge United vs Luton) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444597 (Cambridge United vs Luton) at T-72h
+INFO:models.automated_collector:📭 No team match found for Cambridge United vs Luton in 13 API events
+INFO:models.automated_collector:🕐 Match 1444591 (Cheltenham vs Bristol Rovers) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444591 (Cheltenham vs Bristol Rovers) at T-72h
+INFO:models.automated_collector:📭 No team match found for Cheltenham vs Bristol Rovers in 13 API events
+INFO:models.automated_collector:🕐 Match 1444595 (Leyton Orient vs Crawley Town) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444595 (Leyton Orient vs Crawley Town) at T-72h
+INFO:models.automated_collector:📭 No team match found for Leyton Orient vs Crawley Town in 13 API events
+INFO:models.automated_collector:🕐 Match 1444544 (Salford City vs Stockport County) - T-67.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-67.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444544 (Salford City vs Stockport County) at T-72h
+INFO:models.automated_collector:📭 No team match found for Salford City vs Stockport County in 13 API events
+INFO:models.automated_collector:🕐 Match 1444549 (Barrow vs Tranmere) - T-68.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-68.1h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444549 (Barrow vs Tranmere) at T-72h
+INFO:models.automated_collector:📭 No team match found for Barrow vs Tranmere in 13 API events
+INFO:models.automated_collector:🕐 Match 1444598 (Cardiff vs Newport County) - T-68.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-68.3h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444598 (Cardiff vs Newport County) at T-72h
+INFO:models.automated_collector:📭 No team match found for Cardiff vs Newport County in 13 API events
+INFO:models.automated_collector:🕐 Match 1444550 (Accrington ST vs Port Vale) - T-68.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-68.3h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444550 (Accrington ST vs Port Vale) at T-72h
+INFO:models.automated_collector:📭 No team match found for Accrington ST vs Port Vale in 13 API events
+INFO:models.automated_collector:🕐 Match 1444599 (Colchester vs Gillingham) - T-68.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-68.3h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1444599 (Colchester vs Gillingham) at T-72h
+INFO:models.automated_collector:📭 No team match found for Colchester vs Gillingham in 13 API events
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 47 (ID: 47)
+INFO:models.data_collector:Found 2 NS matches for league 47, season 2025
+INFO:     127.0.0.1:58628 - "GET /matches/upcoming?league_id=47&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 2 upcoming matches for league 47 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 2 upcoming matches in League 47
+INFO:models.automated_collector:🕐 Match 1476020 (Prescot Cables vs Lancaster City) - T-68.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-68.3h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1476020 (Prescot Cables vs Lancaster City) at T-72h
+INFO:models.automated_collector:📭 No team match found for Prescot Cables vs Lancaster City in 8 API events
+INFO:models.automated_collector:🕐 Match 1475968 (Silsden vs Stocksbridge Park Steels) - T-68.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-68.3h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1475968 (Silsden vs Stocksbridge Park Steels) at T-72h
+INFO:models.automated_collector:📭 No team match found for Silsden vs Stocksbridge Park Steels in 8 API events
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 48 (ID: 48)
+INFO:models.data_collector:Found 8 NS matches for league 48, season 2025
+INFO:     127.0.0.1:58640 - "GET /matches/upcoming?league_id=48&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 0 upcoming matches for league 48 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📭 No upcoming matches found for League 48
+INFO:models.automated_collector:🔍 Checking upcoming matches for Ligue 1 (ID: 61)
+INFO:models.data_collector:Found 50 NS matches for league 61, season 2025
+INFO:     127.0.0.1:47436 - "GET /matches/upcoming?league_id=61&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 5 upcoming matches for league 61 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 5 upcoming matches in Ligue 1
+INFO:models.automated_collector:🕐 Match 1387756 (Lyon vs Toulouse) - T-14.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1387756 (Lyon vs Toulouse) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Lyon vs Toulouse → Lyon vs Toulouse
+INFO:models.automated_collector:📊 Extracted 66 bookmaker odds entries
+INFO:models.automated_collector:Saved 66 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1387756, T-12h (66 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1387758 (Monaco vs Nice) - T-16.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1387758 (Monaco vs Nice) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Monaco vs Nice → AS Monaco vs Nice
+INFO:models.automated_collector:📊 Extracted 66 bookmaker odds entries
+INFO:models.automated_collector:Saved 66 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1387758, T-24h (66 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1387760 (Strasbourg vs Angers) - T-16.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1387760 (Strasbourg vs Angers) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Strasbourg vs Angers → Strasbourg vs Angers
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1387760, T-24h (69 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1387754 (Le Havre vs Rennes) - T-16.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1387754 (Le Havre vs Rennes) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Le Havre vs Rennes → Le Havre vs Rennes
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1387754, T-24h (69 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1387755 (Lille vs Paris Saint Germain) - T-20.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-20.3h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1387755 (Lille vs Paris Saint Germain) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Lille vs Paris Saint Germain → Lille vs Paris Saint Germain
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1387755, T-24h (69 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 62 (ID: 62)
+INFO:models.data_collector:Found 50 NS matches for league 62, season 2025
+INFO:     127.0.0.1:56334 - "GET /matches/upcoming?league_id=62&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 0 upcoming matches for league 62 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📭 No upcoming matches found for League 62
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 71 (ID: 71)
+INFO:models.data_collector:Found 50 NS matches for league 71, season 2025
+INFO:     127.0.0.1:49698 - "GET /matches/upcoming?league_id=71&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 9 upcoming matches for league 71 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 9 upcoming matches in League 71
+INFO:models.automated_collector:🕐 Match 1351306 (Sao Paulo vs Palmeiras) - T-20.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-20.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1351306 (Sao Paulo vs Palmeiras) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1351304 (Vasco DA Gama vs Vitoria) - T-20.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-20.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1351304 (Vasco DA Gama vs Vitoria) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1351310 (Bahia vs Flamengo) - T-23.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-23.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1351310 (Bahia vs Flamengo) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1351312 (Juventude vs Fortaleza EC) - T-23.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-23.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1351312 (Juventude vs Fortaleza EC) at T-24h
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:🕐 Match 1351311 (Ceara vs Santos) - T-25.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-25.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1351311 (Ceara vs Santos) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1351308 (Cruzeiro vs Sport Recife) - T-25.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-25.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1351308 (Cruzeiro vs Sport Recife) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1351178 (Atletico-MG vs Sport Recife) - T-95.6h
+INFO:models.automated_collector:🕐 Match 1351167 (Mirassol vs Fluminense) - T-97.6h
+INFO:models.automated_collector:🕐 Match 1351155 (Palmeiras vs Juventude) - T-167.6h
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 72 (ID: 72)
+INFO:models.data_collector:Found 50 NS matches for league 72, season 2025
+INFO:     127.0.0.1:49700 - "GET /matches/upcoming?league_id=72&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 13 upcoming matches for league 72 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 13 upcoming matches in League 72
+INFO:models.automated_collector:🕐 Match 1353555 (Operario-PR vs remo) - T-20.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-20.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353555 (Operario-PR vs remo) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353552 (Atletico Goianiense vs Atletico Paranaense) - T-25.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-25.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353552 (Atletico Goianiense vs Atletico Paranaense) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353566 (Amazonas vs Criciuma) - T-72.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-72.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353566 (Amazonas vs Criciuma) at T-72h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353561 (Goias vs CRB) - T-74.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-74.1h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353561 (Goias vs CRB) at T-72h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353569 (Botafogo SP vs Paysandu) - T-74.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-74.1h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353569 (Botafogo SP vs Paysandu) at T-72h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353562 (Cuiaba vs Novorizontino) - T-95.6h
+INFO:models.automated_collector:🕐 Match 1353565 (Operario-PR vs Athletic Club) - T-95.6h
+INFO:models.automated_collector:🕐 Match 1353564 (Avai vs Volta Redonda) - T-97.6h
+INFO:models.automated_collector:🕐 Match 1353567 (America Mineiro vs Vila Nova) - T-98.1h
+INFO:models.automated_collector:🕐 Match 1353568 (Ferroviária vs Chapecoense-sc) - T-119.6h
+INFO:models.automated_collector:🕐 Match 1353560 (Coritiba vs Atletico Goianiense) - T-120.1h
+INFO:models.automated_collector:🕐 Match 1353563 (remo vs Atletico Paranaense) - T-122.1h
+INFO:models.automated_collector:🕐 Match 1353577 (Athletic Club vs Goias) - T-164.6h
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 72 (ID: 72)
+INFO:models.data_collector:Found 50 NS matches for league 72, season 2025
+INFO:     127.0.0.1:43884 - "GET /matches/upcoming?league_id=72&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 13 upcoming matches for league 72 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 13 upcoming matches in League 72
+INFO:models.automated_collector:🕐 Match 1353555 (Operario-PR vs remo) - T-20.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-20.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353555 (Operario-PR vs remo) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353552 (Atletico Goianiense vs Atletico Paranaense) - T-25.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-25.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353552 (Atletico Goianiense vs Atletico Paranaense) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353566 (Amazonas vs Criciuma) - T-72.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-72.6h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353566 (Amazonas vs Criciuma) at T-72h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353561 (Goias vs CRB) - T-74.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-74.1h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353561 (Goias vs CRB) at T-72h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353569 (Botafogo SP vs Paysandu) - T-74.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-72h window (actual: T-74.1h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1353569 (Botafogo SP vs Paysandu) at T-72h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1353562 (Cuiaba vs Novorizontino) - T-95.6h
+INFO:models.automated_collector:🕐 Match 1353565 (Operario-PR vs Athletic Club) - T-95.6h
+INFO:models.automated_collector:🕐 Match 1353564 (Avai vs Volta Redonda) - T-97.6h
+INFO:models.automated_collector:🕐 Match 1353567 (America Mineiro vs Vila Nova) - T-98.1h
+INFO:models.automated_collector:🕐 Match 1353568 (Ferroviária vs Chapecoense-sc) - T-119.6h
+INFO:models.automated_collector:🕐 Match 1353560 (Coritiba vs Atletico Goianiense) - T-120.1h
+INFO:models.automated_collector:🕐 Match 1353563 (remo vs Atletico Paranaense) - T-122.1h
+INFO:models.automated_collector:🕐 Match 1353577 (Athletic Club vs Goias) - T-164.6h
+INFO:models.automated_collector:🔍 Checking upcoming matches for Bundesliga (ID: 78)
+INFO:models.data_collector:Found 50 NS matches for league 78, season 2025
+INFO:     127.0.0.1:38448 - "GET /matches/upcoming?league_id=78&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 3 upcoming matches for league 78 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 3 upcoming matches in Bundesliga
+INFO:models.automated_collector:🕐 Match 1388360 (VfB Stuttgart vs 1. FC Heidenheim) - T-15.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1388360 (VfB Stuttgart vs 1. FC Heidenheim) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: VfB Stuttgart vs 1. FC Heidenheim → VfB Stuttgart vs 1. FC Heidenheim
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1388360, T-12h (69 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1388358 (Hamburger SV vs FSV Mainz 05) - T-17.1h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-17.1h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1388358 (Hamburger SV vs FSV Mainz 05) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Hamburger SV vs FSV Mainz 05 → Hamburger SV vs FSV Mainz 05
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1388358, T-24h (69 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1388355 (Borussia Mönchengladbach vs SC Freiburg) - T-19.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-19.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1388355 (Borussia Mönchengladbach vs SC Freiburg) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Borussia Mönchengladbach vs SC Freiburg → Borussia Monchengladbach vs SC Freiburg
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1388355, T-24h (69 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 79 (ID: 79)
+INFO:models.data_collector:Found 50 NS matches for league 79, season 2025
+INFO:     127.0.0.1:54992 - "GET /matches/upcoming?league_id=79&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 3 upcoming matches for league 79 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 3 upcoming matches in League 79
+INFO:models.automated_collector:🕐 Match 1388680 (SpVgg Greuther Fürth vs Hannover 96) - T-13.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1388680 (SpVgg Greuther Fürth vs Hannover 96) at T-12h
+INFO:models.automated_collector:📭 No team match found for SpVgg Greuther Fürth vs Hannover 96 in 3 API events
+INFO:models.automated_collector:🕐 Match 1388684 (1. FC Magdeburg vs SV Elversberg) - T-13.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1388684 (1. FC Magdeburg vs SV Elversberg) at T-12h
+INFO:models.automated_collector:📭 No team match found for 1. FC Magdeburg vs SV Elversberg in 3 API events
+INFO:models.automated_collector:🕐 Match 1388677 (Arminia Bielefeld vs FC Schalke 04) - T-13.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1388677 (Arminia Bielefeld vs FC Schalke 04) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Arminia Bielefeld vs FC Schalke 04 → Arminia Bielefeld vs FC Schalke 04
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1388677, T-12h (63 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for Eredivisie (ID: 88)
+INFO:models.data_collector:Found 50 NS matches for league 88, season 2025
+INFO:     127.0.0.1:52652 - "GET /matches/upcoming?league_id=88&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 4 upcoming matches for league 88 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 4 upcoming matches in Eredivisie
+INFO:models.automated_collector:🕐 Match 1380935 (Twente vs Heracles) - T-11.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-11.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1380935 (Twente vs Heracles) at T-12h
+INFO:models.automated_collector:📭 No team match found for Twente vs Heracles in 13 API events
+INFO:models.automated_collector:🕐 Match 1380937 (Feyenoord vs Utrecht) - T-14.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1380937 (Feyenoord vs Utrecht) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Feyenoord vs Utrecht → Feyenoord vs FC Utrecht
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1380937, T-12h (60 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1380936 (AZ Alkmaar vs Telstar) - T-16.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.3h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1380936 (AZ Alkmaar vs Telstar) at T-24h
+INFO:models.automated_collector:📭 No team match found for AZ Alkmaar vs Telstar in 13 API events
+INFO:models.automated_collector:🕐 Match 1380938 (GO Ahead Eagles vs NEC Nijmegen) - T-19.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-19.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1380938 (GO Ahead Eagles vs NEC Nijmegen) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: GO Ahead Eagles vs NEC Nijmegen → Go Ahead Eagles vs NEC Nijmegen
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1380938, T-24h (63 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 94 (ID: 94)
+INFO:models.data_collector:Found 50 NS matches for league 94, season 2025
+INFO:     127.0.0.1:55890 - "GET /matches/upcoming?league_id=94&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 4 upcoming matches for league 94 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 4 upcoming matches in League 94
+INFO:models.automated_collector:🕐 Match 1396301 (Arouca vs Famalicao) - T-16.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1396301 (Arouca vs Famalicao) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Arouca vs Famalicao → Arouca vs Famalicão
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1396301, T-24h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1396306 (Rio Ave vs Tondela) - T-18.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1396306 (Rio Ave vs Tondela) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Rio Ave vs Tondela → Rio Ave FC vs Tondela
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1396306, T-24h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1396307 (Sporting CP vs SC Braga) - T-19.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-19.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1396307 (Sporting CP vs SC Braga) at T-24h
+INFO:models.automated_collector:📭 No team match found for Sporting CP vs SC Braga in 4 API events
+INFO:models.automated_collector:🕐 Match 1396303 (FC Porto vs Benfica) - T-21.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-21.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1396303 (FC Porto vs Benfica) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: FC Porto vs Benfica → FC Porto vs Benfica
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1396303, T-24h (63 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 98 (ID: 98)
+INFO:models.data_collector:Found 50 NS matches for league 98, season 2025
+INFO:     127.0.0.1:57394 - "GET /matches/upcoming?league_id=98&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 1 upcoming matches for league 98 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 1 upcoming matches in League 98
+INFO:models.automated_collector:🕐 Match 1324273 (Kashima vs Gamba Osaka) - T-7.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-7.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1324273 (Kashima vs Gamba Osaka) at T-12h
+INFO:models.automated_collector:📭 No team match found for Kashima vs Gamba Osaka in 1 API events
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 103 (ID: 103)
+INFO:models.data_collector:Found 50 NS matches for league 103, season 2025
+INFO:     127.0.0.1:53738 - "GET /matches/upcoming?league_id=103&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 5 upcoming matches for league 103 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 5 upcoming matches in League 103
+INFO:models.automated_collector:🕐 Match 1342376 (Viking vs Brann) - T-14.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342376 (Viking vs Brann) at T-12h
+INFO:models.automated_collector:📭 No team match found for Viking vs Brann in 5 API events
+INFO:models.automated_collector:🕐 Match 1342375 (Stromsgodset vs KFUM Oslo) - T-16.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342375 (Stromsgodset vs KFUM Oslo) at T-24h
+INFO:models.automated_collector:📭 No team match found for Stromsgodset vs KFUM Oslo in 5 API events
+INFO:models.automated_collector:🕐 Match 1342370 (Bodo/Glimt vs Haugesund) - T-16.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342370 (Bodo/Glimt vs Haugesund) at T-24h
+WARNING:models.automated_collector:🔍 NEAR-MISS (similarity=0.889): 'Bodo/Glimt' vs 'Bodø/Glimt' - consider adding alias
+INFO:models.automated_collector:📭 No team match found for Bodo/Glimt vs Haugesund in 5 API events
+INFO:models.automated_collector:🕐 Match 1342371 (Fredrikstad vs Ham-Kam) - T-16.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342371 (Fredrikstad vs Ham-Kam) at T-24h
+INFO:models.automated_collector:📭 No team match found for Fredrikstad vs Ham-Kam in 5 API events
+INFO:models.automated_collector:🕐 Match 1342373 (Rosenborg vs Sarpsborg 08 FF) - T-18.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342373 (Rosenborg vs Sarpsborg 08 FF) at T-24h
+INFO:models.automated_collector:📭 No team match found for Rosenborg vs Sarpsborg 08 FF in 5 API events
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 113 (ID: 113)
+INFO:models.data_collector:Found 36 NS matches for league 113, season 2025
+INFO:     127.0.0.1:53746 - "GET /matches/upcoming?league_id=113&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 4 upcoming matches for league 113 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 4 upcoming matches in League 113
+INFO:models.automated_collector:🕐 Match 1342149 (IFK Goteborg vs Hammarby FF) - T-13.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342149 (IFK Goteborg vs Hammarby FF) at T-12h
+WARNING:models.automated_collector:🔍 NEAR-MISS (similarity=0.900): 'Hammarby FF' vs 'Hammarby IF' - consider adding alias
+INFO:models.automated_collector:📭 No team match found for IFK Goteborg vs Hammarby FF in 4 API events
+INFO:models.automated_collector:🕐 Match 1342146 (AIK Stockholm vs IFK Varnamo) - T-13.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342146 (AIK Stockholm vs IFK Varnamo) at T-12h
+INFO:models.automated_collector:📭 No team match found for AIK Stockholm vs IFK Varnamo in 4 API events
+INFO:models.automated_collector:🕐 Match 1342152 (Sirius vs Malmo FF) - T-16.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342152 (Sirius vs Malmo FF) at T-24h
+INFO:models.automated_collector:📭 No team match found for Sirius vs Malmo FF in 4 API events
+INFO:models.automated_collector:🕐 Match 1342147 (IF Brommapojkarna vs BK Hacken) - T-16.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1342147 (IF Brommapojkarna vs BK Hacken) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: IF Brommapojkarna vs BK Hacken → IF Brommapojkarna vs BK Hacken
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1342147, T-24h (69 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 119 (ID: 119)
+INFO:models.data_collector:Found 50 NS matches for league 119, season 2025
+INFO:     127.0.0.1:48852 - "GET /matches/upcoming?league_id=119&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 5 upcoming matches for league 119 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 5 upcoming matches in League 119
+INFO:models.automated_collector:🕐 Match 1379414 (Vejle vs FC Nordsjaelland) - T-13.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379414 (Vejle vs FC Nordsjaelland) at T-12h
+INFO:models.automated_collector:📭 No team match found for Vejle vs FC Nordsjaelland in 5 API events
+INFO:models.automated_collector:🕐 Match 1379413 (Randers FC vs Viborg) - T-13.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379413 (Randers FC vs Viborg) at T-12h
+INFO:models.automated_collector:📭 No team match found for Randers FC vs Viborg in 5 API events
+INFO:models.automated_collector:🕐 Match 1379409 (Aarhus vs Silkeborg) - T-15.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379409 (Aarhus vs Silkeborg) at T-12h
+INFO:models.automated_collector:📭 No team match found for Aarhus vs Silkeborg in 5 API events
+INFO:models.automated_collector:🕐 Match 1379410 (FC Copenhagen vs FC Midtjylland) - T-17.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-17.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379410 (FC Copenhagen vs FC Midtjylland) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: FC Copenhagen vs FC Midtjylland → FC Copenhagen vs FC Midtjylland
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1379410, T-24h (69 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1379411 (FC Fredericia vs Brondby) - T-19.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-19.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379411 (FC Fredericia vs Brondby) at T-24h
+INFO:models.automated_collector:📭 No team match found for FC Fredericia vs Brondby in 5 API events
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 128 (ID: 128)
+INFO:models.data_collector:Found 50 NS matches for league 128, season 2025
+INFO:     127.0.0.1:44520 - "GET /matches/upcoming?league_id=128&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 14 upcoming matches for league 128 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 14 upcoming matches in League 128
+INFO:models.automated_collector:🕐 Match 1374226 (Godoy Cruz vs Independiente) - T-19.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-19.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1374226 (Godoy Cruz vs Independiente) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Godoy Cruz vs Independiente → Godoy Cruz vs Independiente
+INFO:models.automated_collector:📊 Extracted 42 bookmaker odds entries
+INFO:models.automated_collector:Saved 42 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1374226, T-24h (42 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1374213 (Estudiantes L.P. vs Barracas Central) - T-21.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-21.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1374213 (Estudiantes L.P. vs Barracas Central) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Estudiantes L.P. vs Barracas Central → Estudiantes vs Barracas Central
+INFO:models.automated_collector:📊 Extracted 42 bookmaker odds entries
+INFO:models.automated_collector:Saved 42 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1374213, T-24h (42 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1374227 (Talleres Cordoba vs Belgrano Cordoba) - T-21.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-21.3h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1374227 (Talleres Cordoba vs Belgrano Cordoba) at T-24h
+WARNING:models.automated_collector:🔍 NEAR-MISS (similarity=0.882): 'Belgrano Cordoba' vs 'Belgrano de Cordoba' - consider adding alias
+INFO:models.automated_collector:📭 No team match found for Talleres Cordoba vs Belgrano Cordoba in 25 API events
+INFO:models.automated_collector:🕐 Match 1374214 (Boca Juniors vs Newells Old Boys) - T-23.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-23.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1374214 (Boca Juniors vs Newells Old Boys) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Boca Juniors vs Newells Old Boys → Boca Juniors vs Newells Old Boys
+INFO:models.automated_collector:📊 Extracted 39 bookmaker odds entries
+INFO:models.automated_collector:Saved 39 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1374214, T-24h (39 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1374221 (Rosario Central vs River Plate) - T-25.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-25.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1374221 (Rosario Central vs River Plate) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Rosario Central vs River Plate → Rosario Central vs River Plate
+INFO:models.automated_collector:📊 Extracted 42 bookmaker odds entries
+INFO:models.automated_collector:Saved 42 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1374221, T-24h (42 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1374222 (Deportivo Riestra vs Velez Sarsfield) - T-47.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-48h window (actual: T-47.5h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1374222 (Deportivo Riestra vs Velez Sarsfield) at T-48h
+WARNING:models.automated_collector:🔍 NEAR-MISS (similarity=0.875): 'Velez Sarsfield' vs 'Velez Sarsfield BA' - consider adding alias
+INFO:models.automated_collector:📭 No team match found for Deportivo Riestra vs Velez Sarsfield in 25 API events
+INFO:models.automated_collector:🕐 Match 1374219 (Racing Club vs Independ. Rivadavia) - T-49.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-48h window (actual: T-49.5h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1374219 (Racing Club vs Independ. Rivadavia) at T-48h
+INFO:models.automated_collector:📭 No team match found for Racing Club vs Independ. Rivadavia in 25 API events
+INFO:models.automated_collector:🕐 Match 1374236 (San Lorenzo vs San Martin S.J.) - T-139.0h
+INFO:models.automated_collector:🕐 Match 1374231 (Defensa Y Justicia vs Argentinos JRS) - T-140.8h
+INFO:models.automated_collector:🕐 Match 1374230 (Central Cordoba de Santiago vs Union Santa Fe) - T-141.3h
+INFO:models.automated_collector:🕐 Match 1374232 (Newells Old Boys vs Tigre) - T-143.0h
+INFO:models.automated_collector:🕐 Match 1374233 (Barracas Central vs Boca Juniors) - T-163.0h
+INFO:models.automated_collector:🕐 Match 1374241 (Gimnasia L.P. vs Talleres Cordoba) - T-165.3h
+INFO:models.automated_collector:🕐 Match 1374228 (Banfield vs Racing Club) - T-167.5h
+INFO:models.automated_collector:🔍 Checking upcoming matches for Serie A (ID: 135)
+INFO:models.data_collector:Found 50 NS matches for league 135, season 2025
+INFO:     127.0.0.1:37082 - "GET /matches/upcoming?league_id=135&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 5 upcoming matches for league 135 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 5 upcoming matches in Serie A
+INFO:models.automated_collector:🕐 Match 1377922 (Udinese vs Cagliari) - T-12.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-12.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1377922 (Udinese vs Cagliari) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Udinese vs Cagliari → Udinese vs Cagliari
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1377922, T-12h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1377915 (Bologna vs Pisa) - T-14.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1377915 (Bologna vs Pisa) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Bologna vs Pisa → Bologna vs Pisa
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1377915, T-12h (69 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1377916 (Fiorentina vs AS Roma) - T-14.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1377916 (Fiorentina vs AS Roma) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Fiorentina vs AS Roma → Fiorentina vs AS Roma
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1377916, T-12h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1377920 (Napoli vs Genoa) - T-17.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-17.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1377920 (Napoli vs Genoa) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Napoli vs Genoa → Napoli vs Genoa
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1377920, T-24h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1377918 (Juventus vs AC Milan) - T-20.3h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-20.3h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1377918 (Juventus vs AC Milan) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Juventus vs AC Milan → Juventus vs AC Milan
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1377918, T-24h (72 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 136 (ID: 136)
+INFO:models.data_collector:Found 50 NS matches for league 136, season 2025
+INFO:     127.0.0.1:40526 - "GET /matches/upcoming?league_id=136&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 4 upcoming matches for league 136 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 4 upcoming matches in League 136
+INFO:models.automated_collector:🕐 Match 1419653 (Sudtirol vs Empoli) - T-14.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1419653 (Sudtirol vs Empoli) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Sudtirol vs Empoli → Südtirol vs Empoli
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1419653, T-12h (60 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1419657 (Carrarese vs Juve Stabia) - T-14.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1419657 (Carrarese vs Juve Stabia) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Carrarese vs Juve Stabia → Carrarese vs Juve Stabia
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1419657, T-12h (60 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1419654 (Sampdoria vs Pescara) - T-16.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1419654 (Sampdoria vs Pescara) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Sampdoria vs Pescara → Sampdoria vs Pescara
+INFO:models.automated_collector:📊 Extracted 57 bookmaker odds entries
+INFO:models.automated_collector:Saved 57 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1419654, T-24h (57 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1419652 (Modena vs Virtus Entella) - T-19.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-19.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1419652 (Modena vs Virtus Entella) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Modena vs Virtus Entella → Modena vs Virtus Entella
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1419652, T-24h (60 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for La Liga (ID: 140)
+INFO:models.data_collector:Found 50 NS matches for league 140, season 2025
+INFO:     127.0.0.1:48896 - "GET /matches/upcoming?league_id=140&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 5 upcoming matches for league 140 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 5 upcoming matches in La Liga
+INFO:models.automated_collector:🕐 Match 1390889 (Alaves vs Elche) - T-13.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1390889 (Alaves vs Elche) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Alaves vs Elche → Alavés vs Elche CF
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1390889, T-12h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1390898 (Sevilla vs Barcelona) - T-15.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1390898 (Sevilla vs Barcelona) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Sevilla vs Barcelona → Sevilla vs Barcelona
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1390898, T-12h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1390892 (Espanyol vs Real Betis) - T-18.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1390892 (Espanyol vs Real Betis) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Espanyol vs Real Betis → Espanyol vs Real Betis
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1390892, T-24h (60 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1390896 (Real Sociedad vs Rayo Vallecano) - T-18.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1390896 (Real Sociedad vs Rayo Vallecano) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Real Sociedad vs Rayo Vallecano → Real Sociedad vs Rayo Vallecano
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1390896, T-24h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1390891 (Celta Vigo vs Atletico Madrid) - T-20.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-20.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1390891 (Celta Vigo vs Atletico Madrid) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Celta Vigo vs Atletico Madrid → Celta Vigo vs Atlético Madrid
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1390891, T-24h (60 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 141 (ID: 141)
+INFO:models.data_collector:Found 50 NS matches for league 141, season 2025
+INFO:     127.0.0.1:55774 - "GET /matches/upcoming?league_id=141&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 10 upcoming matches for league 141 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 10 upcoming matches in League 141
+INFO:models.automated_collector:🕐 Match 1391325 (Zaragoza vs Cordoba) - T-13.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1391325 (Zaragoza vs Cordoba) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Zaragoza vs Cordoba → Zaragoza vs Córdoba
+INFO:models.automated_collector:📊 Extracted 57 bookmaker odds entries
+INFO:models.automated_collector:Saved 57 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1391325, T-12h (57 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1391327 (Castellón vs Sporting Gijon) - T-15.8h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.8h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1391327 (Castellón vs Sporting Gijon) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Castellón vs Sporting Gijon → CD Castellón vs Sporting Gijón
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1391327, T-12h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1391331 (Valladolid vs Mirandes) - T-18.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1391331 (Valladolid vs Mirandes) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Valladolid vs Mirandes → Real Valladolid CF vs CD Mirandés
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1391331, T-24h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1391324 (Racing Santander vs Malaga) - T-18.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1391324 (Racing Santander vs Malaga) at T-24h
+INFO:models.automated_collector:📭 No team match found for Racing Santander vs Malaga in 9 API events
+INFO:models.automated_collector:🕐 Match 1391332 (Las Palmas vs Cadiz) - T-20.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-20.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1391332 (Las Palmas vs Cadiz) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Las Palmas vs Cadiz → Las Palmas vs Cádiz CF
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1391332, T-24h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1391329 (Cultural Leonesa vs Albacete) - T-44.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-48h window (actual: T-44.0h, tolerance: ±12h)
+INFO:models.automated_collector:📊 Collecting odds for match 1391329 (Cultural Leonesa vs Albacete) at T-48h
+INFO:models.automated_collector:🎯 MATCH FOUND: Cultural Leonesa vs Albacete → Cultural Leonesa vs Albacete
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1391329, T-48h (60 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1391337 (Granada CF vs Las Palmas) - T-140.0h
+INFO:models.automated_collector:🕐 Match 1391335 (Mirandes vs Leganes) - T-159.7h
+INFO:models.automated_collector:🕐 Match 1391341 (Almeria vs Zaragoza) - T-162.0h
+INFO:models.automated_collector:🕐 Match 1396955 (Real Sociedad II vs FC Andorra) - T-162.0h
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 144 (ID: 144)
+INFO:models.data_collector:Found 50 NS matches for league 144, season 2025
+INFO:     127.0.0.1:55456 - "GET /matches/upcoming?league_id=144&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 4 upcoming matches for league 144 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 4 upcoming matches in League 144
+INFO:models.automated_collector:🕐 Match 1382502 (Anderlecht vs Standard Liege) - T-13.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382502 (Anderlecht vs Standard Liege) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Anderlecht vs Standard Liege → Anderlecht vs Standard Liege
+INFO:models.automated_collector:📊 Extracted 66 bookmaker odds entries
+INFO:models.automated_collector:Saved 66 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1382502, T-12h (66 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1382505 (Genk vs Dender) - T-15.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382505 (Genk vs Dender) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Genk vs Dender → Genk vs Dender
+INFO:models.automated_collector:📊 Extracted 63 bookmaker odds entries
+INFO:models.automated_collector:Saved 63 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1382505, T-12h (63 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1382500 (Club Brugge KV vs Union St. Gilloise) - T-18.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382500 (Club Brugge KV vs Union St. Gilloise) at T-24h
+INFO:models.automated_collector:📭 No team match found for Club Brugge KV vs Union St. Gilloise in 4 API events
+INFO:models.automated_collector:🕐 Match 1382504 (KVC Westerlo vs OH Leuven) - T-18.7h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.7h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382504 (KVC Westerlo vs OH Leuven) at T-24h
+INFO:models.automated_collector:📭 No team match found for KVC Westerlo vs OH Leuven in 4 API events
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 179 (ID: 179)
+INFO:models.data_collector:Found 50 NS matches for league 179, season 2025
+INFO:     127.0.0.1:39296 - "GET /matches/upcoming?league_id=179&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 3 upcoming matches for league 179 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 3 upcoming matches in League 179
+INFO:models.automated_collector:🕐 Match 1382703 (Celtic vs Motherwell) - T-15.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382703 (Celtic vs Motherwell) at T-12h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1382702 (Aberdeen vs Dundee) - T-15.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382702 (Aberdeen vs Dundee) at T-12h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1382705 (Falkirk vs Rangers) - T-15.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382705 (Falkirk vs Rangers) at T-12h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 203 (ID: 203)
+INFO:models.data_collector:Found 50 NS matches for league 203, season 2025
+INFO:     127.0.0.1:50270 - "GET /matches/upcoming?league_id=203&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 4 upcoming matches for league 203 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 4 upcoming matches in League 203
+INFO:models.automated_collector:🕐 Match 1394501 (Kasimpasa vs Konyaspor) - T-13.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1394501 (Kasimpasa vs Konyaspor) at T-12h
+INFO:models.automated_collector:📭 No team match found for Kasimpasa vs Konyaspor in 4 API events
+INFO:models.automated_collector:🕐 Match 1394500 (Fatih Karagümrük vs Gazişehir Gaziantep) - T-15.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-15.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1394500 (Fatih Karagümrük vs Gazişehir Gaziantep) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Fatih Karagümrük vs Gazişehir Gaziantep → Fatih Karagümrük vs Gazişehir Gaziantep
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1394500, T-12h (60 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1394499 (Goztepe vs Istanbul Basaksehir) - T-18.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1394499 (Goztepe vs Istanbul Basaksehir) at T-24h
+INFO:models.automated_collector:📭 No team match found for Goztepe vs Istanbul Basaksehir in 4 API events
+INFO:models.automated_collector:🕐 Match 1394503 (Samsunspor vs Fenerbahce) - T-18.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-18.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1394503 (Samsunspor vs Fenerbahce) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Samsunspor vs Fenerbahce → Samsunspor vs Fenerbahce
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1394503, T-24h (60 bookmaker entries)
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 207 (ID: 207)
+INFO:models.data_collector:Found 50 NS matches for league 207, season 2025
+INFO:     127.0.0.1:41870 - "GET /matches/upcoming?league_id=207&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 3 upcoming matches for league 207 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 3 upcoming matches in League 207
+INFO:models.automated_collector:🕐 Match 1382339 (Lausanne vs BSC Young Boys) - T-13.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-13.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382339 (Lausanne vs BSC Young Boys) at T-12h
+INFO:models.automated_collector:📭 No team match found for Lausanne vs BSC Young Boys in 3 API events
+INFO:models.automated_collector:🕐 Match 1382341 (FC Winterthur vs FC Lugano) - T-16.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-16.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382341 (FC Winterthur vs FC Lugano) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: FC Winterthur vs FC Lugano → FC Winterthur vs FC Lugano
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1382341, T-12h (69 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1382340 (Servette FC vs FC Basel 1893) - T-16.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-16.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1382340 (Servette FC vs FC Basel 1893) at T-12h
+INFO:models.automated_collector:📭 No team match found for Servette FC vs FC Basel 1893 in 3 API events
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 218 (ID: 218)
+INFO:models.data_collector:Found 50 NS matches for league 218, season 2025
+INFO:     127.0.0.1:41248 - "GET /matches/upcoming?league_id=218&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 3 upcoming matches for league 218 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 3 upcoming matches in League 218
+INFO:models.automated_collector:🕐 Match 1390074 (SCR Altach vs Sturm Graz) - T-14.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1390074 (SCR Altach vs Sturm Graz) at T-12h
+INFO:models.automated_collector:📭 No team match found for SCR Altach vs Sturm Graz in 3 API events
+INFO:models.automated_collector:🕐 Match 1390077 (Lask Linz vs TSV Hartberg) - T-14.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-14.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1390077 (Lask Linz vs TSV Hartberg) at T-12h
+INFO:models.automated_collector:📭 No team match found for Lask Linz vs TSV Hartberg in 3 API events
+INFO:models.automated_collector:🕐 Match 1390073 (Red Bull Salzburg vs Rapid Vienna) - T-16.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-16.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1390073 (Red Bull Salzburg vs Rapid Vienna) at T-24h
+INFO:models.automated_collector:📭 No team match found for Red Bull Salzburg vs Rapid Vienna in 3 API events
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 253 (ID: 253)
+INFO:models.data_collector:Found 33 NS matches for league 253, season 2025
+INFO:     127.0.0.1:41250 - "GET /matches/upcoming?league_id=253&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 5 upcoming matches for league 253 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 5 upcoming matches in League 253
+INFO:models.automated_collector:🕐 Match 1326691 (Real Salt Lake vs Colorado Rapids) - T-3.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-6h window (actual: T-3.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1326691 (Real Salt Lake vs Colorado Rapids) at T-6h
+INFO:models.automated_collector:🎯 MATCH FOUND: Real Salt Lake vs Colorado Rapids → Real Salt Lake vs Colorado Rapids
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1326691, T-6h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1326692 (Seattle Sounders vs Portland Timbers) - T-4.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-6h window (actual: T-4.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1326692 (Seattle Sounders vs Portland Timbers) at T-6h
+INFO:models.automated_collector:🎯 MATCH FOUND: Seattle Sounders vs Portland Timbers → Seattle Sounders FC vs Portland Timbers
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1326692, T-6h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1326693 (Vancouver Whitecaps vs San Jose Earthquakes) - T-23.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-23.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1326693 (Vancouver Whitecaps vs San Jose Earthquakes) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Vancouver Whitecaps vs San Jose Earthquakes → Vancouver Whitecaps FC vs San Jose Earthquakes
+INFO:models.automated_collector:📊 Extracted 69 bookmaker odds entries
+INFO:models.automated_collector:Saved 69 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1326693, T-24h (69 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1326694 (Los Angeles FC vs Atlanta United FC) - T-26.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-26.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1326694 (Los Angeles FC vs Atlanta United FC) at T-24h
+INFO:models.automated_collector:🎯 MATCH FOUND: Los Angeles FC vs Atlanta United FC → Los Angeles FC vs Atlanta United FC
+INFO:models.automated_collector:📊 Extracted 72 bookmaker odds entries
+INFO:models.automated_collector:Saved 72 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1326694, T-24h (72 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1326472 (Los Angeles FC vs Toronto FC) - T-100.0h
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 262 (ID: 262)
+INFO:models.data_collector:Found 50 NS matches for league 262, season 2025
+INFO:     127.0.0.1:37038 - "GET /matches/upcoming?league_id=262&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 5 upcoming matches for league 262 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 5 upcoming matches in League 262
+INFO:models.automated_collector:🕐 Match 1379585 (Tigres UANL vs Cruz Azul) - T-2.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-6h window (actual: T-2.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379585 (Tigres UANL vs Cruz Azul) at T-6h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1379584 (Leon vs Toluca) - T-2.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-6h window (actual: T-2.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379584 (Leon vs Toluca) at T-6h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1379586 (Club America vs Santos Laguna) - T-4.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-4.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379586 (Club America vs Santos Laguna) at T-12h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1379587 (U.N.A.M. - Pumas vs Guadalajara Chivas) - T-26.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-26.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379587 (U.N.A.M. - Pumas vs Guadalajara Chivas) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🕐 Match 1379588 (Club Tijuana vs Monterrey) - T-28.6h
+INFO:models.automated_collector:🎯 Collecting odds for T-24h window (actual: T-28.6h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1379588 (Club Tijuana vs Monterrey) at T-24h
+WARNING:models.automated_collector:The Odds API returned status 404
+INFO:models.automated_collector:🔍 Checking upcoming matches for League 292 (ID: 292)
+INFO:models.data_collector:Found 10 NS matches for league 292, season 2025
+INFO:     127.0.0.1:37044 - "GET /matches/upcoming?league_id=292&limit=50 HTTP/1.1" 200 OK
+INFO:models.automated_collector:Found 4 upcoming matches for league 292 in optimal timing windows (24h-168h ahead)
+INFO:models.automated_collector:📅 Found 4 upcoming matches in League 292
+INFO:models.automated_collector:🕐 Match 1340890 (Pohang Steelers vs Daejeon Citizen) - T-6.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-6.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1340890 (Pohang Steelers vs Daejeon Citizen) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Pohang Steelers vs Daejeon Citizen → Pohang Steelers vs Daejeon Citizen
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1340890, T-12h (60 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1340889 (Gimcheon Sangmu FC vs Ulsan Hyundai FC) - T-6.5h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-6.5h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1340889 (Gimcheon Sangmu FC vs Ulsan Hyundai FC) at T-12h
+INFO:models.automated_collector:📭 No team match found for Gimcheon Sangmu FC vs Ulsan Hyundai FC in 4 API events
+INFO:models.automated_collector:🕐 Match 1340891 (Gangwon FC vs FC Anyang) - T-9.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-9.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1340891 (Gangwon FC vs FC Anyang) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Gangwon FC vs FC Anyang → Gangwon FC vs FC Anyang
+INFO:models.automated_collector:📊 Extracted 60 bookmaker odds entries
+INFO:models.automated_collector:Saved 60 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1340891, T-12h (60 bookmaker entries)
+INFO:models.automated_collector:🕐 Match 1340892 (Suwon City FC vs FC Seoul) - T-9.0h
+INFO:models.automated_collector:🎯 Collecting odds for T-12h window (actual: T-9.0h, tolerance: ±8h)
+INFO:models.automated_collector:📊 Collecting odds for match 1340892 (Suwon City FC vs FC Seoul) at T-12h
+INFO:models.automated_collector:🎯 MATCH FOUND: Suwon City FC vs FC Seoul → Suwon FC vs FC Seoul
+INFO:models.automated_collector:📊 Extracted 48 bookmaker odds entries
+INFO:utils.scheduler:🛡️ Running 15-minute safety net check...
+INFO:models.bucket_filler:🛡️ SAFETY NET: Starting bucket fill check...
+INFO:models.bucket_filler:✅ SAFETY NET: No missing buckets found - all windows covered
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.automated_collector:Saved 48 individual bookmaker odds to odds_snapshots
+INFO:models.automated_collector:✅ ODDS SAVED: Match 1340892, T-12h (48 bookmaker entries)
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:models.automated_collector:✅ The Odds API collection completed: 55 new snapshots
+INFO:models.automated_collector:🎯 Starting API-Football real-time collection for upcoming matches...
+ERROR:models.automated_collector:❌ API-Football real-time collection failed: column o.raw_data does not exist
+LINE 7:                         o.raw_data
+                                ^
+
+INFO:models.automated_collector:✅ MULTI-SOURCE collection completed:
+INFO:models.automated_collector:   • Training matches: 3 new
+INFO:models.automated_collector:   • The Odds API: 55 snapshots
+INFO:models.automated_collector:   • API-Football: 0 rows
+INFO:models.automated_collector:   • Total odds collected: 55
+INFO:models.automated_collector:   • Total data points: 58
+INFO:utils.scheduler:🔧 MANUAL collection completed: 3 new matches
+INFO:utils.scheduler:🧮 [CONSENSUS] Starting consensus building for recent matches...
+INFO:utils.scheduler:🧮 [CONSENSUS] Found 97 candidate matches for consensus building
+INFO:utils.scheduler:✅ [CONSENSUS] Completed: 7 new predictions, 90 skipped, 97 total candidates
+INFO:utils.scheduler:📊 [CONSENSUS] Failure breakdown: no_bucket_hit: 90
+INFO:utils.scheduler:✅ Built 7 new consensus predictions
