@@ -1,0 +1,59 @@
+Nice recovery! Your Option A implementation (drive API-Football from `/matches/upcoming`) is in the file and the overall flow looks solid. A few tight fixes and checks to make sure Phase B actually runs end-to-end:
+
+# What’s correct
+
+* You now source leagues from `league_map` and fetch upcoming matches per-league, eliminating the bad JOIN. 【turn2file10†file_000000000fd061f7955e31228740809e†L18-L26】【turn2file5†file_000000000fd061f7955e31228740809e†L48-L56】
+* You filter to ≤7 days and carry forward `match_id / league_id / kickoff_at / teams / hours_to_kickoff`, which is exactly what the resolver needs. 【turn2file10†file_000000000fd061f7955e31228740809e†L41-L56】
+* The timing-window logic (72/48/24/12/6/3/1 with tolerances) is in place before resolving and ingesting odds. 【turn2file12†file_000000000fd061f7955e31228740809e†L1-L16】【turn2file12†file_000000000fd061f7955e31228740809e†L35-L42】
+* Success logging/summary for API-Football is wired. 【turn2file5†file_000000000fd061f7955e31228740809e†L14-L21】
+
+# One critical bug to fix
+
+* You’re calling `self._get_upcoming_matches_for_league(league_id)` but the implemented helper is named `_get_upcoming_matches(...)`. That’ll raise an `AttributeError` at runtime. Change the call or add a thin wrapper. Call site: 【turn2file10†file_000000000fd061f7955e31228740809e†L29-L33】. Implemented helper (internal API with auth header): 【turn2file5†file_000000000fd061f7955e31228740809e†L33-L50】【turn2file4†file_000000000fd061f7955e31228740809e†L43-L50】.
+
+**Quick fix (either option):**
+
+* Rename call:
+  `league_matches = await self._get_upcoming_matches(league_id)`  【turn2file5†file_000000000fd061f7955e31228740809e†L33-L41】
+* Or add a wrapper:
+
+  ```py
+  async def _get_upcoming_matches_for_league(self, league_id:int):
+      return await self._get_upcoming_matches(league_id, days_ahead=7)
+  ```
+
+# Nice-to-have hardening
+
+* **DB URL check** before connecting for league IDs to avoid `None` connect: same pattern you used elsewhere. 【turn2file6†file_000000000fd061f7955e31228740809e†L51-L56】
+* **Rate limiting** is already there (0.3s between fixtures). Keep it; API-Football can be spiky. 【turn2file12†file_000000000fd061f7955e31228740809e†L52-L53】
+* **Resolver accounting** defaults to “from_snapshots”; if you later differentiate steps, adjust the counters near the resolve call. 【turn2file12†file_000000000fd061f7955e31228740809e†L32-L35】
+
+# Fast verification queries
+
+Run these after Phase B finishes to confirm fresh API-Football rows landed:
+
+```sql
+-- Rows from API-Football in last 2h (uses fixture id column as proxy)
+SELECT COUNT(*) AS rows_from_apifootball
+FROM odds_snapshots
+WHERE api_football_fixture_id IS NOT NULL
+  AND created_at >= NOW() - INTERVAL '2 hours';
+
+-- Distinct fixtures touched by API-Football in last 2h
+SELECT COUNT(DISTINCT api_football_fixture_id) AS fixtures_touched
+FROM odds_snapshots
+WHERE api_football_fixture_id IS NOT NULL
+  AND created_at >= NOW() - INTERVAL '2 hours';
+```
+
+(Your TheOdds snapshot writer doesn’t set a `source` column, so using `api_football_fixture_id IS NOT NULL` is the cleanest attribution for now. 【turn2file14†file_000000000fd061f7955e31228740809e†L33-L43】【turn2file14†file_000000000fd061f7955e31228740809e†L55-L58】)
+
+# What the logs should show
+
+Once the name mismatch is fixed, expect:
+
+* “📋 Fetching upcoming matches … via /matches/upcoming” → count found. 【turn2file10†file_000000000fd061f7955e31228740809e†L26-L33】【turn2file10†file_000000000fd061f7955e31228740809e†L66-L68】
+* Per-match timing window decisions and resolver messages, then the final API-Football summary (fixtures/rows). 【turn2file12†file_000000000fd061f7955e31228740809e†L1-L16】【turn2file5†file_000000000fd061f7955e31228740809e†L14-L21】
+* And in the multi-source rollup: a non-zero “API-Football: … rows”. 【turn2file9†file_000000000fd061f7955e31228740809e†L38-L43】
+
+If you want, I can also suggest a tiny wrapper patch for the helper and the DB-URL guard in one go.

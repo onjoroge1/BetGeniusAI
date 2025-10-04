@@ -512,7 +512,12 @@ class AutomatedCollector:
             upcoming_matches = []
             
             # Get configured leagues from database
-            conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+            db_url = os.environ.get('DATABASE_URL')
+            if not db_url:
+                logger.error("DATABASE_URL not set - cannot fetch league configuration")
+                return odds_summary
+            
+            conn = psycopg2.connect(db_url)
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT league_id FROM league_map ORDER BY league_id")
             league_ids = [row[0] for row in cursor.fetchall()]
@@ -524,7 +529,7 @@ class AutomatedCollector:
             # Get upcoming matches for each league
             for league_id in league_ids:
                 try:
-                    league_matches = await self._get_upcoming_matches_for_league(league_id)
+                    league_matches = await self._get_upcoming_matches(league_id)
                     if league_matches:
                         upcoming_matches.extend(league_matches)
                 except Exception as e:
