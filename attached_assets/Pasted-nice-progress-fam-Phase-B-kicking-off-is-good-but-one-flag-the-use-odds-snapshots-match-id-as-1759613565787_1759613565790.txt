@@ -1,0 +1,119 @@
+nice progress fam — Phase B kicking off is good. but one flag: the “use `odds_snapshots.match_id` as the APIF fixture_id” approach **works only if** The Odds API has already produced a snapshot for that match. That creates a race/circular dependency and you’ll miss APIF for:
+
+* leagues/books The Odds API doesn’t cover (or delayed)
+* early T-windows where The Odds API hasn’t snapped yet
+* transient The Odds API outages / rate limits
+
+### Make it bulletproof (tiny patch, big reliability)
+
+Use a **3-step fallback chain** for every upcoming match:
+
+1. **`matches.api_football_fixture_id`** (primary, pre-enriched)
+2. **`odds_snapshots.match_id`** (your new path)
+3. **live APIF search** by (league_id + kickoff_at ± window + team aliases)
+
+Here’s a drop-in collector pattern:
+
+```python
+def _resolve_apif_fixture_id(db, m):
+    # 1) From matches table
+    if m.api_football_fixture_id:
+        return m.api_football_fixture_id
+
+    # 2) From odds_snapshots (your new step)
+    fid = db.fetch_val("""
+        SELECT match_id::bigint
+        FROM odds_snapshots
+        WHERE match_internal_id = %(mid)s
+          AND provider = 'the_odds_api'
+        ORDER BY created_at DESC
+        LIMIT 1
+    """, {"mid": m.id})
+    if fid:
+        repo.update_fixture_id(m.id, fid)
+        return fid
+
+    # 3) Last-resort: APIF search
+    fid = api_football.find_fixture_id_by_league_date_teams(
+        league_id=m.league_id,
+        kickoff_at=m.kickoff_at,
+        home=m.home_team,
+        away=m.away_team,
+    )
+    if fid:
+        repo.update_fixture_id(m.id, fid)
+    return fid
+```
+
+Then your APIF pass just calls this resolver:
+
+```python
+def collect_api_football_for_upcoming(db, horizon_hours=72):
+    collected = 0
+    for m in repo.get_upcoming_matches(horizon_hours):
+        fid = _resolve_apif_fixture_id(db, m)
+        if not fid:
+            log.warning(f"APIF skip (no fixture_id): match={m.id} {m.home_team} vs {m.away_team}")
+            continue
+        collected += api_football.collect_odds_for_fixture(db, fid, m.kickoff_at)
+    return collected
+```
+
+### Quick sanity checks (run these now)
+
+**1) Prove `match_id` truly equals APIF fixture_id for your pipeline**
+(If not, you’ll stitch the wrong rows.)
+
+```sql
+-- Compare against a trusted join source if you have one
+SELECT s.match_id, m.api_football_fixture_id, COUNT(*) 
+FROM odds_snapshots s 
+LEFT JOIN matches m ON m.id = s.match_internal_id
+WHERE s.provider = 'the_odds_api'
+GROUP BY 1,2
+ORDER BY COUNT(*) DESC
+LIMIT 50;
+```
+
+If you see frequent `match_id != api_football_fixture_id` (non-null on both), don’t rely on step #2 alone.
+
+**2) Make sure “no TheOdds snapshot yet” doesn’t block APIF**
+Pick some upcoming matches, temporarily **delete** their TheOdds snapshots, then run the collector; APIF should still fetch via step #1 or #3.
+
+```sql
+-- Inspect coverage last 24h by provider
+SELECT provider, COUNT(*) 
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '24 hours'
+GROUP BY provider;
+```
+
+Expect **both** `the_odds_api` and `api_football`.
+
+### Logging you should see after patch
+
+* `🔧 Enriched fixture_ids: N` (from pre-enrichment job, optional but recommended)
+* `✅ TheOdds API collection completed: X snapshots`
+* `✅ API-Football collection completed: Y rows`
+* Fewer `no_bucket_hit` in consensus.
+
+### Add two tiny guardrails
+
+* **Indexes** (if you haven’t yet):
+
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_matches_apifid ON matches(api_football_fixture_id);
+  CREATE INDEX IF NOT EXISTS idx_snapshots_mid_provider ON odds_snapshots(match_internal_id, provider);
+  ```
+* **Counters** to watch health:
+
+  * `enrichment.added`
+  * `misses.no_fixture_id`
+  * `collected.oddsapi`
+  * `collected.apif`
+
+### TL;DR
+
+Your dynamic league lookup = ✅.
+Your APIF fixture path via `odds_snapshots` = good **as a fallback**, but risky as the **only** source.
+Add the 3-step resolver (matches → odds_snapshots → APIF search) and you’ll be solid across all leagues, time buckets, and provider hiccups.
