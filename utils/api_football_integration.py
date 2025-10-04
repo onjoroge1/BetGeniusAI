@@ -162,7 +162,10 @@ class ApiFootballIngestion:
                 from datetime import timedelta
                 date_from = (kickoff_at - timedelta(days=2)).strftime('%Y-%m-%d')
                 date_to = (kickoff_at + timedelta(days=2)).strftime('%Y-%m-%d')
-                season = kickoff_at.year
+                
+                # Calculate correct season: European seasons run July-June
+                # Jan-June belongs to previous year's season (e.g. Feb 2025 = 2024 season)
+                season = kickoff_at.year if kickoff_at.month >= 7 else kickoff_at.year - 1
                 
                 fixtures = client.search_fixtures_by_teams(
                     home_team=home_team,
