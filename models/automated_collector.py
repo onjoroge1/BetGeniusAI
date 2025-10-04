@@ -505,23 +505,30 @@ class AutomatedCollector:
                 "errors": []
             }
             
-            # Find upcoming matches with fixture_ids (required for API-Football)
+            # Find upcoming matches from odds_snapshots (TheOdds collection populates these)
+            # match_id in odds_snapshots IS the API-Football fixture_id
             conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
             cursor = conn.cursor()
             
-            # Get upcoming matches in next 7 days that have fixture_ids
+            # Get distinct upcoming matches from odds_snapshots
+            # These have been discovered by TheOdds collection and have fixture IDs
             query = """
-                SELECT 
-                    match_id, 
-                    league_id, 
-                    fixture_id, 
-                    match_date,
-                    home_team,
-                    away_team
-                FROM training_matches
-                WHERE match_date BETWEEN NOW() AND NOW() + INTERVAL '7 days'
-                    AND fixture_id IS NOT NULL
-                ORDER BY match_date ASC
+                WITH upcoming_fixtures AS (
+                    SELECT DISTINCT 
+                        o.match_id as fixture_id,
+                        o.league_id,
+                        (o.ts_snapshot + (o.secs_to_kickoff || ' seconds')::interval) as kickoff_time
+                    FROM odds_snapshots o
+                    WHERE o.ts_snapshot > NOW() - INTERVAL '24 hours'
+                        AND o.secs_to_kickoff > 0
+                        AND o.source = 'theodds'
+                    GROUP BY o.match_id, o.league_id, o.ts_snapshot, o.secs_to_kickoff
+                    HAVING MAX(o.ts_snapshot) > NOW() - INTERVAL '6 hours'
+                )
+                SELECT fixture_id, league_id, kickoff_time
+                FROM upcoming_fixtures
+                WHERE kickoff_time BETWEEN NOW() AND NOW() + INTERVAL '7 days'
+                ORDER BY kickoff_time ASC
                 LIMIT 100
             """
             
@@ -531,22 +538,21 @@ class AutomatedCollector:
             conn.close()
             
             if not upcoming_matches:
-                logger.info("📭 No upcoming matches with fixture_ids found")
+                logger.info("📭 No upcoming matches found in odds_snapshots (need TheOdds collection first)")
                 return odds_summary
             
-            logger.info(f"📅 Found {len(upcoming_matches)} upcoming matches with fixture_ids")
+            logger.info(f"📅 Found {len(upcoming_matches)} upcoming matches from odds_snapshots")
             odds_summary["matches_found"] = len(upcoming_matches)
             
             # Process each match and collect odds at timing windows
-            for match_id, league_id, fixture_id, kickoff, home_team, away_team in upcoming_matches:
+            for fixture_id, league_id, kickoff in upcoming_matches:
                 try:
                     # Calculate hours to kickoff
                     current_time = datetime.utcnow()
                     hours_to_kickoff = (kickoff - current_time).total_seconds() / 3600
                     
                     logger.info(
-                        f"🕐 Match {match_id}: {home_team} vs {away_team} "
-                        f"(fixture {fixture_id}) - T-{hours_to_kickoff:.1f}h"
+                        f"🕐 Fixture {fixture_id} (league {league_id}) - T-{hours_to_kickoff:.1f}h"
                     )
                     
                     # Check if we should collect at current timing window
@@ -567,10 +573,10 @@ class AutomatedCollector:
                         logger.debug(f"⏭️  Skipping - not in timing window (T-{hours_to_kickoff:.1f}h)")
                         continue
                     
-                    # Collect odds using API-Football
+                    # Collect odds using API-Football (fixture_id IS the match_id)
                     rows = ApiFootballIngestion.ingest_fixture_odds(
                         fixture_id=fixture_id,
-                        match_id=match_id,
+                        match_id=fixture_id,  # Use fixture_id as match_id
                         league_id=league_id,
                         kickoff_ts=kickoff,
                         live=False
@@ -579,16 +585,16 @@ class AutomatedCollector:
                     if rows > 0:
                         odds_summary["fixtures_processed"] += 1
                         odds_summary["rows_inserted"] += rows
-                        logger.info(f"✅ Collected {rows} odds rows for match {match_id}")
+                        logger.info(f"✅ Collected {rows} odds rows for fixture {fixture_id}")
                         
                         # Refresh consensus for this match
-                        ApiFootballIngestion.refresh_consensus_for_match(match_id)
+                        ApiFootballIngestion.refresh_consensus_for_match(fixture_id)
                     
                     # Rate limiting: 0.3s between fixtures (~200 req/min max)
                     await asyncio.sleep(0.3)
                     
                 except Exception as match_error:
-                    error_msg = f"Failed to collect odds for match {match_id}: {match_error}"
+                    error_msg = f"Failed to collect odds for fixture {fixture_id}: {match_error}"
                     logger.warning(error_msg)
                     odds_summary["errors"].append(error_msg)
             
