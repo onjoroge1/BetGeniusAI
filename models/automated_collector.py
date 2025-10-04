@@ -511,8 +511,18 @@ class AutomatedCollector:
             # This eliminates dependency on matches table or odds_snapshots.raw_data
             upcoming_matches = []
             
-            # Get configured leagues
-            for league_id in self.league_ids:
+            # Get configured leagues from database
+            conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT league_id FROM league_map ORDER BY league_id")
+            league_ids = [row[0] for row in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+            
+            logger.info(f"📋 Fetching upcoming matches from {len(league_ids)} leagues via /matches/upcoming")
+            
+            # Get upcoming matches for each league
+            for league_id in league_ids:
                 try:
                     league_matches = await self._get_upcoming_matches_for_league(league_id)
                     if league_matches:
