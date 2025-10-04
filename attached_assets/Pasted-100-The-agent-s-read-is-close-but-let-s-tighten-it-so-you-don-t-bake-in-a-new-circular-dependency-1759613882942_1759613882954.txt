@@ -1,0 +1,151 @@
+100%. The agent’s read is close, but let’s tighten it so you don’t bake in a new circular dependency.
+
+Here’s the **clean, production-safe plan** you can apply now.
+
+# Phase 0 — Quick validations (run now)
+
+```sql
+-- Provider coverage in last 24h
+SELECT provider, COUNT(*) 
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '24 hours'
+GROUP BY provider;
+
+-- Upcoming coverage & fixture_id presence
+SELECT COUNT(*) AS upcoming,
+       SUM((api_football_fixture_id IS NOT NULL)::int) AS with_fid
+FROM matches
+WHERE status='NS' AND kickoff_at BETWEEN NOW() AND NOW()+INTERVAL '72 hours';
+```
+
+# Phase 1 — Make `matches` the canonical source of truth
+
+Do **not** canonize on `odds_snapshots`. Keep snapshots provider-agnostic; store keys on `matches`.
+
+**Migration**
+
+```sql
+ALTER TABLE matches
+  ADD COLUMN IF NOT EXISTS api_football_fixture_id BIGINT;
+
+CREATE INDEX IF NOT EXISTS idx_matches_apifid ON matches(api_football_fixture_id);
+CREATE INDEX IF NOT EXISTS idx_matches_kickoff_ns ON matches(status, kickoff_at);
+```
+
+(Optional but helpful for joins)
+
+```sql
+ALTER TABLE odds_snapshots
+  ADD COLUMN IF NOT EXISTS api_football_fixture_id BIGINT;
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_mid_provider ON odds_snapshots(match_internal_id, provider);
+CREATE INDEX IF NOT EXISTS idx_snapshots_apifid ON odds_snapshots(api_football_fixture_id);
+```
+
+**Backfill (safe, idempotent)**
+Only copy into `matches` when you are **certain** your `odds_snapshots.match_id` is the APIF fixture_id (if your pipeline guaranteed that earlier). If uncertain, skip this and rely on live search (Phase 3).
+
+```sql
+UPDATE matches m
+SET api_football_fixture_id = s.match_id::bigint
+FROM (
+  SELECT DISTINCT match_internal_id, match_id
+  FROM odds_snapshots
+  WHERE provider='the_odds_api'
+) s
+WHERE m.id = s.match_internal_id
+  AND m.api_football_fixture_id IS NULL;
+```
+
+# Phase 2 — League mapping (already done, just ensure DB lookup)
+
+Your agent added `_get_theodds_sport_key()` and removed the hardcoded dict — keep that. That kills the “not mapped” errors.
+
+# Phase 3 — 3-step fixture resolver (breaks the cycle)
+
+Use this order: **matches → snapshots → live APIF search**. Snapshots are **only a fallback**, never the primary.
+
+```python
+def resolve_apif_fixture_id(db, m):
+    # 1) Canonical
+    if m.api_football_fixture_id:
+        return m.api_football_fixture_id
+
+    # 2) Fallback from The Odds API snapshot (if your pipeline truly stores APIF id there)
+    fid = db.fetch_val("""
+        SELECT match_id::bigint
+        FROM odds_snapshots
+        WHERE match_internal_id = %(mid)s
+          AND provider = 'the_odds_api'
+        ORDER BY created_at DESC
+        LIMIT 1
+    """, {"mid": m.id})
+    if fid:
+        repo.update_fixture_id(m.id, fid)   # persist to matches
+        return fid
+
+    # 3) Live APIF search by league+date+teams (with aliases & normalization)
+    fid = api_football.find_fixture_id_by_league_date_teams(
+        league_id=m.league_id,
+        kickoff_at=m.kickoff_at,
+        home=m.home_team,
+        away=m.away_team,
+    )
+    if fid:
+        repo.update_fixture_id(m.id, fid)
+    return fid
+```
+
+**Collector usage**
+
+```python
+def collect_api_football_for_upcoming(db, horizon_hours=72):
+    collected = 0
+    for m in repo.get_upcoming_matches(horizon_hours):
+        fid = resolve_apif_fixture_id(db, m)
+        if not fid:
+            log.warning(f"APIF skip (no fixture_id): match={m.id} {m.home_team} vs {m.away_team}")
+            continue
+        collected += api_football.collect_odds_for_fixture(db, fid, m.kickoff_at)
+    return collected
+```
+
+# Phase 4 — Run order + metrics
+
+**Manual runner**
+
+```python
+def run_manual_multi_source_collection(db, horizon_hours=72):
+    # optional pre-enrichment pass that only writes to matches
+    enriched = enrich_fixture_ids_for_upcoming(db, horizon_hours)  # APIF search batch
+    log.info(f"🔧 Enriched fixture_ids: {enriched}")
+
+    oddsapi_ct = collect_odds_api_for_upcoming(db, horizon_hours)
+    apif_ct    = collect_api_football_for_upcoming(db, horizon_hours)
+
+    log.info(f"✅ MULTI-SOURCE: TheOdds={oddsapi_ct} | API-Football={apif_ct}")
+```
+
+**Counters to add**
+
+* `resolver.from_matches`
+* `resolver.from_snapshots`
+* `resolver.from_live_search`
+* `resolver.failed`
+* `collected.oddsapi`
+* `collected.apif`
+
+# Acceptance criteria (what you should see)
+
+* **No “not mapped” errors** (DB lookup, not dict).
+* **`matches.api_football_fixture_id` > 0** for upcoming window.
+* **APIF rows > 0** in the same run as The Odds API, even if The Odds API is late.
+* **Consensus**: fewer `no_bucket_hit`, more dual-feed coverage.
+
+# Why this is safer than the agent’s suggestion
+
+* You break the circular dependency by **anchoring on `matches`** (canonical).
+* You keep **APIF independent** of The Odds API availability.
+* You can always fall back to a **live search** when neither source has the id yet.
+
+If you paste me any stacktrace from Phase B, I’ll pinpoint the line — but if you apply the phases above, the pipeline will be robust and provider-independent.

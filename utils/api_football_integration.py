@@ -83,6 +83,124 @@ class ApiFootballIngestion:
     """Handles odds ingestion from API-Football into odds_snapshots."""
     
     @staticmethod
+    def resolve_fixture_id(
+        match_id: int,
+        league_id: int,
+        kickoff_at: datetime,
+        home_team: str = None,
+        away_team: str = None
+    ) -> Optional[int]:
+        """
+        3-step fixture ID resolver (breaks circular dependency):
+        1. Check matches table (canonical source)
+        2. Check odds_snapshots (fallback from TheOdds)
+        3. Live API-Football search by league+date+teams (last resort)
+        
+        Returns fixture_id or None if not found.
+        """
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        
+        # Step 1: Check matches table (canonical)
+        try:
+            cursor.execute("""
+                SELECT api_football_fixture_id 
+                FROM matches 
+                WHERE match_id = %s 
+                  AND api_football_fixture_id IS NOT NULL
+            """, (match_id,))
+            result = cursor.fetchone()
+            if result and result[0]:
+                fixture_id = result[0]
+                cursor.close()
+                conn.close()
+                logger.debug(f"✅ Resolver Step 1: Found fixture_id {fixture_id} in matches table")
+                return fixture_id
+        except Exception as e:
+            logger.debug(f"Step 1 (matches table) failed: {e}")
+        
+        # Step 2: Check odds_snapshots (fallback from TheOdds)
+        try:
+            cursor.execute("""
+                SELECT api_football_fixture_id 
+                FROM odds_snapshots 
+                WHERE match_id = %s 
+                  AND source = 'theodds'
+                  AND api_football_fixture_id IS NOT NULL
+                ORDER BY ts_snapshot DESC 
+                LIMIT 1
+            """, (match_id,))
+            result = cursor.fetchone()
+            if result and result[0]:
+                fixture_id = result[0]
+                # Persist to matches table for future lookups
+                try:
+                    cursor.execute("""
+                        UPDATE matches 
+                        SET api_football_fixture_id = %s 
+                        WHERE match_id = %s
+                    """, (fixture_id, match_id))
+                    conn.commit()
+                except Exception as update_err:
+                    logger.debug(f"Could not persist fixture_id to matches: {update_err}")
+                
+                cursor.close()
+                conn.close()
+                logger.debug(f"✅ Resolver Step 2: Found fixture_id {fixture_id} in odds_snapshots")
+                return fixture_id
+        except Exception as e:
+            logger.debug(f"Step 2 (odds_snapshots) failed: {e}")
+        
+        cursor.close()
+        conn.close()
+        
+        # Step 3: Live API-Football search (last resort)
+        if home_team and away_team:
+            try:
+                client = ApiFootballClient()
+                # Search within ±2 days of kickoff
+                from datetime import timedelta
+                date_from = (kickoff_at - timedelta(days=2)).strftime('%Y-%m-%d')
+                date_to = (kickoff_at + timedelta(days=2)).strftime('%Y-%m-%d')
+                season = kickoff_at.year
+                
+                fixtures = client.search_fixtures_by_teams(
+                    home_team=home_team,
+                    away_team=away_team,
+                    date_from=date_from,
+                    date_to=date_to,
+                    league_id=league_id,
+                    season=season
+                )
+                
+                if fixtures:
+                    fixture_id = fixtures[0]['fixture']['id']
+                    # Persist to matches table
+                    conn = psycopg2.connect(DATABASE_URL)
+                    cursor = conn.cursor()
+                    try:
+                        cursor.execute("""
+                            UPDATE matches 
+                            SET api_football_fixture_id = %s 
+                            WHERE match_id = %s
+                        """, (fixture_id, match_id))
+                        conn.commit()
+                    except Exception as update_err:
+                        logger.debug(f"Could not persist fixture_id to matches: {update_err}")
+                    finally:
+                        cursor.close()
+                        conn.close()
+                    
+                    logger.info(f"✅ Resolver Step 3: Found fixture_id {fixture_id} via live search")
+                    return fixture_id
+                    
+            except Exception as e:
+                logger.warning(f"Step 3 (live search) failed: {e}")
+        
+        logger.warning(f"❌ Resolver failed: No fixture_id found for match {match_id}")
+        return None
+    
+    @staticmethod
     def ingest_fixture_odds(
         fixture_id: int,
         match_id: int,
