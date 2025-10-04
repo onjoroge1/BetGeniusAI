@@ -10,6 +10,26 @@ logger = logging.getLogger(__name__)
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 
+def compute_market_margin(prices: List[Optional[float]]) -> Optional[float]:
+    """
+    Calculate market overround/margin: sum(1/price) - 1
+    Returns None if insufficient valid prices (need at least 2 outcomes)
+    """
+    inv_sum = 0.0
+    count = 0
+    for p in prices:
+        if p and p > 0:
+            inv_sum += 1.0 / p
+            count += 1
+    # Need at least two valid outcomes to call this a market
+    return max(inv_sum - 1.0, 0.0) if count >= 2 else None
+
+
+def implied_prob(price: Optional[float]) -> Optional[float]:
+    """Convert decimal odds to implied probability"""
+    return (1.0 / price) if price and price > 0 else None
+
+
 class BookmakerCrosswalk:
     """Manages bookmaker mapping between API-Football and internal system."""
     
@@ -235,7 +255,12 @@ class ApiFootballIngestion:
         cursor = conn.cursor()
         
         rows_inserted = 0
+        skipped_no_margin = 0
         bookmakers = odds_data.get('bookmakers', [])
+        
+        # Group odds by (bookmaker, market) to compute margin per market
+        from collections import defaultdict
+        market_groups = defaultdict(list)
         
         for bookmaker_data in bookmakers:
             bookmaker_id = bookmaker_data.get('id')
@@ -262,6 +287,8 @@ class ApiFootballIngestion:
                 
                 secs_to_kickoff = int((kickoff_ts - ts_snapshot).total_seconds())
                 
+                # Collect all outcomes for this market
+                market_key = (bookmaker_id, internal_market)
                 for value in values:
                     outcome_name = value.get('value', '')
                     internal_outcome = OddsMapper.map_outcome(outcome_name)
@@ -273,37 +300,70 @@ class ApiFootballIngestion:
                     if odds_decimal <= 1.0:
                         continue
                     
-                    implied_prob = 1.0 / odds_decimal
-                    
-                    book_id = f"apif:{bookmaker_id}"
-                    
-                    try:
-                        cursor.execute("""
-                            INSERT INTO odds_snapshots 
-                            (match_id, league_id, book_id, market, outcome, 
-                             ts_snapshot, secs_to_kickoff, odds_decimal, implied_prob,
-                             source, vendor_fixture_id, vendor_book_id)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (match_id, book_id, market, outcome)
-                            DO UPDATE SET
-                                ts_snapshot = EXCLUDED.ts_snapshot,
-                                secs_to_kickoff = EXCLUDED.secs_to_kickoff,
-                                odds_decimal = EXCLUDED.odds_decimal,
-                                implied_prob = EXCLUDED.implied_prob
-                            WHERE odds_snapshots.ts_snapshot < EXCLUDED.ts_snapshot
-                        """, (
-                            match_id, league_id, book_id, internal_market, 
-                            internal_outcome, ts_snapshot, secs_to_kickoff,
-                            odds_decimal, implied_prob, 'api_football',
-                            fixture_id, str(bookmaker_id)
-                        ))
-                        rows_inserted += 1
-                    except Exception as e:
-                        logger.error(f"Failed to insert odds: {str(e)}")
+                    market_groups[market_key].append({
+                        'outcome': internal_outcome,
+                        'price': odds_decimal,
+                        'ts_snapshot': ts_snapshot,
+                        'secs_to_kickoff': secs_to_kickoff,
+                        'bookmaker_id': bookmaker_id,
+                        'market': internal_market
+                    })
+        
+        # Process each market group: compute margin and insert
+        for (bookmaker_id, market), selections in market_groups.items():
+            # Compute market margin from all prices
+            prices = [s['price'] for s in selections]
+            margin = compute_market_margin(prices)
+            
+            if margin is None:
+                logger.warning(
+                    f"Skipping market with insufficient prices "
+                    f"(fixture={fixture_id}, bookmaker={bookmaker_id}, market={market})"
+                )
+                skipped_no_margin += len(selections)
+                continue
+            
+            # Insert each selection with the computed margin
+            for s in selections:
+                book_id = f"apif:{s['bookmaker_id']}"
+                prob = implied_prob(s['price'])
+                
+                # Use SAVEPOINT to isolate row failures
+                cursor.execute("SAVEPOINT sp_insert_odds")
+                try:
+                    cursor.execute("""
+                        INSERT INTO odds_snapshots 
+                        (match_id, league_id, book_id, market, outcome, 
+                         ts_snapshot, secs_to_kickoff, odds_decimal, implied_prob,
+                         market_margin, source, api_football_fixture_id, vendor_book_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (match_id, book_id, market, outcome)
+                        DO UPDATE SET
+                            ts_snapshot = EXCLUDED.ts_snapshot,
+                            secs_to_kickoff = EXCLUDED.secs_to_kickoff,
+                            odds_decimal = EXCLUDED.odds_decimal,
+                            implied_prob = EXCLUDED.implied_prob,
+                            market_margin = EXCLUDED.market_margin
+                        WHERE odds_snapshots.ts_snapshot < EXCLUDED.ts_snapshot
+                    """, (
+                        match_id, league_id, book_id, s['market'], 
+                        s['outcome'], s['ts_snapshot'], s['secs_to_kickoff'],
+                        s['price'], prob, margin, 'api_football',
+                        fixture_id, str(s['bookmaker_id'])
+                    ))
+                    cursor.execute("RELEASE SAVEPOINT sp_insert_odds")
+                    rows_inserted += 1
+                except Exception as e:
+                    logger.error(f"Row insert failed, rolling back savepoint: {e}")
+                    cursor.execute("ROLLBACK TO SAVEPOINT sp_insert_odds")
+                    cursor.execute("RELEASE SAVEPOINT sp_insert_odds")
         
         conn.commit()
         cursor.close()
         conn.close()
+        
+        if skipped_no_margin > 0:
+            logger.info(f"Skipped {skipped_no_margin} rows with insufficient market prices")
         
         logger.info(
             f"Ingested {rows_inserted} odds rows for fixture {fixture_id} "

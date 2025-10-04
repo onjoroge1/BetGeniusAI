@@ -1,0 +1,254 @@
+Great catch — we’ve hit a real blocker and also have a clean path to fix and harden it. Here’s the plan, the patches, and the “AI package” you asked for.
+
+---
+
+# What broke (root cause)
+
+* **Constraint:** `odds_snapshots.market_margin` is `NOT NULL`.
+* **API-Football path:** we were inserting odds rows **without** computing a `market_margin` → first insert fails → the whole transaction gets marked **aborted** → every subsequent insert errors (`current transaction is aborted…`).
+
+The Odds API path already computes a margin; our API-Football path needs the same.
+
+---
+
+# Minimal, surgical fix
+
+## 1) Add overround/margin calculation (once per market)
+
+```python
+# utils/api_football_integration.py (or a shared utils module)
+
+from typing import List, Optional
+
+def compute_market_margin(prices: List[Optional[float]]) -> Optional[float]:
+    """Return market overround (sum(1/price) - 1). Ignore None / <=0 prices."""
+    inv_sum = 0.0
+    count = 0
+    for p in prices:
+        if p and p > 0:
+            inv_sum += 1.0 / p
+            count += 1
+    # Need at least two valid outcomes to call this a market
+    return max(inv_sum - 1.0, 0.0) if count >= 2 else None
+
+def implied_prob(price: Optional[float]) -> Optional[float]:
+    return (1.0 / price) if price and price > 0 else None
+```
+
+## 2) In the API-Football ingestion, group outcomes by (fixture_id, bookmaker, market)
+
+* Compute `market_margin` **once** from all valid selections’ prices.
+* Insert each selection with the same `market_margin`.
+* If margin is `None` (not enough outcomes), **skip** those rows (or set to `0.0` as a last resort — I recommend skip + log).
+
+```python
+# utils/api_football_integration.py (inside your ingestion loop)
+# Pseudocode sketch – adapt to your existing variables
+
+for (fixture_id, bookmaker_id, market_key), selections in grouped_rows.items():
+    # selections: List[{"outcome":"H/D/A", "price":float, ...}]
+    prices = [s.get("price") for s in selections]
+    margin = compute_market_margin(prices)
+
+    if margin is None:
+        logger.warning(f"Skipping market with insufficient prices "
+                       f"(fixture={fixture_id}, bm={bookmaker_id}, market={market_key})")
+        continue
+
+    for s in selections:
+        price = s.get("price")
+        prob  = implied_prob(price)
+        # NOTE: if your schema requires fair (de-vig) probabilities,
+        # you can compute: fair_prob = prob / (1.0 + margin)
+        db.execute(
+            """
+            INSERT INTO odds_snapshots
+                (match_id, league_id, bookmaker_id, market_key, ts_snapshot,
+                 selection_id, selection, price, implied_prob, market_margin,
+                 created_at, source, api_football_fixture_id, is_live, extra_json)
+            VALUES
+                (%(match_id)s, %(league_id)s, %(bookmaker_id)s, %(market_key)s, NOW(),
+                 %(selection_id)s, %(selection)s, %(price)s, %(implied_prob)s, %(market_margin)s,
+                 NOW(), 'api_football', %(fixture_id)s, %(is_live)s, %(extra_json)s)
+            """,
+            {
+              "match_id": fixture_id,                 # same as api_football fixture_id in our flow
+              "league_id": league_id,
+              "bookmaker_id": s["bookmaker_id"],      # or map to your internal id
+              "market_key": market_key,               # e.g., 'h2h'
+              "selection_id": s["selection_id"],      # or map
+              "selection": s["selection"],            # 'H' / 'D' / 'A'
+              "price": price,
+              "implied_prob": prob,
+              "market_margin": margin,                # <-- FIX
+              "fixture_id": fixture_id,
+              "is_live": False,
+              "extra_json": s.get("raw")              # optional
+            },
+        )
+```
+
+## 3) Make inserts resilient to one-row failures (no “aborted transaction” cascade)
+
+If you use psycopg, wrap rows or batches with **SAVEPOINT** to isolate failures:
+
+```python
+# using psycopg (v3) style
+with conn.cursor() as cur:
+    for payload in payloads:
+        cur.execute("SAVEPOINT sp_ins")
+        try:
+            cur.execute(SQL, payload)
+        except Exception as e:
+            logger.error(f"Row insert failed, rolling back savepoint: {e}")
+            cur.execute("ROLLBACK TO SAVEPOINT sp_ins")
+        finally:
+            cur.execute("RELEASE SAVEPOINT sp_ins")
+conn.commit()
+```
+
+(If you’re using an ORM or a helper `db` wrapper, emulate the same semantics: per-row try/except + continue.)
+
+---
+
+# “Package for the AI” (drop-in bundle)
+
+## A) Team alias normalization (fast lift for match rate)
+
+**DDL**
+
+```sql
+CREATE TABLE IF NOT EXISTS team_alias (
+  id SERIAL PRIMARY KEY,
+  canonical_name TEXT NOT NULL,
+  alias TEXT NOT NULL,
+  provider TEXT NOT NULL,              -- 'theodds', 'apifootball', 'both'
+  UNIQUE (provider, alias)
+);
+
+-- seed a few you saw in logs
+INSERT INTO team_alias (canonical_name, alias, provider) VALUES
+('Bodø/Glimt', 'Bodo/Glimt', 'both')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO team_alias (canonical_name, alias, provider) VALUES
+('Hammarby IF', 'Hammarby FF', 'both')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO team_alias (canonical_name, alias, provider) VALUES
+('Belgrano de Cordoba', 'Belgrano Cordoba', 'both')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO team_alias (canonical_name, alias, provider) VALUES
+('Vélez Sarsfield', 'Velez Sarsfield BA', 'both')
+ON CONFLICT DO NOTHING;
+```
+
+**Normalizer**
+
+```python
+# utils/names.py
+import unicodedata
+
+def strip_diacritics(s: str) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
+
+def slug_team(s: str) -> str:
+    s = strip_diacritics(s or "").lower()
+    keep = "abcdefghijklmnopqrstuvwxyz0123456789 "
+    s = ''.join(ch if ch in keep else ' ' for ch in s)
+    return ' '.join(s.split())
+
+def canonicalize_team(name: str, provider: str, alias_map: dict) -> str:
+    k = (provider, slug_team(name))
+    return alias_map.get(k, name)
+```
+
+**Alias map load at startup**
+
+```python
+# load once in the collector
+alias_map = {}
+rows = db.fetch_all("SELECT provider, alias, canonical_name FROM team_alias")
+for r in rows:
+    alias_map[(r["provider"], slug_team(r["alias"]))] = r["canonical_name"]
+```
+
+Apply this to both home/away before matching.
+
+## B) Wider search & volume knobs
+
+* `/matches/upcoming?limit=200`
+* Timing windows: allow ±12–16h around T-12/T-24/T-48; add a **T-2h** catch-up sweep.
+* One retry for `name_match_miss` after 60–120s.
+
+## C) 404 handling
+
+* If TheOdds 404s but API-Football returns lines, still insert rows with `source='api_football'` (now that `market_margin` is set).
+* Log reason codes: `404_theodds`, `name_match_miss`, `no_events_returned`.
+
+## D) Metrics hooks
+
+Increment counters you already log:
+
+```python
+metrics["fixture_resolution"]["from_matches"] += 1
+metrics["fixture_resolution"]["from_snapshots"] += 1
+metrics["fixture_resolution"]["from_live_search"] += 1
+metrics["fixture_resolution"]["failed"] += 1
+
+metrics["insert"]["apifootball_rows"] += n
+metrics["insert"]["skipped_no_margin"] += k
+metrics["errors"]["tx_aborted"] += 1
+```
+
+## E) Sanity queries (paste-and-run)
+
+**Provider breakdown (last 2h)**
+
+```sql
+SELECT source, COUNT(*)
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '2 hours'
+GROUP BY source;
+```
+
+**Margin health (no NULLs!)**
+
+```sql
+SELECT source, COUNT(*) FILTER (WHERE market_margin IS NULL) AS null_margins
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '24 hours'
+GROUP BY source;
+```
+
+**Enrichment % (last 24h)**
+
+```sql
+SELECT 
+  ROUND(100.0 * SUM((api_football_fixture_id IS NOT NULL)::int)/NULLIF(COUNT(*),0),2) AS enrichment_pct
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '24 hours';
+```
+
+---
+
+# What to expect after the fix
+
+* Phase B will **stop erroring**; API-Football inserts will succeed with a valid `market_margin`.
+* You’ll see `source='api_football'` rows accumulating in `odds_snapshots`.
+* Enrichment should jump (aliases + windows can push you well above the sub-10% you see now; 30–60% is typical after tuning).
+
+---
+
+# Should you run `trigger_manual_collection.py` now?
+
+**Yes.** Do it after applying the margin fix. It will:
+
+1. Re-run Phase A (completed matches)
+2. Run Phase B (upcoming odds) with API-Football rows now inserting cleanly
+3. Let you verify enrichment and margins immediately with the SQL above
+
+---
+
+If you want, I can also prep a tiny PR-style patch with the exact line edits for `utils/api_football_integration.py` and the alias loader hook in `models/automated_collector.py`.
