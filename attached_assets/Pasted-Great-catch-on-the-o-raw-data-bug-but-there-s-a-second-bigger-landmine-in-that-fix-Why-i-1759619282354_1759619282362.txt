@@ -1,0 +1,142 @@
+Great catch on the `o.raw_data` bug—but there’s a second, bigger landmine in that “fix”:
+
+## Why it’s still not working
+
+You changed the resolver query to `JOIN matches m ON ls.match_id = m.id` to get team names. But from earlier runs we know:
+
+* `matches` contains **few/historical** rows (often ~10), not the full set of upcoming fixtures.
+* The upcoming set comes from `/matches/upcoming` and TheOdds, **not** from `matches`.
+
+So for most upcoming games that TheOdds just saved to `odds_snapshots`, there is **no corresponding row in `matches`**. That JOIN therefore returns **0 rows**, and APIF still can’t resolve team names → **no APIF inserts**.
+
+## The correct fix (no circular dependency)
+
+### Option A (fastest, zero schema work)
+
+Make APIF use the same authoritative source you already call for upcoming games: the **`/matches/upcoming`** list.
+
+**Change the APIF selection to:**
+
+* Pull `match_id` (== APIF fixture_id when known), `league_id`, `kickoff_at`, `home_team`, `away_team` **directly** from the `/matches/upcoming` response (or its DB mirror if you persist it).
+* Call the 3-step resolver with those names:
+
+  1. `matches.api_football_fixture_id` (if your canonical field now exists and is populated)
+  2. `odds_snapshots.api_football_fixture_id` (populated by TheOdds write-through)
+  3. **Live APIF search** using `(league_id, kickoff_at, home_team, away_team)` with normalization + aliasing
+* If step 2 or 3 finds a fixture id, **upsert** it back to `matches` (or your canonical fixtures table) for next time.
+
+This avoids relying on `odds_snapshots.raw_data` and avoids joining a mostly empty `matches`.
+
+### Option B (also good, small schema work)
+
+When TheOdds phase says `🎯 MATCH FOUND: A → CanonicalA`:
+
+* **Upsert** an entry into `matches` (or `fixtures`) with:
+
+  * `id = theodds.match_id`  (this is the APIF fixture id when providers align)
+  * `league_id, kickoff_at, home_team, away_team`
+  * (optional) `api_football_fixture_id = theodds.match_id` when you’re sure alignment is correct for that league
+    Then APIF **can** safely join to `matches`.
+    This is a write-through cache and removes the JOIN miss.
+
+> If you prefer A **and** B, do A now for reliability, and add B to improve reuse and observability.
+
+---
+
+## Concrete changes to make right now
+
+1. **Stop joining `odds_snapshots` → `matches` to get names.**
+   Replace with a query/pull against your **upcoming source**:
+
+   ```sql
+   -- Pseudocode if you have a materialized upcoming table/view
+   WITH upcoming AS (
+     SELECT
+       fixture_id      AS match_id,   -- if you store it, else use the API's id field
+       league_id,
+       kickoff_at,
+       home_team_name  AS home_team,
+       away_team_name  AS away_team
+     FROM upcoming_matches_view
+     WHERE kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '7 days'
+   )
+   SELECT * FROM upcoming;
+   ```
+
+   Or simply use the in-memory list returned by `/matches/upcoming` (you already call it in TheOdds phase).
+
+2. **Ensure your TheOdds write-through sets `api_football_fixture_id` in `odds_snapshots`.**
+   (You said you wired this—double-check the INSERT/UPSERT actually includes the column & value.)
+
+3. **Resolver call site (in `collect_upcoming_odds_apifootball`)**
+   Feed the resolver the team names from **upcoming** (not from `matches`/`odds_snapshots`), then:
+
+   * If resolver returns `fixture_id`, **persist** it:
+
+     ```python
+     repo.upsert_match(
+       id=match_id, league_id=league_id, kickoff_at=kickoff_at,
+       home_team=home_team, away_team=away_team,
+       api_football_fixture_id=fixture_id  # write-through
+     )
+     ```
+   * Then collect odds from APIF.
+
+4. **Team name normalization & aliasing (reduces “📭 No team match found …”)**
+
+   * Normalize: lowercase, strip accents (Bodø→Bodo), trim punctuation, drop noise tokens (`FC`, `CF`, `SC`, `U21`).
+   * Alias table `team_alias(canonical_name TEXT, alias TEXT, league_id INT NULL)`.
+   * Fuzzy match floor: ≥0.90; 0.85–0.90 → log `NEAR-MISS` and suggest alias.
+
+---
+
+## Sanity checks to run after the change
+
+**A. Do we still rely on `matches` for names?** (We shouldn’t.)
+
+```sql
+-- How many upcoming snapshot match_ids are missing in matches?
+WITH last24 AS (
+  SELECT DISTINCT match_id
+  FROM odds_snapshots
+  WHERE created_at >= NOW() - INTERVAL '24 hours'
+)
+SELECT COUNT(*) AS missing_in_matches
+FROM last24 l
+LEFT JOIN matches m ON m.id = l.match_id
+WHERE m.id IS NULL;
+```
+
+If this is high, your previous JOIN would have dropped almost everything.
+
+**B. Are we finally inserting APIF rows?**
+
+```sql
+SELECT provider, COUNT(*)
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '2 hours'
+GROUP BY provider;
+```
+
+Expect to see **both** `theodds` and `apifootball`.
+
+**C. Resolver outcomes (add a small counter log)**
+Log once per run:
+
+```
+Resolver stats: {from_matches: X, from_snapshots: Y, from_live_search: Z, failed: W}
+```
+
+---
+
+## What you should expect once fixed
+
+* A log banner for APIF phase, followed by successful collections:
+
+  * `✅ Resolver Step 2: Found fixture via snapshots`
+  * `✅ Resolver Step 3: Found fixture via live search`
+* `odds_snapshots` will show **two providers** in the last hour/day.
+* Far fewer “📭 No team match found …” thanks to normalization/aliases.
+* For tricky leagues (EFL Trophy/U21, J-League long/short names, diacritics), APIF results start appearing instead of all 404s/near-misses.
+
+If you want, paste the 15–20 lines around your APIF selection SQL and the call to the resolver, and I’ll rewrite that snippet so it uses the **upcoming** feed (Option A) correctly.

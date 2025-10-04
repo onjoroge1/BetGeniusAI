@@ -490,6 +490,8 @@ class AutomatedCollector:
         NEW: Collect real-time odds from API-Football for upcoming matches
         Provides data consistency with training data (same source)
         Complements The Odds API collection for multi-source odds
+        
+        Uses /matches/upcoming as authoritative source (no dependency on matches table)
         """
         try:
             logger.info("🎯 Starting API-Football real-time collection for upcoming matches...")
@@ -505,61 +507,64 @@ class AutomatedCollector:
                 "errors": []
             }
             
-            # Find upcoming matches from odds_snapshots
-            # Use 3-step resolver to get fixture_ids (breaks circular dependency)
-            conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
-            cursor = conn.cursor()
+            # Use /matches/upcoming as authoritative source (same as TheOdds uses)
+            # This eliminates dependency on matches table or odds_snapshots.raw_data
+            upcoming_matches = []
             
-            # Get distinct upcoming matches with team names for resolver Step 3
-            # JOIN with matches table to get team names (no raw_data column needed)
-            query = """
-                WITH latest_snapshots AS (
-                    SELECT DISTINCT ON (o.match_id)
-                        o.match_id,
-                        o.league_id,
-                        (o.ts_snapshot + (o.secs_to_kickoff || ' seconds')::interval) as kickoff_time
-                    FROM odds_snapshots o
-                    WHERE o.ts_snapshot > NOW() - INTERVAL '24 hours'
-                        AND o.secs_to_kickoff > 0
-                        AND o.source = 'theodds'
-                    ORDER BY o.match_id, o.ts_snapshot DESC
-                )
-                SELECT 
-                    ls.match_id,
-                    ls.league_id, 
-                    ls.kickoff_time,
-                    m.home_team,
-                    m.away_team
-                FROM latest_snapshots ls
-                JOIN matches m ON ls.match_id = m.id
-                WHERE ls.kickoff_time BETWEEN NOW() AND NOW() + INTERVAL '7 days'
-                    AND m.status = 'NS'
-                ORDER BY ls.kickoff_time ASC
-                LIMIT 100
-            """
-            
-            cursor.execute(query)
-            upcoming_matches = cursor.fetchall()
-            cursor.close()
-            conn.close()
+            # Get configured leagues
+            for league_id in self.league_ids:
+                try:
+                    league_matches = await self._get_upcoming_matches_for_league(league_id)
+                    if league_matches:
+                        upcoming_matches.extend(league_matches)
+                except Exception as e:
+                    logger.warning(f"Failed to get upcoming matches for league {league_id}: {e}")
             
             if not upcoming_matches:
-                logger.info("📭 No upcoming matches found in odds_snapshots")
+                logger.info("📭 No upcoming matches found from /matches/upcoming")
                 return odds_summary
             
-            logger.info(f"📅 Found {len(upcoming_matches)} upcoming matches from odds_snapshots")
+            # Filter to matches within 7 days
+            current_time = datetime.utcnow()
+            filtered_matches = []
+            for match in upcoming_matches:
+                try:
+                    match_date = datetime.fromisoformat(match['date'].replace('Z', '+00:00')).replace(tzinfo=None)
+                    hours_to_kickoff = (match_date - current_time).total_seconds() / 3600
+                    if 0 < hours_to_kickoff <= 168:  # 7 days
+                        filtered_matches.append({
+                            'match_id': match['match_id'],
+                            'league_id': match['league_id'],
+                            'kickoff_at': match_date,
+                            'home_team': match['home_team'],
+                            'away_team': match['away_team'],
+                            'hours_to_kickoff': hours_to_kickoff
+                        })
+                except Exception as e:
+                    logger.warning(f"Failed to parse match date: {e}")
+            
+            upcoming_matches = filtered_matches
+            
+            if not upcoming_matches:
+                logger.info("📭 No upcoming matches found within 7 days")
+                return odds_summary
+            
+            logger.info(f"📅 Found {len(upcoming_matches)} upcoming matches from /matches/upcoming")
             odds_summary["matches_found"] = len(upcoming_matches)
             
             # Track resolver metrics
             resolver_stats = {"from_matches": 0, "from_snapshots": 0, "from_live_search": 0, "failed": 0}
             
             # Process each match and collect odds at timing windows
-            for match_id, league_id, kickoff, home_team, away_team in upcoming_matches:
+            for match in upcoming_matches:
+                match_id = match['match_id']
+                league_id = match['league_id']
+                kickoff = match['kickoff_at']
+                home_team = match['home_team']
+                away_team = match['away_team']
+                hours_to_kickoff = match['hours_to_kickoff']
+                
                 try:
-                    # Calculate hours to kickoff
-                    current_time = datetime.utcnow()
-                    hours_to_kickoff = (kickoff - current_time).total_seconds() / 3600
-                    
                     logger.info(
                         f"🕐 Match {match_id} ({home_team} vs {away_team}) - T-{hours_to_kickoff:.1f}h"
                     )
