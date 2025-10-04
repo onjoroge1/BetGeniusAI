@@ -213,6 +213,36 @@ class AutomatedCollector:
             logger.error(f"Failed to get configured leagues from league_map: {e}")
             return []
     
+    def _get_theodds_sport_key(self, league_id: int) -> Optional[str]:
+        """Get TheOdds API sport key from league_map table"""
+        try:
+            database_url = os.getenv('DATABASE_URL')
+            if not database_url:
+                logger.error("DATABASE_URL environment variable not found")
+                return None
+            
+            conn = psycopg2.connect(database_url)
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "SELECT theodds_sport_key FROM league_map WHERE league_id = %s", 
+                (league_id,)
+            )
+            result = cursor.fetchone()
+            
+            cursor.close()
+            conn.close()
+            
+            if result and result[0]:
+                return result[0]
+            else:
+                logger.warning(f"No theodds_sport_key found for league_id {league_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get theodds_sport_key for league {league_id}: {e}")
+            return None
+    
     def _get_league_name(self, league_id: int) -> str:
         """Get human-readable league name"""
         league_names = {
@@ -656,28 +686,12 @@ class AutomatedCollector:
                 return False
             
             try:
-                # Map league ID to The Odds API sport key
-                # COMPLETE league -> sport_key mapping for all configured leagues
-                league_sport_map = {
-                    39: 'soccer_epl',                     # Premier League
-                    140: 'soccer_spain_la_liga',          # La Liga
-                    141: 'soccer_spain_segunda_division', # LaLiga2
-                    135: 'soccer_italy_serie_a',          # Serie A
-                    136: 'soccer_italy_serie_b',          # Serie B
-                    78: 'soccer_germany_bundesliga',      # Bundesliga
-                    79: 'soccer_germany_bundesliga2',     # 2. Bundesliga
-                    61: 'soccer_france_ligue_one',        # Ligue 1
-                    62: 'soccer_france_ligue_two',        # Ligue 2
-                    88: 'soccer_netherlands_eredivisie',  # Eredivisie
-                    72: 'soccer_efl_champ'                # Championship
-                }
+                # Get sport key from league_map table (dynamic lookup replaces hardcoded map)
+                sport_key = self._get_theodds_sport_key(league_id)
                 
-                # Validate mapping exists
-                if league_id not in league_sport_map:
-                    logger.error(f"❌ CRITICAL: League {league_id} not mapped to Odds API sport key!")
+                if not sport_key:
+                    logger.error(f"❌ CRITICAL: League {league_id} not mapped to Odds API sport key in league_map table!")
                     return False
-                
-                sport_key = league_sport_map.get(league_id, 'soccer_epl')
                 
                 # Use The Odds API to get real bookmaker odds
                 url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds"

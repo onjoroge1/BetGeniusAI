@@ -1,0 +1,345 @@
+say less — here’s a tight, copy-pasteable “Agent Work Order” to fix the whole pipeline: mappings, enrichment, and multi-source collection. Run it top-down.
+
+# SnapBet Collector Fix — Agent Brief
+
+## 🎯 Objective
+
+* Kill “not mapped to Odds API sport key” errors.
+* Ensure API-Football **real-time** odds flow actually runs by enriching `fixture_id` **before** collection.
+* Keep `league_map` as the single source of truth for both providers.
+
+---
+
+## 0) Pre-Flight
+
+* Branch: `fix/collector-mappings-and-enrichment`
+* Services to touch: `db`, `collector`, `models`, `utils`
+* Env vars needed:
+
+  * `THEODDS_API_KEY`
+  * `APIFOOTBALL_API_KEY`
+
+---
+
+## 1) DB Migration (idempotent)
+
+```sql
+-- 001_league_map_extension.sql
+ALTER TABLE league_map
+  ADD COLUMN IF NOT EXISTS api_football_league_id INT,
+  ADD COLUMN IF NOT EXISTS theodds_sport_key TEXT,
+  ADD COLUMN IF NOT EXISTS league_name TEXT,
+  ADD COLUMN IF NOT EXISTS country TEXT,
+  ADD COLUMN IF NOT EXISTS season INT,
+  ADD COLUMN IF NOT EXISTS aliases JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_league_map_apifootball
+  ON league_map (api_football_league_id);
+
+CREATE INDEX IF NOT EXISTS idx_league_map_theodds
+  ON league_map (theodds_sport_key);
+
+-- If api_football_league_id == league_id in our data model, keep both but enforce uniqueness on api_football_league_id:
+DO $$
+BEGIN
+  BEGIN
+    ALTER TABLE league_map
+      ADD CONSTRAINT uniq_league_map_apifootball UNIQUE (api_football_league_id)
+      DEFERRABLE INITIALLY DEFERRED;
+  EXCEPTION WHEN duplicate_object THEN
+    -- constraint already exists
+    NULL;
+  END;
+END$$;
+```
+
+---
+
+## 2) Seed/Upsert Missing Mappings (MLS, Liga MX, K League 1)
+
+```sql
+-- 002_league_map_seeds.sql
+
+-- MLS
+INSERT INTO league_map (api_football_league_id, league_id, league_name, country, theodds_sport_key, season, active, updated_at)
+VALUES (253, 253, 'Major League Soccer', 'USA', 'soccer_usa_mls', 2025, TRUE, NOW())
+ON CONFLICT (api_football_league_id) DO UPDATE
+SET theodds_sport_key = EXCLUDED.theodds_sport_key,
+    league_name       = EXCLUDED.league_name,
+    country           = EXCLUDED.country,
+    season            = EXCLUDED.season,
+    active            = TRUE,
+    updated_at        = NOW();
+
+-- Liga MX
+INSERT INTO league_map (api_football_league_id, league_id, league_name, country, theodds_sport_key, season, active, updated_at)
+VALUES (262, 262, 'Liga MX', 'Mexico', 'soccer_mexico_liga_mx', 2025, TRUE, NOW())
+ON CONFLICT (api_football_league_id) DO UPDATE
+SET theodds_sport_key = EXCLUDED.theodds_sport_key,
+    league_name       = EXCLUDED.league_name,
+    country           = EXCLUDED.country,
+    season            = EXCLUDED.season,
+    active            = TRUE,
+    updated_at        = NOW();
+
+-- K League 1
+INSERT INTO league_map (api_football_league_id, league_id, league_name, country, theodds_sport_key, season, active, updated_at)
+VALUES (292, 292, 'K League 1', 'South Korea', 'soccer_south_korea_kleague1', 2025, TRUE, NOW())
+ON CONFLICT (api_football_league_id) DO UPDATE
+SET theodds_sport_key = EXCLUDED.theodds_sport_key,
+    league_name       = EXCLUDED.league_name,
+    country           = EXCLUDED.country,
+    season            = EXCLUDED.season,
+    active            = TRUE,
+    updated_at        = NOW();
+```
+
+**Sanity checks:**
+
+```sql
+-- Leagues still missing Odds API mapping
+SELECT league_id, api_football_league_id, league_name
+FROM league_map
+WHERE (theodds_sport_key IS NULL OR theodds_sport_key = '')
+  AND active = TRUE;
+
+-- Upcoming matches lacking fixture_id (we’ll enrich next)
+SELECT m.id, m.league_id, m.home_team, m.away_team, m.kickoff_at
+FROM matches m
+JOIN league_map lm ON lm.api_football_league_id = m.league_id
+WHERE m.status = 'NS'
+  AND m.kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '72 hours'
+  AND (m.api_football_fixture_id IS NULL);
+```
+
+---
+
+## 3) Collector Code Changes
+
+### 3.1 league_map accessors
+
+Create `models/league_map.py`:
+
+```python
+from typing import Optional, Any
+
+def get_theodds_sport_key(db, league_id: int) -> Optional[str]:
+    row = db.fetch_one("""
+        SELECT theodds_sport_key
+        FROM league_map
+        WHERE (api_football_league_id = %(lid)s OR league_id = %(lid)s)
+          AND active = TRUE
+        LIMIT 1
+    """, {"lid": league_id})
+    return row["theodds_sport_key"] if row and row["theodds_sport_key"] else None
+
+def get_api_football_league_id(db, league_id: int) -> Optional[int]:
+    row = db.fetch_one("""
+        SELECT api_football_league_id
+        FROM league_map
+        WHERE (api_football_league_id = %(lid)s OR league_id = %(lid)s)
+          AND active = TRUE
+        LIMIT 1
+    """, {"lid": league_id})
+    return row["api_football_league_id"] if row and row["api_football_league_id"] else None
+```
+
+### 3.2 Enrichment must run **before** collection
+
+Update `trigger_manual_collection.py` (or the manual flow it calls):
+
+```python
+from models.league_map import get_theodds_sport_key
+from services.api_football import enrich_fixture_ids_for_matches, collect_odds_for_fixture
+from services.odds_api import collect_odds_for_match
+
+def run_manual_multi_source_collection(db, horizon_hours: int = 72):
+    matches = repo.get_upcoming_matches(horizon_hours=horizon_hours)  # status NS in window
+
+    # 1) Enrich fixture_ids (writes back)
+    to_enrich = [m for m in matches if not m.api_football_fixture_id]
+    if to_enrich:
+        enriched_count = enrich_fixture_ids_for_matches(db, to_enrich)  # returns int
+        log.info(f"🔧 Enriched {enriched_count}/{len(to_enrich)} fixture IDs")
+
+    # 2) Collect from The Odds API (using league_map resolver)
+    odds_snapshots = 0
+    for m in matches:
+        sport_key = get_theodds_sport_key(db, m.league_id)
+        if not sport_key:
+            log.error(f"❌ CRITICAL: League {m.league_id} not mapped to Odds API sport key!")
+            continue
+        odds_snapshots += collect_odds_for_match(db, m, sport_key)
+
+    # 3) Collect from API-Football (fixture_id based; with fallback)
+    apif_rows = 0
+    for m in matches:
+        fid = m.api_football_fixture_id
+        if not fid:
+            # fallback: try soft resolve just-in-time
+            fid = services.api_football.try_resolve_fixture_id(db, m)
+            if fid:
+                repo.update_fixture_id(m.id, fid)
+                log.warning(f"⚠️ Late fixture_id resolve for match {m.id} → {fid}")
+            else:
+                log.warning(f"⚠️ No fixture_id for match {m.id} ({m.home_team} vs {m.away_team})")
+                continue
+        apif_rows += collect_odds_for_fixture(db, fixture_id=fid, kickoff_at=m.kickoff_at)
+
+    log.info(f"✅ MULTI-SOURCE collection completed: TheOdds={odds_snapshots} | API-Football={apif_rows}")
+    return odds_snapshots, apif_rows
+```
+
+### 3.3 API-Football enrichment service
+
+Implement team aliasing + league/date guardrails in `services/api_football.py`:
+
+```python
+def enrich_fixture_ids_for_matches(db, matches) -> int:
+    count = 0
+    for m in matches:
+        # Use league + kickoff date window + team aliases for precision
+        lid = get_api_football_league_id(db, m.league_id) or m.league_id
+        fixture_id = find_fixture_id_by_league_date_teams(
+            league_id=lid,
+            kickoff_at=m.kickoff_at,
+            home=m.home_team,
+            away=m.away_team,
+        )
+        if fixture_id:
+            repo.update_fixture_id(m.id, fixture_id)
+            count += 1
+    return count
+
+def try_resolve_fixture_id(db, m):
+    lid = get_api_football_league_id(db, m.league_id) or m.league_id
+    return find_fixture_id_by_league_date_teams(
+        league_id=lid,
+        kickoff_at=m.kickoff_at,
+        home=m.home_team,
+        away=m.away_team,
+    )
+```
+
+> `find_fixture_id_by_league_date_teams()` should normalize accents, strip punctuation, and check an alias table (`team_aliases`) to map “LAFC” ↔ “Los Angeles FC”, “Pumas UNAM” ↔ “U.N.A.M. - Pumas”, etc. Use a ±2h start-time window to avoid mis-matches.
+
+### 3.4 Odds API collector should not block APIF
+
+Make sure provider flows are independent—errors in Odds API should not stop API-Football calls. (The snippet above already loops both separately.)
+
+---
+
+## 4) Config & Feature Flags
+
+* `.env`: confirm keys exist: `THEODDS_API_KEY`, `APIFOOTBALL_API_KEY`
+* Optional feature flag to force APIF-only run for testing:
+
+  * `COLLECTOR_FORCE_APIF_ONLY=false`
+  * `COLLECTOR_FORCE_ODDSAPI_ONLY=false`
+
+---
+
+## 5) Logging & Metrics
+
+Add structured counters so the logs summarize clearly:
+
+* `collector.oddsapi.snapshots_collected`
+* `collector.apif.rows_collected`
+* `collector.enrichment.fixture_ids_added`
+* `collector.misses.no_sport_key`
+* `collector.misses.no_fixture_id`
+
+Target log (healthy):
+
+```
+🔧 Enriched 9/12 fixture IDs
+✅ MULTI-SOURCE collection completed: TheOdds=34 | API-Football=27
+```
+
+---
+
+## 6) Manual Test Plan (run now)
+
+1. **Migrate & seed**
+
+```bash
+psql $DATABASE_URL -f migrations/001_league_map_extension.sql
+psql $DATABASE_URL -f migrations/002_league_map_seeds.sql
+```
+
+2. **Quick gaps check**
+
+```sql
+SELECT * FROM league_map WHERE theodds_sport_key IS NULL AND active = TRUE;
+```
+
+3. **Dry-run enrichment only**
+
+```python
+# Quick REPL or script:
+from services.api_football import enrich_fixture_ids_for_matches
+matches = repo.get_upcoming_matches(horizon_hours=72)
+enrich_fixture_ids_for_matches(db, [m for m in matches if not m.api_football_fixture_id])
+```
+
+4. **Full manual collection**
+
+```bash
+python trigger_manual_collection.py --horizon 72
+```
+
+**Expect:**
+
+* No “League XXX not mapped” errors for 253, 262, 292.
+* “Enriched X/Y fixture IDs” > 0 (for those leagues).
+* API-Football rows collected > 0.
+
+5. **Consensus step sanity**
+
+* Ensure consensus now sees more candidates and fewer `no_bucket_hit`.
+
+---
+
+## 7) Rollback Plan
+
+* Revert branch.
+* Reapply previous migration snapshot (columns are additive; safe to leave).
+* Disable APIF in config to fall back to Odds API only.
+
+---
+
+## 8) Acceptance Criteria
+
+* ✅ No “not mapped to Odds API sport key” for leagues 253/262/292.
+* ✅ `api_football_fixture_id` filled for ≥80% of upcoming matches in those leagues.
+* ✅ `API-Football: > 0 rows` per run when upcoming matches exist.
+* ✅ Multi-source totals show TheOdds + APIF both contributing.
+* ✅ Consensus run increases predictions vs baseline.
+
+---
+
+## 9) (Optional) Helper Queries for Ops
+
+```sql
+-- Upcoming by league with fixture_id coverage
+SELECT m.league_id,
+       COUNT(*)                            AS upcoming,
+       SUM(CASE WHEN m.api_football_fixture_id IS NOT NULL THEN 1 ELSE 0 END) AS with_fixture_id
+FROM matches m
+WHERE m.status = 'NS'
+  AND m.kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '72 hours'
+GROUP BY 1
+ORDER BY 1;
+
+-- Provider freshness (last 24h)
+SELECT provider, COUNT(*) AS rows_24h
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '24 hours'
+GROUP BY provider;
+```
+
+---
+
+that’s it. Drop this into the repo, run the two SQL files, and re-run `trigger_manual_collection.py`. You’ll start seeing API-Football rows come through and the Odds API mapping errors will be gone.

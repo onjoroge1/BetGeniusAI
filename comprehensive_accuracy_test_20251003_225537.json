@@ -1,0 +1,212 @@
+{
+  "test_timestamp": "20251003_225537",
+  "test_type": "comprehensive_authentic_data",
+  "predictions_tested": 9,
+  "data_sources": {
+    "odds_snapshots": 358,
+    "odds_consensus": 20
+  },
+  "overall_metrics": {
+    "accuracy_3way": 0.5555555555555556,
+    "brier_score": 0.19827026518356572,
+    "log_loss": 0.9977581956805197,
+    "model_score": 7.5,
+    "model_grade": "B+ (Above Average)"
+  },
+  "vs_production": {
+    "logloss_delta": 0.03428319568051974,
+    "brier_delta": 0.007270265183565716,
+    "accuracy_delta": 1.25555555555556,
+    "assessment": "NEEDS WORK"
+  },
+  "confidence_breakdown": {
+    "high_confidence": {
+      "count": 0,
+      "accuracy": 0,
+      "brier": 0
+    },
+    "medium_confidence": {
+      "count": 4,
+      "accuracy": 0.75,
+      "brier": 0.15895107514934284
+    },
+    "low_confidence": {
+      "count": 5,
+      "accuracy": 0.4,
+      "brier": 0.229725617210944
+    }
+  },
+  "detailed_results": [
+    {
+      "match_id": 1379031,
+      "data_source": "real_results",
+      "bookmakers": 20,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.13368313426955106,
+      "log_loss": 0.7274103651624564,
+      "confidence": 0.48315857568632986,
+      "probabilities": {
+        "H": 0.48315857568632986,
+        "D": 0.2718709162218003,
+        "A": 0.24497050809186982
+      },
+      "clv": null,
+      "league": "Premier League",
+      "score": "3-1"
+    },
+    {
+      "match_id": 1387759,
+      "data_source": "real_results",
+      "bookmakers": 19,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.10294981264315824,
+      "log_loss": 0.6042371623146768,
+      "confidence": 0.5464911517179301,
+      "probabilities": {
+        "H": 0.5464911517179301,
+        "D": 0.23986977248334793,
+        "A": 0.213639075798722
+      },
+      "clv": null,
+      "league": "Ligue 1",
+      "score": "2-0"
+    },
+    {
+      "match_id": 1388679,
+      "data_source": "real_results",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "A",
+      "accuracy": 0.0,
+      "brier_score": 0.24125548782014916,
+      "log_loss": 1.1599044067877398,
+      "confidence": 0.4351014590522392,
+      "probabilities": {
+        "H": 0.4351014590522392,
+        "D": 0.2513823914817521,
+        "A": 0.3135161494660088
+      },
+      "clv": null,
+      "league": "2. Bundesliga",
+      "score": "2-3"
+    },
+    {
+      "match_id": 1389195,
+      "data_source": "real_results",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.25969582090843807,
+      "log_loss": 1.2735493125478012,
+      "confidence": 0.38389913877902637,
+      "probabilities": {
+        "H": 0.38389913877902637,
+        "D": 0.27983662939340526,
+        "A": 0.33626423182756837
+      },
+      "clv": null,
+      "league": "Ligue 2",
+      "score": "2-2"
+    },
+    {
+      "match_id": 1389200,
+      "data_source": "real_results",
+      "bookmakers": 18,
+      "predicted_outcome": "A",
+      "actual_outcome": "A",
+      "accuracy": 1.0,
+      "brier_score": 0.21022420546186452,
+      "log_loss": 1.0438159831631102,
+      "confidence": 0.352108475028584,
+      "probabilities": {
+        "H": 0.346611531730465,
+        "D": 0.3012799932409511,
+        "A": 0.352108475028584
+      },
+      "clv": null,
+      "league": "Ligue 2",
+      "score": "0-1"
+    },
+    {
+      "match_id": 1390894,
+      "data_source": "real_results",
+      "bookmakers": 14,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.15791586586451292,
+      "log_loss": 0.8198705819123767,
+      "confidence": 0.4404886580170173,
+      "probabilities": {
+        "H": 0.4404886580170173,
+        "D": 0.3254075323015271,
+        "A": 0.23410380968145564
+      },
+      "clv": null,
+      "league": "La Liga",
+      "score": "2-1"
+    },
+    {
+      "match_id": 1391328,
+      "data_source": "real_results",
+      "bookmakers": 15,
+      "predicted_outcome": "H",
+      "actual_outcome": "H",
+      "accuracy": 1.0,
+      "brier_score": 0.19760968307203308,
+      "log_loss": 0.9895720778196119,
+      "confidence": 0.37173573095577994,
+      "probabilities": {
+        "H": 0.37173573095577994,
+        "D": 0.29470198295814815,
+        "A": 0.33356228608607186
+      },
+      "clv": null,
+      "league": "Segunda Divisi\u00f3n",
+      "score": "1-0"
+    },
+    {
+      "match_id": 1419631,
+      "data_source": "real_results",
+      "bookmakers": 16,
+      "predicted_outcome": "H",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.2384694954049061,
+      "log_loss": 1.1701238337908528,
+      "confidence": 0.3759672362514073,
+      "probabilities": {
+        "H": 0.3759672362514073,
+        "D": 0.31032850973020315,
+        "A": 0.31370425401838953
+      },
+      "clv": null,
+      "league": "Serie B",
+      "score": "1-1"
+    },
+    {
+      "match_id": 1419650,
+      "data_source": "real_results",
+      "bookmakers": 17,
+      "predicted_outcome": "A",
+      "actual_outcome": "D",
+      "accuracy": 0.0,
+      "brier_score": 0.24262888120747825,
+      "log_loss": 1.191340037626052,
+      "confidence": 0.3689970176760912,
+      "probabilities": {
+        "H": 0.32718911317447696,
+        "D": 0.30381386914943176,
+        "A": 0.3689970176760912
+      },
+      "clv": null,
+      "league": "Serie B",
+      "score": "0-0"
+    }
+  ]
+}
