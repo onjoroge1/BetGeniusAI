@@ -3277,6 +3277,210 @@ async def compute_all_metrics(
         logger.error(f"Error computing metrics: {e}")
         raise HTTPException(status_code=500, detail=f"Error computing metrics: {str(e)}")
 
+@app.get("/metrics/evaluation")
+async def get_enhanced_evaluation(
+    league: Optional[str] = Query(None, description="Filter by league name"),
+    window: str = Query("30d", description="Time window (7d, 14d, 30d, 90d, all)"),
+    include_clv: bool = Query(True, description="Include CLV analysis when closing odds available"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Enhanced metrics evaluation using odds_accuracy_evaluation view
+    Provides accuracy metrics + CLV analysis (snapshot vs closing line)
+    """
+    try:
+        import psycopg2
+        import math
+        from datetime import datetime, timezone, timedelta
+        from models.database import DatabaseManager
+        
+        db_manager = DatabaseManager()
+        conn = psycopg2.connect(db_manager.database_url)
+        cursor = conn.cursor()
+        
+        # Parse time window
+        where_clauses = ["has_result = true"]
+        params = []
+        
+        if window != "all":
+            days_map = {"7d": 7, "14d": 14, "30d": 30, "90d": 90}
+            days = days_map.get(window, 30)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            where_clauses.append("odds_collected_at >= %s")
+            params.append(cutoff)
+        
+        if league:
+            where_clauses.append("league = %s")
+            params.append(league)
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Main evaluation query with accuracy metrics
+        eval_sql = f"""
+            WITH metrics AS (
+                SELECT 
+                    match_id,
+                    league,
+                    ph_snapshot, pd_snapshot, pa_snapshot,
+                    ph_close, pd_close, pa_close,
+                    actual_outcome,
+                    has_closing_odds,
+                    -- Calculate Brier Score
+                    CASE actual_outcome
+                        WHEN 'H' THEN POWER(1 - ph_snapshot, 2) + POWER(0 - pd_snapshot, 2) + POWER(0 - pa_snapshot, 2)
+                        WHEN 'D' THEN POWER(0 - ph_snapshot, 2) + POWER(1 - pd_snapshot, 2) + POWER(0 - pa_snapshot, 2)
+                        WHEN 'A' THEN POWER(0 - ph_snapshot, 2) + POWER(0 - pd_snapshot, 2) + POWER(1 - pa_snapshot, 2)
+                    END as brier_score,
+                    -- Calculate LogLoss
+                    CASE actual_outcome
+                        WHEN 'H' THEN -LN(GREATEST(ph_snapshot, 0.001))
+                        WHEN 'D' THEN -LN(GREATEST(pd_snapshot, 0.001))
+                        WHEN 'A' THEN -LN(GREATEST(pa_snapshot, 0.001))
+                    END as log_loss,
+                    -- Hit rate (predicted winner matches actual)
+                    CASE 
+                        WHEN actual_outcome = 'H' AND ph_snapshot > pd_snapshot AND ph_snapshot > pa_snapshot THEN 1
+                        WHEN actual_outcome = 'D' AND pd_snapshot > ph_snapshot AND pd_snapshot > pa_snapshot THEN 1
+                        WHEN actual_outcome = 'A' AND pa_snapshot > ph_snapshot AND pa_snapshot > pd_snapshot THEN 1
+                        ELSE 0
+                    END as hit,
+                    -- CLV calculations (when closing odds available)
+                    CASE WHEN has_closing_odds THEN
+                        CASE actual_outcome
+                            WHEN 'H' THEN (1.0 / ph_snapshot::numeric - 1.0 / ph_close)
+                            WHEN 'D' THEN (1.0 / pd_snapshot::numeric - 1.0 / pd_close)
+                            WHEN 'A' THEN (1.0 / pa_snapshot::numeric - 1.0 / pa_close)
+                        END
+                    END as clv_edge,
+                    CASE WHEN has_closing_odds THEN
+                        CASE actual_outcome
+                            WHEN 'H' THEN ((1.0 / ph_snapshot::numeric - 1.0 / ph_close) / (1.0 / ph_close))
+                            WHEN 'D' THEN ((1.0 / pd_snapshot::numeric - 1.0 / pd_close) / (1.0 / pd_close))
+                            WHEN 'A' THEN ((1.0 / pa_snapshot::numeric - 1.0 / pa_close) / (1.0 / pa_close))
+                        END
+                    END as clv_percent
+                FROM odds_accuracy_evaluation
+                WHERE {where_sql}
+            )
+            SELECT 
+                COUNT(*) as total_matches,
+                AVG(brier_score) as avg_brier,
+                AVG(log_loss) as avg_logloss,
+                AVG(hit) as hit_rate,
+                COUNT(*) FILTER (WHERE has_closing_odds) as matches_with_closing,
+                AVG(clv_edge) FILTER (WHERE has_closing_odds) as avg_clv_edge,
+                AVG(clv_percent) FILTER (WHERE has_closing_odds) as avg_clv_percent,
+                COUNT(*) FILTER (WHERE clv_edge > 0) as positive_clv_count
+            FROM metrics
+        """
+        
+        cursor.execute(eval_sql, params)
+        result = cursor.fetchone()
+        
+        if not result or result[0] == 0:
+            cursor.close()
+            conn.close()
+            return {
+                "status": "no_data",
+                "league": league or "All Leagues",
+                "window": window,
+                "message": "No matches with results found for the specified criteria"
+            }
+        
+        total, avg_brier, avg_logloss, hit_rate, closing_count, avg_clv_edge, avg_clv_pct, pos_clv = result
+        
+        # Build response
+        response = {
+            "status": "success",
+            "league": league or "All Leagues",
+            "window": window,
+            "sample_size": total,
+            "accuracy_metrics": {
+                "brier_score": round(float(avg_brier), 4) if avg_brier else None,
+                "log_loss": round(float(avg_logloss), 4) if avg_logloss else None,
+                "hit_rate": round(float(hit_rate), 4) if hit_rate else None,
+                "model_grade": _calculate_model_grade(avg_brier, avg_logloss, hit_rate) if avg_brier else None
+            }
+        }
+        
+        # Add CLV analysis if requested and available
+        if include_clv and closing_count > 0:
+            response["clv_analysis"] = {
+                "matches_with_closing_odds": closing_count,
+                "avg_clv_edge": round(float(avg_clv_edge), 6) if avg_clv_edge else None,
+                "avg_clv_percent": round(float(avg_clv_pct) * 100, 2) if avg_clv_pct else None,
+                "positive_clv_rate": round(float(pos_clv) / closing_count, 4) if closing_count > 0 else None,
+                "interpretation": _interpret_clv(avg_clv_pct) if avg_clv_pct else None
+            }
+        else:
+            response["clv_analysis"] = {
+                "status": "no_closing_odds",
+                "message": "No closing odds available yet for CLV analysis"
+            }
+        
+        cursor.close()
+        conn.close()
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in enhanced evaluation: {e}")
+        raise HTTPException(status_code=500, detail=f"Evaluation error: {str(e)}")
+
+def _calculate_model_grade(brier, logloss, hit_rate):
+    """Calculate model performance grade based on metrics"""
+    if not brier or not logloss or not hit_rate:
+        return None
+    
+    score = 0
+    if brier < 0.18:
+        score += 3
+    elif brier < 0.22:
+        score += 2
+    elif brier < 0.25:
+        score += 1
+    
+    if logloss < 0.85:
+        score += 3
+    elif logloss < 1.0:
+        score += 2
+    elif logloss < 1.1:
+        score += 1
+    
+    if hit_rate > 0.60:
+        score += 4
+    elif hit_rate > 0.55:
+        score += 3
+    elif hit_rate > 0.50:
+        score += 2
+    
+    grades = {
+        10: "A+", 9: "A", 8: "A-",
+        7: "B+", 6: "B", 5: "B-",
+        4: "C+", 3: "C", 2: "C-",
+        1: "D", 0: "F"
+    }
+    return grades.get(score, "F")
+
+def _interpret_clv(clv_percent):
+    """Interpret CLV percentage"""
+    if clv_percent is None:
+        return None
+    
+    pct = float(clv_percent) * 100
+    if pct > 5:
+        return "Exceptional - significantly beating closing line"
+    elif pct > 2:
+        return "Excellent - strong positive CLV"
+    elif pct > 0:
+        return "Positive - beating closing line"
+    elif pct > -2:
+        return "Neutral - tracking closing line"
+    elif pct > -5:
+        return "Negative - below closing line"
+    else:
+        return "Poor - significantly below closing line"
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
