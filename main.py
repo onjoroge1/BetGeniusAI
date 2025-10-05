@@ -2837,8 +2837,9 @@ async def trigger_manual_collection(api_key: str = Depends(verify_api_key)):
     try:
         logger.info("🔧 MANUAL collection trigger requested")
         
-        # Use the global scheduler instance
-        success = background_scheduler.trigger_immediate_collection(force=True)
+        # Ensure scheduler is loaded before using it
+        scheduler = get_background_scheduler()
+        success = scheduler.trigger_immediate_collection(force=True)
         
         if success:
             logger.info("✅ Manual collection triggered successfully")
