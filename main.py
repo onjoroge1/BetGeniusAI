@@ -141,36 +141,153 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize components
-data_collector = SportsDataCollector()
-ml_predictor = MLPredictor()
-ai_analyzer = AIAnalyzer()
-training_collector = TrainingDataCollector()
-comprehensive_analyzer = ComprehensiveAnalyzer()
-from models.automated_collector import AutomatedCollector
-automated_collector = AutomatedCollector()
+# ============ DEPLOYMENT OPTIMIZATION: IMMEDIATE HEALTH CHECK ============
+# Simple health endpoint that responds immediately without loading resources
+# This helps deployment detect the port is open quickly
+@app.get("/health", tags=["Health"])
+async def health_check():
+    """Lightweight health check for deployment readiness"""
+    return {"status": "healthy", "service": "BetGenius AI", "ready": True}
 
-# Enhanced components for production
-enhanced_data_collector = EnhancedRealDataCollector()
-consensus_predictor = SimpleWeightedConsensusPredictor()
-enhanced_ai_analyzer = EnhancedAIAnalyzer()
+@app.get("/", tags=["Health"])
+async def root():
+    """Root endpoint"""
+    return {"message": "BetGenius AI Backend", "status": "running", "docs": "/docs"}
 
-# Initialize CLV API
-clv_monitor = CLVMonitorAPI()
+# ============ LAZY INITIALIZATION FOR FAST STARTUP ============
+# Components are initialized on first use to reduce startup time
+# This prevents deployment timeouts waiting for heavy ML models to load
 
-# Initialize and start background scheduler
-from utils.scheduler import BackgroundScheduler
-background_scheduler = BackgroundScheduler()
+_data_collector = None
+_ml_predictor = None
+_ai_analyzer = None
+_training_collector = None
+_comprehensive_analyzer = None
+_automated_collector = None
+_enhanced_data_collector = None
+_consensus_predictor = None
+_enhanced_ai_analyzer = None
+_clv_monitor = None
+_background_scheduler = None
 
-# Startup event to start background scheduler
+def get_data_collector():
+    global _data_collector
+    if _data_collector is None:
+        _data_collector = SportsDataCollector()
+    return _data_collector
+
+def get_ml_predictor():
+    global _ml_predictor
+    if _ml_predictor is None:
+        _ml_predictor = MLPredictor()
+    return _ml_predictor
+
+def get_ai_analyzer():
+    global _ai_analyzer
+    if _ai_analyzer is None:
+        _ai_analyzer = AIAnalyzer()
+    return _ai_analyzer
+
+def get_training_collector():
+    global _training_collector
+    if _training_collector is None:
+        _training_collector = TrainingDataCollector()
+    return _training_collector
+
+def get_comprehensive_analyzer():
+    global _comprehensive_analyzer
+    if _comprehensive_analyzer is None:
+        _comprehensive_analyzer = ComprehensiveAnalyzer()
+    return _comprehensive_analyzer
+
+def get_automated_collector():
+    global _automated_collector
+    if _automated_collector is None:
+        from models.automated_collector import AutomatedCollector
+        _automated_collector = AutomatedCollector()
+    return _automated_collector
+
+def get_enhanced_data_collector():
+    global _enhanced_data_collector
+    if _enhanced_data_collector is None:
+        _enhanced_data_collector = EnhancedRealDataCollector()
+    return _enhanced_data_collector
+
+def get_consensus_predictor():
+    global _consensus_predictor
+    if _consensus_predictor is None:
+        _consensus_predictor = SimpleWeightedConsensusPredictor()
+    return _consensus_predictor
+
+def get_enhanced_ai_analyzer():
+    global _enhanced_ai_analyzer
+    if _enhanced_ai_analyzer is None:
+        _enhanced_ai_analyzer = EnhancedAIAnalyzer()
+    return _enhanced_ai_analyzer
+
+def get_clv_monitor():
+    global _clv_monitor
+    if _clv_monitor is None:
+        _clv_monitor = CLVMonitorAPI()
+    return _clv_monitor
+
+def get_background_scheduler():
+    global _background_scheduler
+    if _background_scheduler is None:
+        from utils.scheduler import BackgroundScheduler
+        _background_scheduler = BackgroundScheduler()
+        _background_scheduler.start_scheduler()
+        logger.info("✅ Background scheduler started (lazy-initialized)")
+    return _background_scheduler
+
+# Module-level variables for backward compatibility
+# Initialized as None, loaded on first use
+data_collector = None
+ml_predictor = None
+ai_analyzer = None
+training_collector = None
+comprehensive_analyzer = None
+automated_collector = None
+enhanced_data_collector = None
+consensus_predictor = None
+enhanced_ai_analyzer = None
+clv_monitor = None
+background_scheduler = None
+
+def ensure_components_loaded():
+    """Lazy load all components on first API call"""
+    global data_collector, ml_predictor, ai_analyzer, training_collector
+    global comprehensive_analyzer, automated_collector, enhanced_data_collector
+    global consensus_predictor, enhanced_ai_analyzer, clv_monitor, background_scheduler
+    
+    if ml_predictor is None:
+        ml_predictor = get_ml_predictor()
+    if consensus_predictor is None:
+        consensus_predictor = get_consensus_predictor()
+    if enhanced_ai_analyzer is None:
+        enhanced_ai_analyzer = get_enhanced_ai_analyzer()
+    if data_collector is None:
+        data_collector = get_data_collector()
+    if ai_analyzer is None:
+        ai_analyzer = get_ai_analyzer()
+    if training_collector is None:
+        training_collector = get_training_collector()
+    if comprehensive_analyzer is None:
+        comprehensive_analyzer = get_comprehensive_analyzer()
+    if automated_collector is None:
+        automated_collector = get_automated_collector()
+    if enhanced_data_collector is None:
+        enhanced_data_collector = get_enhanced_data_collector()
+    if clv_monitor is None:
+        clv_monitor = get_clv_monitor()
+    if background_scheduler is None:
+        background_scheduler = get_background_scheduler()
+
+# Startup event - minimal operations only
 @app.on_event("startup")
 async def startup_event():
-    """Start background services when app starts"""
-    logger.info("Starting BetGenius AI Backend - initializing background services...")
-    
-    # Start the 2am daily collection scheduler
-    background_scheduler.start_scheduler()
-    logger.info("✅ Enhanced scheduler started - every 6h weekdays, every 3h weekends for odds nuances")
+    """Minimal startup - services initialized on demand"""
+    logger.info("Starting BetGenius AI Backend - services will load on first use...")
 
 @app.on_event("shutdown")
 async def shutdown_event():

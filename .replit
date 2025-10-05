@@ -26,8 +26,8 @@ args = "python main.py"
 waitForPort = 8000
 
 [deployment]
-run = ["sh", "-c", "python main.py"]
-deploymentTarget = "cloudrun"
+run = ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+deploymentTarget = "autoscale"
 
 [[ports]]
 localPort = 5000
