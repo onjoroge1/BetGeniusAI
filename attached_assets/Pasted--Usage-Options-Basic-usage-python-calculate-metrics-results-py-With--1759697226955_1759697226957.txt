@@ -1,0 +1,98 @@
+**Usage Options:**
+
+**Basic usage:**
+
+```
+python calculate_metrics_results.py
+
+```
+
+**With options:**
+
+```
+python calculate_metrics_results.py --limit 20 --verbose
+
+```
+
+**Automated runner script:**
+
+```
+./run_metrics_calculation.sh
+
+```
+
+**🔄 How to Set Up Automation:**
+
+**Option 1: Manual runs** (when you want to check)
+
+```
+python calculate_metrics_results.py --limit 50
+
+```
+
+**Option 2: Cron job** (every 6 hours)
+
+```
+# Add to crontab:
+0 */6 * * * cd /path/to/project && python calculate_metrics_results.py --limit 100
+
+```
+
+**What Happens Next:**
+
+1. Script runs and finds completed matches
+2. Fetches final scores from RapidAPI
+3. Computes accuracy metrics automatically
+4. You can then check accuracy via:
+    - `GET /metrics/summary` - Overall performance stats
+    - `GET /metrics/match/{id}` - Individual match analysis
+
+You're right that `prediction_snapshot` gets auto-populated every time you call `/predict`, but `metrics_per_match` requires an additional step. Let me explain how it works:
+
+**Current `metrics_per_match` Population Process:**
+
+**No automated cron job yet** - it's currently manual/triggered:
+
+1. **Prediction snapshots auto-log**: ✅ Every `/predict` call automatically creates a `prediction_snapshot`
+2. **Match results need manual input**: You need to add the final match results
+3. **Metrics compute automatically**: Once results are added, metrics compute automatically
+
+**How to populate `metrics_per_match`:**
+
+**Option 1: Add individual match results**
+
+```
+curl -X POST "http://localhost:8000/metrics/result" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "match_id": 1419650,
+    "home_goals": 2,
+    "away_goals": 1,
+    "league": "Serie B"
+  }'
+
+```
+
+**Option 2: Bulk compute all available results**
+
+```
+curl -X POST "http://localhost:8000/metrics/compute" \
+  -H "Authorization: Bearer betgenius_secure_key_2024"
+
+```
+
+**What happens when you add a result:**
+
+1. Result gets saved to `match_results` table
+2. System automatically finds the matching `prediction_snapshot`
+3. Computes Brier score, LogLoss, and Hit rate
+4. Saves computed metrics to `metrics_per_match`
+
+**To make it fully automated, you'd need:**
+
+A background job that:
+
+1. Checks for completed matches (via RapidAPI or similar)
+2. Fetches final scores
+3. Calls the `/metrics/result` endpoint automatically
