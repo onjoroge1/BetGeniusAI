@@ -1,0 +1,27 @@
+INFO:models.automated_collector:🕐 Match 1340892 (Suwon City FC vs FC Seoul) - T-7.5h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-12h window (actual: T-7.5h, tolerance: ±8h)
+INFO:utils.scheduler:🛡️ Running 15-minute safety net check...
+INFO:models.bucket_filler:🛡️ SAFETY NET: Starting bucket fill check...
+INFO:models.bucket_filler:✅ SAFETY NET: No missing buckets found - all windows covered
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:utils.api_football_integration:Ingested 36 odds rows for fixture 1340892 (match_id=1340892) from 12 bookmakers
+INFO:models.automated_collector:✅ Collected 36 odds rows for fixture 1340892
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+WARNING:models.automated_collector:Failed to collect odds for match 1340892: aggregate function calls cannot be nested
+LINE 31:                         COUNT(*)::int
+                                 ^
+
+INFO:models.automated_collector:✅ API-Football real-time collection completed: 106 fixtures, 4047 rows inserted
+INFO:models.automated_collector:📊 Resolver Stats: {'from_matches': 0, 'from_snapshots': 123, 'from_live_search': 0, 'failed': 0}
+INFO:models.automated_collector:✅ MULTI-SOURCE collection completed:
+INFO:models.automated_collector:   • Training matches: 4 new
+INFO:models.automated_collector:   • The Odds API: 54 snapshots
+INFO:models.automated_collector:   • API-Football: 4047 rows
+INFO:models.automated_collector:   • Total odds collected: 4101
+INFO:models.automated_collector:   • Total data points: 4105
+INFO:utils.scheduler:🔧 MANUAL collection completed: 4 new matches
+INFO:utils.scheduler:🧮 [CONSENSUS] Starting consensus building for recent matches...
+INFO:utils.scheduler:🧮 [CONSENSUS] Found 145 candidate matches for consensus building
+INFO:utils.scheduler:✅ [CONSENSUS] Completed: 57 new predictions, 88 skipped, 145 total candidates
+INFO:utils.scheduler:📊 [CONSENSUS] Failure breakdown: no_bucket_hit: 88

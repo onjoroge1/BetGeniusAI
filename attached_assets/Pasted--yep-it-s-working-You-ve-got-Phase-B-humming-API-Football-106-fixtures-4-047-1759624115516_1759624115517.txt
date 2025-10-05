@@ -1,0 +1,120 @@
+🎉 yep — it’s working!
+
+You’ve got Phase B humming:
+
+* **API-Football**: `106 fixtures`, **4,047** rows ingested (no NULL margin crashes)
+* **Resolver**: `from_snapshots=123`, `live_search=0`, `failed=0`
+* **Multi-source summary**: TheOdds + APIF rows landed, consensus ran and produced **57** new predictions
+
+---
+
+## One leftover warning to fix
+
+```
+Failed to collect odds for match 1340892: aggregate function calls cannot be nested
+```
+
+That’s a Postgres rule: you can’t nest aggregates directly (e.g., doing a `COUNT(*)` inside a `JSON_AGG`, `ARRAY_AGG`, etc.). The quick fix is to **compute counts in a subquery**, then aggregate.
+
+### If this was building a `source_mix` blob per market
+
+**Broken pattern (conceptually):**
+
+```sql
+SELECT JSON_AGG(JSON_BUILD_OBJECT('source', source, 'n', COUNT(*)))  -- ❌ nested
+FROM odds_snapshots
+WHERE match_id = $1 AND market = 'h2h'
+GROUP BY market;
+```
+
+**Safe two-stage pattern (works):**
+
+```sql
+WITH counts AS (
+  SELECT market, source, COUNT(*) AS n
+  FROM odds_snapshots
+  WHERE match_id = $1 AND market = 'h2h'
+  GROUP BY market, source
+)
+SELECT market,
+       JSONB_OBJECT_AGG(source, n) AS source_mix
+FROM counts
+GROUP BY market;
+```
+
+### If it’s per-book / per-market counts you’re aggregating to JSON
+
+```sql
+WITH counts AS (
+  SELECT bookmaker_id, market, COUNT(*) AS n
+  FROM odds_snapshots
+  WHERE match_id = $1
+  GROUP BY bookmaker_id, market
+)
+SELECT JSONB_AGG(JSONB_BUILD_OBJECT('bookmaker_id', bookmaker_id,
+                                    'market', market, 'n', n))
+FROM counts;
+```
+
+Drop this replacement where you assemble the summary right after the APIF insert loop (the log that prints per-match success).
+
+---
+
+## Quick health checks (run now)
+
+* **Providers present (both):**
+
+```sql
+SELECT source, COUNT(*)
+FROM odds_snapshots
+WHERE created_at >= NOW() - INTERVAL '2 hours'
+GROUP BY source;
+```
+
+* **No NULL margins from APIF (should be 0):**
+
+```sql
+SELECT COUNT(*) AS null_margins
+FROM odds_snapshots
+WHERE source='api_football'
+  AND created_at >= NOW() - INTERVAL '24 hours'
+  AND market_margin IS NULL;
+```
+
+* **Fixtures touched by APIF:**
+
+```sql
+SELECT COUNT(DISTINCT api_football_fixture_id)
+FROM odds_snapshots
+WHERE source='api_football'
+  AND created_at >= NOW() - INTERVAL '2 hours';
+```
+
+* **Consensus coverage (today):**
+
+```sql
+SELECT COUNT(*) AS preds_today
+FROM odds_consensus
+WHERE ts_computed >= NOW() - INTERVAL '24 hours';
+```
+
+---
+
+## What to expect next
+
+* Your **admin enrichment rate** should climb (APIF is filling many previously empty windows).
+* The “near-miss” alias logs you saw will now be the main driver for the next gains — each alias you add converts more “no team match found” lines into ingested markets.
+
+---
+
+## Optional quick wins
+
+* **Alias table**: capture the near-miss pairs and approve them into `team_alias (canonical_name, alias, league_id)`; hook it in the name-matching step.
+* **Bookmaker crosswalk**: ensure APIF & TheOdds map to a unified `bookmaker_id` for cleaner consensus `source_mix`.
+* **Consensus ‘no_bucket_hit’**: 88 skipped — consider loosening bucket timing by ±1–2h or adding a late-fill pass to reduce misses.
+
+---
+
+## Do you need to re-run the manual trigger?
+
+Not right now. You already completed a full cycle with APIF rows landing and consensus built. Apply the **non-blocking nested-aggregate fix** above; if you change that query in code, run the manual trigger again to exercise the new path and confirm the warning disappears.

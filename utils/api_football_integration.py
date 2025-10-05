@@ -400,21 +400,34 @@ class ApiFootballIngestion:
                 ORDER BY os.match_id, os.market, os.outcome, 
                          COALESCE(bx.desk_group, os.book_id), os.ts_snapshot DESC
             ),
-            consensus_calc AS (
+            source_counts AS (
                 SELECT 
                     match_id,
                     league_id,
                     market,
                     outcome,
-                    COUNT(DISTINCT desk_group) as n_books,
-                    AVG(odds_decimal) as avg_odds,
-                    AVG(implied_prob) as avg_implied_prob,
-                    jsonb_object_agg(
-                        source,
-                        COUNT(*)::int
-                    ) as source_counts
+                    source,
+                    COUNT(*) as n
                 FROM latest_odds
-                GROUP BY match_id, league_id, market, outcome
+                GROUP BY match_id, league_id, market, outcome, source
+            ),
+            consensus_calc AS (
+                SELECT 
+                    lo.match_id,
+                    lo.league_id,
+                    lo.market,
+                    lo.outcome,
+                    COUNT(DISTINCT lo.desk_group) as n_books,
+                    AVG(lo.odds_decimal) as avg_odds,
+                    AVG(lo.implied_prob) as avg_implied_prob,
+                    (SELECT jsonb_object_agg(sc.source, sc.n)
+                     FROM source_counts sc
+                     WHERE sc.match_id = lo.match_id
+                       AND sc.market = lo.market
+                       AND sc.outcome = lo.outcome
+                    ) as source_counts
+                FROM latest_odds lo
+                GROUP BY lo.match_id, lo.league_id, lo.market, lo.outcome
             )
             INSERT INTO odds_consensus 
             (match_id, league_id, market, outcome, consensus_odds_decimal, 
