@@ -1,0 +1,220 @@
+Aight fam — the agent laid the rails, but V2 still got “placeholder” brains. Here’s the tight follow-up brief you can paste to the agent so we finish it, light it up in shadow, and get real A/B metrics + auto-promote when it wins.
+
+⸻
+
+✅ V2 Shadow — Finish Line Tasks (Copy to Agent)
+
+0) Non-negotiables
+	•	Replace placeholder V2 with a trained model (two-step draw + GBM + meta, per-league calibration).
+	•	Wire shadow scoring into the main /predict flow so v2 logs on every scored match.
+	•	Turn on closing odds collector so CLV metrics are real.
+	•	Prove it with /metrics/ab, /metrics/evaluation, /metrics/clv-summary.
+
+⸻
+
+1) Train real V2 (time-series CV, per-league calibrators)
+
+Implement scripts/train_v2.py (outline):
+
+# scripts/train_v2.py
+# Inputs: training_matches + match_features (normalized probs, dispersion, drift, form5, elo_delta, rest_days, stage)
+# Outputs: /models/v2/{win_model.bin, draw_model.bin, gbm.bin, meta_logit.bin}
+#          /models/v2/calibration/{league_id}.iso  (fallback: global.iso)
+#          manifest.json
+
+# Steps:
+# 1) Build X,y from last 12–24 months (time-series folds, rolling origin)
+# 2) Two-step:
+#    a) draw_model: binary Draw vs Not-Draw
+#    b) win_model:  binary Home vs Away (trained on Not-Draw subset)
+# 3) GBM multiclass (H/D/A) with same features
+# 4) Meta-logit blends: [pH_2step, pD_2step, pA_2step, pH_gbm, pD_gbm, pA_gbm, league one-hots (if small)]
+# 5) Fit **per-league isotonic** on final triplet; if N<200 → use global.iso
+# 6) Save models + calibrators + manifest with git SHA and date
+
+Features (must exist in match_features):
+	•	prob_home, prob_draw, prob_away (overround-normalized)
+	•	book_dispersion (avg std across books H/D/A)
+	•	drift_24h_home/draw/away
+	•	form5_home_points, form5_away_points
+	•	elo_delta
+	•	rest_days_home, rest_days_away
+	•	stage (group/knockout/etc.), plus league_id
+
+CV discipline: monthly folds, no look-ahead. Optimize logloss.
+
+⸻
+
+2) Replace placeholder logic
+
+File: models/v2_predictor.py
+	•	Load saved models + calibrators from /models/v2/...
+	•	Predict:
+	1.	p_draw = draw_model(x)
+	2.	p_home_no_draw = win_model(x)
+	3.	Two-step probs → pH2=(1-p_draw)*p_home_no_draw, pA2=(1-p_draw)*(1-p_home_no_draw)
+	4.	pHgbm,pDgbm,pAgbm = gbm.predict_proba(x)
+	5.	Meta-logit on concatenated probs (and small context) → raw triplet
+	6.	Apply league isotonic; clip ±0.03 bias; renormalize
+	•	Emit reason_code:
+	•	RC_DRAW_2STEP_DOMINANT | RC_GBM_DOMINANT | RC_CALIBRATION_LEAGUE_GLOBAL_FALLBACK | RC_CALIBRATION_CLIPPED
+
+⸻
+
+3) Shadow scoring in the main path
+
+Modify /predict (or the match scoring loop) to always:
+	•	Call v1 (primary) → return to caller
+	•	If ENABLE_SHADOW_V2=true: call v2, log both to model_inference_logs (UPSERT by match_id, model_version)
+
+Response stays v1; set header X-Shadow-V2: logged.
+
+⸻
+
+4) Closing odds: make CLV real
+
+Guarantees to enforce:
+	•	closing_odds has one row per match_id
+	•	Value is last tick ≤ kickoff − CLOSING_ODDS_CUTOFF_SECONDS
+	•	Store both odds and normalized probs (close_*_prob)
+
+Run loop: workers/closing_odds_collector.py every 30s for fixtures in [T-30m, T+2m] → UPSERT.
+
+Index (idempotency):
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_closing_unique ON closing_odds(match_id);
+
+
+⸻
+
+5) Evaluation view: include model_version + CLV
+
+Create/replace odds_accuracy_evaluation_v2:
+
+CREATE OR REPLACE VIEW odds_accuracy_evaluation_v2 AS
+WITH base AS (
+  SELECT
+    mil.match_id,
+    m.league_id,
+    mil.model_version,
+    mil.p_home, mil.p_draw, mil.p_away,
+    GREATEST(1e-9, mil.p_home) AS ph,  -- for logloss safety
+    GREATEST(1e-9, mil.p_draw) AS pd,
+    GREATEST(1e-9, mil.p_away) AS pa,
+    r.home_goals, r.away_goals,
+    CASE WHEN r.home_goals IS NULL THEN NULL
+         WHEN r.home_goals > r.away_goals THEN 'H'
+         WHEN r.home_goals = r.away_goals THEN 'D'
+         ELSE 'A' END AS actual
+  FROM model_inference_logs mil
+  JOIN matches m ON m.match_id = mil.match_id
+  LEFT JOIN match_results r ON r.match_id = mil.match_id
+),
+scored AS (
+  SELECT *,
+    CASE actual
+      WHEN 'H' THEN -LN(ph)
+      WHEN 'D' THEN -LN(pd)
+      WHEN 'A' THEN -LN(pa)
+      ELSE NULL END AS logloss,
+    (
+      POWER(ph - CASE WHEN actual='H' THEN 1 ELSE 0 END, 2) +
+      POWER(pd - CASE WHEN actual='D' THEN 1 ELSE 0 END, 2) +
+      POWER(pa - CASE WHEN actual='A' THEN 1 ELSE 0 END, 2)
+    )/3.0 AS brier,
+    CASE WHEN actual IS NOT NULL AND
+              (ph>=pd AND ph>=pa AND actual='H' OR
+               pd>=ph AND pd>=pa AND actual='D' OR
+               pa>=ph AND pa>=pd AND actual='A')
+         THEN 1 ELSE 0 END AS hit
+  FROM base
+),
+clv AS (
+  SELECT
+    s.match_id,
+    co.close_home_prob, co.close_draw_prob, co.close_away_prob
+  FROM scored s
+  LEFT JOIN closing_odds co ON co.match_id = s.match_id
+)
+SELECT
+  s.*, 
+  CASE WHEN clv.close_home_prob IS NULL THEN NULL
+       WHEN s.ph > clv.close_home_prob AND (s.ph>=s.pd AND s.ph>=s.pa) THEN 1
+       WHEN s.pd > clv.close_draw_prob AND (s.pd>=s.ph AND s.pd>=s.pa) THEN 1
+       WHEN s.pa > clv.close_away_prob AND (s.pa>=s.ph AND s.pa>=s.pd) THEN 1
+       ELSE 0 END AS clv_beats_close,
+  CASE
+    WHEN clv.close_home_prob IS NULL THEN NULL
+    WHEN s.ph>=s.pd AND s.ph>=s.pa THEN s.ph - clv.close_home_prob
+    WHEN s.pd>=s.ph AND s.pd>=s.pa THEN s.pd - clv.close_draw_prob
+    ELSE s.pa - clv.close_away_prob
+  END AS clv_edge
+FROM scored s
+LEFT JOIN clv ON clv.match_id = s.match_id;
+
+(CLV: simple probability edge on the model’s top pick vs closing. Good enough for A/B gating.)
+
+⸻
+
+6) Metrics endpoints — verify payloads
+	•	GET /metrics/evaluation?window=90d&model=both → must include model_version splits.
+	•	GET /metrics/ab?window=90d → must include deltas for LogLoss, Brier, Hit, CLV% (clv_beats_close mean), Mean CLV (clv_edge mean), plus by_league.
+	•	GET /metrics/clv-summary?window=90d&model=v2 → { n_with_closing, clv_hit, mean_clv, by_league: [...] }.
+
+⸻
+
+7) Autopromotion — keep the rules tight
+	•	Check /metrics/ab?window=90d every 6h.
+	•	Promote when ALL true for 7 consecutive days and ≥300 matches:
+	•	ΔLogLoss ≤ -0.05
+	•	ΔBrier ≤ -0.02
+	•	CLV_hit_v2 > 0.55
+	•	No Tier-1 league worse than v1 by > 0.00
+	•	Do 24h 10% canary via header flag, then flip PRIMARY_MODEL_VERSION=v2 if stable.
+
+⸻
+
+8) Smoke tests (run now)
+
+# Turn on shadow
+psql $DATABASE_URL -c "UPDATE model_config SET config_value='true' WHERE config_key='ENABLE_SHADOW_V2';"
+curl -s http://localhost:8000/predict/which-primary
+
+# Populate features for upcoming fixtures
+python populate_match_features.py 200
+
+# Force-score a batch in shadow
+curl -X POST http://localhost:8000/predict/v2/shadow \
+  -H "Authorization: Bearer betgenius_secure_key_2024" \
+  -H "Content-Type: application/json" -d '{"match_ids":[123,124,125]}'
+
+# Verify inference logs
+psql $DATABASE_URL -c "SELECT model_version, COUNT(*) FROM model_inference_logs GROUP BY 1;"
+
+# Start/verify closing odds worker (ensure it runs continuously)
+# (agent: add to scheduler/pm2/cron as needed)
+
+# A/B metrics
+curl -s "http://localhost:8000/metrics/ab?window=90d" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+# Evaluation v2 only
+curl -s "http://localhost:8000/metrics/evaluation?window=90d&model=v2" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+# CLV summary v2
+curl -s "http://localhost:8000/metrics/clv-summary?window=90d&model=v2" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+
+⸻
+
+9) Acceptance bar for “A” model (what we’re chasing)
+	•	Rolling 90-day LogLoss ≤ 0.80, Brier ≤ 0.56, Hit ≥ 55%.
+	•	CLV: clv_beats_close > 55% and positive mean clv_edge.
+	•	No Tier-1 league regression vs v1.
+	•	p95 latency +< 10ms vs v1.
+
+⸻
+
+If the agent completes the above, we’ll have a real V2, shadowing cleanly, with hard metrics and a safe auto-promote. That’s how we level up to an A, for real.
