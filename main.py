@@ -2106,6 +2106,39 @@ async def predict_match(
                     'data_source': 'no_real_data_available'
                 }
         
+        # Step 2.5: Shadow V2 Inference (if enabled)
+        # Run both v1 (consensus) and v2 in parallel, log both predictions
+        shadow_logged = False
+        try:
+            from models.shadow_inference import ShadowInferenceCoordinator
+            coordinator = ShadowInferenceCoordinator()
+            
+            if coordinator.is_shadow_enabled() and prediction_result and prediction_result.get('confidence', 0) > 0:
+                # Prepare features for V2
+                features = {
+                    'match_id': request.match_id,
+                    'league_id': match_details.get('league', {}).get('id', 0),
+                    'prob_home': prediction_result.get('probabilities', {}).get('home', 0.33),
+                    'prob_draw': prediction_result.get('probabilities', {}).get('draw', 0.33),
+                    'prob_away': prediction_result.get('probabilities', {}).get('away', 0.33),
+                    'overround': prediction_result.get('bookmaker_count', 1.0),
+                    'book_dispersion': 0.0,  # TODO: calculate from odds_snapshots
+                    'drift_24h_home': 0.0,
+                    'drift_24h_draw': 0.0,
+                    'drift_24h_away': 0.0,
+                }
+                
+                # Run shadow inference (logs both v1 and v2)
+                shadow_result = await coordinator.predict_with_shadow(
+                    match_id=request.match_id,
+                    v1_prediction=prediction_result,
+                    features=features
+                )
+                shadow_logged = shadow_result.get('shadow_logged', False)
+                logger.info(f"Shadow inference logged: v1 + v2 for match {request.match_id}")
+        except Exception as e:
+            logger.warning(f"Shadow inference error (non-fatal): {e}")
+        
         # Step 3: Enhanced AI analysis using comprehensive data
         ai_analysis = None
         if request.include_analysis:
