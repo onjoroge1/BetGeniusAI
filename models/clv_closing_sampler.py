@@ -46,7 +46,7 @@ class CLVClosingSampler:
                 cursor.execute("""
                     SELECT DISTINCT
                         os.match_id,
-                        os.league,
+                        CAST(os.league_id AS text) as league_name,
                         m.match_date_utc as kickoff_at
                     FROM odds_snapshots os
                     INNER JOIN matches m ON os.match_id = m.match_id
