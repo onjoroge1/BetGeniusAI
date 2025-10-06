@@ -2514,7 +2514,8 @@ async def get_upcoming_matches(
     - exclude_finished: If true, only return upcoming matches (default: false)
     """
     try:
-        matches = await data_collector.get_upcoming_matches(
+        collector = get_data_collector()
+        matches = await collector.get_upcoming_matches(
             league_id=league_id, 
             limit=limit,
             from_date=from_date,
