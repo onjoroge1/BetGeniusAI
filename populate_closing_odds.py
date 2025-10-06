@@ -87,14 +87,17 @@ def populate_closing_odds_for_match(match_id: int) -> bool:
                 SELECT MAX(ts) FROM clv_closing_feed WHERE match_id = %s
             """, (match_id,))
             
-            closing_time = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            closing_time = result[0] if result else None
             
             # Calculate average books used
             cursor.execute("""
                 SELECT AVG(books_used) FROM clv_closing_feed WHERE match_id = %s
             """, (match_id,))
             
-            avg_books = cursor.fetchone()[0] or 0
+            result = cursor.fetchone()
+            avg_books = result[0] if result else 0
+            avg_books = int(avg_books) if avg_books else 0
             
             # Insert or update closing_odds
             cursor.execute("""
@@ -114,7 +117,7 @@ def populate_closing_odds_for_match(match_id: int) -> bool:
                     created_at = NOW()
             """, (
                 match_id, h_close, d_close, a_close,
-                closing_time, int(avg_books), 
+                closing_time, avg_books, 
                 f"{h_method}/{d_method}/{a_method}",
                 h_samples + d_samples + a_samples
             ))

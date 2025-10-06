@@ -1,0 +1,96 @@
+Absolutely stellar update—this unblocks CLV end-to-end. Here’s a tight action plan so this ships cleanly and stays healthy.
+
+# Do-this-now checklist
+
+1. **Sanity checks (schema + perms)**
+
+* `psql $DATABASE_URL -c "\d+ clv_closing_feed"`
+* `psql $DATABASE_URL -c "\d+ closing_odds"`
+* Keep your counts check:
+  `psql $DATABASE_URL -c "SELECT COUNT(*) FROM clv_closing_feed;"; psql $DATABASE_URL -c "SELECT COUNT(*) FROM closing_odds;"`
+
+2. **Make aggregation idempotent (safe re-runs)**
+   Add an UPSERT in `populate_closing_odds.py`’s final write:
+
+```sql
+INSERT INTO closing_odds (match_id, market, side, closing_price, closing_at, method)
+VALUES ($1,$2,$3,$4,$5,$6)
+ON CONFLICT (match_id, market, side)
+DO UPDATE SET closing_price = EXCLUDED.closing_price,
+              closing_at    = EXCLUDED.closing_at,
+              method        = EXCLUDED.method;
+```
+
+…and ensure a unique constraint:
+
+```sql
+ALTER TABLE closing_odds
+ADD CONSTRAINT closing_odds_unique UNIQUE (match_id, market, side);
+```
+
+3. **Sampler fix (points at wrong table)**
+
+* Confirm the sampler’s write target is **`clv_closing_feed`** (env var or code constant).
+* Quick probe while it runs:
+  `SELECT match_id, price, ts FROM clv_closing_feed ORDER BY ts DESC LIMIT 5;`
+
+4. **Indexes for speed**
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_clf_match_ts ON clv_closing_feed (match_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_co_match ON closing_odds (match_id);
+```
+
+5. **Smoke test flow (today)**
+
+* If you’ve got games within the T-6m…T+2m window, just let the sampler collect, then:
+
+  ```bash
+  python populate_closing_odds.py
+  curl "http://localhost:8000/metrics/evaluation?window=all" \
+    -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+  ```
+* If not, trigger:
+
+  ```bash
+  python trigger_manual_collection.py
+  # wait ~60–120s for sampler, then
+  python populate_closing_odds.py
+  ```
+
+# (Optional) Fast local simulation
+
+If you want CLV visible immediately, seed one match with synthetic closing samples:
+
+```sql
+-- pick an existing match_id from your snapshots table
+-- and pretend kickoff is now; insert a few ticks in the T-6m..T+2m window
+INSERT INTO clv_closing_feed (match_id, market, side, price, ts)
+VALUES
+  ($MATCH, 'moneyline', 'home', 1.95, now() - interval '5 minutes'),
+  ($MATCH, 'moneyline', 'home', 1.92, now() - interval '3 minutes'),
+  ($MATCH, 'moneyline', 'home', 1.90, now() - interval '1 minute'),
+  ($MATCH, 'moneyline', 'home', 1.91, now());
+
+-- then aggregate:
+-- python populate_closing_odds.py
+```
+
+# Observability & guardrails
+
+* **Freshness SLO:** alert if `COUNT(*) FROM clv_closing_feed WHERE ts > now()-interval '24 hours'` is 0 while there were upcoming matches.
+* **Aggregation health:** alert if `closing_odds` didn’t change in the last 24h but `clv_closing_feed` did.
+* **Dash slice:** a tiny card on /metrics showing `last_closing_odds_at` and row counts.
+
+# API contract nits (to future-proof)
+
+* Ensure `/metrics/evaluation` always returns CLV fields, even when missing (e.g., `clv_delta: null`, `no_closing_odds: true`).
+* Add a `method` echo (`LAST5_VWAP` vs `LAST_TICK`) per market/side so you can A/B later without guessing.
+
+# Runbook (one-liner)
+
+* Status: `./CLOSING_ODDS_COMMANDS.sh`
+* Populate: `python populate_closing_odds.py`
+* Verify: the two curls in your note (all-time and 7d)
+
+Everything’s wired—the only blocker is fresh `clv_closing_feed` rows. Once those land, the aggregation + metrics will light up. If you want, I can draft a tiny PR diff for the sampler table name/env check and the UPSERT.
