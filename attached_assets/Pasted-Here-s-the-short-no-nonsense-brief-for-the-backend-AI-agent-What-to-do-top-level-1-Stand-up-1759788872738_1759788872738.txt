@@ -1,0 +1,87 @@
+Here’s the short, no-nonsense brief for the backend AI agent 👇
+
+What to do (top-level)
+	1.	Stand up a shadow Test Model (v2) and score every upcoming match alongside v1.
+	2.	Log everything from both models (probs, latency, reason codes) for A/B metrics.
+	3.	Capture closing odds once per match to enable real CLV validation.
+	4.	Expose metrics endpoints to compare v1 vs v2 (overall + by league).
+	5.	Auto-promote v2 to primary if it beats v1 by defined thresholds.
+
+Exact tasks (agent checklist)
+	•	DB / Schema
+	•	Create/ensure:
+	•	match_features (normalized probs, drift, dispersion, form, Elo, rest days, stage).
+	•	model_inference_logs (match_id, model_version v1/v2, probs, latency, reason_code).
+	•	closing_odds (one deduped normalized closing snapshot per match).
+	•	Update odds_accuracy_evaluation view to include model_version + CLV fields.
+	•	Feature pipeline
+	•	Populate match_features daily and on new fixtures.
+	•	Compute:
+	•	Overround-normalized probs (sum to 1).
+	•	24h drift for H/D/A.
+	•	Book dispersion (std across books).
+	•	Form (last 5), Elo delta, rest days, stage/round.
+	•	Model v2 (shadow)
+	•	Train two-step draw + GBM, stack with meta-logit.
+	•	Per-league isotonic calibration (fallback to global, clip |Δ|≤0.03, renorm).
+	•	Add inference fn that returns [pH,pD,pA] + reason_code.
+	•	Endpoints
+	•	POST /predict/v2/shadow: run v2 (and v1 if enabled), log to model_inference_logs; respond with current primary only.
+	•	GET /predict/which-primary: returns current primary model.
+	•	GET /metrics/ab: A/B diff (LogLoss, Brier, Hit, CLV% + mean CLV), overall + by league.
+	•	Extend GET /metrics/evaluation to filter by model=v1|v2|both.
+	•	GET /metrics/clv-summary: CLV stats for a window & model.
+	•	Closing odds worker
+	•	Every 30s near kickoff: write exactly one normalized closing row (latest tick ≤ kickoff − cutoff), UPSERT by match_id.
+	•	Autopromote
+	•	Cron every 6h:
+	•	Read /metrics/ab?window=90d.
+	•	Promote v2 when:
+	•	ΔLogLoss ≤ −0.05, ΔBrier ≤ −0.02,
+	•	CLV% (beat close) > 55%,
+	•	≥300 matches, 7-day streak,
+	•	No Tier-1 league regression > 0.00.
+	•	Canary 10% for 24h, then flip PRIMARY_MODEL_VERSION=v2 if stable.
+
+Inputs the agent needs
+	•	Access to odds snapshots, fixtures, results, leagues.
+	•	Bookmaker odds history (for drift/dispersion).
+	•	Result feed (API-Football) for form/Elo updates.
+	•	Env flags:
+	•	PRIMARY_MODEL_VERSION, ENABLE_SHADOW_V2,
+	•	promotion thresholds, closing cutoff seconds.
+
+Outputs we expect
+	•	Fresh rows in match_features, model_inference_logs, closing_odds.
+	•	Working endpoints: /predict/v2/shadow, /metrics/ab, /metrics/evaluation, /metrics/clv-summary, /predict/which-primary.
+	•	A daily JSON report (optional) showing A/B deltas and promotion streak.
+
+Success criteria (the “A” bar)
+	•	Rolling 90-day LogLoss ≤ 0.80, Brier ≤ 0.56, Hit ≥ 55%.
+	•	CLV: >55% of picks beat close; positive mean CLV.
+	•	No Tier-1 league worse than v1.
+	•	p95 latency increase < 10ms.
+
+Quick smoke commands
+
+# score a batch in shadow
+curl -X POST http://localhost:8000/predict/v2/shadow \
+  -H "Authorization: Bearer betgenius_secure_key_2024" \
+  -H "Content-Type: application/json" -d '{"match_ids":[123,124,125]}'
+
+# A/B metrics (90d)
+curl -s "http://localhost:8000/metrics/ab?window=90d" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+# eval for v2 only
+curl -s "http://localhost:8000/metrics/evaluation?window=90d&model=v2" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+# CLV summary
+curl -s "http://localhost:8000/metrics/clv-summary?window=90d&model=v2" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+# which model is primary
+curl -s http://localhost:8000/predict/which-primary
+
+That’s the full marching order. Paste this to the agent and let it cook. 🍳

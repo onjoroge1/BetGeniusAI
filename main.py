@@ -4054,3 +4054,294 @@ async def predict_availability(
         raise HTTPException(status_code=500, detail=f"Availability check failed: {str(e)}")
 
 
+
+# ============ V2 SHADOW MODEL ENDPOINTS ============
+
+@app.get("/predict/which-primary")
+async def get_primary_model():
+    """Get current primary model version (v1 or v2)"""
+    try:
+        from models.shadow_inference import ShadowInferenceCoordinator
+        
+        coordinator = ShadowInferenceCoordinator()
+        primary = coordinator.get_primary_model()
+        shadow_enabled = coordinator.is_shadow_enabled()
+        
+        return {
+            "primary_model": primary,
+            "shadow_enabled": shadow_enabled,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting primary model: {e}")
+        return {"primary_model": "v1", "shadow_enabled": False}
+
+
+@app.get("/metrics/ab")
+async def get_ab_metrics(
+    window: str = "90d",
+    league: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    A/B comparison metrics between v1 and v2 models
+    
+    Args:
+        window: Time window (7d, 14d, 30d, 90d, all)
+        league: Filter by league (optional)
+    """
+    try:
+        import psycopg2
+        
+        window_days = {
+            "7d": 7, "14d": 14, "30d": 30, "90d": 90, "all": 9999
+        }.get(window, 90)
+        
+        with psycopg2.connect(os.environ.get('DATABASE_URL')) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                WITH predictions AS (
+                    SELECT 
+                        mil.match_id,
+                        mil.model_version,
+                        mil.p_home,
+                        mil.p_draw,
+                        mil.p_away,
+                        mr.outcome AS actual_outcome,
+                        co.h_close_odds AS ph_close,
+                        co.d_close_odds AS pd_close,
+                        co.a_close_odds AS pa_close,
+                        m.league_id
+                    FROM model_inference_logs mil
+                    JOIN matches m ON mil.match_id = m.match_id
+                    LEFT JOIN match_results mr ON mil.match_id = mr.match_id
+                    LEFT JOIN closing_odds co ON mil.match_id = co.match_id
+                    WHERE mil.scored_at > NOW() - INTERVAL '%s days'
+                        AND mr.outcome IS NOT NULL
+                ),
+                metrics_per_model AS (
+                    SELECT
+                        model_version,
+                        COUNT(*) AS n_matches,
+                        
+                        -- Brier score
+                        AVG(
+                            POWER(CASE WHEN actual_outcome = 'H' THEN 1 ELSE 0 END - p_home, 2) +
+                            POWER(CASE WHEN actual_outcome = 'D' THEN 1 ELSE 0 END - p_draw, 2) +
+                            POWER(CASE WHEN actual_outcome = 'A' THEN 1 ELSE 0 END - p_away, 2)
+                        ) AS brier_score,
+                        
+                        -- LogLoss
+                        -AVG(
+                            LN(CASE actual_outcome
+                                WHEN 'H' THEN GREATEST(p_home, 0.001)
+                                WHEN 'D' THEN GREATEST(p_draw, 0.001)
+                                WHEN 'A' THEN GREATEST(p_away, 0.001)
+                            END)
+                        ) AS log_loss,
+                        
+                        -- Hit rate
+                        AVG(
+                            CASE WHEN (
+                                (actual_outcome = 'H' AND p_home > p_draw AND p_home > p_away) OR
+                                (actual_outcome = 'D' AND p_draw > p_home AND p_draw > p_away) OR
+                                (actual_outcome = 'A' AND p_away > p_home AND p_away > p_draw)
+                            ) THEN 1.0 ELSE 0.0 END
+                        ) AS hit_rate,
+                        
+                        -- CLV metrics (if closing odds available)
+                        AVG(CASE
+                            WHEN ph_close IS NOT NULL THEN
+                                CASE WHEN (
+                                    (actual_outcome = 'H' AND (1.0/p_home) > ph_close) OR
+                                    (actual_outcome = 'D' AND (1.0/p_draw) > pd_close) OR
+                                    (actual_outcome = 'A' AND (1.0/p_away) > pa_close)
+                                ) THEN 1.0 ELSE 0.0 END
+                            END
+                        ) AS clv_hit_rate,
+                        
+                        AVG(CASE
+                            WHEN ph_close IS NOT NULL THEN
+                                CASE actual_outcome
+                                    WHEN 'H' THEN (1.0/p_home - ph_close) / ph_close
+                                    WHEN 'D' THEN (1.0/p_draw - pd_close) / pd_close
+                                    WHEN 'A' THEN (1.0/p_away - pa_close) / pa_close
+                                END
+                            END
+                        ) AS mean_clv
+                        
+                    FROM predictions
+                    GROUP BY model_version
+                )
+                SELECT * FROM metrics_per_model
+            """, (window_days,))
+            
+            rows = cursor.fetchall()
+            
+        if not rows:
+            return {
+                "window": window,
+                "league": league or "ALL",
+                "n_matches": 0,
+                "error": "No predictions found for comparison"
+            }
+        
+        metrics_by_version = {}
+        for row in rows:
+            model_version, n_matches, brier, logloss, hit_rate, clv_hit, mean_clv = row
+            metrics_by_version[model_version] = {
+                "n_matches": n_matches,
+                "brier_score": float(brier) if brier else None,
+                "log_loss": float(logloss) if logloss else None,
+                "hit_rate": float(hit_rate) if hit_rate else None,
+                "clv_hit_rate": float(clv_hit) if clv_hit else None,
+                "mean_clv": float(mean_clv) if mean_clv else None
+            }
+        
+        v1 = metrics_by_version.get('v1', {})
+        v2 = metrics_by_version.get('v2', {})
+        
+        def calc_delta(v2_val, v1_val):
+            if v2_val is None or v1_val is None:
+                return None
+            return v2_val - v1_val
+        
+        return {
+            "window": window,
+            "league": league or "ALL",
+            "n_matches": v1.get('n_matches', 0) + v2.get('n_matches', 0),
+            "overall": {
+                "log_loss": {
+                    "v1": v1.get('log_loss'),
+                    "v2": v2.get('log_loss'),
+                    "delta": calc_delta(v2.get('log_loss'), v1.get('log_loss'))
+                },
+                "brier": {
+                    "v1": v1.get('brier_score'),
+                    "v2": v2.get('brier_score'),
+                    "delta": calc_delta(v2.get('brier_score'), v1.get('brier_score'))
+                },
+                "hit": {
+                    "v1": v1.get('hit_rate'),
+                    "v2": v2.get('hit_rate'),
+                    "delta": calc_delta(v2.get('hit_rate'), v1.get('hit_rate'))
+                },
+                "clv_hit": {
+                    "v1": v1.get('clv_hit_rate'),
+                    "v2": v2.get('clv_hit_rate'),
+                    "delta": calc_delta(v2.get('clv_hit_rate'), v1.get('clv_hit_rate'))
+                },
+                "mean_clv": {
+                    "v1": v1.get('mean_clv'),
+                    "v2": v2.get('mean_clv'),
+                    "delta": calc_delta(v2.get('mean_clv'), v1.get('mean_clv'))
+                }
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error generating A/B metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate A/B metrics: {str(e)}")
+
+
+@app.get("/metrics/clv-summary")
+async def get_clv_summary(
+    window: str = "90d",
+    model: str = "v2",
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    CLV summary for specified model and time window
+    
+    Args:
+        window: Time window (7d, 14d, 30d, 90d, all)
+        model: Model version (v1 or v2)
+    """
+    try:
+        import psycopg2
+        
+        window_days = {
+            "7d": 7, "14d": 14, "30d": 30, "90d": 90, "all": 9999
+        }.get(window, 90)
+        
+        with psycopg2.connect(os.environ.get('DATABASE_URL')) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                WITH predictions_with_closing AS (
+                    SELECT 
+                        mil.match_id,
+                        mil.p_home,
+                        mil.p_draw,
+                        mil.p_away,
+                        mr.outcome AS actual_outcome,
+                        co.h_close_odds AS ph_close,
+                        co.d_close_odds AS pd_close,
+                        co.a_close_odds AS pa_close,
+                        m.league_id
+                    FROM model_inference_logs mil
+                    JOIN matches m ON mil.match_id = m.match_id
+                    JOIN match_results mr ON mil.match_id = mr.match_id
+                    JOIN closing_odds co ON mil.match_id = co.match_id
+                    WHERE mil.model_version = %s
+                        AND mil.scored_at > NOW() - INTERVAL '%s days'
+                        AND co.h_close_odds IS NOT NULL
+                )
+                SELECT
+                    COUNT(*) AS n_with_closing,
+                    
+                    AVG(CASE WHEN (
+                        (actual_outcome = 'H' AND (1.0/p_home) > ph_close) OR
+                        (actual_outcome = 'D' AND (1.0/p_draw) > pd_close) OR
+                        (actual_outcome = 'A' AND (1.0/p_away) > pa_close)
+                    ) THEN 1.0 ELSE 0.0 END) AS clv_hit_rate,
+                    
+                    AVG(CASE actual_outcome
+                        WHEN 'H' THEN (1.0/p_home - ph_close) / ph_close
+                        WHEN 'D' THEN (1.0/p_draw - pd_close) / pd_close
+                        WHEN 'A' THEN (1.0/p_away - pa_close) / pa_close
+                    END) AS mean_clv,
+                    
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 
+                        CASE actual_outcome
+                            WHEN 'H' THEN (1.0/p_home - ph_close) / ph_close
+                            WHEN 'D' THEN (1.0/p_draw - pd_close) / pd_close
+                            WHEN 'A' THEN (1.0/p_away - pa_close) / pa_close
+                        END
+                    ) AS median_clv
+                    
+                FROM predictions_with_closing
+            """, (model, window_days))
+            
+            row = cursor.fetchone()
+            
+        if not row or row[0] == 0:
+            return {
+                "model": model,
+                "window": window,
+                "n_with_closing": 0,
+                "status": "no_closing_odds",
+                "message": "No closing odds available for CLV analysis"
+            }
+        
+        n_with_closing, clv_hit, mean_clv, median_clv = row
+        
+        return {
+            "model": model,
+            "window": window,
+            "n_with_closing": n_with_closing,
+            "clv_hit_rate": float(clv_hit) if clv_hit else 0.0,
+            "mean_clv": float(mean_clv) if mean_clv else 0.0,
+            "median_clv": float(median_clv) if median_clv else 0.0,
+            "interpretation": (
+                "Excellent - strong positive CLV" if (clv_hit and clv_hit > 0.55) else
+                "Good - slight edge" if (clv_hit and clv_hit > 0.52) else
+                "Break-even" if (clv_hit and clv_hit > 0.48) else
+                "Needs improvement"
+            ),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error generating CLV summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate CLV summary: {str(e)}")

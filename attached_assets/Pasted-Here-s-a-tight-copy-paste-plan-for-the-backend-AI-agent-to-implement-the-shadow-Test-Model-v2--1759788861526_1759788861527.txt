@@ -1,0 +1,212 @@
+Here’s a tight, copy-paste plan for the backend AI agent to implement the shadow “Test Model (v2)”, log everything, and expose clear A/B metrics + auto-promote when it wins.
+
+⸻
+
+SnapBet — Test Model (v2) Shadow & Autopromote Plan
+
+0) Config flags (env)
+	•	PRIMARY_MODEL_VERSION=v1  # v1|v2; agent flips this on promote
+	•	ENABLE_SHADOW_V2=true     # if true, score v2 in parallel and log
+	•	PROMOTE_THRESH_LOGLOSS=-0.05
+	•	PROMOTE_THRESH_BRIER=-0.02
+	•	PROMOTE_MIN_MATCHES=300
+	•	PROMOTE_STREAK_DAYS=7
+	•	CLOSING_ODDS_CUTOFF_SECONDS=120  # last tick ≤ T-120s is closing
+
+1) DB: minimal schema adds
+
+-- Features snapshot table (if not already)
+CREATE TABLE IF NOT EXISTS match_features (
+  match_id BIGINT PRIMARY KEY,
+  league_id TEXT NOT NULL,
+  kickoff_timestamp TIMESTAMPTZ NOT NULL,
+  -- odds-derived (normalized)
+  prob_home NUMERIC, prob_draw NUMERIC, prob_away NUMERIC, overround NUMERIC,
+  book_dispersion NUMERIC,            -- std across books (H/D/A averaged)
+  drift_24h_home NUMERIC, drift_24h_draw NUMERIC, drift_24h_away NUMERIC,
+  -- team form
+  form5_home_points NUMERIC, form5_away_points NUMERIC,
+  elo_delta NUMERIC,                  -- home_elo - away_elo
+  rest_days_home NUMERIC, rest_days_away NUMERIC,
+  stage TEXT
+);
+
+-- Shadow inference log
+CREATE TABLE IF NOT EXISTS model_inference_logs (
+  id BIGSERIAL PRIMARY KEY,
+  match_id BIGINT NOT NULL,
+  league_id TEXT NOT NULL,
+  model_version TEXT NOT NULL,        -- v1 or v2
+  scored_at TIMESTAMPTZ DEFAULT now(),
+  p_home NUMERIC, p_draw NUMERIC, p_away NUMERIC,
+  latency_ms INTEGER,
+  reason_code TEXT,                   -- dominant learner, calibration flags, etc.
+  UNIQUE(match_id, model_version)
+);
+
+-- One closing row per match
+CREATE TABLE IF NOT EXISTS closing_odds (
+  match_id BIGINT PRIMARY KEY,
+  recorded_at TIMESTAMPTZ NOT NULL,
+  close_home_odds NUMERIC,
+  close_draw_odds NUMERIC,
+  close_away_odds NUMERIC,
+  close_home_prob NUMERIC,            -- normalized (remove overround)
+  close_draw_prob NUMERIC,
+  close_away_prob NUMERIC
+);
+
+-- Evaluation view (extend existing): join predictions, results, closings
+-- Create/Update odds_accuracy_evaluation to include both v1 & v2
+-- Add columns: model_version, clv_edge, clv_beats_close
+
+2) Feature job (daily + on new fixtures)
+	•	Populate match_features for all upcoming fixtures and keep it fresh.
+	•	Required computed fields:
+	•	Normalize probs (remove overround), renormalize to 1.0.
+	•	book_dispersion: mean std dev across available bookmakers for H/D/A.
+	•	drift_24h_*: change in normalized probs vs 24h ago.
+	•	elo_delta, form5_**: rolling from results table.
+	•	rest_days_*, stage.
+
+3) v2 model service (shadow endpoint)
+
+3.1 Two-step draw + stacked ensemble (code outline)
+	•	Level-1 learners:
+	•	win_model: binary (Home vs Away) given Not-Draw.
+	•	draw_model: binary (Draw vs Not-Draw).
+	•	gbm_model: multiclass booster using all features.
+	•	Meta:
+	•	meta_logit: combines [win_model_probs, draw_model_prob, gbm_probs, features_subset].
+	•	Per-league isotonic calibration on final [pH,pD,pA] with clip ±0.03 bias and renorm.
+
+3.2 Routes
+	•	POST /predict/v2/shadow
+	•	Input: match_id
+	•	Steps:
+	1.	read match_features.
+	2.	run v2; always also fetch primary (v1) if ENABLE_SHADOW_V2=true.
+	3.	write to model_inference_logs for both versions (UPSERT).
+	•	Response (to caller): return the current primary only (PRIMARY_MODEL_VERSION), but include header X-Shadow-V2: logged if shadowed.
+	•	GET /predict/which-primary → {primary:"v1"|"v2"}
+
+4) Closing odds capture (enable CLV)
+	•	Worker: closing_odds_collector runs every 30s; for each fixture with now ∈ [T-30m, T+2m], ingest odds ticks and write one row to closing_odds:
+	•	Choose latest tick ≤ kickoff − CLOSING_ODDS_CUTOFF_SECONDS.
+	•	Normalize to probs; UPSERT by match_id.
+
+5) Metrics endpoints (A/B and league cuts)
+
+5.1 A/B diff
+
+GET /metrics/ab?window=90d&league=ALL
+Response:
+{
+  "window":"90d","league":"ALL","n_matches":1234,
+  "overall":{
+    "logloss":{"v1":0.86,"v2":0.80,"delta":-0.06},
+    "brier":{"v1":0.57,"v2":0.55,"delta":-0.02},
+    "hit":{"v1":0.545,"v2":0.563,"delta":0.018},
+    "clv_hit":{"v1":0.51,"v2":0.58,"delta":0.07},
+    "mean_clv":{"v1":-0.004,"v2":0.012,"delta":0.016}
+  },
+  "by_league":[
+    {"league_id":"EPL","n":280,"logloss":{"v1":0.85,"v2":0.79,"delta":-0.06}, ...},
+    ...
+  ]
+}
+
+5.2 Extended evaluation
+	•	GET /metrics/evaluation?window=7d|14d|30d|90d|all&league=...&model=v1|v2|both
+	•	Uses odds_accuracy_evaluation (ensure it includes model_version, CLV fields).
+
+5.3 CLV validation (optional)
+	•	GET /metrics/clv-summary?window=90d&model=v2
+	•	{ n_with_closing:..., clv_hit:..., mean_clv:..., p50_clv:..., by_league:[...] }
+
+6) Autopromote cron
+	•	Cron job autopromote_primary_model every 6h:
+	1.	Pull /metrics/ab?window=90d&league=ALL.
+	2.	Check thresholds:
+	•	ΔLogLoss ≤ PROMOTE_THRESH_LOGLOSS
+	•	ΔBrier ≤ PROMOTE_THRESH_BRIER
+	•	clv_hit_v2 > 0.55
+	•	n_matches ≥ PROMOTE_MIN_MATCHES
+	•	No Tier-1 league with logloss_delta > -0.02 (i.e., v2 significantly worse).
+	3.	If conditions met today → increment streak counter; else reset.
+	4.	If streak ≥ PROMOTE_STREAK_DAYS:
+	•	Set PRIMARY_MODEL_VERSION=v2
+	•	Canary for 24h: serve v2 to 10% via header flag X-Canary: true.
+	•	If stable (no error spikes, metrics non-regressing), flip to 100%.
+
+7) Training & CV discipline
+	•	Offline job train_v2_models:
+	•	Rolling time-series CV (monthly folds, last 12 months).
+	•	Per-league calibrators trained only if N ≥ 200; else fall back to global.
+	•	Persist models + calibrators to /models/v2/... with version hash (date + git SHA).
+	•	On complete, write a manifest:
+
+{
+  "version":"v2-2025-10-06-abc123",
+  "leagues_with_calibration":["EPL","LaLiga",...],
+  "global_calibration":true,
+  "features":["prob_*","book_dispersion","drift_24h_*","form5_*","elo_delta","rest_days_*","stage"]
+}
+
+8) Reason codes (for transparency & debugging)
+	•	During v2 inference, emit one of:
+	•	RC_GBM_DOMINANT, RC_DRAW_2STEP_DOMINANT, RC_WIN_HEAD_DOMINANT,
+	•	RC_CALIBRATION_CLIPPED, RC_CALIBRATION_LEAGUE_GLOBAL_FALLBACK.
+	•	Store in model_inference_logs.reason_code.
+
+9) Dash hygiene (so you can “see the A”)
+	•	Extend metrics UI to read:
+	•	/metrics/ab → A/B top card (LogLoss, Brier, CLV% with green/red deltas).
+	•	League table with mini-sparklines (30-day rolling LogLoss v1 vs v2).
+	•	Toggle “Calibrated vs Raw” for v2 to verify calibration gains.
+
+10) Acceptance bar (promote only if)
+	•	Overall (90d OOS): LogLoss improvement ≥ 0.05, Brier ≥ 0.02, CLV% > 55%.
+	•	Per Tier-1 league: v2 LogLoss ≤ v1 + 0.00 (no regression).
+	•	p95 latency increase < 10ms vs v1.
+
+⸻
+
+Quick task list for the agent
+	1.	DB: create/alter match_features, model_inference_logs, closing_odds; update odds_accuracy_evaluation to include model_version + CLV fields.
+	2.	Feature job: implement population + updates (normalize, dispersion, drift, Elo, form, rest, stage).
+	3.	Model: train v2 (two-step draw + GBM + meta), save models + per-league isotonic; add inference function with calibration & reason codes.
+	4.	Endpoints:
+	•	POST /predict/v2/shadow (log both models).
+	•	GET /predict/which-primary.
+	•	GET /metrics/ab, GET /metrics/evaluation (extend), GET /metrics/clv-summary.
+	5.	Closing odds worker: write one normalized closing row/match (UPSERT).
+	6.	Autopromote cron: implement rules above; support 10% canary header, then flip PRIMARY_MODEL_VERSION.
+	7.	Docs: add QUICK_TEST_GUIDE steps to hit the new endpoints and verify logs populate.
+
+Smoke tests (copy to run)
+
+# score a batch in shadow
+curl -X POST http://localhost:8000/predict/v2/shadow \
+  -H "Authorization: Bearer betgenius_secure_key_2024" \
+  -H "Content-Type: application/json" -d '{"match_ids":[ ... ]}'
+
+# check inference logs count
+psql -c "SELECT model_version, COUNT(*) FROM model_inference_logs GROUP BY 1;"
+
+# A/B metrics (90d)
+curl -s "http://localhost:8000/metrics/ab?window=90d" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+# evaluation v2 only
+curl -s "http://localhost:8000/metrics/evaluation?window=90d&model=v2" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+# CLV summary
+curl -s "http://localhost:8000/metrics/clv-summary?window=90d&model=v2" \
+  -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+# which is primary?
+curl -s "http://localhost:8000/predict/which-primary"
+
+That’s everything needed to implement, run, and see whether v2 deserves promotion—and to flip it on automatically when it proves it.
