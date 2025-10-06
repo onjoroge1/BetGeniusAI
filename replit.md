@@ -18,13 +18,21 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **AsyncIO**: Asynchronous operations.
 
 ### Machine Learning Pipeline
-- **Production Model**: Simple Weighted Consensus using quality weights derived from 31-year bookmaker analysis (Pinnacle, Bet365, Betway, William Hill). Achieves 0.838 LogLoss and 0.167 Brier Score with 63.6% 3-way accuracy.
+- **Production Model (V1)**: Simple Weighted Consensus using quality weights derived from 31-year bookmaker analysis (Pinnacle, Bet365, Betway, William Hill). Achieves 0.838 LogLoss and 0.167 Brier Score with 63.6% 3-way accuracy.
+- **V2 Shadow Testing System**: Production-grade A/B testing infrastructure for safe model experimentation:
+  - Shadow inference coordinator runs V1 and V2 in parallel, logging both predictions
+  - Database tables: `match_features` (V2 features), `model_inference_logs` (V1/V2 predictions), `model_config` (routing)
+  - Feature pipeline: Normalized odds, dispersion, 24h drift, form, Elo, rest days
+  - V2 model architecture: Two-step draw classifier + GBM + meta-learner with per-league calibration (placeholder implementation)
+  - Auto-promotion: V2 promoted when ΔLogLoss≤-0.05, ΔBrier≤-0.02, CLV%>55%, n≥300, 7-day streak
+  - API endpoints: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`
+  - Configuration: Enable shadow mode via `model_config` table (`ENABLE_SHADOW_V2`, `PRIMARY_MODEL_VERSION`)
 - **Enhanced Architecture**: Dual-table population with market-efficient consensus, timing-optimized data collection (T-48h/T-24h windows), and cross-table synchronization.
 - **Real Data Integration**: Data collector incorporates injuries, team news, recent form, and head-to-head records.
 - **Auto-Retraining System**: Models automatically retrain based on match volume, with manual training scripts available.
 - **Comprehensive Market System**: Production-ready Poisson-based market expansion providing 50+ mathematically consistent markets derived from single λ parameters, with optimized performance and API schema validation.
-- **Automated Accuracy Tracking**: Backend-driven monitoring system for predictions, automatically fetching results and computing metrics (Brier score, LogLoss, Hit-rate). Includes API suite for analysis and a unified SQL view (`odds_accuracy_evaluation`) for streamlined evaluation and CLV analysis.
-- **Real Accuracy Testing**: Utilizes the `odds_accuracy_evaluation` view for true metric calculation and CLV when closing odds are available.
+- **Automated Accuracy Tracking**: Backend-driven monitoring system for predictions, automatically fetching results and computing metrics (Brier score, LogLoss, Hit-rate). Includes API suite for analysis and unified SQL views (`odds_accuracy_evaluation`, `odds_accuracy_evaluation_v2` with model predictions) for streamlined evaluation and CLV analysis.
+- **Real Accuracy Testing**: Utilizes evaluation views for true metric calculation and CLV when closing odds are available.
 
 ### Data Collection
 - **Dual Collection Strategy**: Scheduler populates both training (`training_matches`) and upcoming (`odds_snapshots`) tables.
@@ -48,7 +56,10 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **PostgreSQL**: Primary database for all project data (training, match results, odds, market features).
 
 ### API Endpoints
-- Prediction API, Admin Endpoints for data management, Match Discovery, and Training Statistics.
+- **Prediction API**: Main endpoints for match predictions with ML and AI analysis
+- **Admin Endpoints**: Data management, match discovery, training statistics
+- **V2 Shadow System**: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`
+- **CLV Monitoring**: CLV Club alerts, daily briefs, closing line analysis
 
 ### UI/UX Decisions
 - Focus on superior user experience with confidence-calibrated predictions and uncertainty quantification.
