@@ -293,8 +293,9 @@ async def startup_event():
 async def shutdown_event():
     """Clean shutdown of background services"""
     logger.info("Shutting down background services...")
-    background_scheduler.stop_scheduler()
-    logger.info("✅ Background scheduler stopped")
+    if background_scheduler is not None:
+        background_scheduler.stop_scheduler()
+        logger.info("✅ Background scheduler stopped")
 
 # Pydantic models for request/response
 class PredictionRequest(BaseModel):
@@ -2034,7 +2035,7 @@ async def predict_match(
         
         # Step 1: Collect comprehensive real-time data (injuries, form, news, odds)
         logger.info("Collecting comprehensive real-time data...")
-        match_data = enhanced_data_collector.collect_comprehensive_match_data(request.match_id)
+        match_data = get_enhanced_data_collector().collect_comprehensive_match_data(request.match_id)
         
         if not match_data:
             raise HTTPException(
@@ -2085,7 +2086,7 @@ async def predict_match(
                 }
             if current_odds:
                 # Real odds data available - generate prediction
-                prediction_result = consensus_predictor.predict_match(current_odds)
+                prediction_result = get_consensus_predictor().predict_match(current_odds)
                 
                 if not prediction_result:
                     logger.warning(f"Prediction failed despite having odds data for match {request.match_id}")
@@ -2144,7 +2145,8 @@ async def predict_match(
         if request.include_analysis:
             logger.info("Generating enhanced AI analysis with real data...")
             try:
-                ai_result = enhanced_ai_analyzer.analyze_match_comprehensive(match_data, prediction_result)
+                analyzer = get_enhanced_ai_analyzer()
+                ai_result = analyzer.analyze_match_comprehensive(match_data, prediction_result)
                 
                 if 'error' not in ai_result:
                     ai_analysis = {
@@ -2154,7 +2156,7 @@ async def predict_match(
                         "risk_assessment": ai_result.get('betting_recommendations', {}).get('risk_level', 'Medium'),
                         "team_analysis": ai_result.get('team_analysis', {}),
                         "prediction_analysis": ai_result.get('prediction_analysis', {}),
-                        "ai_summary": enhanced_ai_analyzer.generate_match_summary(ai_result, prediction_result)
+                        "ai_summary": analyzer.generate_match_summary(ai_result, prediction_result)
                     }
                 else:
                     logger.warning(f"AI analysis failed: {ai_result.get('error_details', 'Unknown error')}")
