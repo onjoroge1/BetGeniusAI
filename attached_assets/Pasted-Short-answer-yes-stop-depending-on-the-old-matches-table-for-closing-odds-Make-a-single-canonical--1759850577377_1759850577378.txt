@@ -1,0 +1,196 @@
+Short answer: yes—stop depending on the old matches table for closing odds. Make a single canonical “fixtures” source that your collectors actually populate, and have the closing sampler read from that. Here’s a tight, production-safe fix you can ship now.
+
+TL;DR (what to change)
+	•	Deprecate matches for CLV.
+	•	Create a canonical fixtures table (or materialized view) that the AutomatedCollector writes to.
+	•	Point the closing sampler at fixtures (not matches).
+	•	Enforce referential integrity so odds_snapshots.match_id can’t exist without a fixtures.match_id.
+	•	Window logic fix: sample if kickoff_at BETWEEN now() - INTERVAL '2 min' AND now() + INTERVAL '6 min'.
+	•	Observability: log and alert when candidate set = 0 so we never “silently pass” again.
+
+⸻
+
+Option A (recommended): Replace matches with a canonical fixtures
+
+1) Schema
+
+-- Canonical fixtures table (API-football “fixture_id” or your own)
+CREATE TABLE IF NOT EXISTS fixtures (
+  match_id        BIGINT PRIMARY KEY,
+  league          TEXT NOT NULL,
+  season          INTEGER,
+  home_team       TEXT NOT NULL,
+  away_team       TEXT NOT NULL,
+  kickoff_at      TIMESTAMPTZ NOT NULL,   -- UTC kickoff
+  country         TEXT,
+  status          TEXT DEFAULT 'scheduled',  -- scheduled | live | finished | cancelled
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- Make snapshots point at fixtures
+ALTER TABLE odds_snapshots
+  ADD CONSTRAINT odds_snapshots_match_fk
+  FOREIGN KEY (match_id) REFERENCES fixtures(match_id) ON DELETE CASCADE;
+
+-- For speed
+CREATE INDEX IF NOT EXISTS idx_fixtures_kickoff ON fixtures (kickoff_at);
+CREATE INDEX IF NOT EXISTS idx_snapshots_match_ts ON odds_snapshots (match_id, snapshot_at DESC);
+
+If you can’t add the FK yet (because you have legacy orphans), run the backfill below first, then add the FK.
+
+2) Collector writes here (single source of truth)
+
+Update AutomatedCollector so every time you ingest odds/fixtures:
+	•	Upsert the fixture row.
+	•	Write snapshots as usual.
+
+-- Upsert fixture (called in the collector before writing snapshots)
+INSERT INTO fixtures (match_id, league, season, home_team, away_team, kickoff_at, country, status, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+ON CONFLICT (match_id) DO UPDATE SET
+  league = EXCLUDED.league,
+  season = EXCLUDED.season,
+  home_team = EXCLUDED.home_team,
+  away_team = EXCLUDED.away_team,
+  kickoff_at = EXCLUDED.kickoff_at,
+  country = EXCLUDED.country,
+  status = EXCLUDED.status,
+  updated_at = now();
+
+3) Backfill fixtures from what you already have
+
+(so the sampler has candidates immediately)
+
+-- Use the latest known kickoff per match_id from snapshots (adjust column names if different)
+WITH latest AS (
+  SELECT
+    s.match_id,
+    MAX(s.kickoff_at) AS kickoff_at,             -- if present in snapshots
+    ANY_VALUE(s.league)    AS league,            -- or pick via MAX/MIN or join your training_matches
+    ANY_VALUE(s.home_team) AS home_team,
+    ANY_VALUE(s.away_team) AS away_team
+  FROM odds_snapshots s
+  GROUP BY s.match_id
+)
+INSERT INTO fixtures (match_id, league, home_team, away_team, kickoff_at, status)
+SELECT
+  l.match_id, COALESCE(l.league,'Unknown'), COALESCE(l.home_team,'?'),
+  COALESCE(l.away_team,'?'),
+  COALESCE(l.kickoff_at, now()),   -- fallback; better to join to a fixtures API result if you have it
+  CASE WHEN COALESCE(l.kickoff_at, now()) < now() THEN 'finished' ELSE 'scheduled' END
+FROM latest l
+ON CONFLICT (match_id) DO NOTHING;
+
+(If kickoff_at doesn’t exist in odds_snapshots, join to training_matches or your API-Football fixtures cache to fetch it.)
+
+4) Point the closing sampler at fixtures (not matches)
+
+Replace the old query:
+
+-- BAD (old): filters out past matches and uses 'matches'
+SELECT m.match_id
+FROM matches m
+WHERE m.match_date_utc > now();  -- excludes finishing matches 🤦
+
+with:
+
+-- GOOD (new): uses fixtures and a proper window
+SELECT f.match_id, f.kickoff_at
+FROM fixtures f
+WHERE f.kickoff_at BETWEEN now() - INTERVAL '2 minutes'
+                      AND     now() + INTERVAL '6 minutes'
+  AND (f.status IN ('scheduled','live'));  -- optional filter
+ORDER BY f.kickoff_at;
+
+Rationale: you want to sample from T-6m to T+2m around kickoff. Using a BETWEEN window centered on now() guarantees you catch late ticks and stragglers.
+
+5) Keep the rest the same
+	•	Sampler writes samples → clv_closing_feed
+	•	Aggregator (populate_closing_odds.py) computes LAST5_VWAP / LAST_TICK → writes closing_odds
+	•	/metrics/evaluation and /api/clv read from closing_odds + your view
+
+⸻
+
+Option B (acceptable): Keep matches but make it trustworthy
+
+If you must keep matches, do both of these or the problem returns:
+	1.	AutomatedCollector must upsert into matches every run (same pattern as fixtures above).
+	2.	Add FK odds_snapshots.match_id → matches.match_id, plus an index on matches.match_date_utc.
+
+And fix the same window bug:
+
+SELECT m.match_id, m.match_date_utc AS kickoff_at
+FROM matches m
+WHERE m.match_date_utc BETWEEN now() - INTERVAL '2 minutes'
+                          AND     now() + INTERVAL '6 minutes';
+
+
+⸻
+
+Guardrails so this never goes dark again
+	1.	Zero-candidate alert
+	•	After the sampler builds its candidate set, if count = 0 while there are fixtures scheduled in the next 24h: log ERROR and send an alert.
+	•	SQL used by the alert:
+
+SELECT COUNT(*) FROM fixtures
+WHERE kickoff_at BETWEEN now() AND now() + INTERVAL '24 hours';
+
+If this > 0 but sampler candidates = 0 → alert.
+
+	2.	Integrity check (hourly)
+
+-- Orphans (should be zero)
+SELECT COUNT(*) AS orphan_snapshots
+FROM odds_snapshots s
+LEFT JOIN fixtures f ON f.match_id = s.match_id
+WHERE f.match_id IS NULL;
+
+
+	3.	Freshness SLO
+
+-- If we had fixtures in the last 24h but no closing feed samples, alert
+WITH fx AS (
+  SELECT COUNT(*) AS c FROM fixtures
+  WHERE kickoff_at > now() - INTERVAL '24 hours'
+),
+feed AS (
+  SELECT COUNT(*) AS c FROM clv_closing_feed
+  WHERE ts > now() - INTERVAL '24 hours'
+)
+SELECT * FROM fx, feed;
+
+
+	4.	Verbose logging on short-circuit
+	•	If sampler finds 0 rows, log:
+	•	window bounds (now, −2m, +6m)
+	•	counts in fixtures for ±1h
+	•	last 5 fixtures by kickoff_at
+
+⸻
+
+One-time remediation (so you see CLV today)
+	•	Run backfill into fixtures (above).
+	•	Rerun sampler (or just wait a minute—cron will hit it).
+	•	Manually seed one recent match’s closing feed (if you want to test CLV end-to-end now):
+
+INSERT INTO clv_closing_feed (match_id, market, side, price, ts) VALUES
+  ($MATCH,'moneyline','home',1.95, now() - interval '5 min'),
+  ($MATCH,'moneyline','home',1.92, now() - interval '3 min'),
+  ($MATCH,'moneyline','home',1.90, now() - interval '1 min'),
+  ($MATCH,'moneyline','home',1.91, now());
+
+Then run python populate_closing_odds.py and hit /metrics/evaluation or /api/clv.
+
+⸻
+
+Why not use matches?
+	•	It wasn’t being populated by your real-time pipeline (root cause #1), so any join against it is fragile.
+	•	You already have the right identifiers and times flowing through odds ingestion; formalize that into fixtures, the contract between ingestion, sampling, and CLV.
+	•	With an FK from odds_snapshots → fixtures, the system can’t silently drift again.
+
+⸻
+
+If you want, I can draft:
+	•	a migration that creates fixtures, backfills it from odds_snapshots + training_matches, and adds the FK;
+	•	a small PR that swaps the sampler query and adds the zero-candidate alert.

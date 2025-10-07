@@ -31,6 +31,7 @@ class CLVClosingSampler:
     def _get_fixtures_near_kickoff(self) -> List[Dict[str, Any]]:
         """
         Get fixtures in sampling window (T-6m to T+2m)
+        Uses canonical fixtures table (not matches) for reliability
         
         Returns:
             List of dicts with match_id, league, kickoff_time
@@ -40,20 +41,22 @@ class CLVClosingSampler:
                 cursor = conn.cursor()
                 
                 now = datetime.now(timezone.utc)
-                window_start = now - timedelta(minutes=self.PRE_KO_MINUTES)
-                window_end = now + timedelta(minutes=self.POST_KO_MINUTES)
                 
+                # Proper BETWEEN window: now - 2min to now + 6min
+                # This captures fixtures that are finishing or about to finish
                 cursor.execute("""
-                    SELECT DISTINCT
-                        os.match_id,
-                        CAST(os.league_id AS text) as league_name,
-                        m.match_date_utc as kickoff_at
-                    FROM odds_snapshots os
-                    INNER JOIN matches m ON os.match_id = m.match_id
-                    WHERE m.match_date_utc >= %s
-                      AND m.match_date_utc <= %s
-                    ORDER BY m.match_date_utc
-                """, (window_start, window_end))
+                    SELECT 
+                        f.match_id,
+                        COALESCE(f.league_name, CAST(f.league_id AS text)) as league_name,
+                        f.kickoff_at
+                    FROM fixtures f
+                    WHERE f.kickoff_at BETWEEN %s AND %s
+                      AND f.status IN ('scheduled', 'live')
+                    ORDER BY f.kickoff_at
+                """, (
+                    now - timedelta(minutes=self.POST_KO_MINUTES),  # T-2m
+                    now + timedelta(minutes=self.PRE_KO_MINUTES)    # T+6m
+                ))
                 
                 fixtures = []
                 for row in cursor.fetchall():
@@ -64,11 +67,63 @@ class CLVClosingSampler:
                         'kickoff_at': kickoff_at
                     })
                 
+                
+                # Observability: log window info if candidates found
+                if fixtures:
+                    logger.info(f"📊 Closing Sampler: Found {len(fixtures)} fixtures in window")
+                
                 return fixtures
                 
         except Exception as e:
             logger.error(f"Error fetching fixtures near kickoff: {e}")
             return []
+    
+    def _check_zero_candidate_alert(self):
+        """
+        Alert if we have 0 candidates but upcoming fixtures exist
+        Prevents silent failure when data integrity issues occur
+        """
+        try:
+            with psycopg2.connect(self.database_url) as conn:
+                cursor = conn.cursor()
+                
+                # Check if we have any fixtures in next 24h
+                cursor.execute("""
+                    SELECT COUNT(*) FROM fixtures
+                    WHERE kickoff_at BETWEEN now() AND now() + INTERVAL '24 hours'
+                """)
+                
+                upcoming_count = cursor.fetchone()[0]
+                
+                if upcoming_count > 0:
+                    # We have upcoming fixtures but found none in window - this is expected
+                    # Only alert if we're missing fixtures that should be in window
+                    now = datetime.now(timezone.utc)
+                    window_start = now - timedelta(minutes=self.POST_KO_MINUTES)
+                    window_end = now + timedelta(minutes=self.PRE_KO_MINUTES)
+                    
+                    logger.debug(
+                        f"📊 Closing Sampler: 0 candidates in window ({window_start.strftime('%H:%M:%S')} to {window_end.strftime('%H:%M:%S')}), "
+                        f"but {upcoming_count} fixtures scheduled in next 24h"
+                    )
+                    
+                    # Check for orphaned odds (data integrity)
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM odds_snapshots s
+                        LEFT JOIN fixtures f ON f.match_id = s.match_id
+                        WHERE f.match_id IS NULL
+                          AND s.ts_snapshot > now() - INTERVAL '24 hours'
+                    """)
+                    
+                    orphans = cursor.fetchone()[0]
+                    if orphans > 0:
+                        logger.error(
+                            f"🚨 DATA INTEGRITY ALERT: {orphans} orphaned odds_snapshots in last 24h "
+                            f"(match_ids not in fixtures table)"
+                        )
+                
+        except Exception as e:
+            logger.warning(f"Zero-candidate check failed: {e}")
     
     def _gather_fresh_odds(self, match_id: int, staleness_sec: int = 120) -> Dict[str, List[BookOdds]]:
         """
@@ -225,7 +280,9 @@ class CLVClosingSampler:
         try:
             fixtures = self._get_fixtures_near_kickoff()
             
+            # Zero-candidate alerting: If we have upcoming fixtures but find none in window
             if not fixtures:
+                self._check_zero_candidate_alert()
                 logger.debug("📊 Closing Sampler: No fixtures in window (T-6m to T+2m)")
                 return
             
