@@ -1,0 +1,41 @@
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1351178 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1351178: name 'timezone' is not defined
+INFO:models.database:Database tables initialized
+INFO:models.clv_alert_producer:🔍 CLV Alert Producer: Starting cycle...
+INFO:models.clv_alert_producer:No upcoming fixtures with recent odds
+INFO:utils.api_football_integration:Ingested 39 odds rows for fixture 1351178 (match_id=1351178) from 13 bookmakers
+INFO:models.automated_collector:✅ Collected 39 odds rows for fixture 1351178
+INFO:utils.api_football_integration:Refreshed consensus for match 1351178
+INFO:models.automated_collector:🕐 Match 1351167 (Mirassol vs Fluminense) - T-24.7h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-24h window (actual: T-24.7h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1351167 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1351167: name 'timezone' is not defined
+INFO:utils.api_football_integration:Ingested 39 odds rows for fixture 1351167 (match_id=1351167) from 13 bookmakers
+INFO:models.automated_collector:✅ Collected 39 odds rows for fixture 1351167
+INFO:utils.api_football_integration:Refreshed consensus for match 1351167
+INFO:models.automated_collector:🕐 Match 1351155 (Palmeiras vs Juventude) - T-94.7h
+INFO:models.automated_collector:🕐 Match 1353562 (Cuiaba vs Novorizontino) - T-22.7h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-24h window (actual: T-22.7h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353562 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353562: name 'timezone' is not defined
+INFO:utils.api_football_integration:Ingested 39 odds rows for fixture 1353562 (match_id=1353562) from 13 bookmakers
+INFO:models.automated_collector:✅ Collected 39 odds rows for fixture 1353562
+INFO:utils.api_football_integration:Refreshed consensus for match 1353562
+INFO:models.automated_collector:🕐 Match 1353565 (Operario-PR vs Athletic Club) - T-22.7h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-24h window (actual: T-22.7h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353565 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353565: name 'timezone' is not defined
+INFO:utils.api_football_integration:Ingested 39 odds rows for fixture 1353565 (match_id=1353565) from 13 bookmakers
+INFO:models.automated_collector:✅ Collected 39 odds rows for fixture 1353565
+INFO:utils.api_football_integration:Refreshed consensus for match 1353565
+INFO:models.automated_collector:🕐 Match 1353564 (Avai vs Volta Redonda) - T-24.7h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-24h window (actual: T-24.7h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353564 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353564: name 'timezone' is not defined
+INFO:utils.api_football_integration:Ingested 39 odds rows for fixture 1353564 (match_id=1353564) from 13 bookmakers
+INFO:models.automated_collector:✅ Collected 39 odds rows for fixture 1353564
+INFO:utils.api_football_integration:Refreshed consensus for match 1353564
+INFO:models.automated_collector:🕐 Match 1353567 (America Mineiro vs Vila Nova) - T-25.2h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-24h window (actual: T-25.2h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353567 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353567: name 'timezone' is not defined

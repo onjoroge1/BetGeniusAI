@@ -1,6 +1,6 @@
 import os
 import psycopg2
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Optional, Tuple
 import logging
 from utils.api_football_client import ApiFootballClient, OddsMapper
