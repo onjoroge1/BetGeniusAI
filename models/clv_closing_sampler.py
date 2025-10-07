@@ -52,7 +52,6 @@ class CLVClosingSampler:
                     INNER JOIN matches m ON os.match_id = m.match_id
                     WHERE m.match_date_utc >= %s
                       AND m.match_date_utc <= %s
-                      AND m.match_date_utc > NOW()
                     ORDER BY m.match_date_utc
                 """, (window_start, window_end))
                 
