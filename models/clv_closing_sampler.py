@@ -142,17 +142,24 @@ class CLVClosingSampler:
                 
                 # Fetch fresh odds with desk group deduplication
                 cursor.execute("""
-                    SELECT DISTINCT ON (os.outcome, b.desk_group)
+                    SELECT DISTINCT ON (os.outcome, COALESCE(b.desk_group, os.book_id))
                         os.outcome,
                         os.book_id,
                         os.odds_dec,
-                        b.desk_group,
+                        COALESCE(b.desk_group, os.book_id) as desk_group,
                         os.ts_snapshot
                     FROM odds_snapshots os
-                    LEFT JOIN bookmakers b ON os.book_id = b.bookmaker_id
+                    LEFT JOIN bookmakers b ON (
+                        -- Handle both numeric book_ids and text format "apif:13"
+                        CASE 
+                            WHEN os.book_id ~ '^[0-9]+$' THEN os.book_id::INTEGER = b.bookmaker_id
+                            WHEN os.book_id LIKE 'apif:%' THEN split_part(os.book_id, ':', 2)::INTEGER = b.bookmaker_id
+                            ELSE FALSE
+                        END
+                    )
                     WHERE os.match_id = %s
                       AND os.ts_snapshot > %s
-                    ORDER BY os.outcome, b.desk_group, os.ts_snapshot DESC
+                    ORDER BY os.outcome, COALESCE(b.desk_group, os.book_id), os.ts_snapshot DESC
                 """, (match_id, cutoff))
                 
                 # Group by outcome

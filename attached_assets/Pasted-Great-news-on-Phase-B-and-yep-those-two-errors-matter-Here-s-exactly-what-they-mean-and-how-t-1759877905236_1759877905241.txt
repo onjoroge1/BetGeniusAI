@@ -1,0 +1,239 @@
+Great news on Phase B 🚀 — and yep, those two errors matter. Here’s exactly what they mean and how to fix them cleanly.
+
+# What’s going wrong
+
+1. **Orphaned odds snapshots**
+
+* `models.clv_closing_sampler`: “🚨 798 orphaned odds_snapshots… (match_ids not in fixtures)”
+* Cause: we’re inserting rows into `odds_snapshots` for matches that don’t exist in our canonical **fixtures** table (or whatever table your sampler expects). The sampler joins from fixtures → odds; when it can’t find a fixture, it flags an orphan.
+
+2. **Type mismatch when joining bookmakers**
+
+* `operator does not exist: character varying = integer` on:
+
+  ```sql
+  LEFT JOIN bookmakers b ON os.book_id = b.bookmaker_id
+  ```
+* Cause: `odds_snapshots.book_id` is a **text key** (e.g., `apif:1`, `theodds:bet365`) while `bookmakers.bookmaker_id` is **integer**. So the join fails.
+
+---
+
+# Fixes (safe, incremental)
+
+## A) Stop creating orphans (and clean up the backlog)
+
+### A1. Enforce “fixtures-first” on write
+
+When we insert any odds row, upsert the fixture first. Add a tiny helper used by both TheOdds and API-Football ingestion:
+
+```python
+# models/database.py (or shared db utils)
+def upsert_fixture(conn, match_id: int, league_id: int, kickoff_at, home_team: str, away_team: str):
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO fixtures (match_id, league_id, kickoff_at, home_team, away_team)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (match_id) DO UPDATE
+            SET league_id = EXCLUDED.league_id,
+                kickoff_at = COALESCE(EXCLUDED.kickoff_at, fixtures.kickoff_at),
+                home_team = COALESCE(EXCLUDED.home_team, fixtures.home_team),
+                away_team = COALESCE(EXCLUDED.away_team, fixtures.away_team);
+        """, (match_id, league_id, kickoff_at, home_team, away_team))
+```
+
+Call this right before inserting `odds_snapshots` (both providers). That makes it impossible to create an orphan going forward.
+
+### A2. One-time backfill to eliminate existing orphans
+
+Use `/matches/upcoming` (and recent completed) as ground truth to backfill **fixtures** for any odds rows we already have:
+
+```sql
+-- 1) Create fixtures if missing (idempotent)
+CREATE TABLE IF NOT EXISTS fixtures (
+  match_id BIGINT PRIMARY KEY,
+  league_id INT NOT NULL,
+  kickoff_at TIMESTAMPTZ,
+  home_team TEXT,
+  away_team TEXT
+);
+
+-- 2) Backfill from a union of authoritative sources
+--    (adapt the FROM sources to your real endpoints/tables/views)
+WITH src AS (
+  SELECT m.match_id, m.league_id, m.kickoff_at, m.home_team, m.away_team FROM upcoming_matches_view m
+  UNION
+  SELECT tm.match_id, tm.league_id, tm.match_date_utc, tm.home_team, tm.away_team FROM training_matches tm
+)
+INSERT INTO fixtures (match_id, league_id, kickoff_at, home_team, away_team)
+SELECT DISTINCT os.match_id,
+       COALESCE(src.league_id, os.league_id) AS league_id,
+       src.kickoff_at,
+       src.home_team,
+       src.away_team
+FROM odds_snapshots os
+LEFT JOIN src ON src.match_id = os.match_id
+LEFT JOIN fixtures f ON f.match_id = os.match_id
+WHERE f.match_id IS NULL;
+```
+
+> If you don’t have `upcoming_matches_view`, just create a temp staging table from your `/matches/upcoming` endpoint (dump JSON into rows) and use that in `src`.
+
+### A3. Guard-rail (optional but nice)
+
+Add a FK so future orphans become impossible:
+
+```sql
+ALTER TABLE odds_snapshots
+  ADD CONSTRAINT fk_odds_match
+  FOREIGN KEY (match_id) REFERENCES fixtures(match_id) ON DELETE CASCADE;
+```
+
+(If you have legacy rows that still violate this, run A2 first.)
+
+---
+
+## B) Fix the bookmaker join (consistent keys)
+
+Right now:
+
+* `odds_snapshots.book_id` = **text** like `apif:13`, `theodds:bet365`
+* `bookmakers.bookmaker_id` = **int** (e.g., 13)
+
+Two safe options:
+
+### Option B1 (recommended): introduce a mapping table
+
+Create a canonical mapping that understands provider-specific keys.
+
+```sql
+CREATE TABLE IF NOT EXISTS bookmaker_keys (
+  provider TEXT NOT NULL,
+  ext_key  TEXT NOT NULL,   -- e.g. '13' for apif, 'bet365' for theodds
+  bookmaker_id INT NOT NULL REFERENCES bookmakers(bookmaker_id),
+  PRIMARY KEY (provider, ext_key)
+);
+
+-- Backfill known mappings (examples)
+INSERT INTO bookmaker_keys (provider, ext_key, bookmaker_id) VALUES
+('apif','1', 1),
+('apif','13',13)
+ON CONFLICT DO NOTHING;
+```
+
+Normalize writes to fill `provider` and `ext_key` alongside the raw `book_id`.
+
+Quick shim to JOIN in samplers/queries:
+
+```sql
+-- In clv_closing_sampler query, replace the join:
+LEFT JOIN bookmaker_keys bk
+  ON split_part(os.book_id, ':', 1) = bk.provider
+ AND split_part(os.book_id, ':', 2) = bk.ext_key
+LEFT JOIN bookmakers b
+  ON b.bookmaker_id = bk.bookmaker_id
+```
+
+This makes provider-agnostic logic work and you can keep `book_id` as the human-readable key.
+
+### Option B2 (quick patch): cast/extract on the fly
+
+If your APIF `book_id` is always like `apif:13`, you can cast only for those:
+
+```sql
+LEFT JOIN bookmakers b
+  ON (
+       (split_part(os.book_id, ':', 1) = 'apif'  AND b.bookmaker_id = (split_part(os.book_id, ':', 2))::INT)
+    OR (split_part(os.book_id, ':', 1) <> 'apif' AND b.slug = split_part(os.book_id, ':', 2))  -- if you have b.slug
+     )
+```
+
+This unblocks immediately, but B1 is the long-term clean approach.
+
+---
+
+## C) That one-off “aggregate function calls cannot be nested”
+
+You saw:
+
+```
+WARNING ... Failed to collect odds ... aggregate function calls cannot be nested
+```
+
+That’s usually a `COUNT()` inside an `json_agg()`/`array_agg()` or sum-of-a-sum CTE. Move the inner aggregate to a subquery and join it. Example pattern:
+
+```sql
+WITH base AS (...),
+counts AS (
+  SELECT key, COUNT(*) AS n
+  FROM base
+  GROUP BY key
+)
+SELECT json_agg(json_build_object('key', b.key, 'n', c.n))
+FROM base b
+JOIN counts c USING (key);
+```
+
+It looks transient since Phase B finished, but adjust the summary query the next time you touch it to avoid the warning.
+
+---
+
+# “Package” this into the AI agent
+
+Here’s the lightweight “playbook” your agent should run whenever these conditions are detected:
+
+1. **Orphan detector**
+
+   * Query: `SELECT COUNT(*) FROM odds_snapshots os LEFT JOIN fixtures f USING(match_id) WHERE f.match_id IS NULL;`
+   * If > 0 → run A2 backfill SQL, then enforce FK (A3).
+
+2. **Bookmaker key normalizer**
+
+   * If sampler/log shows type mismatch:
+
+     * Create `bookmaker_keys` if missing.
+     * Switch sampler JOIN to the two-step join (B1).
+     * (Optional) add a background task to auto-learn mappings by looking at APIF/TheOdds payloads and upserting `bookmaker_keys`.
+
+3. **Writer guard-rails**
+
+   * Ensure ingestion calls `upsert_fixture(...)` before inserting into `odds_snapshots` (A1).
+
+4. **Sanity metrics**
+
+   * `orphan_count_24h`, `null_margins_24h`, `apif_rows_2h`, `theodds_rows_2h`, `enrichment_pct_24h`.
+
+---
+
+# Should you run `trigger_manual_collection.py` again?
+
+**Yes.** After applying A1 (writer upsert), A2 (backfill), and either B1 (mapping) or B2 (quick cast), it’s worth triggering a manual cycle to:
+
+* Confirm `orphan_count_24h` stops increasing (and ideally returns to zero after backfill),
+* Confirm the sampler no longer raises the bookmaker join error.
+
+If you want a minimal order of operations:
+
+1. Run the **backfill SQL** (A2).
+2. Apply the **writer upsert** (A1) in both providers.
+3. Patch the **bookmaker join** (B1 preferred; B2 if you need it fast).
+4. Trigger manual collection.
+5. Re-run these checks:
+
+   ```sql
+   -- Orphans
+   SELECT COUNT(*) AS orphans
+   FROM odds_snapshots os
+   LEFT JOIN fixtures f USING(match_id)
+   WHERE f.match_id IS NULL;
+
+   -- Provider breakdown
+   SELECT source, COUNT(*) 
+   FROM odds_snapshots
+   WHERE created_at >= NOW() - INTERVAL '2 hours'
+   GROUP BY source;
+
+   -- Join smoke test (no error expected now)
+   -- Run sampler or a simplified join query using the new mapping.
+   ```
+
+If you want, I can write the exact migration SQL + a tiny PR-style diff for the ingestion functions so you can paste it directly.
