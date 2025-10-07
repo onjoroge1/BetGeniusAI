@@ -1056,7 +1056,47 @@ class AutomatedCollector:
             with psycopg2.connect(database_url) as conn:
                 cursor = conn.cursor()
                 
-                # Insert each bookmaker's odds individually
+                # FIRST: Upsert fixture metadata for each unique match (canonical source of truth)
+                unique_matches = {}
+                for book_odds in odds_data:
+                    match_id = book_odds['match_id']
+                    if match_id not in unique_matches:
+                        unique_matches[match_id] = book_odds
+                
+                for match_id, book_odds in unique_matches.items():
+                    try:
+                        # Calculate kickoff time from snapshot
+                        ts_snapshot = book_odds['timestamp']
+                        secs_to_kickoff = book_odds.get('secs_to_kickoff', 0)
+                        kickoff_at = ts_snapshot + timedelta(seconds=secs_to_kickoff)
+                        
+                        cursor.execute("""
+                            INSERT INTO fixtures (
+                                match_id, league_id, home_team, away_team, 
+                                kickoff_at, season, status, updated_at
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+                            ON CONFLICT (match_id) DO UPDATE SET
+                                league_id = EXCLUDED.league_id,
+                                kickoff_at = EXCLUDED.kickoff_at,
+                                status = CASE
+                                    WHEN EXCLUDED.kickoff_at < now() THEN 'finished'
+                                    ELSE 'scheduled'
+                                END,
+                                updated_at = now()
+                        """, (
+                            match_id,
+                            book_odds.get('league_id', 0),
+                            'TBD',  # Team names not in odds_data, will be updated later
+                            'TBD',
+                            kickoff_at,
+                            2024,
+                            'finished' if kickoff_at < datetime.now(timezone.utc) else 'scheduled'
+                        ))
+                    except Exception as fixture_err:
+                        logger.warning(f"Failed to upsert fixture {match_id}: {fixture_err}")
+                
+                # SECOND: Insert each bookmaker's odds individually
                 saved_count = 0
                 for book_odds in odds_data:
                     insert_sql = """
