@@ -35,14 +35,16 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Real Accuracy Testing**: Utilizes evaluation views for true metric calculation and CLV when closing odds are available.
 
 ### Data Collection
+- **Canonical Fixtures Table**: Single source of truth for all match metadata (435+ records), automatically maintained by both AutomatedCollector and API-Football integration. Prevents orphaned odds and ensures data integrity.
 - **Dual Collection Strategy**: Scheduler populates both training (`training_matches`) and upcoming (`odds_snapshots`) tables.
-- **Multi-Source Real-Time Odds**: Parallel collection from The Odds API and API-Football for upcoming matches, ensuring consistency.
+- **Multi-Source Real-Time Odds**: Parallel collection from The Odds API and API-Football for upcoming matches, ensuring consistency. Handles both numeric book_ids (537, 877) and text format (apif:32, apif:11).
 - **Fixture ID Resolver**: A robust 3-step system to resolve fixture IDs between different data sources, ensuring independent multi-source collection.
 - **League Coverage**: Dynamic selection across 35 leagues, including major European, UEFA, English lower, Asian, South American, and Nordic/Alpine leagues.
 - **Training Data**: Over 9,846 matches in `training_matches` for ML model learning, with synchronized `odds_consensus` table.
 - **Authentic Odds Collection**: Live collection of real bookmaker odds from The Odds API (21+ bookmakers) stored with proper mapping and tracking.
 - **CLV Monitoring (CLV Club Phase 1 & 2)**: Advanced system for detecting pricing inefficiencies, normalizing de-juiced odds, robust consensus calculation, line stability metrics, desk group deduplication, multi-tier gating, and real-time alerts. Includes closing line capture and realized CLV tracking with various sampling and settlement methods.
 - **CLV Daily Brief**: Automated daily aggregation and reporting of CLV Club performance per league, tracking metrics and suppression reasons.
+- **Data Integrity**: Zero orphaned odds achieved through fixtures table backfilling and automatic maintenance. Timezone import fixed in API-Football integration (Oct 2025).
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: Provides comprehensive match analysis and contextual insights, combining ML predictions with AI contextual analysis.
