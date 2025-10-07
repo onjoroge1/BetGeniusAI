@@ -309,7 +309,35 @@ class ApiFootballIngestion:
                         'market': internal_market
                     })
         
-        # Process each market group: compute margin and insert
+        # FIRST: Upsert fixture metadata (canonical source of truth)
+        try:
+            cursor.execute("""
+                INSERT INTO fixtures (
+                    match_id, league_id, home_team, away_team, 
+                    kickoff_at, season, status, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (match_id) DO UPDATE SET
+                    league_id = EXCLUDED.league_id,
+                    kickoff_at = EXCLUDED.kickoff_at,
+                    status = CASE
+                        WHEN EXCLUDED.kickoff_at < now() THEN 'finished'
+                        ELSE 'scheduled'
+                    END,
+                    updated_at = now()
+            """, (
+                match_id,
+                league_id,
+                'TBD',  # Team names not available in odds data
+                'TBD',
+                kickoff_ts.replace(tzinfo=None) if kickoff_ts.tzinfo else kickoff_ts,
+                2024,
+                'finished' if kickoff_ts < datetime.now(timezone.utc) else 'scheduled'
+            ))
+        except Exception as fixture_err:
+            logger.warning(f"Failed to upsert fixture {match_id}: {fixture_err}")
+        
+        # SECOND: Process each market group: compute margin and insert
         for (bookmaker_id, market), selections in market_groups.items():
             # Compute market margin from all prices
             prices = [s['price'] for s in selections]
@@ -429,9 +457,11 @@ class ApiFootballIngestion:
                 FROM latest_odds lo
                 GROUP BY lo.match_id, lo.league_id, lo.market, lo.outcome
             )
-            INSERT INTO odds_consensus 
-            (match_id, league_id, market, outcome, consensus_odds_decimal, 
-             consensus_implied_prob, n_books, source_mix, ts_computed)
+            -- DISABLED: odds_consensus table has different schema (match-level probabilities)
+            -- Consensus is now calculated from odds_snapshots when needed
+            -- INSERT INTO odds_consensus 
+            -- (match_id, league_id, market, outcome, consensus_odds_decimal, 
+            --  consensus_implied_prob, n_books, source_mix, ts_computed)
             SELECT 
                 match_id,
                 league_id,
@@ -443,13 +473,13 @@ class ApiFootballIngestion:
                 source_counts,
                 NOW()
             FROM consensus_calc
-            ON CONFLICT (match_id, market, outcome)
-            DO UPDATE SET
-                consensus_odds_decimal = EXCLUDED.consensus_odds_decimal,
-                consensus_implied_prob = EXCLUDED.consensus_implied_prob,
-                n_books = EXCLUDED.n_books,
-                source_mix = EXCLUDED.source_mix,
-                ts_computed = EXCLUDED.ts_computed
+            -- ON CONFLICT (match_id, market, outcome)
+            -- DO UPDATE SET
+            --     consensus_odds_decimal = EXCLUDED.consensus_odds_decimal,
+            --     consensus_implied_prob = EXCLUDED.consensus_implied_prob,
+            --     n_books = EXCLUDED.n_books,
+            --     source_mix = EXCLUDED.source_mix,
+            --     ts_computed = EXCLUDED.ts_computed
         """, (match_id,))
         
         conn.commit()
