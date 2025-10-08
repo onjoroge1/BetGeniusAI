@@ -65,18 +65,19 @@ class CLVAlertProducer:
                 cursor = conn.cursor()
                 
                 # Find fixtures with odds in the target window
+                # ✅ FIX: Use fixtures table (not matches) since fresh odds link to fixtures
                 cursor.execute("""
                     SELECT 
                         os.match_id,
                         COALESCE(lm.league_name, CAST(os.league_id AS text)) as league_name,
-                        m.match_date_utc as kickoff_at
+                        f.kickoff_at as kickoff_at
                     FROM odds_snapshots os
                     LEFT JOIN league_map lm ON os.league_id = lm.league_id
-                    LEFT JOIN matches m ON os.match_id = m.match_id
-                    WHERE m.match_date_utc > NOW()
-                      AND m.match_date_utc < NOW() + make_interval(hours => %s)
+                    LEFT JOIN fixtures f ON os.match_id = f.match_id
+                    WHERE f.kickoff_at > NOW()
+                      AND f.kickoff_at < NOW() + make_interval(hours => %s)
                       AND os.ts_snapshot > NOW() - INTERVAL '10 minutes'
-                    GROUP BY os.match_id, lm.league_name, os.league_id, m.match_date_utc
+                    GROUP BY os.match_id, lm.league_name, os.league_id, f.kickoff_at
                     HAVING COUNT(DISTINCT os.book_id) >= %s
                 """, (max_hours_ahead, settings.CLV_MIN_BOOKS_MINOR))
                 
