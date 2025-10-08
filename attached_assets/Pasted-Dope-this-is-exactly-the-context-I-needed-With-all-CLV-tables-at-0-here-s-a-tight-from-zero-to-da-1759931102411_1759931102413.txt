@@ -1,0 +1,182 @@
+Dope—this is exactly the context I needed. With all CLV tables at 0, here’s a tight “from zero to data” plan that targets the specific choke points in your code paths.
+
+# 1) First: sanity probes (what should be true right now)
+
+**A. Is the scheduler actually running the CLV jobs every 60s?**
+Your scheduler loop is wired to run:
+
+* CLV alert producer every 60s
+* Closing sampler every 60s
+* Closing settler every 60s
+  (plus the daily brief at 00:05 UTC). 
+
+Quick probe (SQL + logs):
+
+```sql
+-- Odds arriving recently? (last 10 min)
+SELECT COUNT(*) FROM odds_snapshots WHERE NOW() - ts_snapshot < INTERVAL '10 minutes';
+
+-- Any fixtures in the KO window right now?
+SELECT COUNT(*) FROM fixtures
+WHERE kickoff_at BETWEEN NOW() - INTERVAL '2 minutes' AND NOW() + INTERVAL '6 minutes';
+```
+
+**B. Does the closing sampler see any fixtures?**
+It only samples in the **T−6m … T+2m** window and pulls from the `fixtures` table (not `matches`). It expects `fixtures.status IN ('scheduled','live')`. 
+If `fixtures` isn’t being filled (or status isn’t those values), sampler will store **zero** rows in `clv_closing_feed`.
+
+**C. Do alerts have anything to chew on?**
+The alert producer requires upcoming fixtures with **recent odds** and joins `odds_snapshots → matches` (kickoff future, `ts_snapshot` in last 10m, and enough books). 
+If either `matches.match_date_utc` is missing or `odds_snapshots.ts_snapshot` isn’t fresh, **no alerts** → `clv_alerts` stays 0.
+
+**D. Column name drift (likely blocker):**
+You’ve got two different column names used for the same concept:
+
+* `odds_decimal` (producer, API, monitors)   
+* `odds_dec` (closing sampler) 
+
+…and two timestamp fields in use:
+
+* `ts_snapshot` (producer & sampler)  
+* `created_at` (API + monitors)  
+
+If your table only has one set (e.g., `odds_decimal` + `ts_snapshot`), any code querying the other names returns **no rows**.
+
+# 2) Minimal fixes to get data flowing (no refactor, just shims)
+
+**Create compatibility views** (fastest way to “unbreak” mixed callers):
+
+```sql
+-- If your base has odds_decimal + ts_snapshot, create synonyms for modules using odds_dec / created_at
+CREATE OR REPLACE VIEW odds_snapshots_compat AS
+SELECT
+  match_id,
+  book_id,
+  outcome,
+  odds_decimal AS odds_dec,
+  odds_decimal,                -- keep native too
+  ts_snapshot,
+  ts_snapshot   AS created_at, -- for modules using created_at
+  secs_to_kickoff,
+  league_id
+FROM odds_snapshots;
+
+-- Optional: replace module queries to hit this view name, or CREATE VIEW odds_snapshots AS ... if safe.
+```
+
+**Fixtures status shim** (if your `fixtures.status` differs):
+
+```sql
+-- Map your native statuses to ('scheduled','live') for the sampler
+CREATE OR REPLACE VIEW fixtures_compat AS
+SELECT
+  match_id,
+  league_name,
+  league_id,
+  kickoff_at,
+  CASE 
+    WHEN status IN ('NS','SCHEDULED') THEN 'scheduled'
+    WHEN status IN ('1H','2H','LIVE','IN_PLAY') THEN 'live'
+    ELSE status
+  END AS status
+FROM fixtures;
+```
+
+Then point the sampler to `fixtures_compat` (or replace the table reference if you’re comfortable).
+
+# 3) Smoke test the three CLV phases
+
+**Phase A — Alerts (fills `clv_alerts`)**
+Producer scans next 72h fixtures that have fresh odds and enough independent books; gates on stability/CLV and writes alerts with TTL. 
+
+Quick force:
+
+```sql
+-- Are there candidate fixtures in next 72h with fresh odds?
+SELECT COUNT(*) FROM odds_snapshots os
+JOIN matches m USING(match_id)
+WHERE m.match_date_utc BETWEEN NOW() AND NOW() + INTERVAL '72 hours'
+  AND os.ts_snapshot > NOW() - INTERVAL '10 minutes';
+```
+
+If >0, let the scheduler run a minute, then:
+
+```sql
+SELECT COUNT(*) FROM clv_alerts;
+```
+
+**Phase B — Closing sampler (fills `clv_closing_feed`)**
+Only around KO: **[NOW−2m, NOW+6m]** window via `fixtures`. Stores 3 rows per sample (H/D/A) with composite odds. 
+If you’re outside the window, this will be **0** by design.
+
+**Phase C — Settler (fills `clv_realized`)**
+Looks for matches that kicked off **2–10 minutes ago**, computes closing odds from the feed (LAST5_VWAP or LAST_TICK), and writes realized CLV per alert. 
+
+# 4) Fast local “it works” simulation (no live matches needed)
+
+**Seed an imminent fixture** (if you control DB):
+
+```sql
+-- 1) Make a fixture "now"
+UPDATE fixtures SET kickoff_at = NOW() + INTERVAL '3 minutes', status='scheduled'
+WHERE match_id = <YOUR_MATCH>;
+
+-- 2) Ensure odds_snapshots has recent (last 2–5m) quotes for H/D/A across >= 3 independent books
+--    Use your existing odds loader or insert a few test rows with ts_snapshot = NOW() - '1 minute'.
+
+-- 3) Let the scheduler tick once (60s), or run sampler/producer entrypoints if exposed.
+```
+
+Then check:
+
+```sql
+SELECT COUNT(*) FROM clv_closing_feed WHERE match_id=<YOUR_MATCH>;
+SELECT COUNT(*) FROM clv_alerts       WHERE match_id=<YOUR_MATCH>;
+```
+
+# 5) Guardrails & tweaks I strongly recommend
+
+* **Standardize the schema in code** (after the shims):
+
+  * Pick `odds_decimal` + `ts_snapshot` everywhere (or `odds_dec` + `created_at`), then update queries in:
+
+    * producer `_get_match_odds` uses `odds_decimal` & `ts_snapshot` ✔️ 
+    * sampler `_gather_fresh_odds` uses `odds_dec` & `ts_snapshot` ✖️ (switch to `odds_decimal`) 
+    * API/monitors often use `created_at` ✖️ (switch to `ts_snapshot`)  
+* **Make the sampler tolerant**: if `fixtures` is sparse, consider temporarily sourcing KO from `matches` (same window) so you don’t lose closings during ingestion gaps. (Current settler already joins `matches` when settling.) 
+* **Indexes for hot paths**:
+
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_os_match_time ON odds_snapshots (match_id, ts_snapshot DESC);
+  CREATE INDEX IF NOT EXISTS idx_fix_ko ON fixtures (kickoff_at, status);
+  CREATE INDEX IF NOT EXISTS idx_clf_match_ts ON clv_closing_feed (match_id, ts DESC);
+  CREATE INDEX IF NOT EXISTS idx_alerts_match ON clv_alerts (match_id, created_at DESC);
+  ```
+* **Observability**: add explicit logs each minute that print counts found by each phase (candidates, samples stored, alerts created). Your scheduler already tracks last-run timestamps per phase; keep those debug logs on. 
+
+# 6) Frontend: yes, ship a Premium CLV page now
+
+You already have a CLV API surface with thresholds and dashboard methods (live alerts, top books, etc.). Expose a lightweight `/api/clv/dashboard` that wraps `get_clv_dashboard_data()` and gate `/clv` behind your Pro plan. 
+
+**Minimum viable UI** (same as I outlined earlier):
+
+* KPI cards: Active matches, Positive CLV count, Significant movements.
+* Live table: best vs market odds, CLV%, time-to-KO, recommendation.
+* Toggle to show only ≥ +2% CLV (“Beat the close” watchlist).
+
+# 7) If counts are still zero after shims
+
+Work this order:
+
+1. **Odds snapshots fresh?** (table has last 10m rows)
+2. **Fixtures window populated?** (KO in −2 to +6 min; status mapped)
+3. **Column name drift resolved?** (`odds_decimal`/`odds_dec`, `ts_snapshot`/`created_at`)
+4. **Scheduler confirmed running?** (log lines per phase every 60s) 
+
+Once those three are green, you’ll see:
+
+* `clv_alerts` grow during the day (Phase 1) 
+* `clv_closing_feed` fill around KO (Phase 2a) 
+* `clv_realized` start to populate 2–10 minutes after KO (Phase 2b) 
+
+If you want, I can draft the exact diffs to: (1) point the sampler to `odds_decimal`, (2) switch API/monitor queries to `ts_snapshot`, and (3) optionally read `fixtures_compat`.
