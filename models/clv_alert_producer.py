@@ -28,6 +28,9 @@ class CLVAlertProducer:
         self.db_manager = DatabaseManager()
         self.database_url = os.environ.get('DATABASE_URL')
         
+        # Feature flag: temporarily allow TBD fixtures for testing
+        self.allow_tbd = os.getenv("ALLOW_TBD_FIXTURES", "1") == "1"  # Default ON for now
+        
         if not settings.ENABLE_CLV_CLUB:
             logger.info("CLV Club is disabled in config")
         
@@ -66,8 +69,10 @@ class CLVAlertProducer:
                 
                 # Find fixtures with odds in the target window
                 # ✅ FIX: Use fixtures table (not matches) since fresh odds link to fixtures
-                # ✅ Filter out TBD/placeholder fixtures
-                cursor.execute("""
+                # ✅ Filter out TBD/placeholder fixtures (unless feature flag enabled)
+                tbd_guard = "" if self.allow_tbd else "AND f.home_team NOT ILIKE 'TBD%' AND f.away_team NOT ILIKE 'TBD%'"
+                
+                sql_query = f"""
                     SELECT 
                         os.match_id,
                         COALESCE(lm.league_name, CAST(os.league_id AS text)) as league_name,
@@ -78,11 +83,12 @@ class CLVAlertProducer:
                     WHERE f.kickoff_at > NOW()
                       AND f.kickoff_at < NOW() + make_interval(hours => %s)
                       AND os.ts_snapshot > NOW() - INTERVAL '10 minutes'
-                      AND f.home_team NOT ILIKE 'TBD%'
-                      AND f.away_team NOT ILIKE 'TBD%'
+                      {tbd_guard}
                     GROUP BY os.match_id, lm.league_name, os.league_id, f.kickoff_at
                     HAVING COUNT(DISTINCT os.book_id) >= %s
-                """, (max_hours_ahead, settings.CLV_MIN_BOOKS_MINOR))
+                """
+                
+                cursor.execute(sql_query, (max_hours_ahead, settings.CLV_MIN_BOOKS_MINOR))
                 
                 fixtures = []
                 for row in cursor.fetchall():

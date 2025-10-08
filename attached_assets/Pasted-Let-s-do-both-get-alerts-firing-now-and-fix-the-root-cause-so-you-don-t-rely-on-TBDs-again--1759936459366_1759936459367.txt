@@ -1,0 +1,189 @@
+Let’s do both—get alerts firing **now** and fix the root cause so you don’t rely on TBDs again.
+
+# Plan
+
+1. **Immediate unblock (feature-flag):** allow TBD fixtures through the CLV producer for 24h so we can prove end-to-end alerts.
+2. **Permanent fix:** teach Phase B to **populate/repair team names** when it creates/updates fixtures.
+3. **Backfill today’s TBDs:** one-shot SQL to fill names for the 10 live matches so the UI looks clean.
+
+---
+
+## 1) Immediate unblock (safe, reversible)
+
+Add a feature flag and soften the filter only when enabled.
+
+**.env**
+
+```
+ALLOW_TBD_FIXTURES=1   # turn OFF after validation
+```
+
+**models/clv_alert_producer.py** (where you reject TBDs)
+
+```py
+import os
+ALLOW_TBD = os.getenv("ALLOW_TBD_FIXTURES", "0") == "1"
+
+# before:
+# WHERE f.home_team NOT ILIKE 'TBD%' AND f.away_team NOT ILIKE 'TBD%'
+
+# after (SQL fragment):
+tbd_guard = "" if ALLOW_TBD else "AND f.home_team NOT ILIKE 'TBD%' AND f.away_team NOT ILIKE 'TBD%'"
+
+sql = f"""
+SELECT ...
+FROM odds_snapshots os
+JOIN fixtures f ON f.match_id = os.match_id
+WHERE os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+  AND f.kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '12 hours'
+  {tbd_guard}
+...
+"""
+```
+
+Deploy, let one cycle run. You should see `clv_alerts` > 0 within a minute.
+
+---
+
+## 2) Permanent fix: Phase B should set real team names
+
+When Phase B creates/updates a `fixture`, enrich it right there:
+
+### Option A (API-Football lookup)
+
+If you have the AF fixture_id in scope, call once and upsert names.
+
+```py
+async def enrich_fixture_names_from_api_football(match_id: int, af_fixture_id: int):
+    data = await api_football.get_fixture(af_fixture_id)  # one call
+    home = data["teams"]["home"]["name"]
+    away = data["teams"]["away"]["name"]
+    if home and away and not home.startswith("TBD") and not away.startswith("TBD"):
+        await db.execute(
+            "UPDATE fixtures SET home_team=$1, away_team=$2 WHERE match_id=$3",
+            home, away, match_id
+        )
+```
+
+### Option B (derive from odds payload)
+
+If books include team strings in the market/outcome payload, take the **majority label** from the last 5–10 minutes.
+
+```sql
+-- one-shot SQL used by Phase B (or a helper):
+WITH names AS (
+  SELECT match_id,
+         MAX(home_name) FILTER (WHERE home_name IS NOT NULL) AS home_guess,
+         MAX(away_name) FILTER (WHERE away_name IS NOT NULL) AS away_guess
+  FROM (
+    SELECT os.match_id,
+           CASE WHEN os.outcome='H' THEN os.team_label END AS home_name,
+           CASE WHEN os.outcome='A' THEN os.team_label END AS away_name
+    FROM odds_snapshots os
+    WHERE os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+  ) z
+  GROUP BY match_id
+)
+UPDATE fixtures f
+SET home_team = COALESCE(NULLIF(f.home_team,'TBD'), n.home_guess),
+    away_team = COALESCE(NULLIF(f.away_team,'TBD'), n.away_guess)
+FROM names n
+WHERE f.match_id = n.match_id
+  AND (f.home_team ILIKE 'TBD%' OR f.away_team ILIKE 'TBD%');
+```
+
+### Wire it into Phase B
+
+After each successful odds write for a fixture:
+
+```py
+await maybe_enrich_fixture_names(match_id)  # calls A or B above
+```
+
+---
+
+## 3) Backfill today’s TBDs (one-shot)
+
+Run this once so current candidates render nicely:
+
+```sql
+-- Backfill from recent odds-derived labels (safe if team_label exists)
+WITH latest AS (
+  SELECT DISTINCT ON (match_id, outcome)
+         match_id, outcome, team_label
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '12 hours'
+  ORDER BY match_id, outcome, ts_snapshot DESC
+),
+pivot AS (
+  SELECT
+    match_id,
+    MAX(team_label) FILTER (WHERE outcome='H') AS home_guess,
+    MAX(team_label) FILTER (WHERE outcome='A') AS away_guess
+  FROM latest GROUP BY match_id
+)
+UPDATE fixtures f
+SET home_team = COALESCE(NULLIF(f.home_team,'TBD'), p.home_guess),
+    away_team = COALESCE(NULLIF(f.away_team,'TBD'), p.away_guess)
+FROM pivot p
+WHERE f.match_id = p.match_id
+  AND (f.home_team ILIKE 'TBD%' OR f.away_team ILIKE 'TBD%');
+```
+
+(If `team_label` doesn’t exist, use the API-Football enrich function once for those 10 match_ids.)
+
+---
+
+## 4) Sanity checks (copy/paste)
+
+```sql
+-- Do we now have eligible fixtures in the next 12h?
+SELECT COUNT(*) FROM fixtures
+WHERE kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '12 hours'
+  AND home_team NOT ILIKE 'TBD%' AND away_team NOT ILIKE 'TBD%';
+
+-- Producer candidate pressure test (books per match)
+WITH recent AS (
+  SELECT match_id, book_id, MAX(ts_snapshot) ts
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '10 minutes'
+  GROUP BY match_id, book_id
+)
+SELECT COUNT(*) FROM (
+  SELECT match_id, COUNT(DISTINCT book_id) AS nbooks
+  FROM recent GROUP BY match_id
+) t WHERE nbooks >= 3;
+```
+
+Expected after feature-flag path:
+
+* `clv_alerts` > 0 within 1–2 cycles.
+* Logs show `candidates_meeting_books > 0`, `edges_over_threshold > 0`.
+
+---
+
+## 5) Clean rollback
+
+* Turn off `.env ALLOW_TBD_FIXTURES` after names are reliably populating.
+* Keep the Phase B enrichment step permanently.
+* Add a tiny health counter to producer: `alerts_inserted`, `candidates_rejected_tbd`, `candidates_rejected_books`, `candidates_rejected_edge`.
+
+---
+
+## 6) Bonus hardening (low effort)
+
+* **Constraint:** prevent permanent TBDs
+
+```sql
+ALTER TABLE fixtures
+  ADD CONSTRAINT fixtures_tbd_check
+  CHECK (
+    home_team IS NULL OR home_team NOT ILIKE 'TBD%'
+  );
+```
+
+(Use after you’re confident enrichment runs; otherwise make it DEFERRABLE INITIALLY DEFERRED.)
+
+---
+
+If you want, I’ll draft the exact diff for `clv_alert_producer.py` (feature flag + logging) and a small `enrich_fixture_names.py` helper that Phase B can call.
