@@ -1,0 +1,179 @@
+yessir fam — we’re cookin’ now. Fresh odds are flowing, so the last mile is getting the **CLV alerts** to light up and then piping closings. Here’s the tightest path forward.
+
+# Quick wins to make alerts show (today)
+
+1. **Fix that timezone bug (cosmetic → real fast):**
+   In `automated_collector.py` add:
+
+```py
+from datetime import timezone
+```
+
+(or replace `datetime.now(timezone.utc)` with `datetime.utcnow()` if you prefer.)
+
+2. **Relax gates temporarily (prove it works, then tighten):**
+   In `models/clv_club.py` / `clv_alert_producer.py` set via env:
+
+```bash
+CLV_MIN_BOOKS=3
+CLV_MIN_EDGE_BPS=40        # ~0.4% ip edge
+CLV_MIN_RECENT_SEC=600     # 10 minutes
+CLV_SUPPRESS_DUP_MIN=5     # re-alert cool-down window
+```
+
+Wire them:
+
+```py
+MIN_BOOKS = int(os.getenv("CLV_MIN_BOOKS", 3))
+MIN_EDGE_BPS = int(os.getenv("CLV_MIN_EDGE_BPS", 40))
+RECENT_SEC = int(os.getenv("CLV_MIN_RECENT_SEC", 600))
+```
+
+3. **Guard out junk fixtures (“TBD” teams):**
+
+```sql
+DELETE FROM fixtures WHERE home_team ILIKE 'TBD%' OR away_team ILIKE 'TBD%';
+```
+
+…and in the producer query add:
+
+```sql
+AND f.home_team NOT ILIKE 'TBD%' AND f.away_team NOT ILIKE 'TBD%'
+```
+
+4. **Double-check you’re joining `fixtures` (not `matches`) everywhere in the producer** for KO/time filters. You already patched this—just make sure every query path did.
+
+---
+
+# Debug: are there alert candidates right now?
+
+Run these to see **why** 0 alerts:
+
+**A) Do we have enough fresh books per match?**
+
+```sql
+WITH recent AS (
+  SELECT match_id, book_id,
+         MAX(ts_snapshot) AS ts
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '10 minutes'
+  GROUP BY match_id, book_id
+)
+SELECT r.match_id,
+       COUNT(DISTINCT r.book_id) AS fresh_books,
+       MIN(r.ts) AS first_fresh_ts,
+       MAX(r.ts) AS last_fresh_ts
+FROM recent r
+JOIN fixtures f USING(match_id)
+WHERE f.kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '12 hours'
+  AND f.home_team NOT ILIKE 'TBD%' AND f.away_team NOT ILIKE 'TBD%'
+GROUP BY r.match_id
+ORDER BY last_fresh_ts DESC
+LIMIT 50;
+```
+
+**B) Spot a quick edge vs “composite” (median) across books**
+*(pre-closing proxy so producer has something to chew on)*
+
+```sql
+WITH latest AS (
+  SELECT os.match_id, os.outcome, os.book_id,
+         FIRST_VALUE(os.odds_decimal) OVER (
+           PARTITION BY os.match_id, os.outcome, os.book_id
+           ORDER BY os.ts_snapshot DESC
+         ) AS price
+  FROM odds_snapshots os
+  WHERE os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+),
+comp AS (
+  SELECT match_id, outcome,
+         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS composite_price
+  FROM latest
+  GROUP BY match_id, outcome
+),
+edges AS (
+  SELECT l.match_id, l.book_id, l.outcome, l.price,
+         c.composite_price,
+         (1.0/c.composite_price - 1.0/l.price) AS clv_pct,
+         10000*(1.0/c.composite_price - 1.0/l.price) AS clv_bps
+  FROM latest l JOIN comp c USING (match_id, outcome)
+)
+SELECT e.match_id,
+       MAX(CASE WHEN outcome='home' THEN clv_bps END) AS home_bps,
+       MAX(CASE WHEN outcome='draw' THEN clv_bps END) AS draw_bps,
+       MAX(CASE WHEN outcome='away' THEN clv_bps END) AS away_bps,
+       COUNT(DISTINCT book_id) AS books
+FROM edges e
+GROUP BY e.match_id
+HAVING COUNT(DISTINCT book_id) >= 3
+ORDER BY GREATEST(COALESCE(home_bps,-1e9),COALESCE(draw_bps,-1e9),COALESCE(away_bps,-1e9)) DESC
+LIMIT 25;
+```
+
+If this returns rows with **bps ≥ your MIN_EDGE_BPS**, the producer should be creating alerts. If not, lower `CLV_MIN_EDGE_BPS` for a bit to validate the pipeline.
+
+---
+
+# Producer tweaks (make it loud + resilient)
+
+* **Log candidates vs. rejects:** print per cycle:
+
+  * `fixtures_considered`, `fixtures_with_fresh_odds`, `candidates_meeting_books`, `edges_over_threshold`, `alerts_inserted`
+* **De-juice & independence check:** keep your “composite” as bookmaker-independent (don’t overweight same family brands). If needed, add a `book_family` map and require `COUNT(DISTINCT book_family) >= MIN_BOOKS`.
+* **Suppression counters:** your `clv_suppression_counters` is empty—write to it on re-alert skips so you can audit why no alert fired.
+
+Example insert on skip:
+
+```sql
+INSERT INTO clv_suppression_counters(match_id, reason, created_at)
+VALUES ($1, 'cooldown_active', NOW());
+```
+
+---
+
+# Closing line (Phase 2) checklist
+
+1. **Sampler** (T−6m…T+2m window) is already scheduled. Verify it only inspects KO-window fixtures and **skips** ones with no snapshots in last 5m:
+
+```py
+if not await has_recent_snapshots(match_id, within_sec=300):
+    continue
+```
+
+2. **Populate closings**
+   You can keep using `populate_closing_odds.py` on a cron every 2–5 minutes, or fold it into the **settler** job when `T+2m < now() < T+10m`. Either way, make it **idempotent** with UPSERT:
+
+```sql
+INSERT INTO closing_odds(match_id, market, side, closing_price, closing_at, method)
+VALUES ($1,$2,$3,$4,$5,$6)
+ON CONFLICT (match_id, market, side)
+DO UPDATE SET closing_price=EXCLUDED.closing_price,
+              closing_at=EXCLUDED.closing_at,
+              method=EXCLUDED.method;
+```
+
+---
+
+# Frontend next (once alerts pop)
+
+* **/clv (Pro)**: live opportunities (filter by `>= +100 bps`, time-to-KO, league).
+* Badge: **Beat the Close (Live)** once `clv_bps > 0` after close is computed.
+* Small **health ribbon** on page top: `fresh_odds_10m`, `alerts_today`, `closing_samples_last_hour`.
+
+---
+
+# “Done-when” checklist (super concrete)
+
+* [ ] `odds_snapshots` fresh rows keep growing (10m window)
+* [ ] `clv_alerts` > 0 after lowering gates
+* [ ] Logs show `edges_over_threshold > 0` each cycle
+* [ ] `clv_closing_feed` fills around KO for at least one match
+* [ ] `closing_odds` populated (via settler or aggregation script)
+* [ ] `/metrics/evaluation` returns CLV fields (no `no_closing_odds`)
+
+If you want, I can drop a micro-PR with:
+
+* the env-driven thresholds,
+* the producer SQL fixes + logging,
+* the UPSERT for closings,
+* and a tiny `/admin/clv/preview` endpoint that returns candidate counts without inserting (super helpful for tuning).

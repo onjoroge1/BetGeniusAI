@@ -66,6 +66,7 @@ class CLVAlertProducer:
                 
                 # Find fixtures with odds in the target window
                 # ✅ FIX: Use fixtures table (not matches) since fresh odds link to fixtures
+                # ✅ Filter out TBD/placeholder fixtures
                 cursor.execute("""
                     SELECT 
                         os.match_id,
@@ -77,6 +78,8 @@ class CLVAlertProducer:
                     WHERE f.kickoff_at > NOW()
                       AND f.kickoff_at < NOW() + make_interval(hours => %s)
                       AND os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+                      AND f.home_team NOT ILIKE 'TBD%'
+                      AND f.away_team NOT ILIKE 'TBD%'
                     GROUP BY os.match_id, lm.league_name, os.league_id, f.kickoff_at
                     HAVING COUNT(DISTINCT os.book_id) >= %s
                 """, (max_hours_ahead, settings.CLV_MIN_BOOKS_MINOR))
