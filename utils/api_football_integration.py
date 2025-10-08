@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional, Tuple
 import logging
 from utils.api_football_client import ApiFootballClient, OddsMapper
+from utils.dates import as_aware_utc, now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -278,14 +279,16 @@ class ApiFootballIngestion:
                     continue
                 
                 values = bet.get('values', [])
-                last_update_str = bet.get('last_update', datetime.utcnow().isoformat())
+                last_update_str = bet.get('last_update', now_utc().isoformat())
                 
                 try:
-                    ts_snapshot = datetime.fromisoformat(last_update_str.replace('Z', '+00:00'))
+                    ts_snapshot = as_aware_utc(last_update_str)
                 except:
-                    ts_snapshot = datetime.utcnow()
+                    ts_snapshot = now_utc()
                 
-                secs_to_kickoff = int((kickoff_ts - ts_snapshot).total_seconds())
+                # Ensure kickoff_ts is timezone-aware for comparison
+                kickoff_aware = as_aware_utc(kickoff_ts)
+                secs_to_kickoff = int((kickoff_aware - ts_snapshot).total_seconds())
                 
                 # Collect all outcomes for this market
                 market_key = (bookmaker_id, internal_market)
@@ -311,6 +314,10 @@ class ApiFootballIngestion:
         
         # FIRST: Upsert fixture metadata (canonical source of truth)
         try:
+            # Ensure kickoff_ts is timezone-aware
+            kickoff_aware = as_aware_utc(kickoff_ts)
+            is_finished = kickoff_aware < now_utc()
+            
             cursor.execute("""
                 INSERT INTO fixtures (
                     match_id, league_id, home_team, away_team, 
@@ -330,9 +337,9 @@ class ApiFootballIngestion:
                 league_id,
                 'TBD',  # Team names not available in odds data
                 'TBD',
-                kickoff_ts.replace(tzinfo=None) if kickoff_ts.tzinfo else kickoff_ts,
+                kickoff_aware,
                 2024,
-                'finished' if kickoff_ts < datetime.now(timezone.utc) else 'scheduled'
+                'finished' if is_finished else 'scheduled'
             ))
         except Exception as fixture_err:
             logger.warning(f"Failed to upsert fixture {match_id}: {fixture_err}")

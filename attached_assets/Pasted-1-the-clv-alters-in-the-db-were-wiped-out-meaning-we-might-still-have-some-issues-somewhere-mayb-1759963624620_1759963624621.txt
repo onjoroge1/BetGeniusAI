@@ -1,0 +1,43 @@
+1- the clv alters in the db were wiped out, meaning we might still have some issues somewhere - maybe you can give me some tests for the ai agent to run 2- in the console we still have some issues with the logs, we should have fixed this yesterday: WARNING:utils.api_football_integration:Failed to upsert fixture 1351167: can't compare offset-naive and offset-aware datetimes
+INFO:utils.api_football_integration:Ingested 39 odds rows for fixture 1351167 (match_id=1351167) from 13 bookmakers
+INFO:models.automated_collector:✅ Collected 39 odds rows for fixture 1351167
+INFO:utils.api_football_integration:Refreshed consensus for match 1351167
+INFO:models.automated_collector:🕐 Match 1351155 (Palmeiras vs Juventude) - T-72.6h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-72h window (actual: T-72.6h, tolerance: ±12h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1351155 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1351155: can't compare offset-naive and offset-aware datetimes
+INFO:utils.api_football_integration:Ingested 36 odds rows for fixture 1351155 (match_id=1351155) from 12 bookmakers
+INFO:models.automated_collector:✅ Collected 36 odds rows for fixture 1351155
+INFO:utils.api_football_integration:Refreshed consensus for match 1351155
+INFO:models.automated_collector:🕐 Match 1353564 (Avai vs Volta Redonda) - T-2.6h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-6h window (actual: T-2.6h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353564 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353564: can't compare offset-naive and offset-aware datetimes
+INFO:utils.api_football_integration:Ingested 39 odds rows for fixture 1353564 (match_id=1353564) from 13 bookmakers
+INFO:models.automated_collector:✅ Collected 39 odds rows for fixture 1353564
+INFO:utils.api_football_integration:Refreshed consensus for match 1353564
+INFO:models.automated_collector:🕐 Match 1353567 (America Mineiro vs Vila Nova) - T-3.1h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-6h window (actual: T-3.1h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353567 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353567: can't compare offset-naive and offset-aware datetimes
+INFO:utils.api_football_integration:Ingested 39 odds rows for fixture 1353567 (match_id=1353567) from 13 bookmakers
+INFO:models.automated_collector:✅ Collected 39 odds rows for fixture 1353567
+INFO:utils.api_football_integration:Refreshed consensus for match 1353567
+INFO:models.automated_collector:🕐 Match 1353568 (Ferroviária vs Chapecoense-sc) - T-24.6h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-24h window (actual: T-24.6h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353568 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353568: can't compare offset-naive and offset-aware datetimes
+INFO:utils.api_football_integration:Ingested 36 odds rows for fixture 1353568 (match_id=1353568) from 12 bookmakers
+INFO:models.automated_collector:✅ Collected 36 odds rows for fixture 1353568
+INFO:utils.api_football_integration:Refreshed consensus for match 1353568
+INFO:models.automated_collector:🕐 Match 1353560 (Coritiba vs Atletico Goianiense) - T-25.1h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-24h window (actual: T-25.1h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353560 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353560: can't compare offset-naive and offset-aware datetimes
+INFO:utils.api_football_integration:Ingested 36 odds rows for fixture 1353560 (match_id=1353560) from 12 bookmakers
+INFO:models.automated_collector:✅ Collected 36 odds rows for fixture 1353560
+INFO:utils.api_football_integration:Refreshed consensus for match 1353560
+INFO:models.automated_collector:🕐 Match 1353563 (remo vs Atletico Paranaense) - T-27.2h
+INFO:models.automated_collector:🎯 Collecting API-Football odds for T-24h window (actual: T-27.2h, tolerance: ±8h)
+INFO:utils.api_football_integration:✅ Resolver Step 3: Found fixture_id 1353563 via live search
+WARNING:utils.api_football_integration:Failed to upsert fixture 1353563: can't compare offset-naive and offset-aware datetimes

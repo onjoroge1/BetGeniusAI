@@ -1,0 +1,290 @@
+Got you. Let’s (1) stop the “naive vs aware” crash for good, (2) add quick diagnostics so the agent can prove where CLV alerts went, and (3) ship a small test pack the agent can run anytime.
+
+⸻
+
+A) Patch the timezone bug (the log spam you pasted)
+
+Symptom
+WARNING ... Failed to upsert fixture ... can't compare offset-naive and offset-aware datetimes
+
+Root
+Your API-Football integration compares/uses datetimes with mixed tz awareness during fixture upsert.
+
+Hard fix (one place, used everywhere):
+
+# utils/dates.py
+from datetime import datetime, timezone
+from typing import Optional, Union
+
+def as_aware_utc(dt: Optional[Union[datetime, str, int, float]]) -> Optional[datetime]:
+    """
+    Normalize input to tz-aware UTC datetime.
+    Accepts: datetime (naive or aware), ISO string, or epoch seconds.
+    """
+    if dt is None:
+        return None
+    if isinstance(dt, (int, float)):
+        return datetime.fromtimestamp(dt, tz=timezone.utc)
+    if isinstance(dt, str):
+        # API-Football returns ISO-like; rely on fromisoformat if possible
+        try:
+            d = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        except ValueError:
+            # last resort: strip micros/spaces
+            d = datetime.strptime(dt.split(".")[0], "%Y-%m-%dT%H:%M:%S")
+        return d.astimezone(timezone.utc) if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    if isinstance(dt, datetime):
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    raise TypeError(f"Unsupported datetime type: {type(dt)}")
+
+Use it in the API-Football integration before any compare/upsert:
+
+# utils/api_football_integration.py  (where you build fixture rows)
+from utils.dates import as_aware_utc
+
+kickoff_at = as_aware_utc(api_fixture["fixture"]["date"])
+last_update = as_aware_utc(api_fixture["fixture"].get("lastUpdate"))
+
+# Any comparison like: if kickoff_at > now_utc: ...
+from datetime import datetime, timezone
+now_utc = datetime.now(timezone.utc)
+
+# All writes MUST send timestamptz (or at least aware UTC datetimes)
+await db.execute(
+    "INSERT INTO fixtures (match_id, kickoff_at, last_update, status, home_team, away_team) "
+    "VALUES ($1,$2,$3,$4,$5,$6) "
+    "ON CONFLICT (match_id) DO UPDATE SET kickoff_at=$2, last_update=$3, status=$4, home_team=$5, away_team=$6",
+    match_id, kickoff_at, last_update, status, home, away
+)
+
+DB guardrails (once):
+
+-- Ensure columns are timestamptz
+ALTER TABLE fixtures      ALTER COLUMN kickoff_at TYPE timestamptz USING kickoff_at AT TIME ZONE 'UTC';
+ALTER TABLE fixtures      ALTER COLUMN last_update TYPE timestamptz USING last_update AT TIME ZONE 'UTC';
+ALTER TABLE odds_snapshots ALTER COLUMN ts_snapshot TYPE timestamptz USING ts_snapshot AT TIME ZONE 'UTC';
+ALTER TABLE clv_alerts    ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
+ALTER TABLE clv_alerts    ALTER COLUMN expires_at TYPE timestamptz USING expires_at AT TIME ZONE 'UTC';
+
+
+⸻
+
+B) “Why did clv_alerts disappear?” — targeted diagnostics
+
+These quick queries tell us whether alerts were expired, deleted, or cascaded.
+
+-- 1) Did a job truncate or DDL-reset the table?
+SELECT to_char(pg_stat_all_tables.last_vacuum, 'YYYY-MM-DD HH24:MI:SS') AS last_vacuum,
+       to_char(pg_stat_all_tables.last_autovacuum, 'YYYY-MM-DD HH24:MI:SS') AS last_autovacuum,
+       to_char(pg_stat_all_tables.last_analyze, 'YYYY-MM-DD HH24:MI:SS') AS last_analyze
+FROM pg_stat_all_tables
+WHERE relname = 'clv_alerts';
+
+-- 2) Were they simply expired by TTL?
+SELECT COUNT(*) AS active,
+       COUNT(*) FILTER (WHERE expires_at <= NOW()) AS expired
+FROM clv_alerts;
+
+-- 3) Was there a schema recreate?
+SELECT to_char(pg_class.relrewrite, 'YYYY-MM-DD HH24:MI:SS') AS rewrote_at
+FROM pg_class WHERE relname='clv_alerts';
+
+-- 4) Are we cascading deletes from parent entities?
+SELECT conname, confrelid::regclass AS parent_table
+FROM pg_constraint
+WHERE conrelid='clv_alerts'::regclass AND contype='f';
+
+-- 5) Did our app delete (audit recent deletions)?
+-- Only works if you have an audit table; otherwise add this trigger for future:
+
+(Optional) Add a tiny audit trigger for future debugging
+
+CREATE TABLE IF NOT EXISTS clv_alerts_audit(
+  id bigserial, alert_id bigint, action text, at timestamptz default now()
+);
+
+CREATE OR REPLACE FUNCTION audit_clv_alerts_del()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO clv_alerts_audit(alert_id, action) VALUES (OLD.id, 'DELETE');
+  RETURN OLD;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'trg_audit_clv_alerts_del'
+  ) THEN
+    CREATE TRIGGER trg_audit_clv_alerts_del
+    BEFORE DELETE ON clv_alerts
+    FOR EACH ROW EXECUTE FUNCTION audit_clv_alerts_del();
+  END IF;
+END $$;
+
+Common causes we’ve seen:
+	•	TTL too short: expires_at set to created_at + 5min → table looks “wiped”.
+	•	A nightly backfill script re-creates tables/views.
+	•	A cascade from fixtures or matches cleanups.
+
+If it’s TTL: increase via env (e.g., 15–30 min) and re-run producer.
+
+⸻
+
+C) Agent-friendly tests you can run now
+
+1) Unit: timezone normalization
+
+# tests/test_dates.py
+from datetime import datetime, timezone
+from utils.dates import as_aware_utc
+
+def test_as_aware_utc_from_naive():
+    d = datetime(2025,10,8,12,0,0)  # naive
+    a = as_aware_utc(d)
+    assert a.tzinfo is not None and a.tzinfo.utcoffset(a).total_seconds() == 0
+
+def test_as_aware_utc_from_iso():
+    a = as_aware_utc("2025-10-08T12:00:00Z")
+    assert a.tzinfo is not None and a.hour == 12
+
+def test_as_aware_utc_from_epoch():
+    a = as_aware_utc(1769918400)  # example epoch
+    assert a.tzinfo is not None
+
+2) Integration: API-Football fixture upsert doesn’t crash
+
+# tests/test_api_football_upsert.py
+import asyncio
+from utils.api_football_integration import upsert_fixture  # your function
+
+async def _run():
+    # Mock minimal payload the way your resolver returns it
+    fixture = {
+        "fixture": {"date": "2025-10-09T18:00:00Z", "lastUpdate": "2025-10-08T17:00:00Z"},
+        "teams": {"home": {"name": "Palmeiras"}, "away": {"name": "Juventude"}},
+        "league": {"name": "Serie A", "id": 123}
+    }
+    await upsert_fixture(match_id=1351155, api_fixture=fixture)
+
+def test_upsert_no_naive_aware_crash():
+    asyncio.run(_run())
+
+3) CLV producer smoke test (no errors, some decisioning)
+
+# tests/test_clv_producer_smoke.py
+import asyncio
+from models.clv_alert_producer import CLVAlertProducer
+
+def test_producer_runs_without_exceptions(monkeypatch):
+    prod = CLVAlertProducer()
+    # optionally monkeypatch thresholds low to ensure some candidates
+    prod.MIN_BOOKS = 1
+    prod.MIN_EDGE_BPS = 1
+    stats = asyncio.run(prod.run_once())  # or prod()
+    assert "errors" not in stats
+
+4) DB contract test: alerts survive a restart
+
+# tests/test_alerts_persistence.py
+import asyncpg, os, asyncio
+
+async def _run():
+    conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+    # insert one fake alert with long TTL
+    row = await conn.fetchrow("""
+      INSERT INTO clv_alerts(match_id, outcome, clv_bps, stability, created_at, expires_at, best_book_id, snapshot_price, composite_price)
+      VALUES (999999,'H',123,0.99,NOW(), NOW()+INTERVAL '30 minutes', 1, 1.90, 2.00)
+      RETURNING id
+    """)
+    alert_id = row["id"]
+    # simulate "restart": nothing to do here, but your agent can restart services
+    # verify still present & active
+    row2 = await conn.fetchrow("SELECT count(*) AS c FROM clv_alerts WHERE id=$1 AND expires_at>NOW()", alert_id)
+    await conn.close()
+    return row2["c"]
+
+def test_alert_persists_active():
+    c = asyncio.run(_run())
+    assert c == 1
+
+5) Closing pipeline e2e (when a KO window match exists)
+
+# tests/test_closing_loop.py
+import asyncpg, os, asyncio
+
+async def _run():
+    conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+    # precondition: there is at least one fixture within T-6..T+2
+    m = await conn.fetchrow("""
+      SELECT match_id FROM fixtures
+      WHERE kickoff_at BETWEEN NOW()-INTERVAL '2 minutes' AND NOW()+INTERVAL '6 minutes'
+      LIMIT 1
+    """)
+    if not m:
+      await conn.close()
+      return "SKIPPED"
+    mid = m["match_id"]
+    # sampler should write
+    s = await conn.fetchrow("SELECT COUNT(*) c FROM clv_closing_feed WHERE match_id=$1 AND ts>NOW()-INTERVAL '10 minutes'", mid)
+    # aggregator should upsert closing_odds
+    co = await conn.fetchrow("SELECT COUNT(*) c FROM closing_odds WHERE match_id=$1", mid)
+    await conn.close()
+    return (s["c"], co["c"])
+
+def test_closing_loop():
+    res = asyncio.run(_run())
+    assert res == "SKIPPED" or (res[0] >= 1 and res[1] >= 1)
+
+
+⸻
+
+D) Tiny runtime guardrails (to prevent “wiped” feeling)
+	1.	Longer alert TTL while tuning
+
+# .env
+CLV_ALERT_TTL_MIN=20  # previously 5–10?
+
+Use it when computing expires_at.
+	2.	Don’t hard-delete alerts; mark inactive
+If you currently delete, switch to:
+
+ALTER TABLE clv_alerts ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT false;
+-- and update code to set is_deleted=true instead of DELETE
+
+	3.	Ensure no cascade from fixtures
+If you have ON DELETE CASCADE from fixtures → clv_alerts, consider changing to ON DELETE SET NULL (and add a soft-delete flag on fixtures instead).
+
+⸻
+
+E) Quick agent runbook (copy/paste)
+
+1. Apply TZ DDL (once)
+(run the ALTER TABLEs above)
+
+2. Run unit/integration tests
+
+pytest -q tests/test_dates.py \
+          tests/test_api_football_upsert.py \
+          tests/test_clv_producer_smoke.py \
+          tests/test_alerts_persistence.py
+
+3. Live diagnostics
+
+-- Alerts present & active?
+SELECT COUNT(*) active FROM clv_alerts WHERE expires_at > NOW();
+
+-- Fresh odds present?
+SELECT COUNT(*) FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+
+-- Fixture KO window (for sampler)?
+SELECT match_id FROM fixtures
+WHERE kickoff_at BETWEEN NOW()-INTERVAL '2 minutes' AND NOW()+INTERVAL '6 minutes';
+
+4. Watch logs after deploy
+	•	Expect no “offset-naive/aware” warnings.
+	•	Expect producer cycle logs: candidates / inserted.
+	•	When KO window arrives: sampler logs show samples_written > 0.
+
+⸻
+
+If you want, I can also generate a slim scripts/smoke_clv.py that runs the DB probes + a single CLV producer pass and prints a ✅/❌ summary—handy for CI and cron.
