@@ -287,7 +287,9 @@ def ensure_components_loaded():
 @app.on_event("startup")
 async def startup_event():
     """Minimal startup - services initialized on demand"""
-    logger.info("Starting BetGenius AI Backend - services will load on first use...")
+    logger.info("Starting BetGenius AI Backend - initializing background scheduler...")
+    # ✅ Start background scheduler on startup (idempotent - safe to call multiple times)
+    get_background_scheduler()
 
 @app.on_event("shutdown")
 async def shutdown_event():

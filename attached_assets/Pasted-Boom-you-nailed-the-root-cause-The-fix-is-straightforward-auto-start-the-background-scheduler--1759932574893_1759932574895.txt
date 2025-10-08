@@ -1,0 +1,179 @@
+Boom — you nailed the root cause. The fix is straightforward: **auto-start the background scheduler at app boot** (and make it idempotent so multiple workers don’t spawn duplicates). Here’s a clean, production-safe patch + a quick validation plan.
+
+# 1) Minimal hotfix: start the scheduler on startup
+
+Add this to `main.py` (right where you showed the `startup_event`):
+
+```py
+# main.py
+from scheduler import get_background_scheduler  # adjust path if needed
+
+@app.on_event("startup")
+async def startup_event():
+    """Boot services at startup (not on first request)."""
+    logger.info("Starting BetGenius AI Backend - initializing background scheduler...")
+    # ✅ Idempotent start; safe to call multiple times
+    get_background_scheduler()
+```
+
+If you’d rather use the modern FastAPI lifespan API:
+
+```py
+# main.py
+from contextlib import asynccontextmanager
+from scheduler import get_background_scheduler, shutdown_background_scheduler
+
+@asynccontextmanager
+async def lifespan(app):
+    logger.info("App starting: launching background scheduler...")
+    get_background_scheduler()            # start
+    try:
+        yield
+    finally:
+        logger.info("App stopping: shutting down background scheduler...")
+        shutdown_background_scheduler()   # graceful stop
+
+app = FastAPI(lifespan=lifespan)
+```
+
+# 2) Make the scheduler truly idempotent (no double runners)
+
+In `scheduler.py`, ensure a single instance per process and guard against duplicate starts:
+
+```py
+# scheduler.py
+import threading
+import logging
+logger = logging.getLogger(__name__)
+
+_scheduler_lock = threading.Lock()
+_scheduler_instance = None
+
+def _start_jobs(sched):
+    """
+    Register ALL repeating jobs here, e.g.:
+      - CLV alert producer (60s)
+      - CLV closing sampler (60s)
+      - CLV closing settler (60s)
+      - Daily brief (00:05 UTC)
+      - (Optional) real-time odds collectors
+    """
+    # IMPORTANT: check if already scheduled to avoid duplicates on hot-reload
+    if getattr(sched, "_jobs_registered", False):
+        return
+    # 🔁 Every 60s jobs
+    sched.every(60).seconds.do(run_clv_alert_producer)
+    sched.every(60).seconds.do(run_clv_closing_sampler)
+    sched.every(60).seconds.do(run_clv_closing_settler)
+    # 🗓️ Daily brief
+    sched.every().day.at("00:05").do(run_clv_daily_brief)
+    sched._jobs_registered = True
+    logger.info("Scheduler jobs registered.")
+
+def get_background_scheduler():
+    global _scheduler_instance
+    with _scheduler_lock:
+        if _scheduler_instance:
+            return _scheduler_instance
+        # create your scheduler (APScheduler, schedule, custom loop, etc.)
+        sched = YourSchedulerImpl()
+        _start_jobs(sched)
+        sched.start()
+        _scheduler_instance = sched
+        logger.info("Background scheduler started.")
+        return _scheduler_instance
+
+def shutdown_background_scheduler():
+    global _scheduler_instance
+    with _scheduler_lock:
+        if _scheduler_instance:
+            _scheduler_instance.stop()
+            _scheduler_instance = None
+            logger.info("Background scheduler stopped.")
+```
+
+> If you run **multiple Uvicorn/Gunicorn workers**, only one should run the background scheduler. Use one of:
+>
+> * **SINGLETON via env**: only start when `os.getenv("RUN_SCHEDULER","1")=="1"` and set it for exactly one replica.
+> * **DB advisory lock** (Postgres): try `pg_try_advisory_lock(42)` at startup; only start if lock acquired; release on shutdown.
+
+# 3) Ensure Phase B actually collects fresh odds
+
+You found: Phase A (historical) works; **Phase B (upcoming odds)** wasn’t actually running. Confirm you have **a real-time odds collector** in your job set:
+
+```py
+def _start_jobs(sched):
+    ...
+    # ✅ Real-time odds collectors for upcoming fixtures
+    sched.every(60).seconds.do(run_realtime_odds_collector_oddsapi)       # The Odds API
+    sched.every(60).seconds.do(run_realtime_odds_collector_api_football)  # API-Football
+```
+
+Those collectors must:
+
+* Pull fixtures kicking off **within the next N hours**,
+* Fetch latest odds from your sources,
+* Write to `odds_snapshots` with a **fresh `ts_snapshot`** (≤ 10 minutes old),
+* Use consistent column names (`odds_decimal`, `ts_snapshot`) across the codepaths.
+
+If you don’t have both collectors wired yet, at least enable one (the same provider you use for training) so the CLV pipeline has current quotes to chew on.
+
+# 4) Quick validation (5 minutes)
+
+After deploying the startup fix:
+
+```sql
+-- 1) Odds freshness (should climb quickly once collectors run)
+SELECT COUNT(*) FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+
+-- 2) Upcoming fixtures within KO window (for closing sampler)
+SELECT COUNT(*) FROM fixtures
+WHERE kickoff_at BETWEEN NOW() - INTERVAL '2 minutes' AND NOW() + INTERVAL '6 minutes'
+  AND status IN ('scheduled','live');
+
+-- 3) CLV pipeline tables start moving
+SELECT COUNT(*) FROM clv_alerts;
+SELECT COUNT(*) FROM clv_closing_feed;
+```
+
+What you should see:
+
+* **Odds freshness > 0** within ~1–2 minutes (collectors ok).
+* **clv_alerts** rises during the day (Phase 1).
+* **clv_closing_feed** gets rows around KO windows (Phase 2a).
+* **closing_odds / clv_realized** fill shortly after KO when your settler/aggregator run (Phase 2b).
+
+# 5) Add a tiny health endpoint (nice to have)
+
+Expose a heartbeat so you can see last successful runs without cracking logs:
+
+```py
+# clv_api.py (or main.py)
+from fastapi import APIRouter
+router = APIRouter()
+
+@router.get("/_health/scheduler")
+def scheduler_health():
+    s = get_background_scheduler()
+    return {
+        "running": bool(s),
+        "last_alert_run": getattr(s, "last_alert_run", None),
+        "last_sampler_run": getattr(s, "last_sampler_run", None),
+        "last_settler_run": getattr(s, "last_settler_run", None),
+    }
+```
+
+(Inside each job, set `sched.last_alert_run = datetime.utcnow()` etc.)
+
+# 6) Frontend: CLV page is ready once odds are fresh
+
+As soon as odds resume:
+
+* **/clv (Premium)** shows live +CLV opportunities pre-kick.
+* **/metrics/evaluation** will display CLV once `closing_odds` gets populated (your `populate_closing_odds.py` or the settler’s auto-agg).
+* Add a **“Beat the Close”** badge when `clv_bps > 0` and a filter for `>= +100 bps`.
+
+---
+
+If you want, I can generate a precise diff for your `main.py` and `scheduler.py` based on your exact file structure, plus a guard using Postgres advisory locks so only one worker runs the scheduler.
