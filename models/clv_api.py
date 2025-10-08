@@ -441,3 +441,52 @@ class CLVMonitorAPI:
             return "LATE - Consider quick execution"
         else:
             return "CLOSING - Limited time for CLV opportunities"
+    
+    async def get_clv_health(self) -> Dict:
+        """
+        Get CLV system health metrics and heartbeat counters.
+        Returns key performance indicators for monitoring pipeline status.
+        """
+        try:
+            with psycopg2.connect(self.database_url) as conn:
+                cursor = conn.cursor()
+                
+                query = """
+                SELECT
+                  (SELECT COUNT(*) FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes') AS fresh_odds_10m,
+                  (SELECT COUNT(DISTINCT match_id) FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes') AS fresh_matches_10m,
+                  (SELECT COUNT(*) FROM clv_alerts WHERE created_at > NOW() - INTERVAL '60 minutes') AS alerts_60m,
+                  (SELECT COUNT(*) FROM clv_closing_feed WHERE ts > NOW() - INTERVAL '60 minutes') AS closing_samples_60m,
+                  (SELECT COUNT(*) FROM closing_odds WHERE closing_time > NOW() - INTERVAL '24 hours') AS closings_24h
+                """
+                
+                cursor.execute(query)
+                row = cursor.fetchone()
+                
+                if not row:
+                    return {
+                        "ts": datetime.utcnow().isoformat() + "Z",
+                        "status": "no_recent_data",
+                        "fresh_odds_10m": 0,
+                        "fresh_matches_10m": 0,
+                        "alerts_60m": 0,
+                        "closing_samples_60m": 0,
+                        "closings_24h": 0
+                    }
+                
+                return {
+                    "ts": datetime.utcnow().isoformat() + "Z",
+                    "fresh_odds_10m": row[0] or 0,
+                    "fresh_matches_10m": row[1] or 0,
+                    "alerts_60m": row[2] or 0,
+                    "closing_samples_60m": row[3] or 0,
+                    "closings_24h": row[4] or 0,
+                    "status": "healthy" if (row[0] or 0) > 0 else "no_recent_data"
+                }
+                
+        except Exception as e:
+            return {
+                "ts": datetime.utcnow().isoformat() + "Z",
+                "status": "error",
+                "error": str(e)
+            }

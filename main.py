@@ -3534,6 +3534,12 @@ if __name__ == "__main__":
 # CLV MONITORING API ENDPOINTS
 # ==========================================
 
+@app.get("/_health/clv")
+async def clv_health_check():
+    """CLV system health check - returns pipeline status and metrics"""
+    clv_monitor = get_clv_monitor()
+    return await clv_monitor.get_clv_health()
+
 @app.get("/clv/match/{match_id}")
 async def get_match_clv_analysis(
     match_id: int,

@@ -56,12 +56,16 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### Database Layer
 - **PostgreSQL**: Primary database for all project data (training, match results, odds, market features).
+- **Production Indexes**: Optimized hot-path indexes for fixtures (kickoff/status), odds snapshots (match/time), closing feed (match/ts), and CLV alerts (recency).
+- **Schema Bridge Views**: `closing_odds_long` (wide→long transformation) and `clv_matches_view` (unified CLV evaluation) for seamless analysis.
+- **Outcome Standardization**: Unified H/D/A outcome codes via `utils/outcomes.py` helper for consistent data handling across pipeline.
 
 ### API Endpoints
 - **Prediction API**: Main endpoints for match predictions with ML and AI analysis
 - **Admin Endpoints**: Data management, match discovery, training statistics
 - **V2 Shadow System**: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`
 - **CLV Monitoring**: CLV Club alerts, daily briefs, closing line analysis
+- **CLV Health**: `/_health/clv` endpoint for real-time system health monitoring (fresh odds, alerts, closing samples)
 
 ### UI/UX Decisions
 - Focus on superior user experience with confidence-calibrated predictions and uncertainty quantification.

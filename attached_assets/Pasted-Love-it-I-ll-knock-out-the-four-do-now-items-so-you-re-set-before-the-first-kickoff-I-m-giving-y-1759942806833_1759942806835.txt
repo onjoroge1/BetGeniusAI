@@ -1,0 +1,240 @@
+Love it. I’ll knock out the four “do-now” items so you’re set before the first kickoff. I’m giving you copy-pasteable SQL and tiny Python drops you can commit right away.
+
+# 0) Lock in config — `.env.example`
+
+Add what you actually used + sane defaults. (Keep secrets out.)
+
+```dotenv
+# --- Database ---
+DATABASE_URL=postgresql://user:pass@host:5432/snapbet
+
+# --- Schedulers / Roles ---
+RUN_SCHEDULER=1                 # set 1 on exactly ONE worker; 0 on web replicas
+
+# --- CLV Producer knobs (tunable) ---
+CLV_MIN_BOOKS=3                 # min independent books
+CLV_MIN_EDGE_BPS=80             # start 80bps (0.8% ip edge); tune later
+CLV_MIN_STABILITY=0.90
+CLV_SUPPRESS_DUP_MIN=10         # minutes cooldown
+CLV_RECENT_SEC=600              # odds freshness window (sec)
+
+# --- Temporary test flag (turn off after today) ---
+ALLOW_TBD_FIXTURES=0
+
+# --- Sources toggles (if you use them) ---
+ENABLE_ODDSAPI=1
+ENABLE_API_FOOTBALL=1
+```
+
+---
+
+# 4) Outcome code enum helper (H/D/A standardization)
+
+Drop this helper and import it wherever outcomes are handled (producer, sampler, API).
+
+`utils/outcomes.py`
+
+```python
+from typing import Optional
+
+H, D, A = "H", "D", "A"
+HOME_ALIASES = {"H", "HOME", "HOME_TEAM", "1"}
+DRAW_ALIASES = {"D", "DRAW", "X", "0"}
+AWAY_ALIASES = {"A", "AWAY", "AWAY_TEAM", "2"}
+
+def normalize_outcome(x: Optional[str]) -> Optional[str]:
+    if x is None: return None
+    u = str(x).strip().upper()
+    if u in HOME_ALIASES: return H
+    if u in DRAW_ALIASES: return D
+    if u in AWAY_ALIASES: return A
+    # common fallbacks like 'home/draw/away'
+    if u.startswith("HOME"): return H
+    if u.startswith("DRAW"): return D
+    if u.startswith("AWAY"): return A
+    return None  # make callers handle unexpected
+```
+
+Usage in SQL-building Python (example):
+
+```python
+from utils.outcomes import normalize_outcome, H, D, A
+# when reading rows
+row_outcome = normalize_outcome(row["outcome"])
+if row_outcome not in (H, D, A): 
+    continue  # or log & skip
+```
+
+---
+
+# 6) Lightweight health endpoint (CLV heartbeat)
+
+Surfaces “are we alive” + recent counters without digging in logs.
+
+`models/clv_api.py` (or your FastAPI router)
+
+```python
+from fastapi import APIRouter
+from datetime import datetime, timezone, timedelta
+import asyncpg
+import os
+
+router = APIRouter()
+
+async def _pg():
+    # reuse your pool if you have one; this is illustrative
+    return await asyncpg.connect(os.getenv("DATABASE_URL"))
+
+@router.get("/_health/clv")
+async def clv_health():
+    now = datetime.now(timezone.utc)
+    q = """
+    SELECT
+      (SELECT COUNT(*) FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes') AS fresh_odds_10m,
+      (SELECT COUNT(DISTINCT match_id) FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes') AS fresh_matches_10m,
+      (SELECT COUNT(*) FROM clv_alerts WHERE created_at > NOW() - INTERVAL '60 minutes') AS alerts_60m,
+      (SELECT COUNT(*) FROM clv_closing_feed WHERE ts > NOW() - INTERVAL '60 minutes') AS closing_samples_60m,
+      (SELECT COUNT(*) FROM closing_odds WHERE closing_time > NOW() - INTERVAL '24 hours') AS closings_24h
+    ;
+    """
+    conn = await _pg()
+    row = await conn.fetchrow(q)
+    await conn.close()
+    return {
+        "ts": now.isoformat(),
+        "fresh_odds_10m": row["fresh_odds_10m"],
+        "fresh_matches_10m": row["fresh_matches_10m"],
+        "alerts_60m": row["alerts_60m"],
+        "closing_samples_60m": row["closing_samples_60m"],
+        "closings_24h": row["closings_24h"],
+        # If your scheduler exports last-run stats, include them here:
+        # "last_phase_b_run": getattr(sched, "last_phase_b_run", None),
+        # ...
+    }
+}
+```
+
+Register the router (if not already):
+
+```python
+# main.py
+from models.clv_api import router as clv_router
+app.include_router(clv_router)
+```
+
+---
+
+# 7) Add missing DB indexes (hot paths)
+
+Paste these once. They keep Phase B, sampler, and queries snappy.
+
+```sql
+-- Fixtures in KO window & upcoming scans
+CREATE INDEX IF NOT EXISTS idx_fixtures_ko_status
+ON fixtures (kickoff_at, status);
+
+-- Odds freshness by match
+CREATE INDEX IF NOT EXISTS idx_odds_snapshots_match_time
+ON odds_snapshots (match_id, ts_snapshot DESC);
+
+CREATE INDEX IF NOT EXISTS idx_odds_snapshots_recent
+ON odds_snapshots (ts_snapshot DESC);
+
+-- Closing samples & alerts recency
+CREATE INDEX IF NOT EXISTS idx_clv_closing_feed_match_ts
+ON clv_closing_feed (match_id, ts DESC);
+
+CREATE INDEX IF NOT EXISTS idx_clv_alerts_recent
+ON clv_alerts (created_at DESC);
+
+-- If you filter out TBD at DB (optional later)
+-- CREATE INDEX IF NOT EXISTS idx_fixtures_names
+-- ON fixtures ((home_team ILIKE 'TBD%'), (away_team ILIKE 'TBD%'));
+```
+
+---
+
+## Bonus: Bridge your `closing_odds` schema (wide → long)
+
+Since your table is currently wide (`closing_time`, `h_close_odds`, `d_close_odds`, `a_close_odds`), create a *view* that matches the “market/side” long format the rest of the pipeline/UI expect:
+
+```sql
+CREATE OR REPLACE VIEW closing_odds_long AS
+SELECT match_id, 'moneyline'::text AS market, 'H'::text AS side,
+       h_close_odds::float8 AS closing_price, closing_time AS closing_at,
+       method
+FROM closing_odds
+UNION ALL
+SELECT match_id, 'moneyline', 'D',
+       d_close_odds::float8, closing_time, method
+FROM closing_odds
+UNION ALL
+SELECT match_id, 'moneyline', 'A',
+       a_close_odds::float8, closing_time, method
+FROM closing_odds;
+```
+
+> This lets your CLV evaluation view/API use `closing_odds_long` now, and you can migrate the physical schema later without breaking anything.
+
+Example “evaluation” view (minimal):
+
+```sql
+CREATE OR REPLACE VIEW clv_matches_view AS
+SELECT
+  s.match_id,
+  f.kickoff_at,
+  f.league,
+  f.home_team, f.away_team,
+  s.market, s.side,
+  s.ts_snapshot AS snapshot_at,
+  s.odds_decimal AS snapshot_price,
+  co.closing_price,
+  co.closing_at,
+  co.method AS closing_method,
+  (1.0/co.closing_price - 1.0/s.odds_decimal) AS clv_pct,
+  10000*(1.0/co.closing_price - 1.0/s.odds_decimal) AS clv_bps,
+  (1.0/co.closing_price - 1.0/s.odds_decimal) > 0 AS beat_close
+FROM odds_snapshots s
+JOIN fixtures f USING(match_id)
+JOIN closing_odds_long co
+  ON co.match_id = s.match_id
+ AND co.market   = s.market
+ AND co.side     = s.side;
+```
+
+---
+
+## Quick “all green” checks (copy/paste)
+
+```sql
+-- Producer live?
+SELECT COUNT(*) AS fresh_odds_10m
+FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+
+-- Alerts arriving?
+SELECT COUNT(*) FROM clv_alerts
+WHERE created_at > NOW() - INTERVAL '30 minutes';
+
+-- Any KO window fixtures for sampler?
+SELECT COUNT(*) FROM fixtures
+WHERE kickoff_at BETWEEN NOW() - INTERVAL '2 minutes' AND NOW() + INTERVAL '6 minutes';
+
+-- Closing samples being written post-KO?
+SELECT COUNT(*) FROM clv_closing_feed
+WHERE ts > NOW() - INTERVAL '30 minutes';
+```
+
+---
+
+## What I suggest you do next (order)
+
+1. **Apply indexes** (safe & instant perf win).
+2. **Commit `.env.example`** with your current values.
+3. **Add the enum helper** and switch any loose strings to `H/D/A`.
+4. **Mount the health route** so you and the UI can see heartbeat counters.
+5. (Optional today) **Create `closing_odds_long` view** so metrics/evaluation can use the uniform shape immediately.
+
+If you want, I can also hand you:
+
+* a tiny `/api/clv` route that reads `clv_matches_view`,
+* and a super-light `/clv` page scaffold (gated) that shows live alerts + KPI cards.
