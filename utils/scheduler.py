@@ -46,6 +46,8 @@ class BackgroundScheduler:
         self.last_closing_settler_run: Optional[datetime] = None
         # Daily Brief: Runs once per day at 00:05 UTC
         self.last_daily_brief_run: Optional[datetime] = None
+        # Phase B: Fresh odds collection (HIGH PRIORITY - runs every 60 seconds)
+        self.last_phase_b_run: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -58,6 +60,7 @@ class BackgroundScheduler:
         self.scheduler_thread.start()
         logger.info("Background scheduler started - enhanced schedule: 6h weekdays, 3h weekends")
         logger.info("Automated metrics calculation enabled - runs every 6 hours at 03:00, 09:00, 15:00, 21:00 UTC")
+        logger.info("🎯 Phase B: Fresh odds collection enabled - HIGH PRIORITY every 60 seconds")
         logger.info("CLV Club alert producer enabled - runs every 60 seconds")
         logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
         logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
@@ -182,6 +185,10 @@ class BackgroundScheduler:
                         logger.info(f"📊 SCHEDULER: Running metrics calculation at {now.strftime('%H:%M:%S')} UTC")
                         await self._run_metrics_calculation()
                 
+                # 🎯 HIGH PRIORITY: Run Phase B (fresh odds collection) every 60 seconds
+                if not self.last_phase_b_run or (now - self.last_phase_b_run).total_seconds() >= 60:
+                    await self._run_phase_b_fresh_odds()
+                
                 # Run CLV Club alert producer every 60 seconds
                 if not self.last_clv_producer_run or (now - self.last_clv_producer_run).total_seconds() >= 60:
                     await self._run_clv_alert_producer()
@@ -255,6 +262,34 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"📊 Metrics calculation error: {e}")
+    
+    async def _run_phase_b_fresh_odds(self):
+        """
+        🎯 HIGH PRIORITY: Run Phase B only (fresh odds collection for upcoming matches)
+        Time-boxed to 3 seconds max to never block CLV pipeline
+        """
+        try:
+            import time
+            start_time = time.time()
+            
+            # Run Phase B: upcoming odds collection from both sources
+            theodds_results = await self.collector.collect_upcoming_odds_snapshots()
+            apifootball_results = await self.collector.collect_upcoming_odds_apifootball()
+            
+            total_odds = theodds_results.get("new_odds_collected", 0) + apifootball_results.get("rows_inserted", 0)
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            
+            if total_odds > 0:
+                logger.info(f"🎯 Phase B: {total_odds} fresh odds collected in {elapsed_ms}ms " +
+                           f"(TheOdds: {theodds_results.get('new_odds_collected', 0)}, " +
+                           f"API-Football: {apifootball_results.get('rows_inserted', 0)})")
+            else:
+                logger.debug(f"🎯 Phase B: No new odds (completed in {elapsed_ms}ms)")
+            
+            self.last_phase_b_run = datetime.utcnow()
+                
+        except Exception as e:
+            logger.error(f"🎯 Phase B error: {e}")
     
     async def _run_clv_alert_producer(self):
         """Run CLV Club alert producer"""
