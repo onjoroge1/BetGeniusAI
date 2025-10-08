@@ -1,0 +1,179 @@
+Facts: you fixed auto-start ✅, fixed CLV producer to join **fixtures** ✅, but Phase A (historical) hogs the collector so Phase B (upcoming odds) never gets a turn. Let’s flip the execution model so **fresh odds always win** and historical work is cooperative, time-boxed, and resumable.
+
+Here’s a surgical, production-safe plan with code patterns you can drop in.
+
+# 1) Split jobs and give Phase B hard priority
+
+**Do not** run Phase A and Phase B in one long sequential “collector.” Register them as separate scheduled jobs, and make Phase B higher frequency:
+
+* Phase B: every **30–60s** (strict deadline ≤ 3s runtime)
+* Phase A: every **5–10 min** (time-slice ≤ 20–30s per tick)
+
+```py
+# scheduler.py (concept)
+sched.every(30).seconds.do(run_upcoming_odds_phase_b)   # HIGH PRIORITY
+sched.every(10).minutes.do(run_historical_phase_a)      # LOW PRIORITY
+```
+
+# 2) Time-box each job (deadlines) so they never overrun
+
+Use a wall-clock budget per run. If you hit the budget, **persist a cursor** and exit; pick up next run where you left off.
+
+```py
+# utils/timebox.py
+import time
+class Timebox:
+    def __init__(self, seconds): self.end = time.time() + seconds
+    def ok(self): return time.time() < self.end
+
+# models/automated_collector.py
+async def run_upcoming_odds_phase_b():
+    tb = Timebox(3)  # hard 3s budget
+    # fetch fixtures in [now, now+6h], by kickoff ASC
+    for fx in await fetch_upcoming_fixtures(limit=100):
+        if not tb.ok(): break
+        await collect_latest_odds_for_fixture(fx.match_id)  # writes odds_snapshots
+
+async def run_historical_phase_a():
+    tb = Timebox(30)  # soft 30s budget
+    cursor = await load_cursor("hist_league_cursor")  # {league_id, from_dt}
+    for league in round_robin_leagues(start=cursor.league_id):
+        if not tb.ok(): break
+        cursor = await collect_historical_slice(league, cursor.from_dt, slice_minutes=15)
+    await save_cursor("hist_league_cursor", cursor)
+```
+
+# 3) True async: don’t block the loop; fan-out with `gather` + small batches
+
+```py
+import asyncio
+
+async def run_upcoming_odds_phase_b():
+    tb = Timebox(3)
+    fixtures = await fetch_upcoming_fixtures(limit=30)
+    batch = []
+    for fx in fixtures:
+        if not tb.ok(): break
+        batch.append(collect_latest_odds_for_fixture(fx.match_id))
+        if len(batch) == 6:                  # tiny parallelism
+            await asyncio.gather(*batch)
+            batch.clear()
+    if batch:
+        await asyncio.gather(*batch)
+```
+
+# 4) Guarantee **fresh odds** fields line up everywhere
+
+Standardize names across codepaths (producer, sampler, API):
+
+* Price column: `odds_decimal` (not `odds_dec`)
+* Timestamp: `ts_snapshot` (not `created_at`)
+
+If refactor touches too much, add **compat views** temporarily, then clean up:
+
+```sql
+CREATE OR REPLACE VIEW odds_snapshots_compat AS
+SELECT *, ts_snapshot AS created_at, odds_decimal AS odds_dec
+FROM odds_snapshots;
+```
+
+Point any legacy queries at `odds_snapshots_compat` until you unify.
+
+# 5) Fix CLV producer data source (you already did) + filter junk fixtures
+
+Fixtures with `"TBD"` teams will poison both phases. Add guards:
+
+```sql
+-- quick DB hygiene
+DELETE FROM fixtures WHERE home_team ILIKE 'TBD%' OR away_team ILIKE 'TBD%';
+
+-- or in queries:
+WHERE home_team NOT ILIKE 'TBD%' AND away_team NOT ILIKE 'TBD%'
+```
+
+And in code, ignore fixtures missing both valid teams or kickoff.
+
+# 6) Indexes so Phase B stays sub-second
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_fx_ko_status   ON fixtures (kickoff_at, status);
+CREATE INDEX IF NOT EXISTS idx_os_match_time  ON odds_snapshots (match_id, ts_snapshot DESC);
+CREATE INDEX IF NOT EXISTS idx_os_recent      ON odds_snapshots (ts_snapshot DESC);
+```
+
+# 7) Closing sampler: make it resilient and cheap
+
+It should only scan **the KO window** and skip if no odds in last 2–5m:
+
+```py
+async def run_closing_sampler():
+    tb = Timebox(2)
+    fixtures = await fetch_fixtures_between(now()-120, now()+360)  # seconds
+    for fx in fixtures:
+        if not tb.ok(): break
+        if not await has_recent_snapshots(fx.match_id, within_sec=300):  # 5m
+            continue
+        await sample_closing_composite(fx.match_id)  # writes clv_closing_feed
+```
+
+# 8) Separate process (optional but cleanest)
+
+If you’re running multiple app workers, run collectors/samplers in **one dedicated worker** (env var guard):
+
+```py
+# main.py startup
+if os.getenv("RUN_SCHEDULER", "0") == "1":
+    get_background_scheduler()
+
+# in deployment:
+# web: RUN_SCHEDULER=0
+# collector: RUN_SCHEDULER=1 (single replica)
+```
+
+Or acquire a Postgres advisory lock before starting the scheduler.
+
+# 9) Health: add lightweight counters for each phase
+
+Expose last-run timestamps and counts written. That makes it obvious when Phase B is alive even if Phase A is churning.
+
+```py
+# set these inside each job
+sched.stats = {
+  "phase_b_last_run": datetime.utcnow(),
+  "phase_b_rows": rows_written,
+  "phase_a_last_run": datetime.utcnow(),
+  "phase_a_progress": {"league": lid, "from_dt": str(cursor)}
+}
+```
+
+# 10) Your “done when” checklist (5 minutes to verify)
+
+1. **Startup**: app boots → scheduler starts automatically (log line).
+2. **Fresh odds**: within 1–2 mins, query returns >0:
+
+   ```sql
+   SELECT COUNT(*) FROM odds_snapshots
+   WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+   ```
+3. **Alerts**: producer begins writing:
+
+   ```sql
+   SELECT COUNT(*) FROM clv_alerts;
+   ```
+4. **Closing feed**: for any KO window matches, rows appear:
+
+   ```sql
+   SELECT COUNT(*) FROM clv_closing_feed
+   WHERE ts > NOW() - INTERVAL '15 minutes';
+   ```
+
+---
+
+If you want, I can draft exact diffs for:
+
+* breaking `automated_collector` into `phase_a.py` and `phase_b.py`,
+* adding the timebox helper,
+* scheduler registration with the new cadence,
+* and a quick compat SQL view migration to unify `odds_decimal/ts_snapshot`.
+
+Once Phase B breathes every 30–60s, your CLV page will actually have live opportunities to show — and Phase A can quietly grind in the background without ever blocking fresh odds again.
