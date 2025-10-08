@@ -1091,7 +1091,7 @@ class AutomatedCollector:
                             'TBD',
                             kickoff_at,
                             2024,
-                            'finished' if kickoff_at < datetime.now(timezone.utc) else 'scheduled'
+                            'finished' if kickoff_at < datetime.utcnow() else 'scheduled'
                         ))
                     except Exception as fixture_err:
                         logger.warning(f"Failed to upsert fixture {match_id}: {fixture_err}")
