@@ -1,0 +1,284 @@
+Great catch. Let’s fix both problems cleanly and make the system harder to break.
+
+⸻
+
+1) Stop the timezone bugs in DB + API-Football (hard fix)
+
+A. Migrate DB columns to timestamptz (UTC)
+
+Run these once:
+
+BEGIN;
+
+-- Odds & alerts to tz-aware UTC
+ALTER TABLE odds_snapshots
+  ALTER COLUMN ts_snapshot TYPE timestamptz
+  USING (CASE
+           WHEN pg_typeof(ts_snapshot)::text IN ('timestamp without time zone','timestamp')
+           THEN ts_snapshot AT TIME ZONE 'UTC'
+           ELSE ts_snapshot
+         END);
+
+ALTER TABLE clv_alerts
+  ALTER COLUMN created_at TYPE timestamptz
+  USING (CASE
+           WHEN pg_typeof(created_at)::text IN ('timestamp without time zone','timestamp')
+           THEN created_at AT TIME ZONE 'UTC'
+           ELSE created_at
+         END),
+  ALTER COLUMN expires_at TYPE timestamptz
+  USING (CASE
+           WHEN pg_typeof(expires_at)::text IN ('timestamp without time zone','timestamp')
+           THEN expires_at AT TIME ZONE 'UTC'
+           ELSE expires_at
+         END);
+
+ALTER TABLE fixtures
+  ALTER COLUMN kickoff_at TYPE timestamptz
+  USING (CASE
+           WHEN pg_typeof(kickoff_at)::text IN ('timestamp without time zone','timestamp')
+           THEN kickoff_at AT TIME ZONE 'UTC'
+           ELSE kickoff_at
+         END),
+  ALTER COLUMN last_update TYPE timestamptz
+  USING (CASE
+           WHEN pg_typeof(last_update)::text IN ('timestamp without time zone','timestamp')
+           THEN last_update AT TIME ZONE 'UTC'
+           ELSE last_update
+         END);
+
+COMMIT;
+
+Safety net (optional constraints)
+
+ALTER TABLE clv_alerts
+  ALTER COLUMN created_at SET NOT NULL,
+  ALTER COLUMN expires_at SET NOT NULL;
+
+ALTER TABLE odds_snapshots
+  ALTER COLUMN ts_snapshot SET NOT NULL;
+
+B. Normalize datetimes at ingest (API-Football)
+
+Use a single helper (you can drop this in utils/dates.py):
+
+from datetime import datetime, timezone
+def as_aware_utc(dt):
+    if dt is None: return None
+    if isinstance(dt, (int, float)):
+        return datetime.fromtimestamp(dt, tz=timezone.utc)
+    if isinstance(dt, str):
+        d = datetime.fromisoformat(dt.replace("Z","+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    if isinstance(dt, datetime):
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    raise TypeError(type(dt))
+
+Then call it everywhere you read or compare times (fixture upsert, odds writer, producer filters):
+
+from utils.dates import as_aware_utc
+now_utc   = datetime.now(timezone.utc)
+kickoff   = as_aware_utc(api_fixture["fixture"]["date"])
+last_upd  = as_aware_utc(api_fixture["fixture"].get("lastUpdate"))
+# compare only aware types
+if kickoff and kickoff > now_utc:
+    ...
+
+
+⸻
+
+2) CLV alerts “disappearing” — fix TTL + cleanup + dedupe index
+
+You discovered:
+	•	11 inserts / 10 deletes → a job is deleting expired rows.
+	•	TTLs are short (5–15 min).
+	•	clv_alerts.* columns were naive timestamps (now fixed above).
+	•	A functional dedupe index uses date_trunc(...) and needs rebuild.
+
+A. Set saner TTLs (env)
+
+Bump TTLs so alerts are visible long enough to act on:
+
+# .env
+CLV_ALERT_TTL_MIN=30            # default (was 15)
+CLV_ALERT_TTL_NEAR_KO_MIN=10    # within T-15m of kickoff (was 5)
+
+Ensure producer uses these to compute:
+
+expires_at = created_at + timedelta(minutes=ttl_minutes)
+
+B. Replace hard deletes with soft archive (no more “table looks wiped”)
+
+Create a history table + move expired rows there. This makes debugging easy and keeps the live table lean.
+
+CREATE TABLE IF NOT EXISTS clv_alerts_history (LIKE clv_alerts INCLUDING ALL);
+
+-- Upsert-friendly unique key if you have one (optional)
+-- ALTER TABLE clv_alerts_history ADD CONSTRAINT clv_alerts_history_pk PRIMARY KEY (id);
+
+Cleanup job SQL (run every 5–10 min):
+
+WITH moved AS (
+  INSERT INTO clv_alerts_history
+  SELECT * FROM clv_alerts
+  WHERE expires_at <= NOW() - INTERVAL '10 minutes'  -- grace buffer
+  RETURNING id
+)
+DELETE FROM clv_alerts a
+USING moved m
+WHERE a.id = m.id;
+
+C. Rebuild the dedupe index for timestamptz
+
+If you dedupe by (match_id, outcome, minute bucket), recreate the object on timestamptz.
+
+-- Drop old one (name may differ)
+DROP INDEX IF EXISTS idx_clv_alerts_dedupe;
+
+-- Prefer a GENERATED column for stability & planner friendliness
+ALTER TABLE clv_alerts
+  ADD COLUMN IF NOT EXISTS created_minute timestamptz
+  GENERATED ALWAYS AS (date_trunc('minute', created_at)) STORED;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clv_alerts_dedupe
+ON clv_alerts (match_id, outcome, created_minute);
+
+If your schema doesn’t allow GENERATED columns, you can keep a functional index:
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clv_alerts_dedupe
+ON clv_alerts (match_id, outcome, date_trunc('minute', created_at));
+
+
+
+D. Add a partial index for “active” alerts (speeds API)
+
+CREATE INDEX IF NOT EXISTS idx_clv_alerts_active
+ON clv_alerts (expires_at DESC)
+WHERE expires_at > NOW();
+
+
+⸻
+
+3) Quick diagnostics the agent can run (copy/paste)
+
+A) Are we still mixing tz types anywhere?
+
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name IN ('clv_alerts','odds_snapshots','fixtures')
+ORDER BY table_name, column_name;
+
+B) Why did alerts “vanish”?
+
+-- Live vs expired
+SELECT
+  COUNT(*) FILTER (WHERE expires_at > NOW())   AS active,
+  COUNT(*) FILTER (WHERE expires_at <= NOW())  AS expired
+FROM clv_alerts;
+
+-- Recently archived (if history table created)
+SELECT COUNT(*) AS archived_1h
+FROM clv_alerts_history
+WHERE created_at > NOW() - INTERVAL '1 hour';
+
+-- TTL distribution (sanity)
+SELECT
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (expires_at - created_at)) AS p50_ttl,
+  MIN(expires_at - created_at) AS min_ttl,
+  MAX(expires_at - created_at) AS max_ttl
+FROM clv_alerts;
+
+C) Producer health (are we still creating new alerts?)
+
+SELECT
+  COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '10 minutes') AS alerts_10m,
+  MAX(created_at) AS last_alert_at
+FROM clv_alerts;
+
+D) API read path (fast filter for frontend)
+
+SELECT match_id, outcome, clv_bps, created_at, expires_at
+FROM clv_alerts
+WHERE expires_at > NOW()
+ORDER BY clv_bps DESC, created_at DESC
+LIMIT 50;
+
+
+⸻
+
+4) Minimal code hardening (producer + cleaner)
+
+Producer: set TTL via env & ensure aware UTC
+
+from datetime import datetime, timezone, timedelta
+TTL_MIN = int(os.getenv("CLV_ALERT_TTL_MIN", "30"))
+TTL_NEAR = int(os.getenv("CLV_ALERT_TTL_NEAR_KO_MIN", "10"))
+
+now_utc = datetime.now(timezone.utc)
+ttl = TTL_NEAR if (kickoff_time and (kickoff_time - now_utc).total_seconds() <= 15*60) else TTL_MIN
+expires_at = now_utc + timedelta(minutes=ttl)
+
+Cleaner: archive instead of delete
+
+async def archive_and_delete_expired_alerts(pool):
+    async with pool.acquire() as con:
+        await con.execute("""
+            WITH moved AS (
+              INSERT INTO clv_alerts_history SELECT * FROM clv_alerts
+              WHERE expires_at <= NOW() - INTERVAL '10 minutes'
+              RETURNING id
+            )
+            DELETE FROM clv_alerts a
+            USING moved m
+            WHERE a.id = m.id;
+        """)
+
+
+⸻
+
+5) Sanity tests the agent can run (pytest)
+
+TZ Migration smoke
+
+def test_columns_are_timestamptz(pg_conn):
+    cols = pg_conn.fetch("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='clv_alerts'")
+    dt = {r["column_name"]: r["data_type"] for r in cols}
+    assert dt["created_at"] == "timestamp with time zone"
+    assert dt["expires_at"] == "timestamp with time zone"
+
+Alert lifecycle
+
+def test_alert_ttl_and_archive(pg_conn):
+    r = pg_conn.fetchrow("""
+      INSERT INTO clv_alerts(match_id,outcome,clv_bps,stability,created_at,expires_at,best_book_id,snapshot_price,composite_price)
+      VALUES (999001,'H',150,0.95, NOW(), NOW()+INTERVAL '1 minute', 1, 2.10, 2.30)
+      RETURNING id;
+    """); alert_id = r["id"]
+    # simulate cleaner run after expiry
+    pg_conn.execute("""
+      WITH moved AS (
+        INSERT INTO clv_alerts_history SELECT * FROM clv_alerts
+        WHERE id=$1 AND expires_at <= NOW() + INTERVAL '0 minute'
+        RETURNING id
+      )
+      DELETE FROM clv_alerts a USING moved m WHERE a.id=m.id;
+    """, alert_id)
+    live = pg_conn.fetchval("SELECT COUNT(*) FROM clv_alerts WHERE id=$1", alert_id)
+    hist = pg_conn.fetchval("SELECT COUNT(*) FROM clv_alerts_history WHERE id=$1", alert_id)
+    assert live == 0 and hist == 1
+
+
+⸻
+
+6) What to run now (order)
+	1.	Run the timestamptz migrations (section 1A).
+	2.	Redeploy the API-Football code with as_aware_utc() applied.
+	3.	Bump TTLs via .env and redeploy the producer.
+	4.	Create history table and switch the cleaner to archive+delete.
+	5.	Drop & recreate the dedupe index on timestamptz (section 2C).
+	6.	Run diagnostics (section 3) to confirm:
+	•	alerts_10m > 0
+	•	active > 0
+	•	No more “offset-naive/aware” warnings in logs.
+
+If you want, I can package these into a single SQL migration + a tiny scripts/smoke_clv.py that executes the checks and prints a ✅/❌ summary for your agent.

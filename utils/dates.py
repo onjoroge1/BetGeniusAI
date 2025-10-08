@@ -54,7 +54,7 @@ def as_aware_utc(dt: Optional[Union[datetime, str, int, float]]) -> Optional[dat
     # Handle datetime objects
     if isinstance(dt, datetime):
         # If already aware, convert to UTC; if naive, assume UTC
-        return d.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     
     raise TypeError(f"Unsupported datetime type: {type(dt)}")
 

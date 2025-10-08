@@ -315,7 +315,7 @@ class BackgroundScheduler:
             logger.error(f"🎯 CLV Producer error: {e}")
     
     async def _run_clv_ttl_cleanup(self):
-        """Clean up expired CLV alerts (keeps table lean)"""
+        """Archive expired CLV alerts to history table"""
         try:
             import psycopg2
             import os
@@ -327,19 +327,24 @@ class BackgroundScheduler:
             with psycopg2.connect(database_url) as conn:
                 cursor = conn.cursor()
                 
-                # Delete alerts expired >1 hour ago (keeps short history)
+                # Archive alerts expired >1 hour ago to history table
                 cursor.execute("""
-                    DELETE FROM clv_alerts 
-                    WHERE expires_at < NOW() - INTERVAL '1 hour'
+                    WITH archived AS (
+                        DELETE FROM clv_alerts 
+                        WHERE expires_at < NOW() - INTERVAL '1 hour'
+                        RETURNING *
+                    )
+                    INSERT INTO clv_alerts_history 
+                    SELECT * FROM archived
                 """)
                 
-                deleted_count = cursor.rowcount
+                archived_count = cursor.rowcount
                 conn.commit()
                 
-                if deleted_count > 0:
-                    logger.info(f"🧹 CLV TTL Cleanup: Removed {deleted_count} expired alerts")
+                if archived_count > 0:
+                    logger.info(f"🧹 CLV TTL Cleanup: Archived {archived_count} expired alerts")
                 else:
-                    logger.debug("🧹 CLV TTL Cleanup: No expired alerts to remove")
+                    logger.debug("🧹 CLV TTL Cleanup: No expired alerts to archive")
             
             self.last_clv_ttl_cleanup = datetime.utcnow()
                 
