@@ -93,6 +93,10 @@ class CLVAlertProducer:
                 fixtures = []
                 for row in cursor.fetchall():
                     match_id, league, kickoff_at = row
+                    # Ensure kickoff_at is timezone-aware (database returns naive datetime)
+                    if kickoff_at.tzinfo is None:
+                        from datetime import timezone
+                        kickoff_at = kickoff_at.replace(tzinfo=timezone.utc)
                     fixtures.append({
                         'match_id': match_id,
                         'league': league,
@@ -143,6 +147,11 @@ class CLVAlertProducer:
                 book_odds_map = {}
                 for row in cursor.fetchall():
                     book_id, outcome, odds_decimal, ts_snapshot = row
+                    
+                    # Ensure timestamp is timezone-aware (database returns naive datetime)
+                    if ts_snapshot and ts_snapshot.tzinfo is None:
+                        from datetime import timezone
+                        ts_snapshot = ts_snapshot.replace(tzinfo=timezone.utc)
                     
                     if book_id not in book_odds_map:
                         book_odds_map[book_id] = {
