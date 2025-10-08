@@ -1,0 +1,128 @@
+let’s gooo fam — big W. now that alerts are live, here’s the tight “finish-the-loop” plan so CLV becomes a premium, stable feature (not a lucky moment).
+
+# 0) Lock in the win (right now)
+
+* **Pin the env you used to get here** (commit `.env.example` keys and defaults).
+* **Leave the logs chatty for a day** (producer: candidates/inserted; sampler: samples written; settler: realized rows).
+
+# 1) Close the loop: capture closings → realized CLV
+
+1. **Sampler sanity** (runs every 60s; KO window T−6m…T+2m)
+
+```sql
+SELECT match_id, COUNT(*) samples_last_15m
+FROM clv_closing_feed
+WHERE ts > NOW() - INTERVAL '15 minutes'
+GROUP BY match_id ORDER BY 2 DESC;
+```
+
+2. **Aggregate/settle closings** (UPSERT)
+
+* Either keep using `populate_closing_odds.py` every 2–5 min **or** fold into the settler right after T+2m.
+
+```sql
+INSERT INTO closing_odds(match_id, market, side, closing_price, closing_at, method)
+VALUES ($1,$2,$3,$4,$5,$6)
+ON CONFLICT (match_id, market, side)
+DO UPDATE SET closing_price=EXCLUDED.closing_price,
+              closing_at=EXCLUDED.closing_at,
+              method=EXCLUDED.method;
+```
+
+3. **Realized CLV** (post-result)
+
+* Settler computes `clv_realized` and marks alert outcomes. Check:
+
+```sql
+SELECT COUNT(*) FROM clv_realized
+WHERE created_at > NOW() - INTERVAL '24 hours';
+```
+
+# 2) Turn the feature-flag off (once names are steady)
+
+* Keep `ALLOW_TBD_FIXTURES=1` **for the next few hours** while you watch alerts roll.
+* After the first KO with closings captured → **set to 0** and deploy.
+* Add a tiny background **name-enrichment step** to Phase B so TBD never reappears.
+
+# 3) Frontend: ship the Pro CLV page
+
+**Route:** `/clv` (gated) + `/api/clv?window=1d|7d|live`
+**UI:**
+
+* KPI cards: `Active alerts`, `Avg CLV (bps)`, `Beat-close % (last 7d)`
+* Live table: Match | KO (mins) | Market/Side | Best book | Snap | Composite | CLV (bps) | Stability
+* Badge “⚡ Likely edge” for `clv_bps ≥ 100`.
+  **Bonus:** SSE endpoint `/api/clv/live` streaming new alerts.
+
+# 4) Alert hygiene (what bit us; how we prevent repeats)
+
+* **TZ normalization**: at DB-read boundary
+
+  * Always coerce to aware UTC: `ts.replace(tzinfo=timezone.utc)` or use `datetime.fromisoformat(...).astimezone(timezone.utc)`.
+  * Pick one field name everywhere: `ts_snapshot` (not `created_at`) + `odds_decimal` (not `odds_dec`).
+* **Outcome codes**: standardize `'H'/'D'/'A'` in code and SQL; add a small enum helper.
+* **Joins**: producer uses **fixtures** for KO/time; historical pieces can still read `matches` if needed—don’t cross the streams for “upcoming”.
+
+# 5) Thresholds & suppression (tunable via env)
+
+Suggested defaults for proving value without spam:
+
+```
+CLV_MIN_BOOKS=3
+CLV_MIN_EDGE_BPS=80          # start at 80 bps; move to 120–150 later
+CLV_MIN_STABILITY=0.90
+CLV_SUPPRESS_DUP_MIN=10
+CLV_RECENT_SEC=600
+```
+
+* Log per cycle: `candidates`, `meet_books`, `over_edge`, `inserted`, `suppressed_low_books`, `suppressed_low_clv`, `suppressed_cooldown`.
+
+# 6) Observability (copy/paste health check)
+
+Expose (or log) these every run:
+
+* **Producer:** `fixtures_considered`, `fresh_matches`, `alerts_inserted`
+* **Sampler:** `fixtures_in_ko`, `samples_written`
+* **Settler:** `closings_upserted`, `realized_written`
+* **DB counters:**
+
+```sql
+SELECT
+  (SELECT COUNT(*) FROM clv_alerts WHERE created_at > NOW()-INTERVAL '1 hour') AS alerts_1h,
+  (SELECT COUNT(*) FROM clv_closing_feed WHERE ts > NOW()-INTERVAL '1 hour') AS closing_samples_1h,
+  (SELECT COUNT(*) FROM closing_odds WHERE closing_at > NOW()-INTERVAL '24 hours') AS closings_24h;
+```
+
+# 7) Guardrails & data quality
+
+* **Index hot paths**
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_fx_ko_status   ON fixtures (kickoff_at, status);
+CREATE INDEX IF NOT EXISTS idx_os_match_time  ON odds_snapshots (match_id, ts_snapshot DESC);
+CREATE INDEX IF NOT EXISTS idx_clf_match_ts   ON clv_closing_feed (match_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_recent  ON clv_alerts (created_at DESC);
+```
+
+* **Fixture naming**: after Phase B writes odds, call `maybe_enrich_fixture_names(match_id)` (AF lookup or odds-derived majority label).
+* **One-runner rule**: scheduler runs in exactly one process (env guard or PG advisory lock).
+
+# 8) “Done-when” checklist
+
+* [ ] Alerts flowing continuously during the day (`clv_alerts` increasing).
+* [ ] At least one KO captured in `clv_closing_feed` → `closing_odds` upserted.
+* [ ] `/metrics/evaluation` shows CLV deltas (no `no_closing_odds`).
+* [ ] Feature flag off; TBD filter back on.
+* [ ] Pro page live; alerts appear ≤60s from detection.
+
+# 9) Nice-to-haves (quick)
+
+* **/admin/clv/preview**: returns counts for each rejection reason (tuning is painless).
+* **Daily brief**: “Beat-close % by league/book”, “Avg CLV(bps) by hour,” top-5 alerts yesterday.
+* **Webhook**: fire to Discord/Slack when `clv_bps ≥ X` and KO ≤ N minutes.
+
+If you want, I’ll draft:
+
+* the tiny name-enrichment helper wired into Phase B,
+* the SSE `/api/clv/live` route,
+* and a SQL view `clv_matches_view` you can drop into `/api/clv` immediately.
