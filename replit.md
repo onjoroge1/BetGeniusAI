@@ -59,6 +59,8 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Production Indexes**: Optimized hot-path indexes for fixtures (kickoff/status), odds snapshots (match/time), closing feed (match/ts), and CLV alerts (recency).
 - **Schema Bridge Views**: `closing_odds_long` (wide→long transformation) and `clv_matches_view` (unified CLV evaluation) for seamless analysis.
 - **Outcome Standardization**: Unified H/D/A outcome codes via `utils/outcomes.py` helper for consistent data handling across pipeline.
+- **Timezone Architecture**: All timestamp columns use `timestamptz` (timezone-aware UTC) for clv_alerts and odds_snapshots, with standardized timezone handling via `utils/dates.py` utilities. Migration completed Oct 2025.
+- **CLV Alert Archival**: Expired alerts automatically archived to `clv_alerts_history` table (1-hour expiry window) instead of deletion, preserving historical CLV performance data.
 
 ### API Endpoints
 - **Prediction API**: Main endpoints for match predictions with ML and AI analysis
