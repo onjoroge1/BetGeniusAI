@@ -1,0 +1,232 @@
+You’re right on both counts: alerts are “disappearing” because the cleanup/archival never actually runs, and the scheduler loop is blocking on Phase B. Here’s a surgical fix + tests to prove it.
+
+⸻
+
+🔧 Fix — make heavy jobs non-blocking & on a timer
+
+1) Patch your scheduler to use background tasks (no await on heavy jobs)
+
+# utils/scheduler.py  (or wherever your loop lives)
+import asyncio, logging, os
+from datetime import datetime, timezone, timedelta
+logger = logging.getLogger(__name__)
+
+PHASE_B_INTERVAL   = 60      # s
+PRODUCER_INTERVAL  = 60
+SAMPLER_INTERVAL   = 60
+SETTLER_INTERVAL   = 60
+CLEANUP_INTERVAL   = 300     # 5 min
+PHASE_B_TIMEOUT    = 300     # 5 min hard cap
+
+class EnhancedScheduler:
+    def __init__(self):
+        self.is_running = False
+        self.tasks = {}             # name -> asyncio.Task
+        self.last_run = {}          # name -> datetime
+        self._lock = asyncio.Lock() # reentrancy guard
+
+    async def _spawn(self, name: str, coro, timeout: int | None = None):
+        """Spawn task once; skip if still running. Wrap with timeout + logging."""
+        if task := self.tasks.get(name):
+            if not task.done():
+                return  # already running
+
+        async def wrapper():
+            started = datetime.now(timezone.utc)
+            logger.info(f"▶️ {name}: start")
+            try:
+                if timeout:
+                    await asyncio.wait_for(coro(), timeout=timeout)
+                else:
+                    await coro()
+                self.last_run[name] = datetime.now(timezone.utc)
+                logger.info(f"✅ {name}: ok in {(self.last_run[name]-started).total_seconds():.1f}s")
+            except asyncio.TimeoutError:
+                logger.error(f"⏱️ {name}: TIMEOUT after {timeout}s")
+            except Exception as e:
+                logger.exception(f"💥 {name}: failed: {e}")
+
+        self.tasks[name] = asyncio.create_task(wrapper())
+
+    async def _tick(self):
+        now = datetime.now(timezone.utc)
+        # Schedule Phase B (non-blocking)
+        if self._due("phase_b", now, PHASE_B_INTERVAL):
+            await self._spawn("phase_b", self._run_phase_b_fresh_odds, PHASE_B_TIMEOUT)
+
+        # CLV producer
+        if self._due("producer", now, PRODUCER_INTERVAL):
+            await self._spawn("producer", self._run_clv_producer)
+
+        # Closing sampler
+        if self._due("sampler", now, SAMPLER_INTERVAL):
+            await self._spawn("sampler", self._run_closing_sampler)
+
+        # Settler / aggregator
+        if self._due("settler", now, SETTLER_INTERVAL):
+            await self._spawn("settler", self._run_closing_settler)
+
+        # TTL cleanup (archive → delete)
+        if self._due("cleanup", now, CLEANUP_INTERVAL):
+            await self._spawn("cleanup", self._run_clv_ttl_cleanup)
+
+    def _due(self, name: str, now: datetime, interval: int) -> bool:
+        last = self.last_run.get(name)
+        return (last is None) or ((now - last).total_seconds() >= interval)
+
+    async def run_forever(self):
+        if self.is_running: return
+        self.is_running = True
+        logger.info("🚀 Enhanced scheduler started")
+        try:
+            while self.is_running:
+                await self._tick()
+                await asyncio.sleep(1)  # fine-grained loop; tasks run in background
+        finally:
+            self.is_running = False
+            logger.info("🛑 Scheduler stopped")
+
+Key change: no await on _run_phase_b_fresh_odds() in the loop. We spawn it with asyncio.create_task() and a timeout, so producer/cleanup/sampler/settler all get time slices.
+
+2) Ensure only one runner (per process / per cluster)
+	•	Per-process: guard with a module-level singleton.
+	•	Per-cluster: use an env flag or PG advisory lock before starting the scheduler.
+
+# main.py (at startup)
+if os.getenv("RUN_SCHEDULER", "1") == "1":
+    # if using postgres advisory lock, check here before constructing scheduler
+    asyncio.create_task(global_scheduler.run_forever())
+
+Optional PG lock (pseudo):
+
+# acquire on startup
+SELECT pg_try_advisory_lock(9142);  -- only 1 returns true
+# release on shutdown
+SELECT pg_advisory_unlock(9142);
+
+3) Cleanup job = archive first, then delete (you already built it, just wire it)
+
+async def _run_clv_ttl_cleanup(self):
+    # archive then delete (grace 10 min)
+    sql = """
+    WITH moved AS (
+      INSERT INTO clv_alerts_history
+      SELECT * FROM clv_alerts
+      WHERE expires_at <= NOW() - INTERVAL '10 minutes'
+      RETURNING id
+    )
+    DELETE FROM clv_alerts a
+    USING moved m
+    WHERE a.id = m.id;
+    """
+    await self.db.execute(sql)
+    # log counts to make behavior obvious
+    c_hist = await self.db.fetchval("SELECT COUNT(*) FROM clv_alerts_history WHERE created_at > NOW()-INTERVAL '1 hour'")
+    c_live = await self.db.fetchval("SELECT COUNT(*) FROM clv_alerts WHERE expires_at > NOW()")
+    logger.info(f"🧹 cleanup: history_1h={c_hist}, live_active={c_live}")
+
+
+⸻
+
+✅ Tests & diagnostics (to prove the fix)
+
+A) Runtime smoke — tasks are actually firing
+
+# tests/test_scheduler_ticks.py
+import asyncio, time
+from utils.scheduler import EnhancedScheduler
+
+class Dummy(EnhancedScheduler):
+    def __init__(self): super().__init__(); self.hit=[]
+    async def _run_phase_b_fresh_odds(self): await asyncio.sleep(0.1); self.hit.append("phase_b")
+    async def _run_clv_producer(self):       await asyncio.sleep(0.01); self.hit.append("producer")
+    async def _run_closing_sampler(self):     await asyncio.sleep(0.01); self.hit.append("sampler")
+    async def _run_closing_settler(self):     await asyncio.sleep(0.01); self.hit.append("settler")
+    async def _run_clv_ttl_cleanup(self):     await asyncio.sleep(0.01); self.hit.append("cleanup")
+
+async def _run():
+    s = Dummy()
+    task = asyncio.create_task(s.run_forever())
+    await asyncio.sleep(2.5)   # let several ticks happen
+    s.is_running = False
+    await task
+    return s.hit
+
+def test_scheduler_runs_jobs():
+    hits = asyncio.run(_run())
+    # Expect multiple types present; specifically producer/cleanup must appear
+    assert any(h=="producer" for h in hits)
+    assert any(h=="cleanup" for h in hits)
+
+B) Archival actually moves rows (end-to-end)
+
+# tests/test_alert_archive.py
+import asyncpg, asyncio, os
+
+async def _run():
+    conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+    # seed one expired alert
+    await conn.execute("""
+      INSERT INTO clv_alerts(match_id,outcome,clv_bps,stability,created_at,expires_at,best_book_id,snapshot_price,composite_price)
+      VALUES (999555,'H',120,0.95, NOW()-INTERVAL '2 hours', NOW()-INTERVAL '90 minutes', 1, 2.1, 2.2)
+    """)
+    before_live = await conn.fetchval("SELECT COUNT(*) FROM clv_alerts WHERE match_id=999555")
+    # run the archival SQL exactly as in the job
+    await conn.execute("""
+      WITH moved AS (
+        INSERT INTO clv_alerts_history SELECT * FROM clv_alerts
+        WHERE expires_at <= NOW() - INTERVAL '10 minutes'
+        RETURNING id
+      )
+      DELETE FROM clv_alerts a USING moved m WHERE a.id=m.id;
+    """)
+    after_live = await conn.fetchval("SELECT COUNT(*) FROM clv_alerts WHERE match_id=999555")
+    in_hist    = await conn.fetchval("SELECT COUNT(*) FROM clv_alerts_history WHERE match_id=999555")
+    await conn.close()
+    return before_live, after_live, in_hist
+
+def test_archive_moves_rows():
+    before_live, after_live, in_hist = asyncio.run(_run())
+    assert before_live == 1 and after_live == 0 and in_hist == 1
+
+C) DB probes for your agent (copy/paste SQL)
+
+-- Are active jobs firing? (last-run timestamps your scheduler sets)
+-- If you add last_run to health table or your _health route, check here instead.
+
+-- Active alerts present?
+SELECT COUNT(*) AS active FROM clv_alerts WHERE expires_at > NOW();
+
+-- Expired alerts got archived?
+SELECT COUNT(*) AS archived_1h
+FROM clv_alerts_history WHERE created_at > NOW() - INTERVAL '1 hour';
+
+-- If archived_1h stays 0 while there ARE expired alerts, the cleanup isn't running.
+
+-- Odds freshness (Phase B alive?)
+SELECT COUNT(*) AS odds_10m
+FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+
+
+⸻
+
+🧱 Guardrails so this doesn’t regress
+	•	Timeouts on all heavy jobs (done above).
+	•	No overlapping Phase B runs (task reentrancy check).
+	•	Alert TTL via env: e.g., CLV_ALERT_TTL_MIN=30, CLV_ALERT_TTL_NEAR_KO_MIN=10.
+	•	Archive-then-delete only (never hard-delete directly).
+	•	Health route: include last_run for each job + counts (active alerts, archived_1h, odds_10m).
+	•	One runner per cluster: env flag or advisory lock.
+
+⸻
+
+🎯 What to do now
+	1.	Drop in the scheduler patch and redeploy.
+	2.	Watch logs 2–3 minutes: you should see phase_b, producer, and every 5 min cleanup.
+	3.	Run the DB probes above:
+	•	active > 0 (alerts visible)
+	•	archived_1h ≥ 1 (archival working)
+	•	odds_10m > 0 (collector alive)
+	4.	Run the pytest tests to lock it in CI.
+
+If you want, I can tailor the patch to your exact file (scheduler.py) and wire the /_health/clv endpoint to expose last_run per job so the UI can show a live heartbeat.

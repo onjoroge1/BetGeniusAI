@@ -48,6 +48,9 @@ class BackgroundScheduler:
         self.last_daily_brief_run: Optional[datetime] = None
         # Phase B: Fresh odds collection (HIGH PRIORITY - runs every 60 seconds)
         self.last_phase_b_run: Optional[datetime] = None
+        # Background task tracking (for non-blocking execution)
+        self.tasks: dict = {}  # name -> asyncio.Task
+        self.last_run: dict = {}  # name -> datetime
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -72,8 +75,44 @@ class BackgroundScheduler:
             self.scheduler_thread.join(timeout=5)
         logger.info("Background scheduler stopped")
     
+    async def _spawn(self, name: str, coro, timeout: Optional[int] = None):
+        """
+        Spawn a background task with timeout and reentrancy protection.
+        Skips if task is already running.
+        
+        Args:
+            name: Task name for tracking
+            coro: Coroutine function to execute
+            timeout: Optional timeout in seconds
+        """
+        # Check if task is already running
+        if name in self.tasks:
+            task = self.tasks[name]
+            if not task.done():
+                logger.debug(f"⏭️  {name}: skipped (already running)")
+                return
+        
+        async def wrapper():
+            started = datetime.utcnow()
+            logger.debug(f"▶️  {name}: start")
+            try:
+                if timeout:
+                    await asyncio.wait_for(coro(), timeout=timeout)
+                else:
+                    await coro()
+                elapsed = (datetime.utcnow() - started).total_seconds()
+                self.last_run[name] = datetime.utcnow()
+                logger.info(f"✅ {name}: completed in {elapsed:.1f}s")
+            except asyncio.TimeoutError:
+                logger.error(f"⏱️  {name}: TIMEOUT after {timeout}s")
+            except Exception as e:
+                logger.exception(f"💥 {name}: failed - {e}")
+        
+        self.tasks[name] = asyncio.create_task(wrapper())
+    
     def _run_scheduler(self):
         """Main scheduler loop"""
+        loop = None
         try:
             logger.info("🔧 _run_scheduler: Creating new event loop...")
             asyncio.set_event_loop(asyncio.new_event_loop())
@@ -83,8 +122,9 @@ class BackgroundScheduler:
         except Exception as e:
             logger.error(f"❌ Scheduler loop failed: {e}", exc_info=True)
         finally:
-            logger.info("🔧 _run_scheduler: Closing event loop")
-            loop.close()
+            if loop:
+                logger.info("🔧 _run_scheduler: Closing event loop")
+                loop.close()
     
     def _get_last_collection_date(self):
         """Get the last collection date from log file"""
@@ -153,15 +193,17 @@ class BackgroundScheduler:
                         logger.info(f"🔄 SCHEDULER: Starting {day_type} collection cycle at {now.strftime('%H:%M:%S')} UTC")
                         logger.info(f"📅 Hour {current_hour:02d}:00 - capturing odds nuances for market efficiency")
                         
-                        try:
-                            results = await self.collector.daily_collection_cycle()
-                            
-                            logger.info(f"✅ Enhanced collection completed: {results.get('new_matches_collected', 0)} new matches")
-                            logger.info(f"📊 Fresh odds snapshots: {results.get('new_odds_collected', 0)}")
-                            logger.info(f"💾 Total matches in DB: {results.get('total_matches_in_db', 'unknown')}")
-                            
-                        except Exception as e:
-                            logger.error(f"❌ Enhanced collection failed at {current_hour:02d}:00: {e}")
+                        # Use background task for daily collection to avoid blocking
+                        async def run_collection():
+                            try:
+                                results = await self.collector.daily_collection_cycle()
+                                logger.info(f"✅ Enhanced collection completed: {results.get('new_matches_collected', 0)} new matches")
+                                logger.info(f"📊 Fresh odds snapshots: {results.get('new_odds_collected', 0)}")
+                                logger.info(f"💾 Total matches in DB: {results.get('total_matches_in_db', 'unknown')}")
+                            except Exception as e:
+                                logger.error(f"❌ Enhanced collection failed at {current_hour:02d}:00: {e}")
+                        
+                        await self._spawn(f"daily_collection_{current_hour}", run_collection, timeout=600)
                     
                     else:
                         logger.debug(f"📋 Collection already completed at {current_hour:02d}:00 today")
@@ -185,43 +227,51 @@ class BackgroundScheduler:
                     # Check if we already calculated metrics at this hour today
                     if not self.last_metrics_calculation or (now - self.last_metrics_calculation).total_seconds() > 3600:
                         logger.info(f"📊 SCHEDULER: Running metrics calculation at {now.strftime('%H:%M:%S')} UTC")
-                        await self._run_metrics_calculation()
+                        await self._spawn("metrics_calc", self._run_metrics_calculation, timeout=120)
+                        self.last_metrics_calculation = now
                 
                 # 🎯 HIGH PRIORITY: Run Phase B (fresh odds collection) every 60 seconds
+                # Use background task with 5-minute timeout to prevent blocking
                 if not self.last_phase_b_run or (now - self.last_phase_b_run).total_seconds() >= 60:
-                    await self._run_phase_b_fresh_odds()
+                    await self._spawn("phase_b", self._run_phase_b_fresh_odds, timeout=300)
+                    self.last_phase_b_run = now  # Update immediately to prevent re-spawning
                 
-                # Run CLV Club alert producer every 60 seconds
+                # Run CLV Club alert producer every 60 seconds (background task)
                 if not self.last_clv_producer_run or (now - self.last_clv_producer_run).total_seconds() >= 60:
-                    await self._run_clv_alert_producer()
+                    await self._spawn("clv_producer", self._run_clv_alert_producer, timeout=30)
+                    self.last_clv_producer_run = now
                 
-                # Run CLV Club TTL cleanup every 5 minutes (300 seconds)
+                # Run CLV Club TTL cleanup every 5 minutes (300 seconds) - background task
                 if not self.last_clv_ttl_cleanup or (now - self.last_clv_ttl_cleanup).total_seconds() >= 300:
-                    await self._run_clv_ttl_cleanup()
+                    await self._spawn("clv_cleanup", self._run_clv_ttl_cleanup, timeout=60)
+                    self.last_clv_ttl_cleanup = now
                 
-                # Phase 2: Run closing sampler every 60 seconds
+                # Phase 2: Run closing sampler every 60 seconds (background task)
                 if not self.last_closing_sampler_run or (now - self.last_closing_sampler_run).total_seconds() >= 60:
-                    await self._run_closing_sampler()
+                    await self._spawn("closing_sampler", self._run_closing_sampler, timeout=30)
+                    self.last_closing_sampler_run = now
                 
-                # Phase 2: Run closing settler every 60 seconds
+                # Phase 2: Run closing settler every 60 seconds (background task)
                 if not self.last_closing_settler_run or (now - self.last_closing_settler_run).total_seconds() >= 60:
-                    await self._run_closing_settler()
+                    await self._spawn("closing_settler", self._run_closing_settler, timeout=30)
+                    self.last_closing_settler_run = now
                 
-                # CLV Daily Brief: Run once per day at 00:05 UTC
+                # CLV Daily Brief: Run once per day at 00:05 UTC (background task)
                 if current_hour == 0 and current_minute >= 5 and current_minute < 15:
                     # Check if we already ran today
                     today_date = now.date()
                     last_run_date = self.last_daily_brief_run.date() if self.last_daily_brief_run else None
                     
                     if last_run_date != today_date:
-                        await self._run_daily_brief()
+                        await self._spawn("daily_brief", self._run_daily_brief, timeout=120)
+                        self.last_daily_brief_run = now
                 
-                # Check every 60 seconds (changed from 10 minutes for CLV producer)
-                await asyncio.sleep(60)
+                # Check every 1 second for responsive scheduling (background tasks run independently)
+                await asyncio.sleep(1)
                 
                 # Every 15 minutes, run safety net to fill missing buckets
                 if now.minute % 15 == 0:
-                    await self._run_safety_net()
+                    await self._spawn("safety_net", self._run_safety_net, timeout=120)
                     
             except Exception as e:
                 logger.error(f"Scheduler loop error: {e}")
