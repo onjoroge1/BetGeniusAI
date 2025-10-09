@@ -3645,29 +3645,73 @@ async def get_clv_club_opportunities(
     - window: Filter by window tag like 'T-48to24' (optional)
     """
     try:
-        from models.database import CLVAlert, DatabaseManager
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
         
-        db_manager = DatabaseManager()
-        session = db_manager.SessionLocal()
+        database_url = os.environ.get('DATABASE_URL')
         
-        # Query for non-expired alerts
-        query = session.query(CLVAlert).filter(
-            CLVAlert.expires_at > datetime.now(timezone.utc)
-        )
+        # Build SQL query with fixtures join
+        sql = """
+            SELECT 
+                a.alert_id::TEXT,
+                a.match_id,
+                a.league,
+                a.outcome,
+                a.best_book_id,
+                a.best_odds_dec,
+                a.market_odds_dec,
+                a.clv_pct,
+                a.stability,
+                a.books_used,
+                a.window_tag,
+                a.expires_at,
+                a.created_at,
+                COALESCE(f.home_team, 'Unknown') as home_team,
+                COALESCE(f.away_team, 'Unknown') as away_team
+            FROM clv_alerts a
+            LEFT JOIN fixtures f ON a.match_id = f.match_id
+            WHERE a.expires_at > NOW()
+        """
+        
+        params = []
         
         # Apply filters
         if league:
-            query = query.filter(CLVAlert.league == league)
+            sql += " AND a.league = %s"
+            params.append(league)
         if window:
-            query = query.filter(CLVAlert.window_tag == window)
+            sql += " AND a.window_tag = %s"
+            params.append(window)
         
         # Order by CLV percentage descending
-        alerts = query.order_by(CLVAlert.clv_pct.desc()).all()
+        sql += " ORDER BY a.clv_pct DESC"
         
-        session.close()
+        with psycopg2.connect(database_url) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(sql, params)
+                results = cursor.fetchall()
         
-        # Convert to dicts
-        items = [alert.to_dict() for alert in alerts]
+        # Convert to response format
+        items = []
+        for row in results:
+            items.append({
+                'alert_id': row['alert_id'],
+                'match_id': row['match_id'],
+                'league': row['league'],
+                'outcome': row['outcome'],
+                'best_odds': row['best_odds_dec'],
+                'best_book_id': row['best_book_id'],
+                'market_composite_odds': row['market_odds_dec'],
+                'clv_pct': row['clv_pct'],
+                'stability': row['stability'],
+                'books_used': row['books_used'],
+                'window': row['window_tag'],
+                'expires_at': row['expires_at'].isoformat() if row['expires_at'] else None,
+                'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                'home_team': row['home_team'],
+                'away_team': row['away_team'],
+                'match_description': f"{row['home_team']} vs {row['away_team']}"
+            })
         
         return {
             "status": "success",
