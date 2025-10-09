@@ -74,14 +74,16 @@ class BackgroundScheduler:
     
     def _run_scheduler(self):
         """Main scheduler loop"""
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        loop = asyncio.get_event_loop()
-        
         try:
+            logger.info("🔧 _run_scheduler: Creating new event loop...")
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
+            logger.info("🔧 _run_scheduler: Starting scheduler loop...")
             loop.run_until_complete(self._scheduler_loop())
         except Exception as e:
-            logger.error(f"Scheduler loop failed: {e}")
+            logger.error(f"❌ Scheduler loop failed: {e}", exc_info=True)
         finally:
+            logger.info("🔧 _run_scheduler: Closing event loop")
             loop.close()
     
     def _get_last_collection_date(self):
@@ -344,7 +346,7 @@ class BackgroundScheduler:
                 if archived_count > 0:
                     logger.info(f"🧹 CLV TTL Cleanup: Archived {archived_count} expired alerts")
                 else:
-                    logger.debug("🧹 CLV TTL Cleanup: No expired alerts to archive")
+                    logger.info("🧹 CLV TTL Cleanup: No expired alerts to archive (all clear)")
             
             self.last_clv_ttl_cleanup = datetime.utcnow()
                 
