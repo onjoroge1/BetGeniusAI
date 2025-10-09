@@ -28,8 +28,8 @@ class CLVAlertProducer:
         self.db_manager = DatabaseManager()
         self.database_url = os.environ.get('DATABASE_URL')
         
-        # Feature flag: temporarily allow TBD fixtures for testing
-        self.allow_tbd = os.getenv("ALLOW_TBD_FIXTURES", "1") == "1"  # Default ON for now
+        # Feature flag: Filter out TBD fixtures (teams not determined yet)
+        self.allow_tbd = os.getenv("ALLOW_TBD_FIXTURES", "0") == "1"  # Default OFF - no TBD matches
         
         if not settings.ENABLE_CLV_CLUB:
             logger.info("CLV Club is disabled in config")
