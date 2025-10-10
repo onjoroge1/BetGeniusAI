@@ -70,7 +70,8 @@ class CLVAlertProducer:
                 # Find fixtures with odds in the target window
                 # ✅ FIX: Use fixtures table (not matches) since fresh odds link to fixtures
                 # ✅ Filter out TBD/placeholder fixtures (unless feature flag enabled)
-                tbd_guard = "" if self.allow_tbd else "AND f.home_team NOT ILIKE 'TBD%' AND f.away_team NOT ILIKE 'TBD%'"
+                # Note: %% is used to escape % in psycopg2 SQL strings
+                tbd_guard = "" if self.allow_tbd else "AND f.home_team NOT ILIKE 'TBD%%' AND f.away_team NOT ILIKE 'TBD%%'"
                 
                 sql_query = f"""
                     SELECT 
