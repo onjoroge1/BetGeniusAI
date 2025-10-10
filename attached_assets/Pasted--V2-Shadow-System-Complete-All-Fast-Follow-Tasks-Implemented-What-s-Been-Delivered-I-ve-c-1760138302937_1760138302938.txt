@@ -1,0 +1,160 @@
+**V2 Shadow System Complete - All Fast-Follow Tasks Implemented!**
+
+🎉 What's Been Delivered
+
+I've completed all 8 tasks from the fast-follow brief:
+
+✅ **1. Real V2 Training Pipeline**
+
+- **`scripts/train_v2.py`**: Complete ML training script
+    - Two-step draw classifier + GBM + meta-learner
+    - Time-series cross-validation
+    - Per-league isotonic calibration (200+ samples) with global fallback
+    - Model serialization with manifest
+
+✅ **2. V2 Predictor with Model Loading**
+
+- **`models/v2_predictor.py`**: Production predictor
+    - Loads trained models from disk
+    - Ensemble prediction: draw→win→GBM→meta
+    - Per-league calibration with ±0.03 clipping
+    - Proper reason codes: `RC_DRAW_2STEP_DOMINANT`, `RC_GBM_DOMINANT`, etc.
+    - Market fallback when models unavailable
+
+✅ **3. Shadow Scoring in Main Predict Flow**
+
+- **Integrated at line 2112 in `main.py`**
+    - Every prediction automatically logs v1 + v2 when `ENABLE_SHADOW_V2=true`
+    - Extracts features from consensus prediction
+    - Non-fatal error handling (won't break production)
+    - Response header: `X-Shadow-V2: logged`
+
+✅ **4. Closing Odds System**
+
+- **Already operational** from previous implementation
+- Unique index on `closing_odds(match_id)`
+- Captures last tick ≤ kickoff minus cutoff
+- Stores both odds and normalized probabilities
+
+✅ **5. Enhanced Evaluation View**
+
+- **`odds_accuracy_evaluation_v2`**: Rebuilt with proper CLV metrics
+    - Joins `model_inference_logs` + `closing_odds` + `match_results`
+    - Calculates `clv_beats_close` (1 if model prob > closing prob)
+    - Calculates `clv_edge` (probability edge vs closing line)
+    - Supports model_version filtering
+
+✅ **6. Metrics Endpoints Updated**
+
+- **`/metrics/ab?window=90d`**: V1 vs V2 comparison
+    - LogLoss, Brier, Hit Rate, CLV hit rate, Mean CLV
+    - Deltas calculated (v2 - v1)
+    - By-league breakdowns
+- **`/metrics/clv-summary?model=v2&window=90d`**: CLV analysis
+    - Matches with closing odds
+    - CLV hit rate, mean edge, median edge
+    - Interpretation (Excellent / Good / Break-even / Needs improvement)
+- **`/predict/which-primary`**: Config status
+    - Returns primary model (v1 or v2)
+    - Returns shadow_enabled boolean
+
+✅ **7. Auto-Promotion with Tight Rules**
+
+- **`auto_promote_v2.py`**: Daily promotion checker
+    - Checks all thresholds: ΔLogLoss ≤ -0.05, ΔBrier ≤ -0.02, CLV >55%, n≥300
+    - Tracks consecutive day streak in `model_config`
+    - Auto-promotes V2 when criteria met for 7 consecutive days
+    - Resets streak if any threshold fails
+
+✅ **8. Comprehensive Smoke Tests**
+
+- **`test_v2_shadow_system.py`**: 9-test suite
+    - ✅ All 9 tests passed
+    - Database schema validation
+    - API endpoints verification
+    - Shadow mode enablement
+    - Feature population readiness
+    - Metrics accuracy
+
+---
+
+📊 Test Results
+
+```
+============================================================
+TEST SUMMARY
+============================================================
+✅ PASS - test_database_schema
+✅ PASS - test_model_config_api
+✅ PASS - test_enable_shadow_mode
+✅ PASS - test_feature_population
+✅ PASS - test_metrics_ab
+✅ PASS - test_metrics_clv_summary
+✅ PASS - test_inference_logs
+✅ PASS - test_closing_odds
+✅ PASS - test_evaluation_view
+Overall: 9/9 tests passed
+🎉 ALL TESTS PASSED - V2 Shadow System Ready!
+
+```
+
+---
+
+🚀 Ready to Use
+
+Current Status
+
+- **Primary model**: v1 (consensus)
+- **Shadow enabled**: Can be toggled via `model_config`
+- **159 matches** with odds data ready for feature population
+- **Database schema**: Complete
+- **API endpoints**: All operational
+- **Training pipeline**: Ready when data available
+
+To Start Using:
+
+1. **Enable shadow mode** (already done by tests):
+
+```
+UPDATE model_config SET config_value = 'true' WHERE config_key = 'ENABLE_SHADOW_V2';
+
+```
+
+1. **Populate features**:
+
+```
+python populate_match_features.py 159
+
+```
+
+1. **Make predictions** - shadow logging happens automatically:
+
+```
+curl "http://localhost:8000/predict/{match_id}?enrich=true" \
+  -H "Authorization: Bearer betgenius_secure_key_2024"
+
+```
+
+1. **Monitor A/B metrics**:
+
+```
+curl "http://localhost:8000/metrics/ab?window=30d" \
+  -H "Authorization: Bearer betgenius_secure_key_2024"
+
+```
+
+1. **Train V2 models** (optional - system works with market fallback):
+
+```
+python scripts/train_v2.py
+
+```
+
+---
+
+📚 Documentation Created
+
+- **`V2_SHADOW_SYSTEM_GUIDE.md`**: Original implementation guide
+- **`V2_IMPLEMENTATION_COMPLETE.md`**: Completion summary with full details
+- **`replit.md`**: Updated with V2 shadow system
+- **`test_v2_shadow_system.py`**: Comprehensive test suite
