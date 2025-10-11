@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """
-Train V2 Model - LEAKAGE-FREE with Temporal Train/Val Split
+Train V2 Model - Market-Delta Ridge Regression
+
+NEW APPROACH (Oct 11, 2025):
+Instead of predicting raw probabilities, predict SMALL DELTAS from market consensus.
 
 Architecture:
-1. Binary draw classifier (Draw vs Not-Draw)
-2. Binary win classifier (Home vs Away on Not-Draw subset)
-3. GBM multiclass (H/D/A)
-4. Meta-logit blends all three (trained on VAL only)
-5. Global isotonic calibration (trained on VAL only)
+1. Convert market probs → logits (strong prior)
+2. Train L2-regularized multinomial logistic to predict delta logits
+3. Clamp deltas to ±τ (hard constraint, prevents extremes)
+4. Blend: z_final = z_market + α·Δz (α=0.5)
+5. Softmax → probabilities
+6. Isotonic calibration on validation set only
 
-Temporal split prevents leakage:
-- Train: up to T-35d
-- Validate: T-35d → T-7d (for early-stop, stacking, calibration)
-- Gap: last 7d excluded (keeps it forward-facing)
+Why this works:
+- Market probabilities are already informative (strong baseline)
+- Model can only make bounded, explainable adjustments
+- Hard clamps prevent extreme predictions
+- L2 regularization prevents overfitting
 """
 
 import os
@@ -27,7 +32,6 @@ from pathlib import Path
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.isotonic import IsotonicRegression
-import lightgbm as lgb
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 MODEL_DIR = Path('models/v2')
@@ -41,12 +45,14 @@ BASE_FEATURES = [
     'elo_delta', 'rest_days_home', 'rest_days_away'
 ]
 
+DELTA_TAU = 0.5  # Clamp delta logits to ±0.5 (≈±15-20% prob swing)
+BLEND_ALPHA = 0.5  # Blend weight for delta logits
+
 def pick_features(df):
     """Return only features that exist in df, have data, and drop rows with nulls"""
-    # Only use columns that exist AND have non-null values
     cols = [c for c in BASE_FEATURES if c in df.columns and df[c].notna().any()]
     if not cols:
-        cols = ['prob_home', 'prob_draw', 'prob_away']  # Minimum required
+        cols = ['prob_home', 'prob_draw', 'prob_away']
     return cols, df.dropna(subset=cols)
 
 def load_training_data():
@@ -77,7 +83,6 @@ def load_training_data():
             ORDER BY mf.kickoff_timestamp
         """, conn)
     
-    # Use latest date in dataset, not current time
     latest_date = df['kickoff_timestamp'].max()
     cutoff_gap = latest_date - pd.Timedelta(days=7)
     val_start = latest_date - pd.Timedelta(days=35)
@@ -98,44 +103,85 @@ def load_training_data():
 def encode_targets(df):
     """Convert outcomes to numeric targets"""
     y = df['outcome'].map({'H': 0, 'D': 1, 'A': 2}).values
-    y_draw = (y == 1).astype(int)
-    y_win = (y == 0).astype(int)
-    return y, y_draw, y_win
+    return y
 
-def train_gbm_with_val(X_tr, y_tr, X_val, y_val):
-    """Train GBM with validation set and regularization"""
-    print("\n🎯 Training GBM with validation early stopping...")
+def market_logits(pm):
+    """
+    Convert market probabilities to logits (log-space)
+    pm: array of shape (n, 3) with [p_home, p_draw, p_away]
+    Returns: normalized logits (n, 3)
+    """
+    pm_clipped = np.clip(pm, 1e-6, 1-1e-6)
+    logits = np.log(pm_clipped)
+    logits = logits - np.max(logits, axis=1, keepdims=True)
+    return logits
+
+def train_delta_ridge(X_tr, y_tr, X_val, y_val, pm_tr, pm_val):
+    """
+    Train ridge regression (L2 multinomial logistic) to predict delta logits
     
-    params = {
-        'objective': 'multiclass',
-        'num_class': 3,
-        'metric': 'multi_logloss',
-        'boosting_type': 'gbdt',
-        'num_leaves': 15,
-        'max_depth': -1,
-        'min_data_in_leaf': 60,
-        'learning_rate': 0.07,
-        'feature_fraction': 0.85,
-        'bagging_fraction': 0.8,
-        'bagging_freq': 5,
-        'lambda_l1': 0.2,
-        'lambda_l2': 0.4,
-        'seed': 42,
-        'verbose': -1
-    }
+    Returns:
+        ridge_model: Trained LogisticRegression
+        iso_calibrators: List of 3 IsotonicRegression calibrators
+        predict_fn: Function to make predictions
+        apply_cal_fn: Function to apply calibration
+    """
+    print("\n🎯 Training Delta-Logit Ridge Regression...")
+    print(f"   L2 regularization (C=0.5), tau={DELTA_TAU}, alpha={BLEND_ALPHA}")
     
-    dtr = lgb.Dataset(X_tr, label=y_tr)
-    dvl = lgb.Dataset(X_val, label=y_val)
-    
-    model = lgb.train(
-        params, dtr,
-        num_boost_round=500,
-        valid_sets=[dtr, dvl],
-        valid_names=['train', 'val'],
-        callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False)]
+    # Train multinomial ridge to predict outcomes (outputs decision function = logits)
+    ridge_model = LogisticRegression(
+        penalty='l2', 
+        C=0.5,  # Strong L2 regularization
+        solver='lbfgs', 
+        max_iter=2000,
+        multi_class='multinomial', 
+        random_state=42
     )
+    ridge_model.fit(X_tr, y_tr)
     
-    return model
+    print("✓ Ridge model trained")
+    
+    # Define prediction function with clamping and blending
+    def predict_probs(pm, X):
+        """Predict probabilities with market-delta blending"""
+        zm = market_logits(pm)
+        dz = ridge_model.decision_function(X)
+        dz_clamped = np.clip(dz, -DELTA_TAU, DELTA_TAU)
+        z_final = zm + BLEND_ALPHA * dz_clamped
+        z_final = z_final - np.max(z_final, axis=1, keepdims=True)
+        probs = np.exp(z_final)
+        probs = probs / probs.sum(axis=1, keepdims=True)
+        return probs
+    
+    # Get uncalibrated validation predictions
+    p_val_raw = predict_probs(pm_val, X_val)
+    
+    print("\n🎯 Training Isotonic Calibrators on Validation Set...")
+    
+    # Train isotonic calibrators on validation set only
+    iso_calibrators = []
+    for k in range(3):
+        iso = IsotonicRegression(out_of_bounds='clip')
+        iso.fit(p_val_raw[:, k], (y_val == k).astype(float))
+        iso_calibrators.append(iso)
+    
+    print("✓ Calibrators trained on validation set")
+    
+    # Define calibration function
+    def apply_calibration(probs):
+        """Apply isotonic calibration with safety clamps"""
+        calibrated = np.column_stack([
+            iso_calibrators[k].predict(probs[:, k]) for k in range(3)
+        ])
+        calibrated = np.clip(calibrated, 0.02, 0.98)
+        calibrated = calibrated / calibrated.sum(axis=1, keepdims=True)
+        return calibrated
+    
+    # Test on validation set
+    p_val_cal = apply_calibration(p_val_raw)
+    
+    return ridge_model, iso_calibrators, predict_probs, apply_calibration
 
 def compute_metrics(probs, y_true):
     """Compute LogLoss and Brier score"""
@@ -145,178 +191,188 @@ def compute_metrics(probs, y_true):
     br = ((probs - oh)**2).mean()
     return ll, br
 
-def build_meta_features(X, draw_clf, win_clf, gbm):
-    """Build meta features from base model predictions"""
-    pD = draw_clf.predict_proba(X)[:, 1]
-    pHgiven = win_clf.predict_proba(X)[:, 1]
+def compute_market_divergence(probs, market_probs):
+    """
+    Compute average L1 distance and KL divergence from market
+    L1: Mean absolute difference in probabilities
+    KL: Mean KL divergence (measures information gain)
+    """
+    l1 = np.abs(probs - market_probs).mean(axis=1).mean()
     
-    pH2 = (1 - pD) * pHgiven
-    pA2 = (1 - pD) * (1 - pHgiven)
-    p2 = np.column_stack([pH2, pD, pA2])
+    eps = 1e-9
+    probs_safe = np.clip(probs, eps, 1-eps)
+    market_safe = np.clip(market_probs, eps, 1-eps)
+    kl = (probs_safe * np.log(probs_safe / market_safe)).sum(axis=1).mean()
     
-    pG = gbm.predict(X)
-    
-    return np.column_stack([p2, pG])
+    return l1, kl
 
-def train_calibrators_on_val(val_probs_raw, yvl):
-    """Train isotonic calibrators on validation set only"""
-    print("\n🎯 Training calibrators on validation set...")
-    
-    cal_h = IsotonicRegression(out_of_bounds='clip')
-    cal_d = IsotonicRegression(out_of_bounds='clip')
-    cal_a = IsotonicRegression(out_of_bounds='clip')
-    
-    cal_h.fit(val_probs_raw[:, 0], (yvl == 0).astype(float))
-    cal_d.fit(val_probs_raw[:, 1], (yvl == 1).astype(float))
-    cal_a.fit(val_probs_raw[:, 2], (yvl == 2).astype(float))
-    
-    return cal_h, cal_d, cal_a
-
-def apply_calibration(probs, cal_h, cal_d, cal_a):
-    """Apply calibration and safety clamps"""
-    h = cal_h.predict(probs[:, 0])
-    d = cal_d.predict(probs[:, 1])
-    a = cal_a.predict(probs[:, 2])
-    
-    out = np.column_stack([h, d, a])
-    out = np.clip(out, 0.02, 0.98)
-    out = out / out.sum(axis=1, keepdims=True)
-    
-    return out
-
-def save_models(draw_clf, win_clf, gbm, meta, feats):
-    """Save all models to disk"""
+def save_models(ridge_model, iso_calibrators, feats, train_stats, val_stats):
+    """Save ridge model and calibrators to disk"""
     print("\n💾 Saving models...")
     
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     CAL_DIR.mkdir(parents=True, exist_ok=True)
     
-    with open(MODEL_DIR / 'draw_model.pkl', 'wb') as f:
-        pickle.dump(draw_clf, f)
+    # Save ridge model
+    with open(MODEL_DIR / 'ridge_model.pkl', 'wb') as f:
+        pickle.dump(ridge_model, f)
     
-    with open(MODEL_DIR / 'win_model.pkl', 'wb') as f:
-        pickle.dump(win_clf, f)
+    # Save isotonic calibrators
+    with open(CAL_DIR / 'global.pkl', 'wb') as f:
+        pickle.dump({
+            'home': iso_calibrators[0],
+            'draw': iso_calibrators[1],
+            'away': iso_calibrators[2]
+        }, f)
     
-    gbm.save_model(str(MODEL_DIR / 'gbm_model.txt'))
-    
-    with open(MODEL_DIR / 'meta_model.pkl', 'wb') as f:
-        pickle.dump(meta, f)
-    
+    # Save manifest
     manifest = {
-        'version': 'v2.0',
+        'version': 'v2.1-delta',
         'trained_at': datetime.utcnow().isoformat(),
-        'training_method': 'temporal_split_no_leakage',
+        'training_method': 'market_delta_ridge',
+        'architecture': 'delta_logit_blend',
+        'hyperparameters': {
+            'delta_tau': DELTA_TAU,
+            'blend_alpha': BLEND_ALPHA,
+            'C': 0.5
+        },
         'features': feats,
         'models': {
-            'draw_classifier': 'draw_model.pkl',
-            'win_classifier': 'win_model.pkl',
-            'gbm_multiclass': 'gbm_model.txt',
-            'meta_learner': 'meta_model.pkl'
+            'ridge': 'ridge_model.pkl',
+            'calibration': 'calibration/global.pkl'
         },
-        'calibration_dir': 'calibration/',
-        'notes': 'Meta-learner and calibrators trained on validation set only'
+        'training_stats': train_stats,
+        'validation_stats': val_stats,
+        'notes': 'Market-delta model with L2 ridge regression and isotonic calibration'
     }
     
     with open(MODEL_DIR / 'manifest.json', 'w') as f:
         json.dump(manifest, f, indent=2)
     
     print(f"✓ Models saved to {MODEL_DIR}")
+    print(f"✓ Manifest: {MODEL_DIR / 'manifest.json'}")
 
 def main():
-    print("=" * 60)
-    print("V2 MODEL TRAINING - LEAKAGE-FREE TEMPORAL SPLIT")
-    print("=" * 60)
+    print("=" * 70)
+    print("V2 MODEL TRAINING - MARKET-DELTA RIDGE REGRESSION")
+    print("=" * 70)
     
     train_df, val_df, FEATS = load_training_data()
     
     if len(val_df) < 50:
         print(f"\n⚠️  WARNING: Only {len(val_df)} validation samples!")
-        print("   Consider extending validation window or reducing gap.")
     
+    # Prepare features and targets
     Xtr = train_df[FEATS].values
-    ytr, ytr_draw, ytr_win = encode_targets(train_df)
+    ytr = encode_targets(train_df)
+    pm_tr = train_df[['prob_home', 'prob_draw', 'prob_away']].values
     
     Xvl = val_df[FEATS].values
-    yvl, yvl_draw, yvl_win = encode_targets(val_df)
+    yvl = encode_targets(val_df)
+    pm_vl = val_df[['prob_home', 'prob_draw', 'prob_away']].values
     
     print(f"\n✓ Train distribution: H={sum(ytr==0)} D={sum(ytr==1)} A={sum(ytr==2)}")
     print(f"✓ Val distribution: H={sum(yvl==0)} D={sum(yvl==1)} A={sum(yvl==2)}")
     
-    print("\n🎯 Training Draw Classifier on TRAIN set...")
-    draw_clf = LogisticRegression(
-        penalty='l2', C=0.8, max_iter=2000,
-        solver='lbfgs', random_state=42
+    # Train model
+    ridge_model, iso_calibrators, predict_fn, apply_cal = train_delta_ridge(
+        Xtr, ytr, Xvl, yvl, pm_tr, pm_vl
     )
-    draw_clf.fit(Xtr, ytr_draw)
     
-    print("✓ Draw classifier trained")
+    # Evaluate on train set
+    print("\n📊 Evaluating on TRAIN set...")
+    ptr_raw = predict_fn(pm_tr, Xtr)
+    ptr_cal = apply_cal(ptr_raw)
     
-    print("\n🎯 Training Win Classifier on TRAIN set (Not-Draw subset)...")
-    not_draw_tr = (ytr_draw == 0)
-    win_clf = LogisticRegression(
-        penalty='l2', C=0.8, max_iter=2000,
-        solver='lbfgs', random_state=42
-    )
-    win_clf.fit(Xtr[not_draw_tr], ytr_win[not_draw_tr])
+    ll_tr_raw, br_tr_raw = compute_metrics(ptr_raw, ytr)
+    ll_tr_cal, br_tr_cal = compute_metrics(ptr_cal, ytr)
+    l1_tr, kl_tr = compute_market_divergence(ptr_cal, pm_tr)
     
-    print("✓ Win classifier trained")
+    print(f"   Raw:        LogLoss={ll_tr_raw:.4f}, Brier={br_tr_raw:.4f}")
+    print(f"   Calibrated: LogLoss={ll_tr_cal:.4f}, Brier={br_tr_cal:.4f}")
+    print(f"   vs Market:  L1={l1_tr:.4f}, KL={kl_tr:.4f}")
     
-    gbm = train_gbm_with_val(Xtr, ytr, Xvl, yvl)
-    print("✓ GBM trained with validation early stopping")
+    # Evaluate on validation set
+    print("\n📊 Evaluating on VALIDATION set...")
+    pvl_raw = predict_fn(pm_vl, Xvl)
+    pvl_cal = apply_cal(pvl_raw)
     
-    print("\n🎯 Training Meta-Learner on VALIDATION set only...")
-    X_meta_val = build_meta_features(Xvl, draw_clf, win_clf, gbm)
+    ll_vl_raw, br_vl_raw = compute_metrics(pvl_raw, yvl)
+    ll_vl_cal, br_vl_cal = compute_metrics(pvl_cal, yvl)
+    l1_vl, kl_vl = compute_market_divergence(pvl_cal, pm_vl)
     
-    meta = LogisticRegression(
-        penalty='l2', C=0.5, max_iter=2000,
-        multi_class='multinomial', solver='lbfgs', random_state=42
-    )
-    meta.fit(X_meta_val, yvl)
+    print(f"   Raw:        LogLoss={ll_vl_raw:.4f}, Brier={br_vl_raw:.4f}")
+    print(f"   Calibrated: LogLoss={ll_vl_cal:.4f}, Brier={br_vl_cal:.4f}")
+    print(f"   vs Market:  L1={l1_vl:.4f}, KL={kl_vl:.4f}")
     
-    print("✓ Meta-learner trained on validation set")
+    # Analyze max confidences
+    max_conf_tr = np.max(ptr_cal, axis=1).mean()
+    max_conf_vl = np.max(pvl_cal, axis=1).mean()
     
-    val_probs_raw = meta.predict_proba(X_meta_val)
-    ll_raw, br_raw = compute_metrics(val_probs_raw, yvl)
+    print(f"\n📈 Max Confidence Analysis:")
+    print(f"   Train avg:  {max_conf_tr:.1%}")
+    print(f"   Val avg:    {max_conf_vl:.1%}")
     
-    print(f"\n📊 Validation Performance (pre-calibration):")
-    print(f"   LogLoss: {ll_raw:.4f}")
-    print(f"   Brier:   {br_raw:.4f}")
+    # Check sanity
+    print(f"\n✅ Sanity Checks:")
+    if ll_vl_cal >= 0.60 and ll_vl_cal <= 0.95:
+        print(f"   ✓ Validation LogLoss {ll_vl_cal:.4f} is REALISTIC for sports betting")
+    else:
+        print(f"   ⚠️  Validation LogLoss {ll_vl_cal:.4f} is {'too low (overfitting?)' if ll_vl_cal < 0.60 else 'too high'}")
     
-    cal_h, cal_d, cal_a = train_calibrators_on_val(val_probs_raw, yvl)
+    if max_conf_vl < 0.80:
+        print(f"   ✓ Max confidence {max_conf_vl:.1%} is reasonable")
+    else:
+        print(f"   ⚠️  Max confidence {max_conf_vl:.1%} is high (might be overconfident)")
     
-    val_probs_cal = apply_calibration(val_probs_raw, cal_h, cal_d, cal_a)
-    ll_cal, br_cal = compute_metrics(val_probs_cal, yvl)
+    if l1_vl >= 0.10 and l1_vl <= 0.30:
+        print(f"   ✓ Market divergence L1={l1_vl:.4f} is in target range [0.10, 0.30]")
+    else:
+        print(f"   ⚠️  Market divergence L1={l1_vl:.4f} is {'too small' if l1_vl < 0.10 else 'too large'}")
     
-    print(f"\n📊 Validation Performance (calibrated):")
-    print(f"   LogLoss: {ll_cal:.4f}")
-    print(f"   Brier:   {br_cal:.4f}")
-    
-    CAL_DIR.mkdir(parents=True, exist_ok=True)
-    cal_data = {
-        'home': cal_h,
-        'draw': cal_d,
-        'away': cal_a,
-        'scope': 'global-val',
-        'trained_on': 'validation_set',
-        'val_logloss': ll_cal,
-        'val_brier': br_cal
+    # Save models
+    train_stats = {
+        'logloss_raw': float(ll_tr_raw),
+        'logloss_cal': float(ll_tr_cal),
+        'brier_raw': float(br_tr_raw),
+        'brier_cal': float(br_tr_cal),
+        'l1_divergence': float(l1_tr),
+        'kl_divergence': float(kl_tr),
+        'max_confidence': float(max_conf_tr),
+        'n_samples': int(len(ytr))
     }
     
-    with open(CAL_DIR / 'global.pkl', 'wb') as f:
-        pickle.dump(cal_data, f)
+    val_stats = {
+        'logloss_raw': float(ll_vl_raw),
+        'logloss_cal': float(ll_vl_cal),
+        'brier_raw': float(br_vl_raw),
+        'brier_cal': float(br_vl_cal),
+        'l1_divergence': float(l1_vl),
+        'kl_divergence': float(kl_vl),
+        'max_confidence': float(max_conf_vl),
+        'n_samples': int(len(yvl))
+    }
     
-    save_models(draw_clf, win_clf, gbm, meta, FEATS)
+    save_models(ridge_model, iso_calibrators, FEATS, train_stats, val_stats)
     
-    print("\n" + "=" * 60)
-    print("✅ V2 MODEL TRAINING COMPLETE (LEAKAGE-FREE)")
-    print("=" * 60)
-    print(f"\n📦 Models saved to: {MODEL_DIR}")
-    print(f"📊 Training samples: {len(train_df)}")
-    print(f"📊 Validation samples: {len(val_df)}")
-    print(f"📊 Features: {len(FEATS)}")
-    print(f"🎯 Validation LogLoss: {ll_cal:.4f}, Brier: {br_cal:.4f}")
-    print("\n💡 Meta-learner and calibrators trained on VALIDATION only")
-    print("💡 No training set leakage - predictions should be realistic\n")
+    print("\n" + "=" * 70)
+    print("✅ V2 DELTA MODEL TRAINING COMPLETE")
+    print("=" * 70)
+    
+    # Summary
+    print("\n📋 SUMMARY:")
+    print(f"   Model: Market-Delta Ridge (L2, C=0.5)")
+    print(f"   Train: {len(ytr)} samples, Val: {len(yvl)} samples")
+    print(f"   Val LogLoss: {ll_vl_cal:.4f} (target: 0.60-0.90)")
+    print(f"   Val Brier: {br_vl_cal:.4f} (target: 0.15-0.25)")
+    print(f"   Market L1: {l1_vl:.4f} (target: 0.10-0.30)")
+    print(f"   Max Conf: {max_conf_vl:.1%} (target: <80%)")
+    print()
+    
+    if ll_vl_cal >= 0.60 and ll_vl_cal <= 0.95 and max_conf_vl < 0.80 and l1_vl >= 0.10:
+        print("✅ Model passes sanity checks - READY for shadow testing!")
+    else:
+        print("⚠️  Model needs adjustment before shadow deployment")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

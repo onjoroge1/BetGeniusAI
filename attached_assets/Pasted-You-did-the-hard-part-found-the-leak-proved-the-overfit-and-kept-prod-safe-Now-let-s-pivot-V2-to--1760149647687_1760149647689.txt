@@ -1,0 +1,142 @@
+You did the hard part—found the leak, proved the overfit, and kept prod safe. Now let’s pivot V2 to a **market-respecting delta model** that can’t go off the rails.
+
+# What to do now (actionable, copy to agent)
+
+## 1) Replace the ensemble with a simple “market-adjustment” model
+
+**Idea:** Don’t predict raw 1×2 probs. Learn **small deltas around the market** in logit space, then cap them.
+
+### Training (use your existing temporal split)
+
+* Inputs (minimal, robust):
+  `prob_home, prob_draw, prob_away, overround, book_dispersion, drift_24h_*` (+ any extra non-null features).
+* Targets: actual outcome `y ∈ {H,D,A}`.
+* Build **market logits**:
+
+  ```
+  z_m = [log(ph), log(pd), log(pa)] - logsumexp([log(ph),log(pd),log(pa)])
+  ```
+* Train a **ridge (L2) multinomial logistic regression** to predict **delta logits**:
+
+  ```
+  Δz = W·X + b   (3 outputs)
+  ```
+* **Clamp** each component: `Δz = clip(Δz, -τ, +τ)` with τ=0.5 (≈ ±15-20% prob swings).
+* Final logits: `z = z_m + α·Δz`, with **α=0.5** (blend weight).
+* Softmax → `p̂` (then isotonic calibration on validation only, as you already do).
+
+> Why this works: the market remains the strong prior; the model can only make **bounded, explainable** nudges where features disagree with the market.
+
+### Minimal code (training core)
+
+```python
+# X: features, y: {0,1,2}, pm=(ph,pd,pa)
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+
+def market_logits(pm):
+    l = np.log(np.clip(pm, 1e-6, 1-1e-6))
+    l = l - np.logaddexp.reduce(l, axis=1, keepdims=True)
+    return l
+
+def train_delta_logit(X_tr, y_tr, X_val, y_val, pm_tr, pm_val, alpha=0.5, tau=0.5):
+    # multinomial ridge
+    clf = LogisticRegression(
+        penalty='l2', C=0.5, solver='lbfgs', max_iter=2000,
+        multi_class='multinomial', random_state=42
+    )
+    clf.fit(X_tr, y_tr)
+
+    def predict(pm, X):
+        zm = market_logits(pm)               # prior logits
+        dz = clf.decision_function(X)        # shape (n,3)
+        dz = np.clip(dz, -tau, tau)          # hard clamp
+        z  = zm + alpha * dz                 # blend
+        z -= z.max(axis=1, keepdims=True)    # stabilize
+        p  = np.exp(z); p /= p.sum(1, keepdims=True)
+        return p
+
+    p_val_raw = predict(pm_val, X_val)
+
+    # fit isotonic calibrators on validation only
+    from sklearn.isotonic import IsotonicRegression
+    iso = [IsotonicRegression(out_of_bounds='clip') for _ in range(3)]
+    for k in range(3):
+        iso[k].fit(p_val_raw[:,k], (y_val==k).astype(float))
+
+    def apply_cal(p):
+        out = np.column_stack([iso[k].predict(p[:,k]) for k in range(3)])
+        out = np.clip(out, 0.02, 0.98)
+        out /= out.sum(1, keepdims=True)
+        return out
+
+    p_val = apply_cal(p_val_raw)
+    return clf, iso, predict, apply_cal
+```
+
+**Swap this in** for the GBM/stack/meta in `scripts/train_v2.py`. Keep your leakage-free temporal split and your existing manifest saving.
+
+## 2) Update `V2Predictor` inference
+
+* Load the ridge model + isotonic calibrators.
+* Compute market logits from the **incoming market probs**.
+* Get `Δz = clf.decision_function(X_infer)`; clamp; blend with `α`; softmax; **then apply isotonic**.
+* Keep your “clip to [0.02, 0.98] + renorm” safety.
+* Emit reason codes like:
+
+  * `RC_DELTA_SMALL` (|Δ| median < 0.1),
+  * `RC_DELTA_CLIPPED` (hit ±τ),
+  * `RC_GLOBAL_CALIB`.
+
+## 3) Guardrails (hard stops)
+
+* **KL cap** vs market per prediction:
+
+  * `KL(p̂ || p_market) ≤ 0.15`. If larger, shrink `α` on the fly: `α ← α * 0.5` and recompute.
+* **Max prob cap:** `max(p̂) ≤ 0.90` (after calibration). If exceeded, renormalize with soft cap:
+
+  * `p̂ ← (1-ε)*p̂ + ε*[ph,pd,pa]` with ε=0.2.
+* **Per-league fallback:** if league calibrator N<200, use global calibrator (you already implemented this logic; keep it).
+
+## 4) Re-enable shadow only after two quick checks
+
+Run these right after retrain:
+
+```sql
+-- sanity #1: predictions not extreme
+SELECT ROUND(AVG(GREATEST(p_home,p_draw,p_away))::numeric, 4) AS avg_top_prob
+FROM model_inference_logs
+WHERE model_version='v2' AND scored_at > now() - interval '2 days';
+
+-- sanity #2: stay close to market
+SELECT ROUND(AVG(ABS(p_home - prob_home)
+               + ABS(p_draw - prob_draw)
+               + ABS(p_away - prob_away))::numeric, 4) AS mean_L1_diff
+FROM /* join inference to match_features on match_id for last 2 days */;
+```
+
+Targets: `avg_top_prob < 0.80`, `mean_L1_diff ≈ 0.10–0.25`.
+
+If both pass, flip `ENABLE_SHADOW_V2=true` again.
+
+## 5) Keep the forward-facing weekly pipeline
+
+* Sunday 03:00 UTC retrain with the **delta model**.
+* Validation/calibration on the trailing 28 days (exclude last 7).
+* Shadow metrics accumulate → your **existing auto-promotion** rule remains unchanged.
+
+## 6) (Optional) Tiny improvements that help a lot
+
+* **Monotone logic:** As a sanity check, ensure `∂p̂_home/∂prob_home ≥ 0` on average. If violated often, lower `α` or raise `τ` clamp tightness.
+* **Feature pruning:** Start with just market+micro-market features (overround, dispersion, drift). Add others only if they lower **validation logloss** steadily.
+* **Record KL & Δz stats** in `model_inference_logs` for observability.
+
+---
+
+### What you’ll see when it’s working
+
+* Validation LogLoss ~ **0.70–0.88**, Brier ~ **0.16–0.22** (realistic).
+* Predictions that **move toward** market, not away; rarely >90%.
+* In `/metrics/ab`, gradual LogLoss/Brier improvement over V1 as samples accrue; **CLV%** starts creeping ≥55%.
+
+Want me to draft the exact diffs for `scripts/train_v2.py` and `models/v2_predictor.py` to slot the delta model in cleanly?
