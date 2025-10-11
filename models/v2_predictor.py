@@ -21,10 +21,22 @@ FEATURES = [
     'drift_24h_home', 'drift_24h_draw', 'drift_24h_away',
 ]
 
-DELTA_TAU = 1.0  # Max delta logit clamp (matches training)
-BLEND_ALPHA = 0.8  # Blend weight (matches training)
-MAX_KL_DIVERGENCE = 0.15  # Max KL from market
-MAX_PROB_CAP = 0.90  # Max single outcome probability
+# =============================================================================
+# FROZEN HYPERPARAMETERS (Oct 11, 2025)
+# =============================================================================
+# These values MUST match training script for consistency:
+DELTA_TAU = 1.0  # Max delta logit clamp (±1.0 in logit space)
+BLEND_ALPHA = 0.8  # Blend weight (0.8 = trust model, 0.2 = market prior)
+
+# Guardrails (safety constraints):
+MAX_KL_DIVERGENCE = 0.15  # Max KL divergence from market (prevents wild moves)
+MAX_PROB_CAP = 0.90  # Max single outcome probability (prevents overconfidence)
+
+# Health Targets (for monitoring):
+# - avg_top_prob < 0.80 (realistic confidence)
+# - L1_divergence 0.10-0.30 (meaningful but bounded adjustments)
+# - KL_cap_rate < 30% (guardrails activate infrequently)
+# =============================================================================
 
 class V2Predictor:
     """
@@ -135,6 +147,9 @@ class V2Predictor:
         5. Softmax → probabilities
         """
         
+        if not self.ridge_model:
+            raise ValueError("Ridge model not loaded")
+        
         X = self._extract_features(features)
         pm = self._extract_market_probs(features)
         
@@ -232,7 +247,7 @@ class V2Predictor:
         
         return probs[0], probs[1], probs[2], reason
     
-    def load_models(self, model_path: str = None):
+    def load_models(self, model_path: Optional[str] = None):
         """
         Load trained V2 ridge model and calibration artifacts
         

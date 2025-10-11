@@ -1,0 +1,52 @@
+Amazing progress. V2 is now a sane, market-respecting model. Here’s the tight follow-through to lock it in, monitor it, and iterate safely.
+
+# Do-now checklist
+
+1. **Freeze the hyperparams in code** so every restart uses the same guardrails:
+
+   * `DELTA_TAU=1.0`, `BLEND_ALPHA=0.8`, calibration disabled in training, and pick-only non-null features (already coded). 
+   * In inference, keep the **KL cap = 0.15** and **max prob cap = 0.90** (already in `V2Predictor`). 
+
+2. **Re-enable shadow** (if you paused it):
+   `UPDATE model_config SET config_value='true' WHERE config_key='ENABLE_SHADOW_V2';`
+
+3. **Sanity monitors (daily)**
+
+   ```sql
+   -- how “confident” v2 is (should be < 0.80 on avg)
+   SELECT ROUND(AVG(GREATEST(p_home,p_draw,p_away))::numeric,4) AS avg_top_prob
+   FROM model_inference_logs
+   WHERE model_version='v2' AND scored_at>now()-interval '1 day';
+
+   -- how far v2 moves from market (should be 0.10–0.30 on avg)
+   -- join your inference logs to match_features by match_id for last 1–2 days, then:
+   SELECT ROUND(AVG(ABS(v2.p_home-mf.prob_home)
+                   +ABS(v2.p_draw-mf.prob_draw)
+                   +ABS(v2.p_away-mf.prob_away))::numeric,4) AS mean_L1_diff
+   FROM ...;
+   ```
+
+4. **Weekly retrain cron** (forward-facing): keep your leakage-safe split and save a manifest version (already in script). 
+
+5. **A/B watch**
+
+   * Use `/metrics/ab?window=30d|90d` and `/metrics/clv-summary` to confirm v2 beats v1 on LogLoss/Brier and CLV before any promotion.
+
+# Small, high-leverage improvements
+
+* **Per-league bias without leakage:** add league one-hot (or per-league intercept) to the ridge inputs, still predicting **delta logits** and staying clamped. This gives v2 permission to adjust differently by league while the clamps and KL cap keep it honest.
+* **Alpha/Tau tuning (tiny grid, weekly):**
+
+  * Try `BLEND_ALPHA ∈ {0.6, 0.7, 0.8}` and `DELTA_TAU ∈ {0.5, 1.0}`; pick the pair with best **validation LogLoss** (not accuracy) and reasonable `avg_top_prob < 0.80`. The training script already prints val LogLoss/Brier + L1 and confidence to guide you. 
+* **Add drift/dispersion only (for now):** Resist pulling in sparse fields; your trainer already **drops any feature columns with all NULLs** and keeps a robust subset automatically. 
+
+# Quick health probes
+
+* **Model manifest present & loaded?** The trainer writes a manifest and the predictor reads it; logs will show version and trained time on load.
+* **Calibration:** Keep it **off** for now—your trainer explicitly disabled isotonic because it caused val leakage; the predictor only applies calibration if a file exists. (Don’t ship a calibrator file yet.)
+
+# Promotion gate (unchanged)
+
+Autopromote only when (rolling 90d, ≥300 matches): LogLoss −0.05, Brier −0.02, CLV% > 55, no Tier-1 regression. Keep the 10% canary before switching primary.
+
+If you want, I can sketch the per-league intercept tweak (minimal change to the current ridge setup) and a tiny alpha/tau sweep script that plugs into your weekly job.

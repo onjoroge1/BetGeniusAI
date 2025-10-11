@@ -48,6 +48,19 @@ BASE_FEATURES = [
 DELTA_TAU = 1.0  # Clamp delta logits to ±1.0 (allow larger swings)
 BLEND_ALPHA = 0.8  # Blend weight for delta logits (higher = trust model more)
 
+# =============================================================================
+# FROZEN HYPERPARAMETERS (Oct 11, 2025)
+# =============================================================================
+# These values are production-locked after extensive testing:
+# - DELTA_TAU = 1.0: Prevents extreme delta predictions
+# - BLEND_ALPHA = 0.8: Trusts model adjustments while respecting market
+# - C = 2.0: Moderate L2 regularization for ridge regression
+# - Calibration: DISABLED (prevents validation leakage)
+#
+# DO NOT CHANGE unless you have validated on >300 predictions
+# with realistic L1=0.10-0.30 and max_confidence<0.80
+# =============================================================================
+
 def pick_features(df):
     """Return only features that exist in df, have data, and drop rows with nulls"""
     cols = [c for c in BASE_FEATURES if c in df.columns and df[c].notna().any()]
