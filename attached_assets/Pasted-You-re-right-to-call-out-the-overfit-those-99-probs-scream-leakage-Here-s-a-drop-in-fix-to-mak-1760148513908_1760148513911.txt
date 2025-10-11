@@ -1,0 +1,272 @@
+You’re right to call out the overfit—those 99% probs scream leakage. Here’s a **drop-in fix** to make V2 legit on your 6,184+ matches, *even with missing fields*, and keep it forward-facing.
+
+# What we’re changing (summary)
+
+1. **Temporal split (no leakage):**
+
+   * Train: up to **T−35d**
+   * Validate: **T−35d → T−7d** (used for early-stop, stacking, and calibration)
+   * Gap: last **7d** excluded (keeps it truly forward)
+2. **Stacking done right:** base models train on **train**; **meta-learner fits on validation** only.
+3. **Calibrators fit on validation** (never on training).
+4. **LightGBM regularization:** fewer leaves, min_data_in_leaf, L1/L2, bagging.
+5. **Feature robustness:** auto-use only columns that exist & are non-null; safely map mixed outcomes ('H','Home', etc.).
+6. **Safety clamps:** clip calibrated probs to [0.02, 0.98] then renormalize.
+7. **Metrics report:** print/record Train vs Val LogLoss/Brier so you can spot overfit at a glance.
+
+---
+
+## 1) Patch for `scripts/train_v2.py`
+
+Replace your training flow with this adjusted outline (keep your imports & env). I’m showing key edits; you can paste/merge as needed.
+
+```python
+# --- NEW: helper to build a safe feature set from what's available ---
+BASE_FEATURES = [
+    'prob_home','prob_draw','prob_away','overround','book_dispersion',
+    'drift_24h_home','drift_24h_draw','drift_24h_away',
+    # optional if present in match_features:
+    'form5_home_points','form5_away_points','elo_delta',
+    'rest_days_home','rest_days_away'
+]
+
+def pick_features(df):
+    cols = [c for c in BASE_FEATURES if c in df.columns]
+    # keep only rows with all chosen cols present
+    return cols, df.dropna(subset=cols)
+
+# --- UPDATED: load data + temporal splits (train/val/gap) ---
+def load_training_data():
+    with psycopg2.connect(DATABASE_URL) as conn:
+        df = pd.read_sql("""
+            SELECT 
+              mf.match_id, mf.league_id, mf.kickoff_timestamp,
+              mf.prob_home, mf.prob_draw, mf.prob_away,
+              mf.overround, mf.book_dispersion,
+              mf.drift_24h_home, mf.drift_24h_draw, mf.drift_24h_away,
+              mf.form5_home_points, mf.form5_away_points, mf.elo_delta,
+              mf.rest_days_home, mf.rest_days_away,
+              CASE 
+                WHEN tm.outcome IN ('H','Home') THEN 'H'
+                WHEN tm.outcome IN ('D','Draw') THEN 'D'
+                WHEN tm.outcome IN ('A','Away') THEN 'A'
+                ELSE NULL
+              END AS outcome
+            FROM match_features mf
+            JOIN training_matches tm USING (match_id)
+            WHERE tm.outcome IS NOT NULL
+              AND mf.prob_home IS NOT NULL AND mf.prob_draw IS NOT NULL AND mf.prob_away IS NOT NULL
+            ORDER BY mf.kickoff_timestamp
+        """, conn)
+
+    now = pd.Timestamp.utcnow().normalize()
+    cutoff_gap = now - pd.Timedelta(days=7)     # exclude last 7d
+    val_start  = now - pd.Timedelta(days=35)    # validation window start
+
+    train_df = df[df['kickoff_timestamp'] < val_start]
+    val_df   = df[(df['kickoff_timestamp'] >= val_start) & (df['kickoff_timestamp'] < cutoff_gap)]
+
+    # choose usable features & drop nulls
+    feats, train_df = pick_features(train_df)
+    _,    val_df   = pick_features(val_df)
+
+    print(f"Train rows: {len(train_df)}, Val rows: {len(val_df)}, Features: {feats}")
+    return train_df, val_df, feats
+
+# --- UPDATED: prepare features/targets ---
+def encode_targets(df):
+    y = df['outcome'].map({'H':0,'D':1,'A':2}).values
+    y_draw = (y == 1).astype(int)
+    y_win  = (y == 0).astype(int)  # home vs away among not-draw
+    return y, y_draw, y_win
+
+# --- UPDATED: train with validation / regularization ---
+def train_gbm_with_val(X_tr, y_tr, X_val, y_val):
+    params = {
+        'objective':'multiclass','num_class':3,'metric':'multi_logloss',
+        'boosting_type':'gbdt','num_leaves':15,'max_depth':-1,
+        'min_data_in_leaf': 60,         # regularization
+        'learning_rate':0.07,
+        'feature_fraction':0.85,'bagging_fraction':0.8,'bagging_freq':5,
+        'lambda_l1': 0.2, 'lambda_l2': 0.4,
+        'seed':42, 'verbose':-1
+    }
+    dtr = lgb.Dataset(X_tr, label=y_tr)
+    dvl = lgb.Dataset(X_val, label=y_val)
+    model = lgb.train(
+        params, dtr, num_boost_round=500,
+        valid_sets=[dtr, dvl], valid_names=['train','val'],
+        callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False)]
+    )
+    return model
+
+def ll_brier(probs, y_true):
+    eps=1e-9
+    ll = -np.log(np.clip(probs[np.arange(len(y_true)), y_true], eps, 1-eps)).mean()
+    oh = np.eye(3)[y_true]
+    br = ((probs - oh)**2).mean()
+    return ll, br
+
+# --- UPDATED: main training flow ---
+def main():
+    print("="*60, "\nV2 TRAINING (leakage-safe)\n", "="*60)
+    train_df, val_df, FEATS = load_training_data()
+
+    Xtr = train_df[FEATS].values
+    ytr, ytr_draw, ytr_win = encode_targets(train_df)
+
+    Xvl = val_df[FEATS].values
+    yvl, yvl_draw, yvl_win = encode_targets(val_df)
+
+    # Draw / Win (logits) trained on TRAIN only
+    draw_clf = LogisticRegression(penalty='l2', C=0.8, max_iter=2000, solver='lbfgs', random_state=42)
+    draw_clf.fit(Xtr, ytr_draw)
+
+    not_draw_tr = (ytr_draw == 0)
+    win_clf = LogisticRegression(penalty='l2', C=0.8, max_iter=2000, solver='lbfgs', random_state=42)
+    win_clf.fit(Xtr[not_draw_tr], ytr_win[not_draw_tr])
+
+    # GBM with VAL early stopping
+    gbm = train_gbm_with_val(Xtr, ytr, Xvl, yvl)
+
+    # Build meta features: use TRAIN->predict to form meta inputs on VAL ONLY
+    def meta_inputs(X):
+        pD = draw_clf.predict_proba(X)[:,1]
+        pHgiven = win_clf.predict_proba(X)[:,1]
+        pH2 = (1-pD)*pHgiven
+        pA2 = (1-pD)*(1-pHgiven)
+        p2 = np.column_stack([pH2, pD, pA2])       # two-step
+        pG = gbm.predict(X)                        # gbm probs
+        return np.column_stack([p2, pG])           # 6 cols
+
+    X_meta_val = meta_inputs(Xvl)
+
+    # Meta on VALIDATION ONLY (no leakage)
+    meta = LogisticRegression(penalty='l2', C=0.5, max_iter=2000, multi_class='multinomial', solver='lbfgs', random_state=42)
+    meta.fit(X_meta_val, yvl)
+
+    # Evaluate on VAL
+    val_probs_raw = meta.predict_proba(X_meta_val)
+    ll_raw, br_raw = ll_brier(val_probs_raw, yvl)
+    print(f"VAL (pre-calib): LogLoss={ll_raw:.4f}  Brier={br_raw:.4f}")
+
+    # --- Calibrators fit on VALIDATION ONLY ---
+    from sklearn.isotonic import IsotonicRegression
+    cal_h = IsotonicRegression(out_of_bounds='clip')
+    cal_d = IsotonicRegression(out_of_bounds='clip')
+    cal_a = IsotonicRegression(out_of_bounds='clip')
+    cal_h.fit(val_probs_raw[:,0], (yvl==0).astype(float))
+    cal_d.fit(val_probs_raw[:,1], (yvl==1).astype(float))
+    cal_a.fit(val_probs_raw[:,2], (yvl==2).astype(float))
+
+    def apply_cal(p):
+        h = cal_h.predict(p[:,0]); d = cal_d.predict(p[:,1]); a = cal_a.predict(p[:,2])
+        out = np.column_stack([h,d,a])
+        # clamp + renorm
+        out = np.clip(out, 0.02, 0.98)
+        out = out / out.sum(axis=1, keepdims=True)
+        return out
+
+    val_probs_cal = apply_cal(val_probs_raw)
+    ll_cal, br_cal = ll_brier(val_probs_cal, yvl)
+    print(f"VAL (calibrated): LogLoss={ll_cal:.4f}  Brier={br_cal:.4f}")
+
+    # Persist models + global calibrators
+    save_models(draw_clf, win_clf, gbm, meta)
+    CAL_DIR.mkdir(parents=True, exist_ok=True)
+    pickle.dump({'home':cal_h,'draw':cal_d,'away':cal_a,'scope':'global-val'}, open(CAL_DIR/'global.pkl','wb'))
+
+    print("\n✅ Done. Meta & calibrators trained on VALIDATION only. No training leakage.")
+```
+
+> Notes
+> • We kept per-league calibrators out here to keep this patch readable; once VAL has enough samples (≥200 per league), fit league-specific calibrators **on VAL only** using the same pattern.
+> • If you want league calibrators now, segment `val_df` by `league_id` and fit 3 isotonic models per league (fallback to global if N<200).
+> • We clamp & renormalize to prevent “99% certainty” spikes.
+
+---
+
+## 2) Train on your bigger set (safe way)
+
+```bash
+# 1) Backfill features (you did this)
+python scripts/backfill_features.py
+
+# 2) Retrain V2 (with leakage-safe splits)
+export LD_LIBRARY_PATH="$(dirname "$(gcc -print-file-name=libgomp.so.1)"):$LD_LIBRARY_PATH"
+python scripts/train_v2.py
+
+# 3) Quick sanity: probabilities shouldn’t be extreme on balanced matches
+python - << 'PY'
+from models.v2_predictor import V2Predictor
+v=V2Predictor(); v.load_models()
+ph,pd,pa,why = v.predict({'league_id':47,'prob_home':0.40,'prob_draw':0.28,'prob_away':0.32,
+                          'overround':1.05,'book_dispersion':0.01,'drift_24h_home':0,'drift_24h_draw':0,'drift_24h_away':0})
+print("V2:", round(ph,4), round(pd,4), round(pa,4), why)
+PY
+```
+
+You should see something like 0.35–0.45, 0.22–0.30, 0.25–0.35—not 0.99/0.00.
+
+---
+
+## 3) Make stacking & calibration forward-facing weekly
+
+* Keep the train/val windows tied to **calendar dates** (rolling)
+* Refit **meta + calibrators** on **last 28 days** only each week (base learners can refresh less frequently if needed).
+* That ensures the top layer follows current market dynamics without memorizing history.
+
+---
+
+## 4) Handle your JSON “BD fields” safely
+
+You shared rows where some extra fields live in `training_matches.features` JSON and some may be missing. Two options:
+
+**Option A (quick):** ignore extras for now; the robust base set (odds-derived + simple form/elo/rest) is enough to get you to stable V2.
+
+**Option B (progressive):** add selected numeric JSON keys if present:
+
+```sql
+-- example projection into match_features (optional step)
+SELECT
+  ...,
+  (tm.features->>'goal_expectancy')::numeric AS goal_expectancy,
+  (tm.features->>'league_home_advantage')::numeric AS league_home_advantage,
+  (tm.features->>'league_competitiveness')::numeric AS league_competitiveness
+FROM training_matches tm ...
+```
+
+Then in Python, append any of these columns that actually exist and pass the null-drop filter (`pick_features` handles it).
+
+---
+
+## 5) What “good” looks like after the fix
+
+* **Validation** (calibrated): LogLoss ≤ ~0.84, Brier ≤ ~0.56 on your 6k+ set (varies by league mix).
+* **Shadow A/B (`/metrics/ab?window=90d`)** should start showing v2 better than v1 on LogLoss/Brier within a couple of weeks, not day one (since val ≠ test).
+
+---
+
+## 6) Troubleshooting checklist
+
+* Val rows too few? Shrink the gap to 5d and extend validation to 35–40d.
+* Still spiky probs? Increase clamps to [0.05, 0.95], or bump L1/L2 (`lambda_l1=0.5, lambda_l2=0.8`) and `min_data_in_leaf=120`.
+* Slow LightGBM? Lower `num_leaves` to 7–11 and `num_boost_round` to 200–300; early-stopping will keep it honest.
+
+---
+
+## 7) One-liner to verify overfit is gone
+
+```sql
+-- after retrain, v2 should NOT be ~99% confident everywhere
+SELECT
+  ROUND(AVG(GREATEST(p_home,p_draw,p_away))::numeric,4) AS avg_top_prob
+FROM model_inference_logs
+WHERE model_version='v2' AND scored_at > now() - interval '3 days';
+```
+
+You want `avg_top_prob` comfortably < 0.8 in general (league dependent).
+
+---
+
+If you want, I can also drop a tiny PR to your `V2Predictor` so it loads **league calibrators when available** and falls back to global—still using the same “clip + renorm” guard.

@@ -168,8 +168,8 @@ class V2Predictor:
         league_key: str
     ) -> Tuple[float, float, float]:
         """
-        Apply per-league isotonic calibration
-        Clips adjustments to ±0.03 and renormalizes
+        Apply isotonic calibration with safety clamps
+        Clamps to [0.02, 0.98] and renormalizes
         """
         
         calibrator = self.calibrators.get(league_key, {})
@@ -183,11 +183,10 @@ class V2Predictor:
             p_draw_cal = calibrator['draw'].predict([p_draw])[0]
             p_away_cal = calibrator['away'].predict([p_away])[0]
             
-            # Clip adjustments to ±0.03
-            clip_range = 0.03
-            p_home_cal = np.clip(p_home_cal, p_home - clip_range, p_home + clip_range)
-            p_draw_cal = np.clip(p_draw_cal, p_draw - clip_range, p_draw + clip_range)
-            p_away_cal = np.clip(p_away_cal, p_away - clip_range, p_away + clip_range)
+            # Safety clamps to prevent extreme predictions
+            p_home_cal = np.clip(p_home_cal, 0.02, 0.98)
+            p_draw_cal = np.clip(p_draw_cal, 0.02, 0.98)
+            p_away_cal = np.clip(p_away_cal, 0.02, 0.98)
             
             # Renormalize
             total = p_home_cal + p_draw_cal + p_away_cal

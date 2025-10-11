@@ -1,7 +1,7 @@
 {
   "version": "v2.0",
-  "trained_at": "2025-10-11T01:56:24.348644",
-  "git_sha": "70be037",
+  "trained_at": "2025-10-11T02:11:11.502427",
+  "training_method": "temporal_split_no_leakage",
   "features": [
     "prob_home",
     "prob_draw",
@@ -18,5 +18,6 @@
     "gbm_multiclass": "gbm_model.txt",
     "meta_learner": "meta_model.pkl"
   },
-  "calibration_dir": "calibration/"
+  "calibration_dir": "calibration/",
+  "notes": "Meta-learner and calibrators trained on validation set only"
 }
