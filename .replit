@@ -2,7 +2,7 @@ modules = ["python-3.11", "python3", "postgresql-16"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "libyaml", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "tcl", "tk", "xsimd"]
+packages = ["cairo", "ffmpeg-full", "freetype", "gcc", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "libyaml", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "tcl", "tk", "xsimd"]
 
 [workflows]
 runButton = "Project"
@@ -20,9 +20,12 @@ args = "BetGenius AI Server"
 name = "BetGenius AI Server"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python main.py"
+args = "export LD_LIBRARY_PATH=\"$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH\" && python main.py"
 waitForPort = 8000
 
 [deployment]
@@ -31,11 +34,11 @@ deploymentTarget = "autoscale"
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
+externalPort = 80
 
 [[ports]]
 localPort = 8000
-externalPort = 80
+externalPort = 8000
 
 [[ports]]
 localPort = 36993

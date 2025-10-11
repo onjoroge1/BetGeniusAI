@@ -1,0 +1,22 @@
+{
+  "version": "v2.0",
+  "trained_at": "2025-10-11T01:26:39.396256",
+  "git_sha": "48d1193",
+  "features": [
+    "prob_home",
+    "prob_draw",
+    "prob_away",
+    "overround",
+    "book_dispersion",
+    "drift_24h_home",
+    "drift_24h_draw",
+    "drift_24h_away"
+  ],
+  "models": {
+    "draw_classifier": "draw_model.pkl",
+    "win_classifier": "win_model.pkl",
+    "gbm_multiclass": "gbm_model.txt",
+    "meta_learner": "meta_model.pkl"
+  },
+  "calibration_dir": "calibration/"
+}

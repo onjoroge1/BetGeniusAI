@@ -3,6 +3,10 @@
 ## Overview
 BetGenius AI is a sports prediction platform focused on delivering intelligent football match predictions through advanced machine learning and AI analysis. Targeting key African markets, the project aims to provide market-relative performance, a superior user experience with confidence-calibrated predictions, and sophisticated risk management tools for sports betting. Its core capabilities include comprehensive data collection, robust ML models, AI-powered contextual analysis, and strategic market intelligence.
 
+## Recent Updates
+- **Oct 11, 2025**: V2 Shadow System Fully Operational - Trained ML models (draw classifier, win classifier, GBM, meta-learner) on 129 matches with global calibration. System dependency (libgomp) resolved. Shadow mode enabled, ready for A/B testing.
+- **Oct 10, 2025**: CLV Alert Producer SQL escaping bug fixed - TBD filtering operational with %% wildcard escaping. Phase B timeout protection working correctly.
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 Production Model Decision: Use simple weighted consensus based on performance comparison showing 0.031549 LogLoss improvement over complex model.
@@ -19,14 +23,16 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### Machine Learning Pipeline
 - **Production Model (V1)**: Simple Weighted Consensus using quality weights derived from 31-year bookmaker analysis (Pinnacle, Bet365, Betway, William Hill). Achieves 0.838 LogLoss and 0.167 Brier Score with 63.6% 3-way accuracy.
-- **V2 Shadow Testing System**: Production-grade A/B testing infrastructure for safe model experimentation:
+- **V2 Shadow Testing System**: **OPERATIONAL** - Production-grade A/B testing infrastructure for safe model experimentation:
   - Shadow inference coordinator runs V1 and V2 in parallel, logging both predictions
-  - Database tables: `match_features` (V2 features), `model_inference_logs` (V1/V2 predictions), `model_config` (routing)
+  - Database tables: `match_features` (V2 features - 135 populated), `model_inference_logs` (V1/V2 predictions), `model_config` (routing)
   - Feature pipeline: Normalized odds, dispersion, 24h drift, form, Elo, rest days
-  - V2 model architecture: Two-step draw classifier + GBM + meta-learner with per-league calibration (placeholder implementation)
+  - **V2 model architecture: FULLY TRAINED** - Two-step draw classifier + GBM + meta-learner with global calibration (trained Oct 11, 2025 on 129 matches)
+  - Trained models: draw_model.pkl, win_model.pkl, gbm_model.txt, meta_model.pkl, calibration/global.pkl
   - Auto-promotion: V2 promoted when ΔLogLoss≤-0.05, ΔBrier≤-0.02, CLV%>55%, n≥300, 7-day streak
   - API endpoints: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`
-  - Configuration: Enable shadow mode via `model_config` table (`ENABLE_SHADOW_V2`, `PRIMARY_MODEL_VERSION`)
+  - Configuration: Shadow mode **ENABLED** (`ENABLE_SHADOW_V2=true`), Primary model: V1
+  - System ready: Awaiting prediction traffic to populate inference logs and A/B metrics
 - **Enhanced Architecture**: Dual-table population with market-efficient consensus, timing-optimized data collection (T-48h/T-24h windows), and cross-table synchronization.
 - **Real Data Integration**: Data collector incorporates injuries, team news, recent form, and head-to-head records.
 - **Auto-Retraining System**: Models automatically retrain based on match volume, with manual training scripts available.
