@@ -40,13 +40,13 @@ FEATURES = [
 
 MIN_LEAGUE_SAMPLES_FOR_CALIBRATION = 200
 
-def load_training_data(months_back=24):
-    """Load features and outcomes from database"""
-    print(f"📊 Loading training data from last {months_back} months...")
+def load_training_data(months_back=None):
+    """Load features and outcomes from database (uses all historical data)"""
+    print(f"📊 Loading training data from historical matches...")
     
     try:
         with psycopg2.connect(DATABASE_URL) as conn:
-            query = f"""
+            query = """
                 SELECT 
                     mf.match_id,
                     mf.league_id,
@@ -64,11 +64,15 @@ def load_training_data(months_back=24):
                     mf.elo_delta,
                     mf.rest_days_home,
                     mf.rest_days_away,
-                    mr.outcome
+                    CASE 
+                        WHEN tm.outcome IN ('H', 'Home') THEN 'H'
+                        WHEN tm.outcome IN ('D', 'Draw') THEN 'D'
+                        WHEN tm.outcome IN ('A', 'Away') THEN 'A'
+                        ELSE tm.outcome
+                    END as outcome
                 FROM match_features mf
-                JOIN match_results mr ON mf.match_id = mr.match_id
-                WHERE mf.kickoff_timestamp > NOW() - INTERVAL '{months_back} months'
-                    AND mr.outcome IS NOT NULL
+                JOIN training_matches tm ON mf.match_id = tm.match_id
+                WHERE tm.outcome IS NOT NULL
                     AND mf.prob_home IS NOT NULL
                     AND mf.prob_draw IS NOT NULL
                     AND mf.prob_away IS NOT NULL
@@ -153,8 +157,8 @@ def train_gbm(X, y):
         'num_class': 3,
         'metric': 'multi_logloss',
         'boosting_type': 'gbdt',
-        'num_leaves': 31,
-        'learning_rate': 0.05,
+        'num_leaves': 15,  # Reduced for faster training
+        'learning_rate': 0.1,  # Increased for faster convergence
         'feature_fraction': 0.9,
         'bagging_fraction': 0.8,
         'bagging_freq': 5,
@@ -167,9 +171,9 @@ def train_gbm(X, y):
     model = lgb.train(
         params,
         train_data,
-        num_boost_round=200,
+        num_boost_round=50,  # Reduced from 200 for faster training
         valid_sets=[train_data],
-        callbacks=[lgb.early_stopping(stopping_rounds=20, verbose=False)]
+        callbacks=[lgb.early_stopping(stopping_rounds=10, verbose=False)]
     )
     
     train_prob = model.predict(X)
