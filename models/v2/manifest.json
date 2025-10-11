@@ -1,7 +1,14 @@
 {
-  "version": "v2.0",
-  "trained_at": "2025-10-11T02:11:11.502427",
-  "training_method": "temporal_split_no_leakage",
+  "version": "v2.1-delta",
+  "trained_at": "2025-10-11T02:38:17.830302",
+  "training_method": "market_delta_ridge",
+  "architecture": "delta_logit_blend",
+  "hyperparameters": {
+    "delta_tau": 1.0,
+    "blend_alpha": 0.8,
+    "C": 2.0,
+    "calibration": "disabled"
+  },
   "features": [
     "prob_home",
     "prob_draw",
@@ -13,11 +20,28 @@
     "drift_24h_away"
   ],
   "models": {
-    "draw_classifier": "draw_model.pkl",
-    "win_classifier": "win_model.pkl",
-    "gbm_multiclass": "gbm_model.txt",
-    "meta_learner": "meta_model.pkl"
+    "ridge": "ridge_model.pkl",
+    "calibration": "calibration/global.pkl"
   },
-  "calibration_dir": "calibration/",
-  "notes": "Meta-learner and calibrators trained on validation set only"
+  "training_stats": {
+    "logloss_raw": 0.25956895529591106,
+    "logloss_cal": 0.25956895529591106,
+    "brier_raw": 0.03357286430942242,
+    "brier_cal": 0.03357286430942242,
+    "l1_divergence": 0.15009268571687273,
+    "kl_divergence": 0.1496000567703764,
+    "max_confidence": 0.7791221928584244,
+    "n_samples": 5136
+  },
+  "validation_stats": {
+    "logloss_raw": 0.25283786276739983,
+    "logloss_cal": 0.25283786276739983,
+    "brier_raw": 0.03245251642852575,
+    "brier_cal": 0.03245251642852575,
+    "l1_divergence": 0.14006130603533148,
+    "kl_divergence": 0.1392838997601405,
+    "max_confidence": 0.7855183098784942,
+    "n_samples": 740
+  },
+  "notes": "Market-delta model with L2 ridge regression and isotonic calibration"
 }

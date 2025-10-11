@@ -45,8 +45,8 @@ BASE_FEATURES = [
     'elo_delta', 'rest_days_home', 'rest_days_away'
 ]
 
-DELTA_TAU = 0.5  # Clamp delta logits to ±0.5 (≈±15-20% prob swing)
-BLEND_ALPHA = 0.5  # Blend weight for delta logits
+DELTA_TAU = 1.0  # Clamp delta logits to ±1.0 (allow larger swings)
+BLEND_ALPHA = 0.8  # Blend weight for delta logits (higher = trust model more)
 
 def pick_features(df):
     """Return only features that exist in df, have data, and drop rows with nulls"""
@@ -127,12 +127,13 @@ def train_delta_ridge(X_tr, y_tr, X_val, y_val, pm_tr, pm_val):
         apply_cal_fn: Function to apply calibration
     """
     print("\n🎯 Training Delta-Logit Ridge Regression...")
-    print(f"   L2 regularization (C=0.5), tau={DELTA_TAU}, alpha={BLEND_ALPHA}")
+    print(f"   L2 regularization (C=2.0), tau={DELTA_TAU}, alpha={BLEND_ALPHA}")
+    print(f"   Calibration: DISABLED (prevents validation leakage)")
     
     # Train multinomial ridge to predict outcomes (outputs decision function = logits)
     ridge_model = LogisticRegression(
         penalty='l2', 
-        C=0.5,  # Strong L2 regularization
+        C=2.0,  # Moderate L2 regularization (allow meaningful adjustments)
         solver='lbfgs', 
         max_iter=2000,
         multi_class='multinomial', 
@@ -157,31 +158,18 @@ def train_delta_ridge(X_tr, y_tr, X_val, y_val, pm_tr, pm_val):
     # Get uncalibrated validation predictions
     p_val_raw = predict_probs(pm_val, X_val)
     
-    print("\n🎯 Training Isotonic Calibrators on Validation Set...")
+    print("\n⚠️  Isotonic Calibration DISABLED (was causing validation leakage)")
+    iso_calibrators = None
     
-    # Train isotonic calibrators on validation set only
-    iso_calibrators = []
-    for k in range(3):
-        iso = IsotonicRegression(out_of_bounds='clip')
-        iso.fit(p_val_raw[:, k], (y_val == k).astype(float))
-        iso_calibrators.append(iso)
-    
-    print("✓ Calibrators trained on validation set")
-    
-    # Define calibration function
+    # Define calibration function (DISABLED - caused overfitting)
     def apply_calibration(probs):
-        """Apply isotonic calibration with safety clamps"""
-        calibrated = np.column_stack([
-            iso_calibrators[k].predict(probs[:, k]) for k in range(3)
-        ])
-        calibrated = np.clip(calibrated, 0.02, 0.98)
-        calibrated = calibrated / calibrated.sum(axis=1, keepdims=True)
-        return calibrated
+        """NO-OP: Isotonic calibration disabled to prevent validation leakage"""
+        return probs
     
-    # Test on validation set
-    p_val_cal = apply_calibration(p_val_raw)
+    # Don't use calibration for validation evaluation
+    p_val_cal = p_val_raw
     
-    return ridge_model, iso_calibrators, predict_probs, apply_calibration
+    return ridge_model, None, predict_probs, apply_calibration
 
 def compute_metrics(probs, y_true):
     """Compute LogLoss and Brier score"""
@@ -217,13 +205,7 @@ def save_models(ridge_model, iso_calibrators, feats, train_stats, val_stats):
     with open(MODEL_DIR / 'ridge_model.pkl', 'wb') as f:
         pickle.dump(ridge_model, f)
     
-    # Save isotonic calibrators
-    with open(CAL_DIR / 'global.pkl', 'wb') as f:
-        pickle.dump({
-            'home': iso_calibrators[0],
-            'draw': iso_calibrators[1],
-            'away': iso_calibrators[2]
-        }, f)
+    # Calibration disabled (was causing overfitting)
     
     # Save manifest
     manifest = {
@@ -232,9 +214,10 @@ def save_models(ridge_model, iso_calibrators, feats, train_stats, val_stats):
         'training_method': 'market_delta_ridge',
         'architecture': 'delta_logit_blend',
         'hyperparameters': {
-            'delta_tau': DELTA_TAU,
-            'blend_alpha': BLEND_ALPHA,
-            'C': 0.5
+            'delta_tau': float(DELTA_TAU),
+            'blend_alpha': float(BLEND_ALPHA),
+            'C': 2.0,
+            'calibration': 'disabled'
         },
         'features': feats,
         'models': {
