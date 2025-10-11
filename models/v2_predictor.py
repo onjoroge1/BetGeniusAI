@@ -21,8 +21,8 @@ FEATURES = [
     'drift_24h_home', 'drift_24h_draw', 'drift_24h_away',
 ]
 
-DELTA_TAU = 0.5  # Max delta logit clamp
-BLEND_ALPHA = 0.5  # Blend weight
+DELTA_TAU = 1.0  # Max delta logit clamp (matches training)
+BLEND_ALPHA = 0.8  # Blend weight (matches training)
 MAX_KL_DIVERGENCE = 0.15  # Max KL from market
 MAX_PROB_CAP = 0.90  # Max single outcome probability
 

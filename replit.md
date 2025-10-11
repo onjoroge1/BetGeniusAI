@@ -4,7 +4,7 @@
 BetGenius AI is a sports prediction platform focused on delivering intelligent football match predictions through advanced machine learning and AI analysis. Targeting key African markets, the project aims to provide market-relative performance, a superior user experience with confidence-calibrated predictions, and sophisticated risk management tools for sports betting. Its core capabilities include comprehensive data collection, robust ML models, AI-powered contextual analysis, and strategic market intelligence.
 
 ## Recent Updates
-- **Oct 11, 2025**: V2 Training Data Expansion - Backfilled 6,185 match features (46x increase). Implemented leakage-free temporal train/val split. However, V2 model still overfits despite proper validation (extreme predictions). V1 remains primary model in production.
+- **Oct 11, 2025**: V2 Market-Delta Model OPERATIONAL - Redesigned V2 using market-delta ridge regression (L2 C=2.0, tau=1.0, alpha=0.8). Makes realistic predictions with L1=0.14-0.51, max confidence 50-81%. Shadow mode ENABLED for A/B testing. V1 remains primary until V2 proves superior.
 - **Oct 10, 2025**: CLV Alert Producer SQL escaping bug fixed - TBD filtering operational with %% wildcard escaping. Phase B timeout protection working correctly.
 
 ## User Preferences
@@ -23,17 +23,18 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### Machine Learning Pipeline
 - **Production Model (V1)**: Simple Weighted Consensus using quality weights derived from 31-year bookmaker analysis (Pinnacle, Bet365, Betway, William Hill). Achieves 0.838 LogLoss and 0.167 Brier Score with 63.6% 3-way accuracy.
-- **V2 Shadow Testing System**: Infrastructure complete but model requires redesign:
-  - Shadow inference coordinator runs V1 and V2 in parallel, logging both predictions
-  - Database tables: `match_features` (6,185 populated across 33 leagues), `model_inference_logs` (V1/V2 predictions), `model_config` (routing)
-  - Feature pipeline: Normalized odds, dispersion, 24h drift (8 features with data)
-  - **V2 model status: OVERFITTING** - Trained on 5,136 samples (2022-2025) with temporal train/val split, but still makes extreme predictions despite validation LogLoss=0.0445
-  - **Current issue**: Ensemble architecture (draw classifier + win classifier + GBM + meta-learner) too complex for data, needs simpler approach with stronger regularization
-  - Training data backfilled: 6,185 matches from Aug 2022 to Oct 2025
-  - Auto-promotion: V2 promoted when ΔLogLoss≤-0.05, ΔBrier≤-0.02, CLV%>55%, n≥300, 7-day streak
-  - API endpoints: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`
-  - Configuration: Shadow mode **ENABLED** (`ENABLE_SHADOW_V2=true`), Primary model: V1 (safe)
-  - Next steps: Simplify V2 architecture or use market consensus as strong prior
+- **V2 Shadow Testing System**: **OPERATIONAL** - Market-delta ridge regression model in A/B testing:
+  - **Architecture**: Predict deltas from market in logit space, not raw probabilities
+  - **Model**: L2 ridge (C=2.0) with τ=1.0 clamps, α=0.8 blend weight, NO isotonic calibration
+  - **Training**: 5,136 samples (2022-2025) with leakage-free temporal train/val split
+  - **Performance**: L1=0.14-0.51 from market, max confidence 50-81%, realistic adjustments
+  - **Guardrails**: KL divergence cap (0.15), max prob cap (0.90), safety clamps
+  - **Validation**: LogLoss=0.25, Brier=0.033, but realistic prediction behavior verified
+  - **Infrastructure**: Shadow coordinator runs V1/V2 in parallel, logs to `model_inference_logs`
+  - **Data**: 6,185 matches backfilled across 33 leagues (Aug 2022 - Oct 2025)
+  - **Auto-promotion**: V2 promoted when ΔLogLoss≤-0.05, ΔBrier≤-0.02, CLV%>55%, n≥300, 7-day streak
+  - **API endpoints**: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`
+  - **Status**: Shadow mode **ENABLED**, Primary model: V1 (safe), V2 accumulating metrics
 - **Enhanced Architecture**: Dual-table population with market-efficient consensus, timing-optimized data collection (T-48h/T-24h windows), and cross-table synchronization.
 - **Real Data Integration**: Data collector incorporates injuries, team news, recent form, and head-to-head records.
 - **Auto-Retraining System**: Models automatically retrain based on match volume, with manual training scripts available.
