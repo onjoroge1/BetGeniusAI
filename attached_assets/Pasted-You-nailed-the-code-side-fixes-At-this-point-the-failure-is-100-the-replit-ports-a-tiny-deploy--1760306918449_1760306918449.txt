@@ -1,0 +1,84 @@
+You nailed the code-side fixes. At this point the failure is 100% the .replit ports + a tiny deploy guard. Do these three things and you’re done:
+
+1) Make deploy guard unconditional
+
+You already patched this, but just to be sure your startup never kicks jobs in deploy unless you force it:
+
+import os, logging, asyncio
+logger = logging.getLogger("uvicorn.error")
+
+def is_deploy() -> bool:
+    return os.getenv("REPLIT_DEPLOYMENT", "") == "1"
+
+def bg_enabled() -> bool:
+    if is_deploy():               # any deployment (autoscale or VM)
+        return os.getenv("ENABLE_BACKGROUND", "0") == "1"
+    return os.getenv("ENABLE_BACKGROUND", "1") == "1"
+
+@app.on_event("startup")
+async def on_startup():
+    if not bg_enabled():
+        logger.info("🚫 DEPLOYMENT MODE: background tasks DISABLED (API-only)")
+        return
+    asyncio.get_event_loop().create_task(_start_background_jobs())
+
+2) Fix .replit (there’s still a 5000 entry)
+
+You’re seeing “forwarding local port 5000 to external port 80” — that means some [[ports]] with localPort = 5000 still exists (and it’s first). You must leave exactly one block:
+
+Open .replit and replace every ports section with only this:
+
+[deployment]
+run = ["bash","-lc","uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-server-header"]
+deploymentTarget = "autoscale"
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+Quick self-checks (in the Replit shell/console):
+
+# should print 1
+grep -n '^\[\[ports\]\]' .replit | wc -l
+
+# should print the single 8000→80 line once
+grep -n 'localPort\s*=\s*8000' .replit
+grep -n 'externalPort\s*=\s*80' .replit
+
+# should print nothing
+grep -n 'localPort\s*=\s*5000' .replit || true
+
+Common gotchas:
+	•	Multiple [[ports]] blocks in the file (remove them all).
+	•	A second .replit lurking in a subfolder (search the repo).
+	•	Deploy panel using an older branch/commit — make sure the current branch with the fixed .replit is selected.
+
+3) Verify the right startup logs
+
+On a successful Autoscale deploy you should see:
+
+Uvicorn running on http://0.0.0.0:8000
+Application startup complete.
+🚫 DEPLOYMENT MODE: background tasks DISABLED (API-only)
+
+You should not see:
+	•	“forwarding local port 5000…”
+	•	“✅ Background scheduler started” (unless you set ENABLE_BACKGROUND=1 intentionally)
+
+If it still says port 5000…
+	•	Re-open .replit, save again.
+	•	Hard refresh the Deploy view and redeploy.
+	•	Search the repo for any other ports config:
+
+rg -n '\[\[ports\]\]|\blocalPort\b|\bexternalPort\b'
+
+
+	•	Confirm Deploy → “Source” points to the branch you edited.
+
+Bonus safety (optional)
+
+Set ENABLE_BACKGROUND=0 in your deploy env vars to doubly ensure no background jobs run in production until you’re ready.
+
+⸻
+
+Once that single [[ports]] block reads 8000 → 80, your app will bind in <1s, pass health checks, and promote cleanly.
