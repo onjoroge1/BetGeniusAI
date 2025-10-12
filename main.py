@@ -286,10 +286,18 @@ def ensure_components_loaded():
 # Startup event - minimal operations only
 @app.on_event("startup")
 async def startup_event():
-    """Minimal startup - services initialized on demand"""
-    logger.info("Starting BetGenius AI Backend - initializing background scheduler...")
-    # ✅ Start background scheduler on startup (idempotent - safe to call multiple times)
-    get_background_scheduler()
+    """Minimal startup - port opens first, background tasks deferred"""
+    logger.info("Starting BetGenius AI Backend - port opening...")
+    
+    # Defer background scheduler to start AFTER port opens (Autoscale requirement)
+    import asyncio
+    async def deferred_startup():
+        await asyncio.sleep(2)  # Wait 2 seconds for port to open
+        logger.info("Port opened - now starting background scheduler...")
+        get_background_scheduler()
+        logger.info("✅ Background scheduler started (deferred)")
+    
+    asyncio.create_task(deferred_startup())
 
 @app.on_event("shutdown")
 async def shutdown_event():
