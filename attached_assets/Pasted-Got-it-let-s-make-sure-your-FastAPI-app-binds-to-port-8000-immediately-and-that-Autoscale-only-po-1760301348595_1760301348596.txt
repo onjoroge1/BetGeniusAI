@@ -1,0 +1,270 @@
+Got it — let’s make sure your FastAPI app binds to port 8000 immediately and that Autoscale-only (port 80) requirement is satisfied, while kicking heavy jobs to **after** startup (or disabling them entirely on Autoscale).
+
+Below are drop-in fixes you can apply right now.
+
+---
+
+# 1) `.replit` — keep a single port (8000 → 80)
+
+**Delete every existing `[[ports]]` block** and replace with exactly this:
+
+```toml
+[deployment]
+run = ["bash","-lc","uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --no-server-header"]
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+```
+
+Notes:
+
+* Autoscale supports **one** port only, and it must map to external `80`.
+* If your app module isn’t `app.main:app`, adjust that import path accordingly (e.g., `main:app`).
+
+---
+
+# 2) Never block startup: defer/disable background work
+
+## A. Add a tiny env helper (`app/env.py`)
+
+```python
+import os
+
+def is_autoscale() -> bool:
+    # Replit marks autoscale deployments with these envs
+    return (
+        os.getenv("REPLIT_DEPLOYMENT", "") == "1"
+        and os.getenv("REPLIT_DEPLOYMENT_TYPE", "").lower() == "autoscale"
+    )
+
+def bg_enabled() -> bool:
+    # Disable background on Autoscale unless you explicitly override
+    if is_autoscale():
+        return os.getenv("ENABLE_BACKGROUND", "0") == "1"
+    # In dev/VM it’s on by default unless explicitly off
+    return os.getenv("ENABLE_BACKGROUND", "1") == "1"
+```
+
+## B. Make startup instant and schedule jobs after the port opens (`app/main.py`)
+
+```python
+import asyncio
+import logging
+from fastapi import FastAPI
+from .env import bg_enabled, is_autoscale
+
+logger = logging.getLogger("uvicorn.error")
+
+# IMPORTANT: do NOT import heavy modules here (collector, ML, DB, etc.)
+# Keep global imports light so uvicorn can bind immediately.
+
+app = FastAPI()
+
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True}
+
+@app.on_event("startup")
+async def on_startup():
+    # Startup should be virtually instant—just log and return.
+    if not bg_enabled():
+        logger.info("🚫 AUTOSCALE MODE: background tasks DISABLED (API-only)")
+        return
+
+    # Defer background init until AFTER the server has signaled 'startup complete'
+    # so the port is already bound and the health check will pass.
+    asyncio.get_event_loop().create_task(_start_background_jobs())
+
+async def _start_background_jobs():
+    try:
+        # Brief delay to ensure binding/log lines finish
+        await asyncio.sleep(1.0)
+
+        # Import heavy modules *inside* this function to avoid import-time work
+        from .jobs.scheduler import start_scheduler  # your wrapper around APScheduler/Cron
+        from .collectors import automated_collector  # if needed by the scheduler
+
+        logger.info("⏳ Starting background scheduler after startup...")
+        await start_scheduler()  # or call non-async start in a thread (see below)
+        logger.info("✅ Background scheduler started")
+    except Exception as e:
+        logger.exception("Background scheduler failed to start: %s", e)
+```
+
+### If your scheduler has a blocking `.start()` (sync)
+
+Wrap it in a thread so the event loop stays free:
+
+```python
+import threading
+
+def _start_scheduler_sync():
+    from .jobs.scheduler import start_scheduler  # blocking
+    start_scheduler()
+
+async def _start_background_jobs():
+    await asyncio.sleep(1.0)
+    threading.Thread(target=_start_scheduler_sync, daemon=True).start()
+```
+
+---
+
+# 3) Ensure **imports do not do work**
+
+Your logs show `models.automated_collector` processing matches **during import**. That blocks startup. Fix by moving all top-level work into functions and guard `__main__`.
+
+**Bad (blocks import):**
+
+```python
+# collectors/automated_collector.py
+logger.info("Loading fixtures...")
+process_upcoming_matches()  # runs at import 😬
+```
+
+**Good (lazy/no side effects at import):**
+
+```python
+# collectors/automated_collector.py
+import logging
+logger = logging.getLogger(__name__)
+
+def process_upcoming_matches():
+    # heavy work here
+    ...
+
+# No top-level calls.
+# if __name__ == "__main__":
+#     process_upcoming_matches()
+```
+
+Anywhere you see logs like those “🕐 Match … T-136h” during startup, that code is running at import time. Move it under a function and call it only from your deferred background job (or disable on Autoscale).
+
+---
+
+# 4) Lazy-load ML models and DB connections
+
+## A. ML model (lazy singleton)
+
+```python
+# ml/model.py
+_model = None
+
+def get_model():
+    global _model
+    if _model is None:
+        from .load import load_model  # import inside to keep import tree light
+        _model = load_model()
+    return _model
+```
+
+Use in endpoints:
+
+```python
+from ml.model import get_model
+
+@app.post("/predict")
+def predict(payload: Payload):
+    model = get_model()  # initializes on first request only
+    return model.predict(payload)
+```
+
+## B. Database (create engine/session pool on first use)
+
+Avoid connecting at import time. For SQLAlchemy:
+
+```python
+# db/core.py
+from functools import lru_cache
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+@lru_cache
+def get_engine():
+    # read env here; don't create engine at import time
+    import os
+    url = os.getenv("DATABASE_URL")
+    return create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
+
+@lru_cache
+def get_session_maker():
+    return sessionmaker(bind=get_engine(), autoflush=False, autocommit=False)
+```
+
+Inject per-request:
+
+```python
+from fastapi import Depends
+
+def get_db():
+    Session = get_session_maker()
+    db = Session()
+    try:
+        yield db
+    finally:
+        db.close()
+```
+
+---
+
+# 5) Background scheduler wrapper (clean API)
+
+Create a tiny adapter that your startup task calls. This lets you switch implementations (APScheduler, RQ, Celery Beat, etc.) without touching `main.py`.
+
+```python
+# jobs/scheduler.py
+import logging
+logger = logging.getLogger(__name__)
+
+_scheduler = None
+
+def _build_scheduler():
+    from apscheduler.schedulers.background import BackgroundScheduler
+    s = BackgroundScheduler(timezone="UTC")
+    # Register jobs here, but do NOT run them on import
+    # e.g., s.add_job(collect_odds_once, "interval", minutes=5, id="odds")
+    return s
+
+def start_scheduler():
+    global _scheduler
+    if _scheduler is None:
+        _scheduler = _build_scheduler()
+    if not _scheduler.running:
+        _scheduler.start()
+        logger.info("Scheduler started")
+
+def stop_scheduler():
+    global _scheduler
+    if _scheduler and _scheduler.running:
+        _scheduler.shutdown(wait=False)
+        logger.info("Scheduler stopped")
+```
+
+**Important:** Any job like `collect_odds_once()` must also avoid heavy imports at top-level.
+
+---
+
+# 6) Quick verification checklist
+
+* [ ] **`.replit`** has exactly one `[[ports]]` block: `8000 → 80`
+* [ ] `uvicorn` command points to the correct ASGI app (e.g., `app.main:app`)
+* [ ] App logs show:
+
+  * `Application startup complete.` followed by
+  * `🚫 AUTOSCALE MODE: background tasks DISABLED (API-only)` **on Autoscale**, **or**
+  * `⏳ Starting background scheduler after startup...` then `✅ Background scheduler started` **off Autoscale**
+* [ ] No collector/ML/DB logs appear **before** “Application startup complete.”
+* [ ] `GET /healthz` returns `{"ok": true}`
+
+---
+
+# 7) Production background jobs (options)
+
+For Autoscale:
+
+* **Best:** split background jobs into a **separate Reserved VM** deployment (always-on), or a **Scheduled/Background Worker** deployment that only runs the collector.
+* **Alternative:** external cron (GitHub Actions, Cloud Scheduler) calling a safe admin endpoint on your API.
+
+---
+
+If you paste back your current `uvicorn` command path (the exact `module:app`) and where your scheduler/collector live, I’ll tailor the import paths in the snippets above to your repo structure so you can copy-paste with zero tweaks.
