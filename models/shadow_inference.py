@@ -102,18 +102,53 @@ class ShadowInferenceCoordinator:
         else:
             v2_pred = None
         
+        # Return prediction in V1-compatible structure for frontend compatibility
         if primary_model == 'v2' and v2_pred:
+            # Convert V2 format to V1-compatible structure
             return {
-                **v2_pred,
+                'probabilities': {
+                    'home': v2_pred['p_home'],
+                    'draw': v2_pred['p_draw'],
+                    'away': v2_pred['p_away']
+                },
+                'confidence': max(v2_pred['p_home'], v2_pred['p_draw'], v2_pred['p_away']),
+                'prediction': self._get_prediction_label(v2_pred['p_home'], v2_pred['p_draw'], v2_pred['p_away']),
+                'quality_score': max(v2_pred['p_home'], v2_pred['p_draw'], v2_pred['p_away']),
+                'bookmaker_count': int(features.get('overround', 1.0)),
+                'model_type': 'market_delta_ridge_v2',
+                'data_source': 'v2_shadow_model',
+                'reason_code': v2_pred['reason_code'],
                 'shadow_logged': shadow_enabled,
                 'primary_model': 'v2'
             }
         else:
+            # V1 already has correct structure, just add metadata
             return {
-                **v1_pred,
+                'probabilities': {
+                    'home': v1_pred['p_home'],
+                    'draw': v1_pred['p_draw'],
+                    'away': v1_pred['p_away']
+                },
+                'confidence': v1_prediction.get('confidence', max(v1_pred['p_home'], v1_pred['p_draw'], v1_pred['p_away'])),
+                'prediction': v1_prediction.get('prediction', self._get_prediction_label(v1_pred['p_home'], v1_pred['p_draw'], v1_pred['p_away'])),
+                'quality_score': v1_prediction.get('quality_score', v1_prediction.get('confidence', 0.0)),
+                'bookmaker_count': v1_prediction.get('bookmaker_count', 0),
+                'model_type': v1_prediction.get('model_type', 'simple_weighted_consensus'),
+                'data_source': v1_prediction.get('data_source', 'consensus_predictions'),
+                'reason_code': v1_pred['reason_code'],
                 'shadow_logged': shadow_enabled,
                 'primary_model': 'v1'
             }
+    
+    def _get_prediction_label(self, p_home: float, p_draw: float, p_away: float) -> str:
+        """Convert probabilities to prediction label"""
+        max_prob = max(p_home, p_draw, p_away)
+        if max_prob == p_home:
+            return 'home'
+        elif max_prob == p_draw:
+            return 'draw'
+        else:
+            return 'away'
     
     def _log_predictions(
         self,
