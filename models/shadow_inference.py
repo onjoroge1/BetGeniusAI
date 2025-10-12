@@ -73,10 +73,13 @@ class ShadowInferenceCoordinator:
         
         start_time = time.time()
         
+        # Extract V1 probabilities from prediction result structure
+        v1_probs = v1_prediction.get('probabilities', {})
+        
         v1_pred = {
-            'p_home': v1_prediction.get('prob_home', 0.33),
-            'p_draw': v1_prediction.get('prob_draw', 0.33),
-            'p_away': v1_prediction.get('prob_away', 0.33),
+            'p_home': v1_probs.get('home', 0.33),
+            'p_draw': v1_probs.get('draw', 0.33),
+            'p_away': v1_probs.get('away', 0.33),
             'model_version': 'v1',
             'reason_code': 'WEIGHTED_CONSENSUS'
         }
