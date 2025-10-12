@@ -1,0 +1,121 @@
+🔥 dope — Option A is in and your logs look clean. You’re 95% there. The last mile is just locking down the `.replit` and adding a couple guardrails so this never regresses.
+
+# 1) Final `.replit` (single port, autoscale-friendly)
+
+Replace the entire ports section with exactly this (and keep only one):
+
+```toml
+[deployment]
+run = ["bash","-lc","uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1 --no-server-header"]
+deploymentTarget = "autoscale"
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+```
+
+* Make sure `main:app` matches your actual module path (e.g., `app.main:app`).
+
+# 2) “No import-time work” guard (future-proofing)
+
+To avoid accidental heavy imports from type hints, use `TYPE_CHECKING`:
+
+```python
+# anywhere you only need types
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .schemas import AvailabilityResponse  # types only, no runtime import
+```
+
+# 3) FastAPI lifespan (modern, super fast startup)
+
+If you want an even tidier pattern than `@on_event("startup")`, use lifespan. It binds the port first, then kicks off background stuff:
+
+```python
+# main.py
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+import asyncio, logging, os
+
+log = logging.getLogger("uvicorn.error")
+
+def bg_enabled() -> bool:
+    if os.getenv("REPLIT_DEPLOYMENT") == "1" and os.getenv("REPLIT_DEPLOYMENT_TYPE","").lower()=="autoscale":
+        return os.getenv("ENABLE_BACKGROUND","0") == "1"
+    return os.getenv("ENABLE_BACKGROUND","1") == "1"
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup — keep instant
+    if not bg_enabled():
+        log.info("🚫 AUTOSCALE MODE: background tasks DISABLED (API-only)")
+        yield
+        return
+
+    async def _start_bg():
+        # tiny delay lets port bind & health check pass
+        await asyncio.sleep(1.0)
+        # heavy imports happen only now
+        from jobs.scheduler import start_scheduler
+        log.info("⏳ Starting background scheduler after startup...")
+        try:
+            res = start_scheduler()
+            if asyncio.iscoroutine(res):
+                await res
+            log.info("✅ Background scheduler started")
+        except Exception:
+            log.exception("Background scheduler failed")
+
+    asyncio.create_task(_start_bg())
+    yield  # server is live here
+    # shutdown
+    try:
+        from jobs.scheduler import stop_scheduler
+        stop_scheduler()
+    except Exception:
+        pass
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True}
+```
+
+# 4) One-minute regression checklist
+
+* `.replit` has exactly **one** `[[ports]]`: `8000 → 80`.
+* No logs from collectors/models/DB **before** “Application startup complete.”
+* Autoscale logs show: `🚫 AUTOSCALE MODE: background tasks DISABLED (API-only)`.
+* Dev/VM logs show: `⏳ Starting background scheduler after startup...` then `✅`.
+* `GET /healthz` returns `{"ok": true}` immediately.
+
+# 5) Quick self-test (copy/paste)
+
+After deploy:
+
+```bash
+# instant readiness check
+curl -sSf https://<your-replit-domain>/healthz
+
+# confirm only one port mapping (sanity)
+rg -n '^\[\[ports\]\]' .replit
+```
+
+# 6) Optional belt-and-suspenders
+
+* Add an env flag to hard-block background work in prod:
+
+  * `ENABLE_BACKGROUND=0` in Autoscale env vars.
+* Wrap any potentially blocking scheduler start in a daemon thread:
+
+  ```python
+  import threading
+  def start_scheduler():
+      def _run():
+          s = _build_scheduler()
+          s.start()
+      threading.Thread(target=_run, daemon=True).start()
+  ```
+
+If you flip the `.replit` exactly as above and redeploy, you should be golden. Want me to tailor the `uvicorn` module path and any import lines to your exact tree before you hit deploy?

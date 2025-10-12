@@ -142,6 +142,14 @@ async def health_check():
     """Lightweight health check for deployment readiness"""
     return {"status": "healthy", "service": "BetGenius AI", "ready": True}
 
+@app.get("/healthz")
+async def healthz():
+    """
+    Ultra-lightweight health check for Autoscale deployments
+    Returns immediately without any DB or heavy operations
+    """
+    return {"ok": True}
+
 @app.get("/", tags=["Health"])
 async def root():
     """Root endpoint"""
