@@ -174,30 +174,35 @@ _background_scheduler = None
 def get_data_collector():
     global _data_collector
     if _data_collector is None:
+        from models.data_collector import SportsDataCollector
         _data_collector = SportsDataCollector()
     return _data_collector
 
 def get_ml_predictor():
     global _ml_predictor
     if _ml_predictor is None:
+        from models.ml_predictor import MLPredictor
         _ml_predictor = MLPredictor()
     return _ml_predictor
 
 def get_ai_analyzer():
     global _ai_analyzer
     if _ai_analyzer is None:
+        from models.ai_analyzer import AIAnalyzer
         _ai_analyzer = AIAnalyzer()
     return _ai_analyzer
 
 def get_training_collector():
     global _training_collector
     if _training_collector is None:
+        from models.training_data_collector import TrainingDataCollector
         _training_collector = TrainingDataCollector()
     return _training_collector
 
 def get_comprehensive_analyzer():
     global _comprehensive_analyzer
     if _comprehensive_analyzer is None:
+        from models.comprehensive_analyzer import ComprehensiveAnalyzer
         _comprehensive_analyzer = ComprehensiveAnalyzer()
     return _comprehensive_analyzer
 
@@ -211,24 +216,28 @@ def get_automated_collector():
 def get_enhanced_data_collector():
     global _enhanced_data_collector
     if _enhanced_data_collector is None:
+        from models.enhanced_real_data_collector import EnhancedRealDataCollector
         _enhanced_data_collector = EnhancedRealDataCollector()
     return _enhanced_data_collector
 
 def get_consensus_predictor():
     global _consensus_predictor
     if _consensus_predictor is None:
+        from models.simple_weighted_consensus_predictor import SimpleWeightedConsensusPredictor
         _consensus_predictor = SimpleWeightedConsensusPredictor()
     return _consensus_predictor
 
 def get_enhanced_ai_analyzer():
     global _enhanced_ai_analyzer
     if _enhanced_ai_analyzer is None:
+        from models.enhanced_ai_analyzer import EnhancedAIAnalyzer
         _enhanced_ai_analyzer = EnhancedAIAnalyzer()
     return _enhanced_ai_analyzer
 
 def get_clv_monitor():
     global _clv_monitor
     if _clv_monitor is None:
+        from models.clv_api import CLVMonitorAPI
         _clv_monitor = CLVMonitorAPI()
     return _clv_monitor
 
@@ -330,6 +339,8 @@ async def _start_background_jobs():
     Deferred background task initialization
     CRITICAL: All heavy imports happen HERE, not at module import time
     """
+    global background_scheduler
+    
     try:
         # Brief delay to ensure port is bound and health check passes
         await asyncio.sleep(1.0)
@@ -339,8 +350,9 @@ async def _start_background_jobs():
         # 👉 Import scheduler ONLY when needed (not at module import time)
         from utils.scheduler import BackgroundScheduler
         
-        # Start scheduler (already lazy-loaded internally)
-        scheduler = BackgroundScheduler()
+        # Create and start scheduler
+        background_scheduler = BackgroundScheduler()
+        background_scheduler.start_scheduler()
         logger.info("✅ Background scheduler started")
         
     except Exception as e:
