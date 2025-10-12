@@ -286,18 +286,30 @@ def ensure_components_loaded():
 # Startup event - minimal operations only
 @app.on_event("startup")
 async def startup_event():
-    """Minimal startup - port opens first, background tasks deferred"""
-    logger.info("Starting BetGenius AI Backend - port opening...")
+    """Minimal startup - port opens first, background tasks conditional"""
+    import os
     
-    # Defer background scheduler to start AFTER port opens (Autoscale requirement)
-    import asyncio
-    async def deferred_startup():
-        await asyncio.sleep(2)  # Wait 2 seconds for port to open
-        logger.info("Port opened - now starting background scheduler...")
-        get_background_scheduler()
-        logger.info("✅ Background scheduler started (deferred)")
+    # Detect deployment environment
+    is_autoscale = os.getenv('REPLIT_DEPLOYMENT') == '1' or os.getenv('REPL_DEPLOYMENT') == '1'
+    deployment_type = os.getenv('REPLIT_DEPLOYMENT_TYPE', 'unknown')
     
-    asyncio.create_task(deferred_startup())
+    logger.info(f"Starting BetGenius AI Backend - port opening... (deployment={is_autoscale}, type={deployment_type})")
+    
+    # CRITICAL: Autoscale does NOT support background tasks
+    # Per Replit docs: "Autoscale Deployments are not suitable for applications that run background activities"
+    if is_autoscale and deployment_type == 'autoscale':
+        logger.info("🚫 AUTOSCALE MODE: Background tasks DISABLED (API-only mode)")
+        logger.info("📋 For scheduled jobs, use a separate Scheduled Deployment or Reserved VM")
+    else:
+        # Development or VM deployment - background tasks allowed
+        import asyncio
+        async def deferred_startup():
+            await asyncio.sleep(2)  # Wait 2 seconds for port to open
+            logger.info("Port opened - starting background scheduler (dev/VM mode)...")
+            get_background_scheduler()
+            logger.info("✅ Background scheduler started")
+        
+        asyncio.create_task(deferred_startup())
 
 @app.on_event("shutdown")
 async def shutdown_event():

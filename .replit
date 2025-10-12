@@ -29,7 +29,7 @@ args = "export LD_LIBRARY_PATH=\"$(gcc -print-file-name=libgomp.so | xargs dirna
 waitForPort = 8000
 
 [deployment]
-run = ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+run = ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
 deploymentTarget = "autoscale"
 
 [[ports]]
