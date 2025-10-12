@@ -284,23 +284,41 @@ def ensure_components_loaded():
     if background_scheduler is None:
         background_scheduler = get_background_scheduler()
 
+# Helper functions for deployment detection
+def is_deploy() -> bool:
+    """Check if running in ANY Replit deployment (Autoscale or Reserved VM)"""
+    return os.getenv("REPLIT_DEPLOYMENT", "") == "1"
+
+def bg_enabled() -> bool:
+    """
+    Determine if background tasks should run.
+    
+    CRITICAL: In ANY deployment, default to OFF unless explicitly enabled.
+    This prevents background tasks from running on Autoscale (which doesn't support them).
+    """
+    if is_deploy():
+        # In deployment: ONLY enable if explicitly set to "1"
+        return os.getenv("ENABLE_BACKGROUND", "0") == "1"
+    # In development: ONLY disable if explicitly set to "0"
+    return os.getenv("ENABLE_BACKGROUND", "1") == "1"
+
 # Startup event - minimal operations only
 @app.on_event("startup")
 async def startup_event():
     """Minimal startup - port opens FIRST, heavy imports deferred"""
     
-    # Detect deployment environment (inline to avoid imports)
-    is_autoscale = os.getenv('REPLIT_DEPLOYMENT') == '1' or os.getenv('REPL_DEPLOYMENT') == '1'
     deployment_type = os.getenv('REPLIT_DEPLOYMENT_TYPE', 'unknown')
-    bg_enabled = not (is_autoscale and deployment_type == 'autoscale')
+    is_deployment = is_deploy()
+    background_enabled = bg_enabled()
     
-    logger.info(f"Starting BetGenius AI Backend - port opening... (deployment={is_autoscale}, type={deployment_type})")
+    logger.info(f"Starting BetGenius AI Backend - port opening... (deployment={is_deployment}, type={deployment_type}, bg_enabled={background_enabled})")
     
     # CRITICAL: Autoscale does NOT support background tasks
     # Per Replit docs: "Autoscale Deployments are not suitable for applications that run background activities"
-    if not bg_enabled:
-        logger.info("🚫 AUTOSCALE MODE: Background tasks DISABLED (API-only mode)")
+    if not background_enabled:
+        logger.info("🚫 DEPLOYMENT MODE: Background tasks DISABLED (API-only mode)")
         logger.info("📋 For scheduled jobs, use a separate Scheduled Deployment or Reserved VM")
+        logger.info("💡 To force-enable: Set ENABLE_BACKGROUND=1 environment variable")
         return
     
     # Development or VM deployment - background tasks allowed

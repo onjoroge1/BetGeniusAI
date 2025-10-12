@@ -1,0 +1,81 @@
+You’re super close. The error log actually tells us exactly what’s still wrong:
+	•	“forwarding local port 5000 to external port 80” → your .replit still has 5000 as the first (or only) [[ports]] block.
+	•	“deployment=True, type=unknown … ✅ Background scheduler started” → your autoscale detection is firing (REPLIT_DEPLOYMENT=1), but because REPLIT_DEPLOYMENT_TYPE is missing/unknown, your code still started background jobs. We should treat any deployment (REPLIT_DEPLOYMENT=1) as API-only unless ENABLE_BACKGROUND=1.
+
+Do these two surgical fixes and it’ll deploy:
+
+1) Fix .replit (you still have 5000 first)
+
+Open .replit and replace all [[ports]] entries with this single block (nothing else):
+
+[deployment]
+run = ["bash","-lc","uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1 --no-server-header"]
+deploymentTarget = "autoscale"
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+Tip: search your file for [[ports]] — you should see it exactly once after this change. If you still see “forwarding local port 5000” in logs, it means there is still a stray [[ports]] entry pointing at 5000.
+
+2) Make autoscale detection bulletproof (don’t depend on TYPE)
+
+Right now your logs show deployment=True, type=unknown and then the scheduler starts. Let’s hard-disable background tasks for any deploy unless explicitly overridden.
+
+In main.py (or your env helper), change the guards to this:
+
+import os
+
+def is_deploy() -> bool:
+    # Replit sets REPLIT_DEPLOYMENT=1 for both Autoscale and Reserved VM.
+    return os.getenv("REPLIT_DEPLOYMENT", "") == "1"
+
+def bg_enabled() -> bool:
+    # In ANY deployment, default to OFF unless you explicitly force it on.
+    if is_deploy():
+        return os.getenv("ENABLE_BACKGROUND", "0") == "1"
+    # In dev, default to ON unless explicitly off.
+    return os.getenv("ENABLE_BACKGROUND", "1") == "1"
+
+And in your startup/lifespan, never start the scheduler if bg_enabled() is False:
+
+@app.on_event("startup")
+async def on_startup():
+    if not bg_enabled():
+        logger.info("🚫 DEPLOYMENT MODE: background tasks DISABLED (API-only)")
+        return
+    asyncio.get_event_loop().create_task(_start_background_jobs())
+
+That guarantees you won’t see “✅ Background scheduler started” on Autoscale unless you set ENABLE_BACKGROUND=1 on purpose.
+
+3) (Optional but nice) Allow $PORT without breaking dev
+
+This isn’t required, but it makes the command future-proof:
+
+[deployment]
+run = ["bash","-lc","uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-server-header"]
+deploymentTarget = "autoscale"
+
+[[ports]]
+localPort = 8000
+externalPort = 80
+
+Replit Autoscale still needs the single [[ports]] with localPort=8000 → 80, but if Replit injects PORT, uvicorn will honor it. (Dev keeps 8000.)
+
+4) Quick sanity checklist
+	•	.replit has one [[ports]] block: localPort = 8000, externalPort = 80.
+	•	No other [[ports]] blocks exist (search to be sure).
+	•	Logs after deploy should not show any scheduler start lines. You should see:
+	•	Application startup complete.
+	•	🚫 DEPLOYMENT MODE: background tasks DISABLED (API-only)
+
+5) If you still see port 5000 after this…
+
+It means the editor didn’t save or another .replit entry (or a secondary config) is shadowing it. Double-check:
+	•	Search your repo for localPort = 5000.
+	•	Make sure there isn’t a second .replit inside a subfolder.
+	•	Ensure Replit’s Deploy panel is using the current branch/commit with the updated .replit.
+
+⸻
+
+Do those two changes (single 8000→80 block, stricter deploy guard) and redeploy — that “forwarding local port 5000” line will disappear, the server will bind in <1s, and the health check will pass.
