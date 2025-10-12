@@ -1,0 +1,217 @@
+Love it — let’s ship the **Quick Fix (Option A)** now so Autoscale stops timing out, plus two tiny lazy-load tweaks that don’t require a big refactor.
+
+Below are **drop-in patches** you can copy/paste. They (1) stop import-time work, (2) defer heavy imports until after the server binds, and (3) lazy-load DB/ML on first use.
+
+---
+
+# 1) main.py — bind port first, import heavy stuff later
+
+**Goal:** absolutely no heavy imports at module import time. Start the scheduler only *after* FastAPI reports “startup complete”.
+
+```python
+# main.py
+import asyncio
+import logging
+from fastapi import FastAPI
+
+logger = logging.getLogger("uvicorn.error")
+app = FastAPI()
+
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True}
+
+def _bg_enabled() -> bool:
+    import os
+    # Autoscale: disable background by default (ENABLE_BACKGROUND=1 to force-on)
+    if os.getenv("REPLIT_DEPLOYMENT") == "1" and os.getenv("REPLIT_DEPLOYMENT_TYPE", "").lower() == "autoscale":
+        return os.getenv("ENABLE_BACKGROUND", "0") == "1"
+    # Dev/VM: enable by default (ENABLE_BACKGROUND=0 to force-off)
+    return os.getenv("ENABLE_BACKGROUND", "1") == "1"
+
+@app.on_event("startup")
+async def on_startup():
+    # Startup must be instant—no heavy imports here.
+    if not _bg_enabled():
+        logger.info("🚫 AUTOSCALE MODE: background tasks DISABLED (API-only)")
+        return
+    # Defer heavy imports/work to AFTER the server has bound to the port
+    asyncio.get_event_loop().create_task(_start_background_jobs())
+
+async def _start_background_jobs():
+    try:
+        # tiny delay lets uvicorn finish binding + health check
+        await asyncio.sleep(1.0)
+
+        # 👉 heavy imports happen *now*, not at module import time
+        from jobs.scheduler import start_scheduler  # your wrapper (non-blocking)
+        # If your first run needs collectors registered:
+        # from collectors import automated_collector  # imported only when needed
+
+        logger.info("⏳ Starting background scheduler after startup...")
+        # If start_scheduler blocks, put it on a daemon thread instead.
+        started = await start_scheduler() if callable(getattr(start_scheduler, "__call__", None)) else None  # supports async or sync wrappers
+        logger.info("✅ Background scheduler started")
+    except Exception as e:
+        logger.exception("Background scheduler failed: %s", e)
+```
+
+> If `start_scheduler()` is **sync and blocking**, wrap it:
+
+```python
+# jobs/scheduler.py (alt)
+import logging, threading
+logger = logging.getLogger(__name__)
+def start_scheduler_blocking():
+    s = _build_scheduler()
+    s.start()  # blocking
+def start_scheduler():
+    t = threading.Thread(target=start_scheduler_blocking, daemon=True)
+    t.start()
+```
+
+---
+
+# 2) automated_collector.py — remove import-time side effects
+
+**Problem you saw in logs:**
+`INFO:models.automated_collector:📋 Found ...` during import. That means some function runs at top-level.
+
+**Fix pattern (before → after):**
+
+```python
+# collectors/automated_collector.py  (BEFORE ❌)
+import logging
+logger = logging.getLogger(__name__)
+logger.info("📋 Found 35 configured leagues...")      # ← runs at import
+def process_upcoming_matches():
+    ...
+process_upcoming_matches()                             # ← runs at import
+```
+
+```python
+# collectors/automated_collector.py  (AFTER ✅)
+import logging
+logger = logging.getLogger(__name__)
+
+def process_upcoming_matches():
+    ...
+# No top-level work. Call this only from a job.
+```
+
+> Anywhere you see logs at import, move that logic into a function and call it only from the scheduler job.
+
+---
+
+# 3) jobs/scheduler.py — register jobs but don’t run them on import
+
+Make the scheduler *build* lazily and only start when `start_scheduler()` is called by `main.py` after startup.
+
+```python
+# jobs/scheduler.py
+import logging
+logger = logging.getLogger(__name__)
+
+_scheduler = None
+
+def _build_scheduler():
+    from apscheduler.schedulers.background import BackgroundScheduler
+    s = BackgroundScheduler(timezone="UTC")
+    # Import targets INSIDE builder to avoid import-time heavy work
+    from collectors.automated_collector import process_upcoming_matches
+    # Example: every 5 minutes
+    s.add_job(process_upcoming_matches, "interval", minutes=5, id="odds_collect")
+    return s
+
+def start_scheduler():
+    global _scheduler
+    if _scheduler is None:
+        _scheduler = _build_scheduler()
+    if not _scheduler.running:
+        _scheduler.start()
+        logger.info("🗓️ Scheduler started")
+```
+
+---
+
+# 4) DB lazy-load (tiny, safe tweak)
+
+If you currently create engines/sessions at import, switch to first-use:
+
+```python
+# db/core.py
+from functools import lru_cache
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+@lru_cache
+def get_engine():
+    import os
+    url = os.getenv("DATABASE_URL")
+    return create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
+
+@lru_cache
+def get_session_maker():
+    return sessionmaker(bind=get_engine(), autoflush=False, autocommit=False)
+
+def get_db():
+    Session = get_session_maker()
+    db = Session()
+    try:
+        yield db
+    finally:
+        db.close()
+```
+
+Use `Depends(get_db)` in endpoints.
+
+---
+
+# 5) ML lazy-load (one-liner pattern)
+
+```python
+# ml/model.py
+_model = None
+def get_model():
+    global _model
+    if _model is None:
+        from .load import load_model
+        _model = load_model()
+    return _model
+```
+
+Call `get_model()` inside the `/predict` handler.
+
+---
+
+# 6) Quick “find & fix” sweep (optional but handy)
+
+Run these locally to spot offenders:
+
+```bash
+# calls at import (very rough heuristic)
+rg -n "^\s*[a-zA-Z_][a-zA-Z0-9_]*\(" collectors/ jobs/ models/ | rg -v "def |class |logger\.|add_job|return|yield"
+
+# top-level logging during import
+rg -n "logger\.info|logger\.debug|print\(" collectors/ jobs/ models/
+```
+
+Move any discovered calls under functions registered with the scheduler.
+
+---
+
+# 7) Sanity checklist (Autoscale)
+
+* `.replit` has **one** port map: `localPort=8000`, `externalPort=80`
+* `uvicorn` module path is correct (e.g., `app.main:app`)
+* Logs show:
+
+  * `Application startup complete.`
+  * `🚫 AUTOSCALE MODE: background tasks DISABLED (API-only)` **(Autoscale)**
+    or
+  * `⏳ Starting background scheduler after startup...` then `✅ Background scheduler started` **(Dev/VM)**
+* No collector/ML/DB logs appear **before** the “startup complete” line.
+
+---
+
+If you paste your file paths for `main.py`, `jobs/scheduler.py`, and `collectors/automated_collector.py`, I’ll tailor the import lines exactly to your tree. But you should be able to drop in the patterns above and redeploy — that’ll stop the port-open timeout and keep Autoscale happy. 🚀

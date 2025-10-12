@@ -4,7 +4,7 @@
 BetGenius AI is a sports prediction platform focused on delivering intelligent football match predictions through advanced machine learning and AI analysis. Targeting key African markets, the project aims to provide market-relative performance, a superior user experience with confidence-calibrated predictions, and sophisticated risk management tools for sports betting. Its core capabilities include comprehensive data collection, robust ML models, AI-powered contextual analysis, and strategic market intelligence.
 
 ## Recent Updates
-- **Oct 12, 2025**: Autoscale Deployment Architecture - Background tasks now conditionally disabled for Autoscale deployments (API-only mode). Environment detection automatically enables/disables scheduler based on deployment type. V1/V2 JSON structure compatibility verified and documented.
+- **Oct 12, 2025**: Option A Quick Fix Applied - Heavy module imports deferred to AFTER port opens (<1s startup). All 20+ model/service imports moved inside lazy loaders. Background tasks conditionally disabled for Autoscale (API-only mode). Port 8000 now opens immediately, ready for deployment.
 - **Oct 11, 2025**: V2 Market-Delta Model LOCKED & MONITORED - Hyperparameters frozen (τ=1.0, α=0.8, C=2.0), daily health checks deployed, shadow mode confirmed. Production-ready with auto-promotion monitoring. Weekly retrain schedule active. See V2_LOCKDOWN_SUMMARY.md for full details.
 - **Oct 10, 2025**: CLV Alert Producer SQL escaping bug fixed - TBD filtering operational with %% wildcard escaping. Phase B timeout protection working correctly.
 

@@ -15,21 +15,14 @@ import os
 from datetime import datetime, timezone
 from functools import lru_cache
 
+# CRITICAL: Only import lightweight modules at top level
+# Heavy imports (models, collectors, ML, etc.) are deferred until after port binding
 from utils.config import settings
-from models.data_collector import SportsDataCollector
-from models.ml_predictor import MLPredictor
-from models.ai_analyzer import AIAnalyzer
-from models.training_data_collector import TrainingDataCollector
-from models.comprehensive_analyzer import ComprehensiveAnalyzer
-from models.enhanced_real_data_collector import EnhancedRealDataCollector
-from models.simple_consensus_predictor import SimpleWeightedConsensusPredictor
-from models.enhanced_ai_analyzer import EnhancedAIAnalyzer
-from utils.on_demand_consensus import build_on_demand_consensus
 from models.response_schemas import (
     FinalPredictionResponse, MatchContext, ComprehensiveAnalysisResponse,
     AvailabilityRequest, AvailabilityResponse, MatchAvailability, AvailabilityMeta
 )
-from models.clv_api import CLVMonitorAPI
+from utils.on_demand_consensus import build_on_demand_consensus
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -286,30 +279,46 @@ def ensure_components_loaded():
 # Startup event - minimal operations only
 @app.on_event("startup")
 async def startup_event():
-    """Minimal startup - port opens first, background tasks conditional"""
-    import os
+    """Minimal startup - port opens FIRST, heavy imports deferred"""
     
-    # Detect deployment environment
+    # Detect deployment environment (inline to avoid imports)
     is_autoscale = os.getenv('REPLIT_DEPLOYMENT') == '1' or os.getenv('REPL_DEPLOYMENT') == '1'
     deployment_type = os.getenv('REPLIT_DEPLOYMENT_TYPE', 'unknown')
+    bg_enabled = not (is_autoscale and deployment_type == 'autoscale')
     
     logger.info(f"Starting BetGenius AI Backend - port opening... (deployment={is_autoscale}, type={deployment_type})")
     
     # CRITICAL: Autoscale does NOT support background tasks
     # Per Replit docs: "Autoscale Deployments are not suitable for applications that run background activities"
-    if is_autoscale and deployment_type == 'autoscale':
+    if not bg_enabled:
         logger.info("🚫 AUTOSCALE MODE: Background tasks DISABLED (API-only mode)")
         logger.info("📋 For scheduled jobs, use a separate Scheduled Deployment or Reserved VM")
-    else:
-        # Development or VM deployment - background tasks allowed
-        import asyncio
-        async def deferred_startup():
-            await asyncio.sleep(2)  # Wait 2 seconds for port to open
-            logger.info("Port opened - starting background scheduler (dev/VM mode)...")
-            get_background_scheduler()
-            logger.info("✅ Background scheduler started")
+        return
+    
+    # Development or VM deployment - background tasks allowed
+    # Defer to AFTER port opens
+    asyncio.create_task(_start_background_jobs())
+
+async def _start_background_jobs():
+    """
+    Deferred background task initialization
+    CRITICAL: All heavy imports happen HERE, not at module import time
+    """
+    try:
+        # Brief delay to ensure port is bound and health check passes
+        await asyncio.sleep(1.0)
         
-        asyncio.create_task(deferred_startup())
+        logger.info("⏳ Port opened - importing heavy modules and starting scheduler...")
+        
+        # 👉 Import scheduler ONLY when needed (not at module import time)
+        from utils.scheduler import BackgroundScheduler
+        
+        # Start scheduler (already lazy-loaded internally)
+        scheduler = BackgroundScheduler()
+        logger.info("✅ Background scheduler started")
+        
+    except Exception as e:
+        logger.exception(f"Background scheduler failed to start: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
