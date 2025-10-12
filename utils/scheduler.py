@@ -48,6 +48,9 @@ class BackgroundScheduler:
         self.last_daily_brief_run: Optional[datetime] = None
         # Phase B: Fresh odds collection (HIGH PRIORITY - runs every 60 seconds)
         self.last_phase_b_run: Optional[datetime] = None
+        # Scheduled collection state tracking (prevents duplicate runs)
+        self.last_scheduled_collection_run: Optional[datetime] = None
+        self.last_scheduled_collection_hour: Optional[int] = None
         # Background task tracking (for non-blocking execution)
         self.tasks: dict = {}  # name -> asyncio.Task
         self.last_run: dict = {}  # name -> datetime
@@ -185,10 +188,25 @@ class BackgroundScheduler:
                 # Check if current hour is a target hour and within collection window (first 15 minutes)
                 if current_hour in target_hours and current_minute < 15:
                     
-                    # Check if we already collected at this hour today
-                    last_collection = self._get_last_collection_timestamp(current_hour)
+                    # Resilient state tracking: Check if we already ran for this hour
+                    # This prevents duplicate runs during the 15-minute window
+                    should_run = False
                     
-                    if not last_collection or (now - last_collection).total_seconds() > 3600:
+                    if self.last_scheduled_collection_hour != current_hour:
+                        # New hour - definitely run
+                        should_run = True
+                    elif not self.last_scheduled_collection_run:
+                        # No previous run recorded - run it
+                        should_run = True
+                    elif (now - self.last_scheduled_collection_run).total_seconds() > 3600:
+                        # More than 1 hour since last run - run it
+                        should_run = True
+                    
+                    if should_run:
+                        # Update state IMMEDIATELY to prevent duplicate runs
+                        self.last_scheduled_collection_run = now
+                        self.last_scheduled_collection_hour = current_hour
+                        
                         day_type = "weekend" if is_weekend else "weekday"
                         logger.info(f"🔄 SCHEDULER: Starting {day_type} collection cycle at {now.strftime('%H:%M:%S')} UTC")
                         logger.info(f"📅 Hour {current_hour:02d}:00 - capturing odds nuances for market efficiency")
@@ -206,7 +224,7 @@ class BackgroundScheduler:
                         await self._spawn(f"daily_collection_{current_hour}", run_collection, timeout=600)
                     
                     else:
-                        logger.debug(f"📋 Collection already completed at {current_hour:02d}:00 today")
+                        logger.debug(f"📋 Collection already completed at {current_hour:02d}:00 (state-tracked)")
                 
                 else:
                     # Log next collection time for visibility
