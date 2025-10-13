@@ -331,59 +331,87 @@ class BackgroundScheduler:
     
     async def _run_phase_b_fresh_odds(self):
         """
-        🎯 FAST Phase B: Targeted odds collection for matches needing refresh
-        Queries DB for upcoming fixtures, fetches odds per-match (not per-league)
-        Completes in <30s with bounded concurrency
+        🎯 FAST Phase B: Targeted prediction building for matches with fresh odds
+        - Finds matches with fresh odds (last 10min) but stale/no predictions
+        - Builds predictions every minute for those matches
+        - Completes in <30s, non-blocking
         """
         try:
             import time
-            import asyncio
             import psycopg2
             
             start_time = time.time()
             
-            # Step 1: Query upcoming fixtures needing odds (within 6-168h, missing fresh snapshots)
+            # Step 1: Query matches needing predictions (fresh odds, stale/no predictions)
             database_url = os.environ.get('DATABASE_URL')
             if not database_url:
                 logger.error("Phase B: DATABASE_URL not found")
                 return
             
-            matches_needing_odds = []
+            # Check if we have any fresh odds at all
+            has_fresh_odds = False
             with psycopg2.connect(database_url) as conn:
                 with conn.cursor() as cursor:
-                    # Find matches 6-168h ahead WITH recent odds but NO predictions
-                    cursor.execute("""
-                        SELECT DISTINCT f.match_id, f.league_id, f.kickoff_at
-                        FROM fixtures f
-                        INNER JOIN odds_snapshots o ON f.match_id = o.match_id 
-                            AND o.ts_snapshot > NOW() - INTERVAL '48 hours'
-                        LEFT JOIN consensus_predictions cp ON f.match_id = cp.match_id
-                        WHERE f.kickoff_at BETWEEN NOW() + INTERVAL '6 hours' 
-                            AND NOW() + INTERVAL '168 hours'
-                        AND f.status = 'NS'
-                        AND cp.match_id IS NULL
-                        ORDER BY f.kickoff_at
-                        LIMIT 50
-                    """)
-                    matches_needing_odds = cursor.fetchall()
+                    cursor.execute("SELECT EXISTS(SELECT 1 FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes')")
+                    result = cursor.fetchone()
+                    has_fresh_odds = result[0] if result else False
             
-            if not matches_needing_odds:
-                logger.debug(f"🎯 Phase B: No matches need odds refresh (completed in {int((time.time()-start_time)*1000)}ms)")
+            # If no fresh odds, wait for scheduled collection (can't do full collection here - too slow)
+            if not has_fresh_odds:
+                logger.debug(f"🎯 Phase B: No fresh odds, waiting for scheduled collection (completed in {int((time.time()-start_time)*1000)}ms)")
                 return
             
-            logger.info(f"🎯 Phase B: {len(matches_needing_odds)} matches have recent odds, building predictions...")
+            # Now find targets with fresh odds but stale/no predictions
+            target_matches = []
+            with psycopg2.connect(database_url) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        WITH upcoming AS (
+                            SELECT f.match_id
+                            FROM fixtures f
+                            WHERE f.kickoff_at BETWEEN NOW() + INTERVAL '6 hours' 
+                                AND NOW() + INTERVAL '168 hours'
+                            AND f.status = 'NS'
+                        ),
+                        fresh_odds AS (
+                            SELECT DISTINCT os.match_id
+                            FROM odds_snapshots os
+                            WHERE os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+                        ),
+                        stale_preds AS (
+                            SELECT u.match_id
+                            FROM upcoming u
+                            LEFT JOIN LATERAL (
+                                SELECT MAX(cp.created_at) AS last_pred_at
+                                FROM consensus_predictions cp
+                                WHERE cp.match_id = u.match_id
+                            ) p ON TRUE
+                            WHERE p.last_pred_at IS NULL 
+                                OR p.last_pred_at < NOW() - INTERVAL '30 minutes'
+                        )
+                        SELECT sp.match_id
+                        FROM stale_preds sp
+                        JOIN fresh_odds fo USING (match_id)
+                        ORDER BY sp.match_id
+                        LIMIT 50
+                    """)
+                    target_matches = [row[0] for row in cursor.fetchall()]
             
-            # Build consensus predictions from ALL recent odds (from automated collector + any other source)
-            # The automated collector runs at startup and populates odds_snapshots
-            # Phase B's job is to build predictions from those odds
+            if not target_matches:
+                logger.debug(f"🎯 Phase B: No matches need predictions (completed in {int((time.time()-start_time)*1000)}ms)")
+                return
+            
+            logger.info(f"🎯 Phase B: Building predictions for {len(target_matches)} matches with fresh odds...")
+            
+            # Step 2: Build predictions for target matches
             try:
-                consensus_count = self.build_consensus_predictions()
+                built_count = self.build_consensus_predictions()
                 elapsed_ms = int((time.time() - start_time) * 1000)
                 
-                if consensus_count > 0:
-                    logger.info(f"✅ Phase B: Built {consensus_count} new predictions in {elapsed_ms}ms")
+                if built_count > 0:
+                    logger.info(f"📈 consensus_predictions: built={built_count} for {len(target_matches)} targets ({elapsed_ms}ms)")
                 else:
-                    logger.debug(f"🎯 Phase B: 0 new predictions ({elapsed_ms}ms)")
+                    logger.debug(f"🎯 Phase B: 0 predictions built ({elapsed_ms}ms)")
             except Exception as consensus_error:
                 logger.error(f"❌ Phase B consensus failed: {consensus_error}")
                 

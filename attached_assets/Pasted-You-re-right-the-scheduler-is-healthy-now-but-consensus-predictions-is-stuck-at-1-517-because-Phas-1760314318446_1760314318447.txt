@@ -1,0 +1,198 @@
+You’re right: the scheduler is healthy now, but consensus_predictions is stuck at 1,517 because Phase B isn’t actually generating new consensus rows in your automated loop. Here’s a tight diagnose→fix→verify plan that makes predictions grow continuously (without re-introducing the old blocking behavior) and avoids the “presentation rendering” side-effects.
+
+⸻
+
+What’s happening (recap)
+	•	Odds are arriving (Phase B + other collectors).
+	•	Consensus refresh logs you saw update odds_consensus (de-vig, book medians) — not consensus_predictions.
+	•	build_consensus_predictions() only ran in the manual path before; your first patch to call it after Phase B didn’t trigger because Phase B was disabled/bypassed during stabilization, and your target selection returned zero rows.
+
+⸻
+
+Fix: targeted Phase B that (a) is fast, (b) builds predictions every minute
+
+1) Target selection (SQL you can paste)
+
+Choose matches that actually need predictions — not all leagues.
+
+-- A. Upcoming fixtures that should have predictions now (window tunable)
+WITH upcoming AS (
+  SELECT f.match_id
+  FROM fixtures f
+  WHERE f.kickoff_at BETWEEN NOW() + INTERVAL '6 hours' AND NOW() + INTERVAL '168 hours'
+),
+
+-- B. Have fresh odds in last 10m?  (so consensus can be meaningful)
+fresh_odds AS (
+  SELECT DISTINCT os.match_id
+  FROM odds_snapshots os
+  WHERE os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+),
+
+-- C. Missing or stale predictions (older than 30m or none)
+stale_preds AS (
+  SELECT u.match_id
+  FROM upcoming u
+  LEFT JOIN LATERAL (
+    SELECT MAX(cp.created_at) AS last_pred_at
+    FROM consensus_predictions cp
+    WHERE cp.match_id = u.match_id
+  ) p ON TRUE
+  WHERE p.last_pred_at IS NULL OR p.last_pred_at < NOW() - INTERVAL '30 minutes'
+)
+
+SELECT sp.match_id
+FROM stale_preds sp
+JOIN fresh_odds fo USING (match_id)
+ORDER BY sp.match_id
+LIMIT 50;  -- bound per tick
+
+This yields a small queue of match_ids that have fresh odds and either no predictions yet or stale ones.
+
+2) Non-blocking Phase B (spawned task) that builds predictions
+
+Wire this after odds collection (or even if collection returns 0, we can still build from existing fresh odds):
+
+# utils/scheduler.py (inside your non-blocking Phase B task)
+async def _run_phase_b_fresh_odds(self):
+    # 1) (optional) collect fresh odds for target fixtures only
+    targets = await db.fetch("/* SQL above */")
+    match_ids = [r["match_id"] for r in targets]
+
+    if match_ids:
+        await self.collector.collect_for_matches(match_ids, concurrency=6, timeout_per_call=8)
+
+    # 2) ALWAYS attempt to (re)build predictions for the same targets
+    #    …even if step 1 fetched 0, because fresh odds may already be present.
+    built = await self.predictions.build_consensus_predictions(match_ids=match_ids)
+    logger.info(f"📈 consensus_predictions: built={built} for {len(match_ids)} targets")
+
+Notes
+	•	collect_for_matches() should accept a list of match_ids and do bounded concurrency (e.g., 6) so Phase B stays <30s.
+	•	If you don’t have collect_for_matches() yet, temporarily skip fetching and just run the builder — it will use existing fresh odds (odds_snapshots).
+
+3) Make the prediction builder safe/idempotent
+	•	Use UPSERT on (match_id, model_version, bucket_minute) to avoid duplicates.
+	•	Use the same minute bucket approach you just added for alerts to dedupe by time.
+
+Minimal UPSERT:
+
+-- Add once:
+ALTER TABLE consensus_predictions
+  ADD COLUMN IF NOT EXISTS bucket_minute timestamptz;
+
+CREATE UNIQUE INDEX IF NOT EXISTS consensus_predictions_unique
+ON consensus_predictions (match_id, model_version, bucket_minute);
+
+-- In builder:
+INSERT INTO consensus_predictions(match_id, model_version, bucket_minute, market, outcome, prob, fair_price, created_at)
+VALUES ($1,$2, date_trunc('minute',$3), $4,$5,$6,$7,$3)
+ON CONFLICT (match_id, model_version, bucket_minute)
+DO UPDATE SET
+  prob = EXCLUDED.prob,
+  fair_price = EXCLUDED.fair_price,
+  created_at = EXCLUDED.created_at;
+
+4) Kill the “consensus presentation render” side-effect (feature-flag)
+
+If the builder tries to render visuals, short-circuit it with a flag to keep Phase B lean:
+
+RENDER_CONSENSUS_PRESENTATIONS = os.getenv("RENDER_CONSENSUS_PRESENTATIONS", "0") == "1"
+
+if RENDER_CONSENSUS_PRESENTATIONS:
+    await self.presentations.render_consensus(match_ids)
+
+Default OFF in .env.example.
+
+⸻
+
+Verify (copy-paste probes)
+
+A) Is the builder running?
+
+SELECT COUNT(*) AS preds_24h,
+       to_char(MAX(created_at),'YYYY-MM-DD HH24:MI:SS') AS last_pred_at
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '24 hours';
+
+B) Are there targets each minute?
+
+-- How many candidate matches right now?
+WITH q AS ( /* target SQL above */ )
+SELECT COUNT(*) FROM q;
+
+C) Is Phase B respecting the budget?
+
+Your logs should show per-minute lines like:
+
+📈 consensus_predictions: built=17 for 23 targets
+
+D) Health endpoint (extend quickly)
+
+Add to /_health/clv:
+	•	preds_10m: SELECT COUNT(*) FROM consensus_predictions WHERE created_at > NOW()-INTERVAL '10 minutes'
+	•	last_runs.phase_b (you already have it for other jobs)
+
+⸻
+
+Close two open errors quickly
+
+1) Closing sampler “tuple index out of range”
+
+This is almost always positional unpacking from a fetchrow() with fewer columns than expected. Two fast guards:
+	•	Select by explicit column names only.
+	•	Access by key, not by position.
+
+row = await con.fetchrow("""
+  SELECT match_id, market, side, odds_decimal, ts_snapshot
+  FROM odds_snapshots
+  WHERE match_id=$1 AND ts_snapshot > NOW()-INTERVAL '10 minutes'
+  ORDER BY ts_snapshot DESC LIMIT 1
+""", match_id)
+
+if not row:
+    return 0
+
+# avoid tuple indexing; use names
+price = row["odds_decimal"]
+
+Also log the raw row on exception once to see what shape came back.
+
+2) best_book_id expecting int, got “apif:1”
+
+Normalize once (keep both raw + numeric):
+
+def parse_book_ref(raw: str) -> tuple[int|None, str, str]:
+    raw = str(raw)
+    if ":" in raw:
+        fam, sid = raw.split(":",1)
+        return (int(sid) if sid.isdigit() else None), raw, fam
+    MAP = {"pinnacle": 1, "bet365": 2}
+    return MAP.get(raw), raw, raw.split(":")[0] if ":" in raw else raw
+
+best_book_id, best_book_raw, best_book_family = parse_book_ref(best_ref)
+
+Insert with best_book_id (int, nullable), and extra text columns for diagnostics.
+
+⸻
+
+Minimal “did it work?” dashboard SQL
+
+SELECT
+  (SELECT COUNT(*) FROM odds_snapshots WHERE ts_snapshot > NOW()-INTERVAL '10 minutes') AS odds_10m,
+  (SELECT COUNT(*) FROM clv_alerts WHERE expires_at > NOW()) AS clv_active,
+  (SELECT COUNT(*) FROM consensus_predictions WHERE created_at > NOW()-INTERVAL '10 minutes') AS preds_10m,
+  (SELECT to_char(MAX(created_at),'HH24:MI:SS') FROM consensus_predictions) AS last_pred_at;
+
+Goal: preds_10m should start increasing within a minute of your patch.
+
+⸻
+
+TL;DR
+	•	Wire a targeted Phase B: build predictions every minute for matches with fresh odds and stale/no predictions.
+	•	Keep it non-blocking and bounded.
+	•	Feature-flag any heavy rendering.
+	•	Add the small normalizations/bug fixes above.
+	•	Verify with the probes; your consensus_predictions count should move off 1,517 quickly.
+
+If you want, I can give you a drop-in build_consensus_predictions(match_ids: list[int]) stub that consumes odds_consensus (median/de-vig) and writes UPSERTs with the minute bucket.
