@@ -3035,6 +3035,28 @@ async def get_collection_history(days: int = 7, api_key: str = Depends(verify_ap
             "message": f"Failed to retrieve collection history: {e}"
         }
 
+@app.post("/admin/enrich-tbd-fixtures")
+async def enrich_tbd_fixtures_endpoint(limit: int = 100):
+    """
+    Enrich TBD fixtures with real team names from API-Football
+    
+    This resolves fixtures where The Odds API didn't provide team names,
+    fetching them from API-Football and updating the database.
+    """
+    try:
+        logger.info(f"🔍 API: TBD enrichment requested (limit: {limit})")
+        collector = get_automated_collector()
+        results = await collector.enrich_tbd_fixtures(limit)
+        
+        return {
+            "status": "success",
+            "results": results,
+            "message": f"Enriched {results['enriched']} fixtures, {results['failed']} failed, {results['skipped']} skipped"
+        }
+    except Exception as e:
+        logger.error(f"Failed to enrich TBD fixtures: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/examples")
 async def get_prediction_examples():
     """Show example predictions and how to use the API (no auth required)"""

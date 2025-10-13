@@ -16,6 +16,9 @@ from .database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
+RAPIDAPI_KEY = os.getenv('RAPIDAPI_KEY', '')
+RAPIDAPI_HOST = "api-football-v1.p.rapidapi.com"
+
 class AutomatedCollector:
     """
     Automated system for continuous data collection and model updates
@@ -1078,6 +1081,14 @@ class AutomatedCollector:
                             VALUES (%s, %s, %s, %s, %s, %s, %s, now())
                             ON CONFLICT (match_id) DO UPDATE SET
                                 league_id = EXCLUDED.league_id,
+                                home_team = CASE 
+                                    WHEN fixtures.home_team LIKE 'TBD%%' THEN EXCLUDED.home_team
+                                    ELSE fixtures.home_team
+                                END,
+                                away_team = CASE 
+                                    WHEN fixtures.away_team LIKE 'TBD%%' THEN EXCLUDED.away_team
+                                    ELSE fixtures.away_team
+                                END,
                                 kickoff_at = EXCLUDED.kickoff_at,
                                 status = CASE
                                     WHEN EXCLUDED.kickoff_at < now() THEN 'finished'
@@ -1087,7 +1098,7 @@ class AutomatedCollector:
                         """, (
                             match_id,
                             book_odds.get('league_id', 0),
-                            'TBD',  # Team names not in odds_data, will be updated later
+                            'TBD',  # Team names not in odds_data, will be enriched from API-Football
                             'TBD',
                             kickoff_at,
                             2024,
@@ -1132,6 +1143,22 @@ class AutomatedCollector:
                 
                 conn.commit()
                 logger.info(f"Saved {saved_count} individual bookmaker odds to odds_snapshots")
+                
+                # THIRD: Enrich TBD fixtures with real team names (async call)
+                tbd_matches = [match_id for match_id in unique_matches.keys()]
+                if tbd_matches:
+                    cursor.execute("""
+                        SELECT match_id FROM fixtures 
+                        WHERE match_id = ANY(%s) 
+                        AND (home_team LIKE 'TBD%%' OR away_team LIKE 'TBD%%')
+                    """, (tbd_matches,))
+                    tbd_to_enrich = [row[0] for row in cursor.fetchall()]
+                    
+                    if tbd_to_enrich:
+                        logger.info(f"🔍 Found {len(tbd_to_enrich)} TBD fixtures to enrich immediately")
+                        # Schedule enrichment asynchronously (don't block collection)
+                        asyncio.create_task(self._enrich_fixtures_batch(tbd_to_enrich))
+                
                 return True
                 
         except Exception as e:
@@ -1159,3 +1186,191 @@ class AutomatedCollector:
         except Exception as e:
             logger.error(f"Failed to get collection history: {e}")
             return []
+    
+    async def _fetch_team_names_from_api_football(self, fixture_id: int) -> Optional[Dict[str, str]]:
+        """
+        Fetch team names from API-Football for a given fixture ID
+        Returns dict with 'home_team' and 'away_team' keys
+        """
+        if not RAPIDAPI_KEY:
+            logger.warning("RAPIDAPI_KEY not set, cannot fetch team names")
+            return None
+        
+        try:
+            url = f"https://{RAPIDAPI_HOST}/v3/fixtures"
+            headers = {
+                "X-RapidAPI-Key": RAPIDAPI_KEY,
+                "X-RapidAPI-Host": RAPIDAPI_HOST
+            }
+            params = {"id": fixture_id}
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        if data.get('response') and len(data['response']) > 0:
+                            fixture_data = data['response'][0]
+                            teams = fixture_data.get('teams', {})
+                            
+                            home_team = teams.get('home', {}).get('name')
+                            away_team = teams.get('away', {}).get('name')
+                            
+                            if home_team and away_team:
+                                logger.info(f"✅ Enriched fixture {fixture_id}: {home_team} vs {away_team}")
+                                return {
+                                    'home_team': home_team,
+                                    'away_team': away_team
+                                }
+                            else:
+                                logger.warning(f"⚠️ API-Football returned incomplete team data for fixture {fixture_id}")
+                                return None
+                        else:
+                            logger.warning(f"⚠️ No fixture data found in API-Football for ID {fixture_id}")
+                            return None
+                    else:
+                        logger.warning(f"⚠️ API-Football request failed with status {response.status} for fixture {fixture_id}")
+                        return None
+                        
+        except asyncio.TimeoutError:
+            logger.warning(f"⏱️ Timeout fetching team names for fixture {fixture_id}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Error fetching team names for fixture {fixture_id}: {e}")
+            return None
+    
+    async def _update_fixture_teams(self, match_id: int, home_team: str, away_team: str) -> bool:
+        """Update fixture with real team names"""
+        try:
+            database_url = os.environ.get('DATABASE_URL')
+            with psycopg2.connect(database_url) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE fixtures 
+                    SET home_team = %s, 
+                        away_team = %s,
+                        updated_at = now()
+                    WHERE match_id = %s
+                """, (home_team, away_team, match_id))
+                conn.commit()
+                logger.info(f"✅ Updated fixture {match_id}: {home_team} vs {away_team}")
+                return True
+        except Exception as e:
+            logger.error(f"❌ Failed to update fixture {match_id}: {e}")
+            return False
+    
+    async def _enrich_fixtures_batch(self, match_ids: List[int]) -> None:
+        """
+        Enrich a batch of fixtures asynchronously (background task)
+        Used after odds collection to resolve TBD fixtures
+        """
+        try:
+            logger.info(f"🔄 Starting background enrichment for {len(match_ids)} fixtures")
+            enriched = 0
+            failed = 0
+            
+            for match_id in match_ids:
+                try:
+                    team_data = await self._fetch_team_names_from_api_football(match_id)
+                    if team_data:
+                        success = await self._update_fixture_teams(
+                            match_id, 
+                            team_data['home_team'], 
+                            team_data['away_team']
+                        )
+                        if success:
+                            enriched += 1
+                        else:
+                            failed += 1
+                    
+                    # Rate limiting
+                    await asyncio.sleep(0.5)
+                    
+                except Exception as e:
+                    logger.error(f"Error enriching fixture {match_id}: {e}")
+                    failed += 1
+            
+            logger.info(f"✅ Background enrichment complete: {enriched} enriched, {failed} failed")
+            
+        except Exception as e:
+            logger.error(f"Fatal error in _enrich_fixtures_batch: {e}")
+    
+    async def enrich_tbd_fixtures(self, limit: int = 100) -> Dict[str, Any]:
+        """
+        Enrich existing TBD fixtures with real team names from API-Football
+        
+        Args:
+            limit: Maximum number of fixtures to enrich in one run (default: 100)
+        
+        Returns:
+            Summary dict with enrichment results
+        """
+        logger.info(f"🔍 Starting TBD fixture enrichment (limit: {limit})...")
+        
+        results = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "attempted": 0,
+            "enriched": 0,
+            "failed": 0,
+            "skipped": 0,
+            "errors": []
+        }
+        
+        try:
+            database_url = os.environ.get('DATABASE_URL')
+            with psycopg2.connect(database_url) as conn:
+                cursor = conn.cursor()
+                
+                # Get TBD fixtures (prioritize upcoming matches)
+                cursor.execute("""
+                    SELECT match_id, league_id, kickoff_at
+                    FROM fixtures
+                    WHERE (home_team LIKE 'TBD%%' OR away_team LIKE 'TBD%%')
+                      AND status IN ('scheduled', 'NS')
+                    ORDER BY kickoff_at ASC
+                    LIMIT %s
+                """, (limit,))
+                
+                tbd_fixtures = cursor.fetchall()
+                results["attempted"] = len(tbd_fixtures)
+                
+                logger.info(f"📋 Found {len(tbd_fixtures)} TBD fixtures to enrich")
+                
+                for match_id, league_id, kickoff_at in tbd_fixtures:
+                    try:
+                        # Fetch team names from API-Football
+                        team_data = await self._fetch_team_names_from_api_football(match_id)
+                        
+                        if team_data:
+                            # Update fixture with real team names
+                            success = await self._update_fixture_teams(
+                                match_id, 
+                                team_data['home_team'], 
+                                team_data['away_team']
+                            )
+                            
+                            if success:
+                                results["enriched"] += 1
+                            else:
+                                results["failed"] += 1
+                        else:
+                            results["skipped"] += 1
+                            logger.info(f"⏭️ Skipped fixture {match_id} (no team data available)")
+                        
+                        # Rate limiting (API-Football has limits)
+                        await asyncio.sleep(0.5)
+                        
+                    except Exception as e:
+                        error_msg = f"Error enriching fixture {match_id}: {e}"
+                        logger.error(error_msg)
+                        results["errors"].append(error_msg)
+                        results["failed"] += 1
+                
+                logger.info(f"✅ Enrichment complete: {results['enriched']} enriched, {results['failed']} failed, {results['skipped']} skipped")
+                return results
+                
+        except Exception as e:
+            error_msg = f"Fatal error in enrich_tbd_fixtures: {e}"
+            logger.error(error_msg)
+            results["errors"].append(error_msg)
+            return results

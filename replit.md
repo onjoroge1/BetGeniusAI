@@ -4,6 +4,7 @@
 BetGenius AI is a sports prediction platform focused on delivering intelligent football match predictions through advanced machine learning and AI analysis. Targeting key African markets, the project aims to provide market-relative performance, a superior user experience with confidence-calibrated predictions, and sophisticated risk management tools for sports betting. Its core capabilities include comprehensive data collection, robust ML models, AI-powered contextual analysis, and strategic market intelligence.
 
 ## Recent Updates
+- **Oct 13, 2025**: TBD Fixture Enrichment COMPLETE - Root cause of 2-day CLV drought eliminated. Implemented automatic fixture enrichment service using API-Football to resolve TBD placeholders created by The Odds API. All 89 TBD fixtures backfilled successfully (100% success rate). System now auto-enriches fixtures after each collection. Fixed ON CONFLICT clause to allow team name updates. CLV ready to resume on next odds collection. See TBD_FIXTURE_FIX_SUMMARY.md for full details.
 - **Oct 12, 2025**: Scheduler & CLV Fully Operational - All deployment lazy-loading issues fixed. Scheduler confirmed running with all jobs executing (Phase B, CLV Producer, Closing Sampler/Settler). Fixed lazy loader imports for all model classes. Zero functionality lost from deployment optimizations. See SCHEDULER_STATUS_REPORT.md for full verification.
 - **Oct 12, 2025**: Bulletproof Autoscale Fix Applied - Background task detection now deployment-safe: disables for ANY deployment (REPLIT_DEPLOYMENT=1) unless ENABLE_BACKGROUND=1 explicitly set. Deployment config optimized with ${PORT:-8000} for future-proofing. Manual .replit fix required: delete all [[ports]] entries, keep only localPort=8000→externalPort=80.
 - **Oct 12, 2025**: Option A Quick Fix Applied - Heavy module imports deferred to AFTER port opens (<1s startup). All 20+ model/service imports moved inside lazy loaders. Background tasks conditionally disabled for Autoscale (API-only mode). Port 8000 now opens immediately, ready for deployment.
@@ -52,6 +53,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### Data Collection
 - **Canonical Fixtures Table**: Single source of truth for all match metadata (435+ records), automatically maintained by both AutomatedCollector and API-Football integration. Prevents orphaned odds and ensures data integrity.
+- **TBD Fixture Enrichment**: Automated service resolves TBD placeholders from The Odds API by fetching real team names from API-Football. Runs automatically after each collection via background task, with manual endpoint `/admin/enrich-tbd-fixtures` for backfill. 100% success rate on Oct 13 backfill (89/89 fixtures).
 - **Dual Collection Strategy**: Scheduler populates both training (`training_matches`) and upcoming (`odds_snapshots`) tables.
 - **Multi-Source Real-Time Odds**: Parallel collection from The Odds API and API-Football for upcoming matches, ensuring consistency. Handles both numeric book_ids (537, 877) and text format (apif:32, apif:11).
 - **Fixture ID Resolver**: A robust 3-step system to resolve fixture IDs between different data sources, ensuring independent multi-source collection.
@@ -60,7 +62,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Authentic Odds Collection**: Live collection of real bookmaker odds from The Odds API (21+ bookmakers) stored with proper mapping and tracking.
 - **CLV Monitoring (CLV Club Phase 1 & 2)**: Advanced system for detecting pricing inefficiencies, normalizing de-juiced odds, robust consensus calculation, line stability metrics, desk group deduplication, multi-tier gating, and real-time alerts. Includes closing line capture and realized CLV tracking with various sampling and settlement methods.
 - **CLV Daily Brief**: Automated daily aggregation and reporting of CLV Club performance per league, tracking metrics and suppression reasons.
-- **Data Integrity**: Zero orphaned odds achieved through fixtures table backfilling and automatic maintenance. Timezone import fixed in API-Football integration (Oct 2025).
+- **Data Integrity**: Zero orphaned odds and zero TBD placeholders achieved through fixtures table backfilling, automatic enrichment, and maintenance. Timezone import fixed in API-Football integration (Oct 2025).
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: Provides comprehensive match analysis and contextual insights, combining ML predictions with AI contextual analysis.
@@ -80,10 +82,11 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### API Endpoints
 - **Prediction API**: Main endpoints for match predictions with ML and AI analysis
-- **Admin Endpoints**: Data management, match discovery, training statistics
+- **Admin Endpoints**: Data management, match discovery, training statistics, TBD fixture enrichment
 - **V2 Shadow System**: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`
 - **CLV Monitoring**: CLV Club alerts, daily briefs, closing line analysis
 - **CLV Health**: `/_health/clv` endpoint for real-time system health monitoring (fresh odds, alerts, closing samples)
+- **Fixture Enrichment**: `/admin/enrich-tbd-fixtures` for manual TBD resolution and backfill operations
 
 ### UI/UX Decisions
 - Focus on superior user experience with confidence-calibrated predictions and uncertainty quantification.
