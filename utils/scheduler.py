@@ -51,6 +51,10 @@ class BackgroundScheduler:
         # Scheduled collection state tracking (prevents duplicate runs)
         self.last_scheduled_collection_run: Optional[datetime] = None
         self.last_scheduled_collection_hour: Optional[int] = None
+        # Seed collection trigger (when 10-min window empty)
+        self.last_seed_collection_run: Optional[datetime] = None
+        self.last_odds_10m_check: Optional[datetime] = None
+        self.consecutive_empty_checks: int = 0
         # Background task tracking (for non-blocking execution)
         self.tasks: dict = {}  # name -> asyncio.Task
         self.last_run: dict = {}  # name -> datetime
@@ -286,10 +290,66 @@ class BackgroundScheduler:
                 # Every 15 minutes, run safety net to fill missing buckets
                 if "safety_net" not in self.last_run or (now - self.last_run["safety_net"]).total_seconds() >= 900:
                     await self._spawn("safety_net", self._run_safety_net, timeout=120)
+                
+                # Seed collection trigger: if 10-min window empty for 15 minutes, trigger small collection
+                if "seed_check" not in self.last_run or (now - self.last_run["seed_check"]).total_seconds() >= 60:
+                    await self._spawn("seed_check", self._check_and_trigger_seed_collection, timeout=30)
                     
             except Exception as e:
                 logger.error(f"Scheduler loop error: {e}")
                 await asyncio.sleep(300)  # Wait 5 minutes before retry
+    
+    async def _check_and_trigger_seed_collection(self):
+        """Check if 10-min odds window is empty, trigger seed collection if needed"""
+        try:
+            import psycopg2
+            
+            database_url = os.environ.get('DATABASE_URL')
+            if not database_url:
+                return
+            
+            # Check if there are fresh odds in the 10-min window
+            with psycopg2.connect(database_url) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT COUNT(*) FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes'")
+                    result = cursor.fetchone()
+                    odds_10m_count = result[0] if result else 0
+            
+            now = datetime.utcnow()
+            
+            if odds_10m_count == 0:
+                # 10-min window is empty - increment counter
+                self.consecutive_empty_checks += 1
+                
+                # If empty for 15 minutes (15 consecutive 60s checks), trigger seed collection
+                if self.consecutive_empty_checks >= 15:
+                    # Check if we've run seed collection in the last 30 minutes
+                    if not self.last_seed_collection_run or (now - self.last_seed_collection_run).total_seconds() >= 1800:
+                        logger.info(f"🌱 SEED TRIGGER: 10-min window empty for {self.consecutive_empty_checks}min, triggering seed collection...")
+                        
+                        # Trigger a small targeted collection (top 50 upcoming fixtures)
+                        async def run_seed():
+                            try:
+                                results = await self.collector.daily_collection_cycle()
+                                logger.info(f"🌱 Seed collection completed: {results.get('new_odds_collected', 0)} new odds")
+                                self.last_seed_collection_run = datetime.utcnow()
+                                self.consecutive_empty_checks = 0  # Reset counter after successful seed
+                            except Exception as e:
+                                logger.error(f"🌱 Seed collection failed: {e}")
+                        
+                        await self._spawn("seed_collection", run_seed, timeout=300)
+                    else:
+                        logger.debug(f"🌱 SEED: Window empty ({self.consecutive_empty_checks}min) but seed ran recently")
+                else:
+                    logger.debug(f"🌱 SEED: 10-min window empty ({self.consecutive_empty_checks}/15min)")
+            else:
+                # Fresh odds exist - reset counter
+                if self.consecutive_empty_checks > 0:
+                    logger.debug(f"🌱 SEED: 10-min window restored ({odds_10m_count} odds), reset counter")
+                self.consecutive_empty_checks = 0
+                
+        except Exception as e:
+            logger.error(f"🌱 Seed check error: {e}")
     
     async def _run_safety_net(self):
         """Run the 15-minute safety net to fill missing buckets"""
@@ -336,11 +396,13 @@ class BackgroundScheduler:
         - Builds predictions every minute for those matches
         - Completes in <30s, non-blocking
         """
+        logger.info("🚀 Phase B START: Beginning execution...")
         try:
             import time
             import psycopg2
             
             start_time = time.time()
+            logger.info("🚀 Phase B: Imports successful, starting queries...")
             
             # Step 1: Query matches needing predictions (fresh odds, stale/no predictions)
             database_url = os.environ.get('DATABASE_URL')
@@ -349,15 +411,18 @@ class BackgroundScheduler:
                 return
             
             # Check if we have fresh odds (10min window)
+            logger.info("🔍 Phase B: Checking for fresh odds...")
             has_fresh_odds = False
             with psycopg2.connect(database_url) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT EXISTS(SELECT 1 FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes')")
                     result = cursor.fetchone()
                     has_fresh_odds = result[0] if result else False
+            logger.info(f"🔍 Phase B: Fresh odds check complete (has_fresh={has_fresh_odds})")
             
             # Use wider window (60min) if no fresh odds, to keep predictions growing between collections
             recent_window = '10 minutes' if has_fresh_odds else '60 minutes'
+            logger.info(f"🔍 Phase B: Using {recent_window} window for target search...")
             
             # Find targets with recent odds but stale/no predictions
             target_matches = []
@@ -395,6 +460,18 @@ class BackgroundScheduler:
                         LIMIT 50
                     """)
                     target_matches = [row[0] for row in cursor.fetchall()]
+            logger.info(f"🔍 Phase B: Found {len(target_matches)} target matches needing predictions")
+            
+            # Step 2: ALWAYS refresh odds_consensus from odds_snapshots (critical for CLV + predictions!)
+            # This runs every minute regardless of whether predictions are needed
+            try:
+                from models.database import DatabaseManager
+                db_manager = DatabaseManager()
+                consensus_refreshed = db_manager.refresh_odds_consensus_from_snapshots(lookback_minutes=10)
+                if consensus_refreshed > 0:
+                    logger.info(f"🔄 Phase B: Refreshed {consensus_refreshed} odds_consensus rows")
+            except Exception as refresh_error:
+                logger.error(f"❌ Phase B consensus refresh failed: {refresh_error}")
             
             if not target_matches:
                 logger.debug(f"🎯 Phase B: No matches need predictions (completed in {int((time.time()-start_time)*1000)}ms)")
@@ -402,7 +479,7 @@ class BackgroundScheduler:
             
             logger.info(f"🎯 Phase B: Building predictions for {len(target_matches)} matches with fresh odds...")
             
-            # Step 2: Build predictions for target matches
+            # Step 3: Build predictions for target matches
             try:
                 built_count = self.build_consensus_predictions()
                 elapsed_ms = int((time.time() - start_time) * 1000)

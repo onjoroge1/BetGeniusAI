@@ -449,6 +449,124 @@ class DatabaseManager:
         
         return saved_count
     
+    def refresh_odds_consensus_from_snapshots(self, lookback_minutes: int = 10) -> int:
+        """
+        Refresh odds_consensus table from recent odds_snapshots for upcoming matches
+        This ensures predictions and CLV alerts have fresh consensus data
+        
+        Args:
+            lookback_minutes: How far back to look for fresh odds (default: 10min)
+            
+        Returns:
+            Number of consensus rows refreshed
+        """
+        refreshed_count = 0
+        
+        try:
+            import psycopg2
+            conn = psycopg2.connect(self.database_url)
+            cursor = conn.cursor()
+            
+            # Find upcoming matches with recent odds
+            # Aggregate bookmaker odds using median (robust to outliers)
+            refresh_sql = """
+                WITH upcoming_matches AS (
+                    SELECT DISTINCT os.match_id
+                    FROM odds_snapshots os
+                    JOIN fixtures f ON os.match_id = f.match_id
+                    WHERE os.ts_snapshot > NOW() - INTERVAL '%s minutes'
+                      AND f.kickoff_at > NOW()
+                      AND f.kickoff_at < NOW() + INTERVAL '168 hours'
+                      AND f.status IN ('NS', 'scheduled')
+                ),
+                aggregated_odds AS (
+                    SELECT 
+                        os.match_id,
+                        -- Use PERCENTILE_CONT for median (more robust than AVG)
+                        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 
+                            CASE WHEN os.outcome = 'H' THEN os.implied_prob END
+                        ) FILTER (WHERE os.outcome = 'H') as ph_cons,
+                        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 
+                            CASE WHEN os.outcome = 'D' THEN os.implied_prob END
+                        ) FILTER (WHERE os.outcome = 'D') as pd_cons,
+                        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 
+                            CASE WHEN os.outcome = 'A' THEN os.implied_prob END
+                        ) FILTER (WHERE os.outcome = 'A') as pa_cons,
+                        -- Calculate dispersion (STDDEV) for market quality
+                        STDDEV(CASE WHEN os.outcome = 'H' THEN os.implied_prob END) 
+                            FILTER (WHERE os.outcome = 'H') as disph,
+                        STDDEV(CASE WHEN os.outcome = 'D' THEN os.implied_prob END) 
+                            FILTER (WHERE os.outcome = 'D') as dispd,
+                        STDDEV(CASE WHEN os.outcome = 'A' THEN os.implied_prob END) 
+                            FILTER (WHERE os.outcome = 'A') as dispa,
+                        COUNT(DISTINCT os.book_id) as n_books,
+                        AVG(os.market_margin) as market_margin_avg,
+                        MAX(f.kickoff_at) as kickoff_at
+                    FROM odds_snapshots os
+                    JOIN fixtures f ON os.match_id = f.match_id
+                    WHERE os.match_id IN (SELECT match_id FROM upcoming_matches)
+                      AND os.ts_snapshot > NOW() - INTERVAL '%s minutes'
+                      AND os.outcome IN ('H', 'D', 'A')
+                    GROUP BY os.match_id
+                    HAVING COUNT(DISTINCT CASE WHEN os.outcome IN ('H','D','A') THEN os.book_id END) >= 2
+                )
+                INSERT INTO odds_consensus 
+                (match_id, horizon_hours, ts_effective, ph_cons, pd_cons, pa_cons,
+                 disph, dispd, dispa, n_books, market_margin_avg, created_at)
+                SELECT 
+                    match_id,
+                    EXTRACT(EPOCH FROM (kickoff_at - NOW())) / 3600 as horizon_hours,
+                    NOW() as ts_effective,
+                    ph_cons,
+                    pd_cons,
+                    pa_cons,
+                    COALESCE(disph, 0.02) as disph,
+                    COALESCE(dispd, 0.015) as dispd,
+                    COALESCE(dispa, 0.02) as dispa,
+                    n_books,
+                    COALESCE(market_margin_avg, 0.065) as market_margin_avg,
+                    NOW() as created_at
+                FROM aggregated_odds
+                WHERE ph_cons IS NOT NULL 
+                  AND pd_cons IS NOT NULL 
+                  AND pa_cons IS NOT NULL
+                ON CONFLICT (match_id) 
+                DO UPDATE SET
+                    horizon_hours = EXCLUDED.horizon_hours,
+                    ts_effective = EXCLUDED.ts_effective,
+                    ph_cons = EXCLUDED.ph_cons,
+                    pd_cons = EXCLUDED.pd_cons,
+                    pa_cons = EXCLUDED.pa_cons,
+                    disph = EXCLUDED.disph,
+                    dispd = EXCLUDED.dispd,
+                    dispa = EXCLUDED.dispa,
+                    n_books = EXCLUDED.n_books,
+                    market_margin_avg = EXCLUDED.market_margin_avg,
+                    created_at = EXCLUDED.created_at
+            """
+            
+            cursor.execute(refresh_sql % (lookback_minutes, lookback_minutes))
+            refreshed_count = cursor.rowcount
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            if refreshed_count > 0:
+                logger.info(f"🔄 [CONSENSUS REFRESH] Updated {refreshed_count} odds_consensus rows from snapshots")
+            else:
+                logger.debug(f"🔄 [CONSENSUS REFRESH] No consensus updates needed (lookback: {lookback_minutes}min)")
+            
+        except Exception as e:
+            logger.error(f"❌ [CONSENSUS REFRESH] Error refreshing consensus: {e}")
+            if 'conn' in locals():
+                conn.rollback()
+                cursor.close()
+                conn.close()
+            refreshed_count = 0
+        
+        return refreshed_count
+    
     def load_training_data(self, league_ids: Optional[List[int]] = None, 
                           seasons: Optional[List[int]] = None) -> List[Dict[str, Any]]:
         """Load training data from database"""
