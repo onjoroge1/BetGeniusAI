@@ -320,12 +320,13 @@ class BackgroundScheduler:
             if odds_10m_count == 0:
                 # 10-min window is empty - increment counter
                 self.consecutive_empty_checks += 1
+                logger.info(f"🌱 SEED: 10-min window empty ({self.consecutive_empty_checks}/15min)")
                 
                 # If empty for 15 minutes (15 consecutive 60s checks), trigger seed collection
                 if self.consecutive_empty_checks >= 15:
                     # Check if we've run seed collection in the last 30 minutes
                     if not self.last_seed_collection_run or (now - self.last_seed_collection_run).total_seconds() >= 1800:
-                        logger.info(f"🌱 SEED TRIGGER: 10-min window empty for {self.consecutive_empty_checks}min, triggering seed collection...")
+                        logger.info(f"🌱 SEED TRIGGER FIRING: 10-min window empty for {self.consecutive_empty_checks}min, triggering seed collection...")
                         
                         # Trigger a small targeted collection (top 50 upcoming fixtures)
                         async def run_seed():
@@ -339,13 +340,13 @@ class BackgroundScheduler:
                         
                         await self._spawn("seed_collection", run_seed, timeout=300)
                     else:
-                        logger.debug(f"🌱 SEED: Window empty ({self.consecutive_empty_checks}min) but seed ran recently")
+                        logger.info(f"🌱 SEED: Window empty ({self.consecutive_empty_checks}min) but seed ran recently")
                 else:
-                    logger.debug(f"🌱 SEED: 10-min window empty ({self.consecutive_empty_checks}/15min)")
+                    pass  # Already logged above
             else:
                 # Fresh odds exist - reset counter
                 if self.consecutive_empty_checks > 0:
-                    logger.debug(f"🌱 SEED: 10-min window restored ({odds_10m_count} odds), reset counter")
+                    logger.info(f"🌱 SEED: 10-min window restored ({odds_10m_count} odds), reset counter from {self.consecutive_empty_checks}")
                 self.consecutive_empty_checks = 0
                 
         except Exception as e:
