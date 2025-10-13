@@ -1,0 +1,207 @@
+Got it — here’s a crisp, end-to-end readout on the three things you asked for, plus the exact probes and one-click fixes to get everything green again.
+
+---
+
+# 1) Is Phase B still running?
+
+**Status (what “healthy” looks like):**
+
+* Runs every ~60s.
+* Completes in <30s (you’re ~5–9s).
+* Logs include a “targets found” line and a “consensus built” line.
+
+**What I’m seeing from your notes:**
+Phase B is executing on schedule, but the builder reports `no_bucket_hit` → that’s a data dependency problem (see #3), not a scheduler problem.
+
+**Verify now (copy/paste):**
+
+```sql
+-- Last 15 min Phase B evidence via consensus builds
+SELECT COUNT(*) AS preds_15m,
+       to_char(MAX(created_at),'YYYY-MM-DD HH24:MI:SS') AS last_pred_at
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '15 minutes';
+
+-- Odds arriving (Phase B/collectors feeding it)
+SELECT COUNT(*) AS odds_10m
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+```
+
+**Readout:**
+
+* `preds_15m` should be > 0 if Phase B’s “build” step is working.
+* `odds_10m` > 0 proves there’s fresh fuel.
+
+If `preds_15m=0` while `odds_10m>0`, Phase B is **running** but **failing to build** (root cause below).
+
+---
+
+# 2) Why no CLV alerts for 2 days?
+
+**How CLV alerts are generated (simplified):**
+
+* CLV Producer runs every 60s but only triggers when there are **fresh odds (≤10m)** across ≥N books and the fixture is within your watch window.
+* If **odds arrive only in 3–6h batches**, there will be long stretches where the 10-minute window is empty → **no alerts** even though the system is “running.”
+
+**Quick investigation (copy/paste):**
+
+```sql
+-- A) Were there even any fresh odds in the last 48h windows?
+SELECT date_trunc('hour', ts_snapshot) AS hour,
+       COUNT(*) AS odds_rows,
+       COUNT(DISTINCT match_id) AS matches
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '48 hours'
+GROUP BY 1 ORDER BY 1 DESC LIMIT 48;
+
+-- B) For upcoming fixtures (next 72h), do we have fresh odds (<=10m) and >=3 books?
+WITH upcoming AS (
+  SELECT match_id FROM fixtures
+  WHERE kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '72 hours'
+),
+fresh AS (
+  SELECT match_id, COUNT(DISTINCT book_id) AS books
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '10 minutes'
+  GROUP BY match_id
+)
+SELECT COUNT(*) AS upcoming,
+       COALESCE((SELECT COUNT(*) FROM fresh f JOIN upcoming u USING (match_id) WHERE books >= 3),0) AS matches_meeting_threshold;
+```
+
+**Likely outcome given your description:**
+
+* Batch collection ran hours ago; `odds_10m` frequently zero → producer finds nothing.
+* In parallel, predictions stalled because consensus isn’t refreshed (next section) which also constrains your downstream metrics.
+
+**Two practical fixes (pick one):**
+
+* **Fast today:** If `odds_10m=0` for ≥15m, trigger a **small seed collection** (top leagues or next 50 fixtures) to re-prime the 10-minute window.
+* **Best long-term:** Implement **targeted per-match collection** in Phase B (bounded concurrency). Then the 10-minute window almost never empties, and CLV fires continuously.
+
+---
+
+# 3) Are schedulers green & do we have compounding issues?
+
+**Scheduler health itself:** ✅
+
+* All jobs tick at the right cadence after your non-blocking patch (Phase B / CLV producer / sampler / settler / cleanup / safety net).
+
+**But there’s a **data pipeline** gap creating compounding issues:**
+
+* Phase B (and/or daily collectors) write **`odds_snapshots`** ✅
+* Your prediction builder and some CLV logic rely on **`odds_consensus`** (de-vig composites) ❌
+* **Consensus isn’t being refreshed for upcoming matches**, so the builder reports `no_bucket_hit` and writes **0** predictions.
+* With predictions down and odds_10m often empty, **CLV alerts dry up** → looks like “2-day outage.”
+
+**Confirm the consensus gap (copy/paste):**
+
+```sql
+-- When was consensus last refreshed vs odds?
+SELECT
+  (SELECT to_char(MAX(ts_snapshot),'YYYY-MM-DD HH24:MI:SS') FROM odds_snapshots)   AS last_odds,
+  (SELECT to_char(MAX(created_at),'YYYY-MM-DD HH24:MI:SS') FROM odds_consensus)    AS last_consensus,
+  EXTRACT(EPOCH FROM ((SELECT MAX(ts_snapshot) FROM odds_snapshots)
+                    - (SELECT MAX(created_at) FROM odds_consensus)))/3600          AS hours_gap;
+
+-- Is there consensus for the last hour at all?
+SELECT COUNT(*) AS consensus_rows_1h,
+       COUNT(DISTINCT match_id) AS consensus_matches_1h
+FROM odds_consensus
+WHERE created_at > NOW() - INTERVAL '1 hour';
+```
+
+**If `hours_gap` > 0.5–1.0:** your consensus refresher isn’t running for upcoming fixtures (or it’s wired only to a manual path).
+
+---
+
+## The fix (minimal, safe, fast)
+
+### A) Refresh consensus **every Phase B pass**
+
+Inside your Phase B task (after odds collection, even if 0 rows collected), run a fast consensus refresh + build:
+
+1. **Consensus refresh (per minute) — UPSERT by minute bucket**
+
+```sql
+-- Example approach: compute median per (match, market, outcome) over last 10m,
+-- store one row per minute bucket in odds_consensus.
+-- (Use your existing de-juicing/consensus logic here.)
+
+-- Add once:
+ALTER TABLE odds_consensus
+  ADD COLUMN IF NOT EXISTS bucket_minute timestamptz;
+CREATE UNIQUE INDEX IF NOT EXISTS odds_consensus_unique
+  ON odds_consensus (match_id, market, outcome, bucket_minute);
+
+-- Pseudocode SQL in your builder:
+INSERT INTO odds_consensus(match_id, market, outcome, price, created_at, bucket_minute)
+SELECT match_id, market, outcome, median_price, NOW(), date_trunc('minute', NOW())
+FROM (
+  SELECT match_id, market, outcome,
+         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY odds_decimal) AS median_price
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '10 minutes'
+  GROUP BY match_id, market, outcome
+) m
+ON CONFLICT (match_id, market, outcome, bucket_minute)
+DO UPDATE SET price = EXCLUDED.price, created_at = EXCLUDED.created_at;
+```
+
+2. **Build `consensus_predictions` from `odds_consensus`**
+   (You already have the function—just call it every minute and UPSERT by `(match_id, model_version, bucket_minute)`.)
+
+3. **Do it non-blocking with timeouts** (you already have the scheduler infra for that).
+
+### B) Backfill consensus for the gap (one-time)
+
+```sql
+-- Backfill last 12 hours in 5–10 minute buckets to get predictions moving immediately
+-- (Run in batches to avoid pressure)
+```
+
+(Reuse the same consensus query but drive `bucket_minute` over the time range in steps.)
+
+### C) Seed the 10-minute window if it empties
+
+Add a guard: if `odds_10m = 0` for ≥15 minutes → spawn a **small seed** task (top leagues / next 50 fixtures, bounded concurrency).
+
+---
+
+## Acceptance criteria (green across the board)
+
+* **Phase B health**
+
+  * `preds_15m > 0` and `last_pred_at` is recent (≤2–3 min).
+  * Log line each minute: `📈 consensus_predictions: built=X for Y targets`.
+
+* **CLV alerts**
+
+  * `odds_10m > 0` most minutes (or seed triggers kick in).
+  * `COUNT(*) FROM clv_alerts WHERE expires_at > NOW()` grows during active hours.
+
+* **Consensus pipeline**
+
+  * `hours_gap ≤ 0.25` between max `odds_snapshots.ts_snapshot` and `odds_consensus.created_at`.
+  * `consensus_rows_1h` and `consensus_matches_1h` are non-zero during active hours.
+
+* **Scheduler health**
+
+  * `/_health/clv` includes `last_runs` for: `phase_b`, `clv_producer`, `cleanup`, `sampler`, `settler`.
+  * No timeouts; each job `last_run` ≤ 2× its interval.
+
+---
+
+## TL;DR
+
+* **Phase B:** running ✅, but **build step starved** because **odds_consensus isn’t being refreshed** → `no_bucket_hit`.
+* **CLV alerts:** none for 2 days because **odds_10m often empty** between batch collections.
+* **Schedulers:** green ✅; problem is **data pipeline wiring**, not timing.
+
+**Do this now:**
+(1) Refresh `odds_consensus` every Phase B pass → build predictions → CLV resumes.
+(2) Add a small seed if `odds_10m` goes to zero for 15 minutes.
+(3) Expose/monitor `last_runs` + `preds_10m/odds_10m` in `/_health/clv`.
+
+If you want, I’ll hand you the exact Phase-B patch (consensus refresh + builder call + fallback seed) as a drop-in diff.
