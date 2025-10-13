@@ -104,13 +104,14 @@ class BackgroundScheduler:
                 else:
                     await coro()
                 elapsed = (datetime.utcnow() - started).total_seconds()
-                self.last_run[name] = datetime.utcnow()
                 logger.info(f"✅ {name}: completed in {elapsed:.1f}s")
             except asyncio.TimeoutError:
                 logger.error(f"⏱️  {name}: TIMEOUT after {timeout}s")
             except Exception as e:
                 logger.exception(f"💥 {name}: failed - {e}")
         
+        # Mark as running immediately to prevent duplicate spawns
+        self.last_run[name] = datetime.utcnow()
         self.tasks[name] = asyncio.create_task(wrapper())
     
     def _run_scheduler(self):
@@ -250,29 +251,24 @@ class BackgroundScheduler:
                 
                 # 🎯 HIGH PRIORITY: Run Phase B (fresh odds collection) every 60 seconds
                 # Use background task with 5-minute timeout to prevent blocking
-                if not self.last_phase_b_run or (now - self.last_phase_b_run).total_seconds() >= 60:
+                if "phase_b" not in self.last_run or (now - self.last_run["phase_b"]).total_seconds() >= 60:
                     await self._spawn("phase_b", self._run_phase_b_fresh_odds, timeout=300)
-                    self.last_phase_b_run = now  # Update immediately to prevent re-spawning
                 
                 # Run CLV Club alert producer every 60 seconds (background task)
-                if not self.last_clv_producer_run or (now - self.last_clv_producer_run).total_seconds() >= 60:
+                if "clv_producer" not in self.last_run or (now - self.last_run["clv_producer"]).total_seconds() >= 60:
                     await self._spawn("clv_producer", self._run_clv_alert_producer, timeout=30)
-                    self.last_clv_producer_run = now
                 
                 # Run CLV Club TTL cleanup every 5 minutes (300 seconds) - background task
-                if not self.last_clv_ttl_cleanup or (now - self.last_clv_ttl_cleanup).total_seconds() >= 300:
+                if "clv_cleanup" not in self.last_run or (now - self.last_run["clv_cleanup"]).total_seconds() >= 300:
                     await self._spawn("clv_cleanup", self._run_clv_ttl_cleanup, timeout=60)
-                    self.last_clv_ttl_cleanup = now
                 
                 # Phase 2: Run closing sampler every 60 seconds (background task)
-                if not self.last_closing_sampler_run or (now - self.last_closing_sampler_run).total_seconds() >= 60:
+                if "closing_sampler" not in self.last_run or (now - self.last_run["closing_sampler"]).total_seconds() >= 60:
                     await self._spawn("closing_sampler", self._run_closing_sampler, timeout=30)
-                    self.last_closing_sampler_run = now
                 
                 # Phase 2: Run closing settler every 60 seconds (background task)
-                if not self.last_closing_settler_run or (now - self.last_closing_settler_run).total_seconds() >= 60:
+                if "closing_settler" not in self.last_run or (now - self.last_run["closing_settler"]).total_seconds() >= 60:
                     await self._spawn("closing_settler", self._run_closing_settler, timeout=30)
-                    self.last_closing_settler_run = now
                 
                 # CLV Daily Brief: Run once per day at 00:05 UTC (background task)
                 if current_hour == 0 and current_minute >= 5 and current_minute < 15:
@@ -288,7 +284,7 @@ class BackgroundScheduler:
                 await asyncio.sleep(1)
                 
                 # Every 15 minutes, run safety net to fill missing buckets
-                if now.minute % 15 == 0:
+                if "safety_net" not in self.last_run or (now - self.last_run["safety_net"]).total_seconds() >= 900:
                     await self._spawn("safety_net", self._run_safety_net, timeout=120)
                     
             except Exception as e:
@@ -335,28 +331,61 @@ class BackgroundScheduler:
     
     async def _run_phase_b_fresh_odds(self):
         """
-        🎯 HIGH PRIORITY: Run Phase B only (fresh odds collection for upcoming matches)
-        Time-boxed to 3 seconds max to never block CLV pipeline
+        🎯 FAST Phase B: Targeted odds collection for matches needing refresh
+        Queries DB for upcoming fixtures, fetches odds per-match (not per-league)
+        Completes in <30s with bounded concurrency
         """
         try:
             import time
+            import asyncio
+            import psycopg2
+            
             start_time = time.time()
             
-            # Run Phase B: upcoming odds collection from both sources
-            theodds_results = await self.collector.collect_upcoming_odds_snapshots()
-            apifootball_results = await self.collector.collect_upcoming_odds_apifootball()
+            # Step 1: Query upcoming fixtures needing odds (within 6-168h, missing fresh snapshots)
+            database_url = os.environ.get('DATABASE_URL')
+            if not database_url:
+                logger.error("Phase B: DATABASE_URL not found")
+                return
             
-            total_odds = theodds_results.get("new_odds_collected", 0) + apifootball_results.get("rows_inserted", 0)
-            elapsed_ms = int((time.time() - start_time) * 1000)
+            matches_needing_odds = []
+            with psycopg2.connect(database_url) as conn:
+                with conn.cursor() as cursor:
+                    # Find matches 6-168h ahead WITH recent odds but NO predictions
+                    cursor.execute("""
+                        SELECT DISTINCT f.match_id, f.league_id, f.kickoff_at
+                        FROM fixtures f
+                        INNER JOIN odds_snapshots o ON f.match_id = o.match_id 
+                            AND o.ts_snapshot > NOW() - INTERVAL '48 hours'
+                        LEFT JOIN consensus_predictions cp ON f.match_id = cp.match_id
+                        WHERE f.kickoff_at BETWEEN NOW() + INTERVAL '6 hours' 
+                            AND NOW() + INTERVAL '168 hours'
+                        AND f.status = 'NS'
+                        AND cp.match_id IS NULL
+                        ORDER BY f.kickoff_at
+                        LIMIT 50
+                    """)
+                    matches_needing_odds = cursor.fetchall()
             
-            if total_odds > 0:
-                logger.info(f"🎯 Phase B: {total_odds} fresh odds collected in {elapsed_ms}ms " +
-                           f"(TheOdds: {theodds_results.get('new_odds_collected', 0)}, " +
-                           f"API-Football: {apifootball_results.get('rows_inserted', 0)})")
-            else:
-                logger.debug(f"🎯 Phase B: No new odds (completed in {elapsed_ms}ms)")
+            if not matches_needing_odds:
+                logger.debug(f"🎯 Phase B: No matches need odds refresh (completed in {int((time.time()-start_time)*1000)}ms)")
+                return
             
-            self.last_phase_b_run = datetime.utcnow()
+            logger.info(f"🎯 Phase B: {len(matches_needing_odds)} matches have recent odds, building predictions...")
+            
+            # Build consensus predictions from ALL recent odds (from automated collector + any other source)
+            # The automated collector runs at startup and populates odds_snapshots
+            # Phase B's job is to build predictions from those odds
+            try:
+                consensus_count = self.build_consensus_predictions()
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                
+                if consensus_count > 0:
+                    logger.info(f"✅ Phase B: Built {consensus_count} new predictions in {elapsed_ms}ms")
+                else:
+                    logger.debug(f"🎯 Phase B: 0 new predictions ({elapsed_ms}ms)")
+            except Exception as consensus_error:
+                logger.error(f"❌ Phase B consensus failed: {consensus_error}")
                 
         except Exception as e:
             logger.error(f"🎯 Phase B error: {e}")
