@@ -1,0 +1,137 @@
+Got it—here’s a tight, do-now checklist to (1) verify Phase B, (2) explain the 2-day CLV alert drought and catch it, and (3) prove all schedulers are green. I’m including copy-paste checks plus what “good” looks like.
+
+# 1) Is Phase B still running?
+
+Phase B’s job is to keep **fresh odds flowing** (so predictions + CLV can fire). You can verify it indirectly by confirming fresh snapshots in the last 10 minutes and (if you wired it in Phase B) that consensus/predictions are updating.
+
+**Checks (run all):**
+
+```bash
+# Fresh raw odds arriving (Phase B or collector)
+psql $DATABASE_URL -c "
+SELECT
+  COUNT(*)                      AS odds_last_10m,
+  COUNT(DISTINCT match_id)      AS matches_last_10m,
+  MAX(ts_snapshot)              AS last_snapshot
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+"
+
+# If your Phase B now refreshes consensus each minute, you should see rows here too:
+psql $DATABASE_URL -c "
+SELECT
+  COUNT(*)                 AS consensus_rows_10m,
+  COUNT(DISTINCT match_id) AS consensus_matches_10m,
+  MAX(created_at)          AS last_consensus
+FROM odds_consensus
+WHERE created_at > NOW() - INTERVAL '10 minutes';
+"
+
+# New predictions being built (your targeted fix should trigger this)
+psql $DATABASE_URL -c "
+SELECT COUNT(*) AS preds_last_hour, MAX(created_at) AS last_pred
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '60 minutes';
+"
+```
+
+**Good =** `odds_last_10m > 0` and you see recent `consensus` / `predictions`.
+Why this matters: the CLV producer **only** looks at fixtures with odds in the last 10 minutes (that’s in the producer’s query) .
+
+# 2) “No CLV alerts for 2 days”—what to check and how to unstick
+
+The CLV producer:
+
+* pulls upcoming fixtures with odds in the **last 10 minutes**, with a **min book** threshold, from the **fixtures** table (not `matches`) (this was one of the earlier bug fixes), then gets the most-recent per-book 3-way odds (5-minute window), analyzes CLV, and emits alerts with a TTL (shorter near kickoff) .
+* gating + TTL logic live in the CLV engine (staleness filter, min books, stability, min CLV %, TTL calc) .
+
+**Quick triage to explain “0 alerts”:**
+
+```bash
+# Do we even have CLV candidates? (fresh odds within 10m for upcoming 72h)
+psql $DATABASE_URL -c "
+WITH upcoming AS (
+  SELECT os.match_id
+  FROM odds_snapshots os
+  JOIN fixtures f ON f.match_id = os.match_id
+  WHERE f.kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '72 hours'
+    AND os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+  GROUP BY os.match_id
+  HAVING COUNT(DISTINCT os.book_id) >= 3
+)
+SELECT COUNT(*) AS candidate_matches FROM upcoming;
+"
+
+# Are alerts being created but expiring?
+psql $DATABASE_URL -c "
+SELECT
+  (SELECT COUNT(*) FROM clv_alerts WHERE created_at > NOW() - INTERVAL '60 minutes') AS live_alerts_60m,
+  (SELECT COUNT(*) FROM clv_alerts_history WHERE created_at > NOW() - INTERVAL '2 days') AS archived_alerts_2d,
+  (SELECT MAX(created_at) FROM clv_alerts) AS last_live_alert,
+  (SELECT MAX(created_at) FROM clv_alerts_history) AS last_archived_alert;
+"
+```
+
+**Interpretation**
+
+* If `candidate_matches = 0`: CLV producer will log “No upcoming fixtures with recent odds” (because the 10-minute freshness predicate fails). That’s a collecting/Phase-B problem, not a CLV bug. (Producer code path that emits that message is in the scan loop.) 
+* If `live_alerts_60m = 0` but `archived_alerts_2d` keeps rising: alerts were created but **expired by TTL** and got archived by your cleanup (as designed). TTL is computed from time-to-KO (near-KO uses shorter TTL) .
+* If both are zero: the producer isn’t seeing fresh odds or it’s getting suppressed by gates (low books / stability / CLV). Gating thresholds are enforced in `should_emit_alert` and the engine’s staleness filter .
+
+**Fast unstick if empty**
+
+* Kick Phase B/collector so the 10-minute window isn’t empty (your seed/trigger job or a manual collection). As soon as fresh odds land, producer will evaluate and create alerts (the run flow and alert insert are here) .
+
+# 3) Schedulers green (comprehensive)
+
+You’ve got multiple minute-frequency jobs; validate each by its write-side effect:
+
+**One-shot “are we alive” via your health handler**
+
+```bash
+curl -s "http://localhost:8000/_health/clv" | jq .
+```
+
+This endpoint returns fresh_odds_10m, fresh_matches_10m, alerts_60m, closing_samples_60m, closings_24h, and a status you can flag on a dashboard (logic shown in the API helper) .
+
+**Deep checks per job**
+
+```bash
+# CLV Producer (every 60s): alerts in last hour
+psql $DATABASE_URL -c "
+SELECT COUNT(*) AS alerts_60m, MAX(created_at) AS last_alert
+FROM clv_alerts
+WHERE created_at > NOW() - INTERVAL '60 minutes';
+"
+
+# Closing Sampler (every ~60s): samples near KO (T-6m..T+2m)
+psql $DATABASE_URL -c "
+SELECT COUNT(*) AS samples_60m, MAX(ts) AS last_sample
+FROM clv_closing_feed
+WHERE ts > NOW() - INTERVAL '60 minutes';
+"
+# (Sampler picks fixtures between now-2m and now+6m and writes 3 rows per sample) :contentReference[oaicite:8]{index=8}
+
+# Closing Settler (every ~60s): realized rows around KO+2m
+psql $DATABASE_URL -c "
+SELECT COUNT(*) AS realized_24h, MAX(settled_at) AS last_settled
+FROM clv_realized
+WHERE settled_at > NOW() - INTERVAL '24 hours';
+"
+# (Settler computes closing odds from samples and upserts realized CLV) :contentReference[oaicite:9]{index=9}
+```
+
+**Good =**
+
+* Health endpoint shows `"status":"healthy"` and non-zero metrics when the market is active (API function logic returns healthy when fresh odds > 0). 
+* Alerts/samples/realized have recent timestamps if there were fixtures in those windows (producer/sampler/settler cycles) .
+
+---
+
+## If something’s red, here’s the shortest fix path
+
+* **Phase B green, predictions 0:** ensure **consensus refresh** runs after Phase B so predictions don’t fail on “no bucket hit”. (Predictions need the consensus feed—not just raw snapshots.)
+* **CLV still 0:** confirm `candidate_matches > 0` (10-minute freshness + min books). If not, kick a **targeted odds collection** for matches in the next 72h and re-run the producer (the producer’s 10-minute and 5-minute freshness windows are explicit in code) .
+* **Closing loop idle at KO:** sampler looks only T-6m..T+2m; if you miss that window you won’t have samples to settle (sampler/settler flow) .
+
+If you want, I can also hand you a single bash script that runs all of the above checks and prints “PASS/FAIL” lines so your agent can run it on a schedule.
