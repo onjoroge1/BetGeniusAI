@@ -1,0 +1,194 @@
+You nailed the diagnosis: Phase B is now fast/healthy, but because **odds_10m = 0** (collector hasn’t run since startup), there’s nothing “fresh” for it to build predictions from—so `consensus_predictions` sits at 1517.
+
+Here’s a clear plan to get predictions growing *right now* and keep them flowing continuously—without re-introducing blocking collectors.
+
+---
+
+# What to do now (quick wins)
+
+## A) Keep CLV/Phase B lean — disable any presentation rendering
+
+Set this in your env (and guard in code) so Phase B doesn’t try to do heavy non-essential work:
+
+```
+RENDER_CONSENSUS_PRESENTATIONS=0
+```
+
+## B) Make Phase B build from “recent” if “fresh” is empty
+
+Right now you only build when `odds_10m > 0`. Add a fallback so prediction building can still advance from “recent” odds if the collector is between runs:
+
+```python
+# Phase B builder: widen freshness window only for building (not for CLV logic)
+HAS_FRESH_SQL = "SELECT EXISTS(SELECT 1 FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes')"
+TARGETS_SQL = """
+WITH upcoming AS (
+  SELECT f.match_id
+  FROM fixtures f
+  WHERE f.kickoff_at BETWEEN NOW() + INTERVAL '6 hours' AND NOW() + INTERVAL '168 hours'
+  AND f.status = 'NS'
+),
+recent_odds AS (
+  SELECT DISTINCT os.match_id
+  FROM odds_snapshots os
+  WHERE os.ts_snapshot > NOW() - INTERVAL %s
+),
+stale_preds AS (
+  SELECT u.match_id
+  FROM upcoming u
+  LEFT JOIN LATERAL (
+    SELECT MAX(cp.created_at) AS last_pred_at
+    FROM consensus_predictions cp
+    WHERE cp.match_id = u.match_id
+  ) p ON TRUE
+  WHERE p.last_pred_at IS NULL OR p.last_pred_at < NOW() - INTERVAL '30 minutes'
+)
+SELECT sp.match_id
+FROM stale_preds sp
+JOIN recent_odds ro USING (match_id)
+ORDER BY sp.match_id
+LIMIT 50
+"""
+
+# logic:
+# if odds_10m == 0 → use a wider window for “recent_odds”, e.g. 60 minutes, to keep preds moving
+recent_window = '10 minutes' if has_fresh else '60 minutes'
+```
+
+This gives Phase B something to chew on even if the 10-minute window is empty.
+
+## C) Add a tiny, targeted collector for matches Phase B selects
+
+You don’t want to scan 35 leagues. Implement a **per-match** fetch with bounded concurrency:
+
+```python
+async def collect_for_matches(self, match_ids: list[int], *, concurrency=6, timeout_per_call=8):
+    # call the APIs for these exact match_ids only (TheOdds + API-Football)
+    # use asyncio.gather with semaphores to bound concurrency
+    # write to odds_snapshots; return how many rows inserted
+```
+
+Then in Phase B:
+
+```python
+if not has_fresh and target_match_ids:
+    # Try to pull just those targets quickly
+    inserted = await self.collector.collect_for_matches(target_match_ids, concurrency=6, timeout_per_call=8)
+    # no await of full daily collection here – keep it fast/non-blocking
+```
+
+This solves the “stuck until the 02:00 batch” problem and keeps Phase B sub-30s.
+
+---
+
+# Medium-term scheduling (if you don’t want per-match collection yet)
+
+If you want to keep it simple for tonight:
+
+* Keep Phase B as is (non-blocking).
+* **Add a tiny guard:** if `odds_10m = 0` for ≥15 minutes, trigger a **manual collection** once (non-blocking, with timeout) to re-seed the pipeline.
+
+Pseudocode inside the scheduler tick:
+
+```python
+if odds10m_count == 0 and (now - last_seed_time) > timedelta(minutes=15):
+    await self._spawn("seed_collection_once", self._run_small_seed, timeout=300)
+```
+
+…and `_run_small_seed()` can either call your existing `daily_collection_cycle()` with a tighter filter (e.g., only top 5 leagues) or reuse `collect_for_matches()` on the next 50 upcoming fixtures.
+
+---
+
+# Verifications you/agent can run now
+
+**1) Is Phase B actually building predictions each minute?**
+
+```sql
+SELECT COUNT(*) AS preds_10m
+FROM consensus_predictions
+WHERE created_at > NOW() - INTERVAL '10 minutes';
+
+SELECT to_char(MAX(created_at),'YYYY-MM-DD HH24:MI:SS') AS last_pred_at
+FROM consensus_predictions;
+```
+
+Goal: `preds_10m` > 0 and `last_pred_at` recent.
+
+**2) Do we have build targets (even if odds_10m=0)?**
+
+```sql
+WITH upcoming AS (
+  SELECT f.match_id
+  FROM fixtures f
+  WHERE f.kickoff_at BETWEEN NOW() + INTERVAL '6 hours' AND NOW() + INTERVAL '168 hours'
+  AND f.status = 'NS'
+),
+recent_odds AS (
+  SELECT DISTINCT os.match_id
+  FROM odds_snapshots os
+  WHERE os.ts_snapshot > NOW() - INTERVAL '60 minutes'   -- widened window
+),
+stale_preds AS (
+  SELECT u.match_id
+  FROM upcoming u
+  LEFT JOIN LATERAL (
+    SELECT MAX(cp.created_at) AS last_pred_at
+    FROM consensus_predictions cp
+    WHERE cp.match_id = u.match_id
+  ) p ON TRUE
+  WHERE p.last_pred_at IS NULL OR p.last_pred_at < NOW() - INTERVAL '30 minutes'
+)
+SELECT COUNT(*) AS targets
+FROM stale_preds
+JOIN recent_odds USING (match_id);
+```
+
+**3) Did odds arrive recently (if scheduled collection ran)?**
+
+```sql
+SELECT COUNT(*) AS odds_10m
+FROM odds_snapshots
+WHERE ts_snapshot > NOW() - INTERVAL '10 minutes';
+```
+
+**4) Health: show last runs of each job in your `/_health/clv`**
+Return:
+
+```json
+{
+  "preds_10m":  /* from #1 */,
+  "odds_10m":   /* from #3 */,
+  "last_runs": {
+    "phase_b": "...Z",
+    "clv_producer": "...Z",
+    "cleanup": "...Z",
+    "closing_sampler": "...Z",
+    "closing_settler": "...Z"
+  },
+  "status": "healthy"
+}
+```
+
+---
+
+# Why this works
+
+* **You don’t block the loop** (every heavy thing stays in a background task with timeouts).
+* **Predictions grow continuously** even between batch collections (Phase B can widen its “recent” window or do per-match fetches).
+* **No accidental “presentation rendering”** during CLV flows (flagged off).
+* **Rate-limits under control** (targeted match fetch + bounded concurrency).
+
+---
+
+# Pick your path
+
+**Option A (fastest tonight):**
+
+* Add the 60-minute fallback window for build targets.
+* If `odds_10m == 0` for 15 min, trigger one small seed collection.
+
+**Option B (best long-term):**
+
+* Implement `collect_for_matches(match_ids, concurrency, timeout)` and let Phase B refresh only what it needs every minute.
+
+Tell me which way you want to go, and I’ll give you the exact code patch for that path (collector stub + updated Phase B snippet).

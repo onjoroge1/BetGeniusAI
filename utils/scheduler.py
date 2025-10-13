@@ -348,7 +348,7 @@ class BackgroundScheduler:
                 logger.error("Phase B: DATABASE_URL not found")
                 return
             
-            # Check if we have any fresh odds at all
+            # Check if we have fresh odds (10min window)
             has_fresh_odds = False
             with psycopg2.connect(database_url) as conn:
                 with conn.cursor() as cursor:
@@ -356,27 +356,26 @@ class BackgroundScheduler:
                     result = cursor.fetchone()
                     has_fresh_odds = result[0] if result else False
             
-            # If no fresh odds, wait for scheduled collection (can't do full collection here - too slow)
-            if not has_fresh_odds:
-                logger.debug(f"🎯 Phase B: No fresh odds, waiting for scheduled collection (completed in {int((time.time()-start_time)*1000)}ms)")
-                return
+            # Use wider window (60min) if no fresh odds, to keep predictions growing between collections
+            recent_window = '10 minutes' if has_fresh_odds else '60 minutes'
             
-            # Now find targets with fresh odds but stale/no predictions
+            # Find targets with recent odds but stale/no predictions
             target_matches = []
             with psycopg2.connect(database_url) as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
+                    # Status can be 'NS' or 'scheduled' (different APIs use different conventions)
+                    cursor.execute(f"""
                         WITH upcoming AS (
                             SELECT f.match_id
                             FROM fixtures f
                             WHERE f.kickoff_at BETWEEN NOW() + INTERVAL '6 hours' 
                                 AND NOW() + INTERVAL '168 hours'
-                            AND f.status = 'NS'
+                            AND f.status IN ('NS', 'scheduled')
                         ),
-                        fresh_odds AS (
+                        recent_odds AS (
                             SELECT DISTINCT os.match_id
                             FROM odds_snapshots os
-                            WHERE os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+                            WHERE os.ts_snapshot > NOW() - INTERVAL '{recent_window}'
                         ),
                         stale_preds AS (
                             SELECT u.match_id
@@ -391,7 +390,7 @@ class BackgroundScheduler:
                         )
                         SELECT sp.match_id
                         FROM stale_preds sp
-                        JOIN fresh_odds fo USING (match_id)
+                        JOIN recent_odds ro USING (match_id)
                         ORDER BY sp.match_id
                         LIMIT 50
                     """)
