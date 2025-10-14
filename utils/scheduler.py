@@ -703,7 +703,7 @@ class BackgroundScheduler:
                                 WITH match_odds AS (
                                     SELECT book_id, outcome, implied_prob, secs_to_kickoff
                                     FROM odds_snapshots 
-                                    WHERE match_id = %s AND ts_snapshot > NOW() - INTERVAL '24 hours'
+                                    WHERE match_id = %s AND ts_snapshot > NOW() - INTERVAL '96 hours'
                                 ),
                                 complete_books AS (
                                     SELECT book_id FROM match_odds
@@ -716,12 +716,13 @@ class BackgroundScheduler:
                                 bucket_classified AS (
                                     SELECT *,
                                         CASE 
-                                            WHEN secs_to_kickoff BETWEEN 5400 AND 32400 THEN '6h'    -- 1.5-9h (consensus_builder compatible)
-                                            WHEN secs_to_kickoff BETWEEN 21600 AND 64800 THEN '12h'  -- 6-18h (consensus_builder compatible)  
-                                            WHEN secs_to_kickoff BETWEEN 64800 AND 108000 THEN '24h' -- 18-30h (consensus_builder compatible)
-                                            WHEN secs_to_kickoff BETWEEN 129600 AND 216000 THEN '48h'-- 36-60h (consensus_builder compatible)
-                                            WHEN secs_to_kickoff BETWEEN 216000 AND 302400 THEN '72h'-- 60-84h (consensus_builder compatible)
-                                            WHEN secs_to_kickoff BETWEEN 900 AND 5400 THEN '3h'      -- 0.25-1.5h (consensus_builder compatible)
+                                            WHEN secs_to_kickoff BETWEEN 5400 AND 32400 THEN '6h'    -- 1.5-9h
+                                            WHEN secs_to_kickoff BETWEEN 21600 AND 64800 THEN '12h'  -- 6-18h
+                                            WHEN secs_to_kickoff BETWEEN 64800 AND 108000 THEN '24h' -- 18-30h
+                                            WHEN secs_to_kickoff BETWEEN 108000 AND 151200 THEN '36h'-- 30-42h (NEW - closes the gap!)
+                                            WHEN secs_to_kickoff BETWEEN 151200 AND 237600 THEN '48h'-- 42-66h
+                                            WHEN secs_to_kickoff BETWEEN 237600 AND 324000 THEN '72h'-- 66-90h
+                                            WHEN secs_to_kickoff BETWEEN 900 AND 5400 THEN '3h'      -- 0.25-1.5h
                                             ELSE 'other'
                                         END as time_bucket
                                     FROM clean_odds
