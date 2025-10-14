@@ -26289,5 +26289,105 @@
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2025-10-14T18:05:38.020376",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 45,
+        "league_name": "League 45",
+        "matches_found": 32,
+        "matches_processed": 32,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 71,
+        "league_name": "League 71",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 72,
+        "league_name": "League 72",
+        "matches_found": 7,
+        "matches_processed": 7,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 72,
+        "league_name": "League 72",
+        "matches_found": 7,
+        "matches_processed": 7,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 128,
+        "league_name": "League 128",
+        "matches_found": 10,
+        "matches_processed": 10,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 141,
+        "league_name": "League 141",
+        "matches_found": 10,
+        "matches_processed": 10,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 253,
+        "league_name": "League 253",
+        "matches_found": 5,
+        "matches_processed": 5,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      }
+    ],
+    "new_matches_collected": 0,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]
