@@ -71,6 +71,7 @@ class BackgroundScheduler:
         logger.info("Background scheduler started - enhanced schedule: 6h weekdays, 3h weekends")
         logger.info("Automated metrics calculation enabled - runs every 6 hours at 03:00, 09:00, 15:00, 21:00 UTC")
         logger.info("🎯 Phase B: Fresh odds collection enabled - HIGH PRIORITY every 60 seconds")
+        logger.info("⚽ API-Football Phase B: Continuous collection enabled - every 60 seconds (75k/day limit)")
         logger.info("CLV Club alert producer enabled - runs every 60 seconds")
         logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
         logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
@@ -257,6 +258,10 @@ class BackgroundScheduler:
                 # Use background task with 5-minute timeout to prevent blocking
                 if "phase_b" not in self.last_run or (now - self.last_run["phase_b"]).total_seconds() >= 60:
                     await self._spawn("phase_b", self._run_phase_b_fresh_odds, timeout=300)
+                
+                # ⚽ API-Football Phase B: Continuous collection every 60 seconds (75k/day limit = plenty of headroom)
+                if "api_football_phase_b" not in self.last_run or (now - self.last_run["api_football_phase_b"]).total_seconds() >= 60:
+                    await self._spawn("api_football_phase_b", self._run_api_football_phase_b, timeout=120)
                 
                 # Run CLV Club alert producer every 60 seconds (background task)
                 if "clv_producer" not in self.last_run or (now - self.last_run["clv_producer"]).total_seconds() >= 60:
@@ -517,6 +522,27 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"🎯 CLV Producer error: {e}")
+    
+    async def _run_api_football_phase_b(self):
+        """
+        ⚽ API-Football Phase B: Continuous odds collection every 60 seconds
+        Complements The Odds API for comprehensive multi-source market coverage
+        75,000 requests/day limit = ~52 req/min capacity (plenty of headroom)
+        """
+        try:
+            logger.info("⚽ API-Football Phase B: Starting collection...")
+            
+            # Use existing method from automated_collector
+            results = await self.collector.collect_upcoming_odds_apifootball()
+            
+            if results.get("rows_inserted", 0) > 0:
+                logger.info(f"⚽ API-Football: {results['rows_inserted']} odds rows collected " +
+                           f"from {results.get('fixtures_processed', 0)} fixtures")
+            else:
+                logger.debug(f"⚽ API-Football: No new odds collected")
+                
+        except Exception as e:
+            logger.error(f"⚽ API-Football Phase B error: {e}")
     
     async def _run_clv_ttl_cleanup(self):
         """Archive expired CLV alerts to history table"""
