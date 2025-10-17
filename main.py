@@ -3408,11 +3408,12 @@ async def compute_all_metrics(
 async def get_enhanced_evaluation(
     league: Optional[str] = Query(None, description="Filter by league name"),
     window: str = Query("30d", description="Time window (7d, 14d, 30d, 90d, all)"),
+    model_version: str = Query("v1", description="Model version to evaluate (v1, v2, or all)"),
     include_clv: bool = Query(True, description="Include CLV analysis when closing odds available"),
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Enhanced metrics evaluation using odds_accuracy_evaluation view
+    Enhanced metrics evaluation using model_inference_logs + match_results
     Provides accuracy metrics + CLV analysis (snapshot vs closing line)
     """
     try:
@@ -3426,74 +3427,103 @@ async def get_enhanced_evaluation(
         cursor = conn.cursor()
         
         # Parse time window
-        where_clauses = ["has_result = true"]
+        where_clauses = ["mr.outcome IS NOT NULL"]
         params = []
         
         if window != "all":
             days_map = {"7d": 7, "14d": 14, "30d": 30, "90d": 90}
             days = days_map.get(window, 30)
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-            where_clauses.append("odds_collected_at >= %s")
+            where_clauses.append("mil.scored_at >= %s")
             params.append(cutoff)
         
         if league:
-            where_clauses.append("league = %s")
+            where_clauses.append("f.league_name = %s")
             params.append(league)
+        
+        if model_version != "all":
+            where_clauses.append("mil.model_version = %s")
+            params.append(model_version)
         
         where_sql = " AND ".join(where_clauses)
         
         # Main evaluation query with accuracy metrics
         eval_sql = f"""
-            WITH metrics AS (
+            WITH predictions_with_results AS (
+                SELECT 
+                    mil.match_id,
+                    mil.model_version,
+                    f.league_name as league,
+                    mil.p_home,
+                    mil.p_draw,
+                    mil.p_away,
+                    mr.home_goals,
+                    mr.away_goals,
+                    mr.outcome as actual_outcome,
+                    mil.scored_at,
+                    -- Closing odds not yet available, set to NULL for now
+                    false as has_closing_odds,
+                    NULL::numeric as ph_close,
+                    NULL::numeric as pd_close,
+                    NULL::numeric as pa_close
+                FROM model_inference_logs mil
+                INNER JOIN match_results mr ON mil.match_id = mr.match_id
+                LEFT JOIN fixtures f ON mil.match_id = f.match_id
+                WHERE {where_sql}
+            ),
+            metrics AS (
                 SELECT 
                     match_id,
+                    model_version,
                     league,
-                    ph_snapshot, pd_snapshot, pa_snapshot,
-                    ph_close, pd_close, pa_close,
+                    p_home, p_draw, p_away,
                     actual_outcome,
                     has_closing_odds,
+                    ph_close, pd_close, pa_close,
                     -- Calculate Brier Score
                     CASE actual_outcome
-                        WHEN 'H' THEN POWER(1 - ph_snapshot, 2) + POWER(0 - pd_snapshot, 2) + POWER(0 - pa_snapshot, 2)
-                        WHEN 'D' THEN POWER(0 - ph_snapshot, 2) + POWER(1 - pd_snapshot, 2) + POWER(0 - pa_snapshot, 2)
-                        WHEN 'A' THEN POWER(0 - ph_snapshot, 2) + POWER(0 - pd_snapshot, 2) + POWER(1 - pa_snapshot, 2)
+                        WHEN 'H' THEN POWER(1 - p_home, 2) + POWER(0 - p_draw, 2) + POWER(0 - p_away, 2)
+                        WHEN 'D' THEN POWER(0 - p_home, 2) + POWER(1 - p_draw, 2) + POWER(0 - p_away, 2)
+                        WHEN 'A' THEN POWER(0 - p_home, 2) + POWER(0 - p_draw, 2) + POWER(1 - p_away, 2)
                     END as brier_score,
                     -- Calculate LogLoss
                     CASE actual_outcome
-                        WHEN 'H' THEN -LN(GREATEST(ph_snapshot, 0.001))
-                        WHEN 'D' THEN -LN(GREATEST(pd_snapshot, 0.001))
-                        WHEN 'A' THEN -LN(GREATEST(pa_snapshot, 0.001))
+                        WHEN 'H' THEN -LN(GREATEST(p_home, 0.001))
+                        WHEN 'D' THEN -LN(GREATEST(p_draw, 0.001))
+                        WHEN 'A' THEN -LN(GREATEST(p_away, 0.001))
                     END as log_loss,
                     -- Hit rate (predicted winner matches actual)
                     CASE 
-                        WHEN actual_outcome = 'H' AND ph_snapshot > pd_snapshot AND ph_snapshot > pa_snapshot THEN 1
-                        WHEN actual_outcome = 'D' AND pd_snapshot > ph_snapshot AND pd_snapshot > pa_snapshot THEN 1
-                        WHEN actual_outcome = 'A' AND pa_snapshot > ph_snapshot AND pa_snapshot > pd_snapshot THEN 1
+                        WHEN actual_outcome = 'H' AND p_home > p_draw AND p_home > p_away THEN 1
+                        WHEN actual_outcome = 'D' AND p_draw > p_home AND p_draw > p_away THEN 1
+                        WHEN actual_outcome = 'A' AND p_away > p_home AND p_away > p_draw THEN 1
                         ELSE 0
                     END as hit,
+                    -- Confidence (max probability)
+                    GREATEST(p_home, p_draw, p_away) as confidence,
                     -- CLV calculations (when closing odds available)
                     CASE WHEN has_closing_odds THEN
                         CASE actual_outcome
-                            WHEN 'H' THEN (1.0 / ph_snapshot::numeric - 1.0 / ph_close)
-                            WHEN 'D' THEN (1.0 / pd_snapshot::numeric - 1.0 / pd_close)
-                            WHEN 'A' THEN (1.0 / pa_snapshot::numeric - 1.0 / pa_close)
+                            WHEN 'H' THEN (p_home - ph_close)
+                            WHEN 'D' THEN (p_draw - pd_close)
+                            WHEN 'A' THEN (p_away - pa_close)
                         END
                     END as clv_edge,
                     CASE WHEN has_closing_odds THEN
                         CASE actual_outcome
-                            WHEN 'H' THEN ((1.0 / ph_snapshot::numeric - 1.0 / ph_close) / (1.0 / ph_close))
-                            WHEN 'D' THEN ((1.0 / pd_snapshot::numeric - 1.0 / pd_close) / (1.0 / pd_close))
-                            WHEN 'A' THEN ((1.0 / pa_snapshot::numeric - 1.0 / pa_close) / (1.0 / pa_close))
+                            WHEN 'H' THEN ((p_home - ph_close) / ph_close)
+                            WHEN 'D' THEN ((p_draw - pd_close) / pd_close)
+                            WHEN 'A' THEN ((p_away - pa_close) / pa_close)
                         END
                     END as clv_percent
-                FROM odds_accuracy_evaluation
-                WHERE {where_sql}
+                FROM predictions_with_results
             )
             SELECT 
                 COUNT(*) as total_matches,
                 AVG(brier_score) as avg_brier,
                 AVG(log_loss) as avg_logloss,
                 AVG(hit) as hit_rate,
+                AVG(confidence) as avg_confidence,
                 COUNT(*) FILTER (WHERE has_closing_odds) as matches_with_closing,
                 AVG(clv_edge) FILTER (WHERE has_closing_odds) as avg_clv_edge,
                 AVG(clv_percent) FILTER (WHERE has_closing_odds) as avg_clv_percent,
@@ -3511,21 +3541,24 @@ async def get_enhanced_evaluation(
                 "status": "no_data",
                 "league": league or "All Leagues",
                 "window": window,
+                "model_version": model_version,
                 "message": "No matches with results found for the specified criteria"
             }
         
-        total, avg_brier, avg_logloss, hit_rate, closing_count, avg_clv_edge, avg_clv_pct, pos_clv = result
+        total, avg_brier, avg_logloss, hit_rate, avg_confidence, closing_count, avg_clv_edge, avg_clv_pct, pos_clv = result
         
         # Build response
         response = {
             "status": "success",
             "league": league or "All Leagues",
             "window": window,
+            "model_version": model_version,
             "sample_size": total,
             "accuracy_metrics": {
                 "brier_score": round(float(avg_brier), 4) if avg_brier else None,
                 "log_loss": round(float(avg_logloss), 4) if avg_logloss else None,
                 "hit_rate": round(float(hit_rate), 4) if hit_rate else None,
+                "avg_confidence": round(float(avg_confidence), 4) if avg_confidence else None,
                 "model_grade": _calculate_model_grade(avg_brier, avg_logloss, hit_rate) if avg_brier else None
             }
         }
