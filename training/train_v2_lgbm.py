@@ -14,11 +14,19 @@ import pandas as pd
 import numpy as np
 import lightgbm as lgb
 from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import log_loss, confusion_matrix
 import json
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+# CANONICAL LABEL MAPPING - matches prediction vector [p_home, p_draw, p_away]
+CLASS_TO_IDX = {'H': 0, 'D': 1, 'A': 2}
+IDX_TO_CLASS = ['H', 'D', 'A']
+
+# Unit test - lock this mapping forever
+assert CLASS_TO_IDX['H'] == 0 and CLASS_TO_IDX['D'] == 1 and CLASS_TO_IDX['A'] == 2, "Label mapping broken!"
+assert IDX_TO_CLASS == ['H', 'D', 'A'], "Index to class mapping broken!"
 
 MARKET_ONLY_FEATURES = [
     "p_last_home", "p_last_draw", "p_last_away",
@@ -48,56 +56,42 @@ LGBM_PARAMS = {
 }
 
 
-def compute_metrics(y_true, y_pred_proba):
-    """Compute evaluation metrics"""
+def compute_metrics(y_encoded, y_pred_proba):
+    """Compute evaluation metrics using canonical label order"""
     from services.metrics import normalize_triplet
-    
-    metrics = {}
     
     normalized_preds = np.array([normalize_triplet(p[0], p[1], p[2]) for p in y_pred_proba])
     
-    label_map = {'H': 0, 'D': 1, 'A': 2}
-    y_true_encoded = np.array([label_map[y] for y in y_true])
+    # Use sklearn's log_loss with explicit label order
+    logloss = log_loss(y_encoded, normalized_preds, labels=[0, 1, 2])
     
-    logloss = -np.mean([
-        np.log(max(1e-15, normalized_preds[i, y_true_encoded[i]]))
-        for i in range(len(y_true))
-    ])
+    # Brier score
+    brier = np.mean(np.sum((normalized_preds - np.eye(3)[y_encoded])**2, axis=1))
     
-    brier = np.mean([
-        np.sum((normalized_preds[i] - np.eye(3)[y_true_encoded[i]])**2)
-        for i in range(len(y_true))
-    ])
-    
+    # Accuracy
     y_pred_class = np.argmax(normalized_preds, axis=1)
-    accuracy = np.mean(y_pred_class == y_true_encoded)
+    accuracy = np.mean(y_pred_class == y_encoded)
     
-    metrics['logloss'] = logloss
-    metrics['brier'] = brier / 3.0
-    metrics['accuracy'] = accuracy
-    
-    return metrics
+    return {
+        'logloss': logloss,
+        'brier': brier / 3.0,  # Normalize to [0,1]
+        'accuracy': accuracy
+    }
 
 
 def train_lgbm_cv(df, features, n_splits=5):
-    """Train LightGBM with stratified K-fold CV"""
+    """Train LightGBM with stratified K-fold CV using canonical label order"""
     print(f"\n{'='*70}")
     print(f"Training LightGBM with {len(features)} features")
     print(f"{'='*70}")
     print(f"Features: {features[:5]}... (showing first 5)")
+    print(f"Label mapping: {CLASS_TO_IDX}")
     
     X = df[features].values
     y = df['y'].values
     
-    # FIX: Use fixed label mapping instead of alphabetical
-    # Predictions are structured as [p_home, p_draw, p_away]
-    # So: H→0, D→1, A→2
-    label_map = {'H': 0, 'D': 1, 'A': 2}
-    y_encoded = np.array([label_map[label] for label in y])
-    
-    # Create LabelEncoder with fixed classes for consistency
-    le = LabelEncoder()
-    le.classes_ = np.array(['H', 'D', 'A'])
+    # Use canonical mapping - never use LabelEncoder here
+    y_encoded = df['y'].map(CLASS_TO_IDX).values
     
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     
@@ -125,7 +119,7 @@ def train_lgbm_cv(df, features, n_splits=5):
         val_preds = model.predict(X_val, num_iteration=model.best_iteration)
         oof_preds[val_idx] = val_preds
         
-        fold_metrics_dict = compute_metrics(y[val_idx], val_preds)
+        fold_metrics_dict = compute_metrics(y_encoded[val_idx], val_preds)
         fold_metrics.append(fold_metrics_dict)
         
         print(f"  LogLoss: {fold_metrics_dict['logloss']:.4f}")
@@ -134,7 +128,17 @@ def train_lgbm_cv(df, features, n_splits=5):
         
         models.append(model)
     
-    oof_metrics = compute_metrics(y, oof_preds)
+    oof_metrics = compute_metrics(y_encoded, oof_preds)
+    
+    # Confusion matrix sanity check
+    pred_idx = oof_preds.argmax(axis=1)
+    cm = confusion_matrix(y_encoded, pred_idx, labels=[0, 1, 2])
+    print(f"\nConfusion Matrix (H, D, A order):")
+    print(f"          Predicted")
+    print(f"         H    D    A")
+    print(f"True H  {cm[0,0]:3d}  {cm[0,1]:3d}  {cm[0,2]:3d}")
+    print(f"     D  {cm[1,0]:3d}  {cm[1,1]:3d}  {cm[1,2]:3d}")
+    print(f"     A  {cm[2,0]:3d}  {cm[2,1]:3d}  {cm[2,2]:3d}")
     
     print(f"\n{'='*70}")
     print(f"OUT-OF-FOLD METRICS (n={len(df)})")
@@ -160,14 +164,14 @@ def train_lgbm_cv(df, features, n_splits=5):
         'oof_metrics': oof_metrics,
         'fold_metrics': fold_metrics,
         'feature_importance': importance_df,
-        'label_encoder': le
+        'y_encoded': y_encoded
     }
 
 
-def compare_to_ridge(df, lgbm_preds):
+def compare_to_ridge(df, lgbm_preds, y_encoded):
     """Compare LightGBM predictions to V2 ridge on same samples"""
     print(f"\n{'='*70}")
-    print(f"COMPARISON: LGBM vs V2 RIDGE (n={len(df)})")
+    print(f"PAIRED COMPARISON: LGBM vs V2 RIDGE (same matches)")
     print(f"{'='*70}")
     
     import psycopg2
@@ -210,11 +214,13 @@ def compare_to_ridge(df, lgbm_preds):
     
     ridge_probs = np.array([ridge_preds[mid] for mid in df_common['match_id']])
     
-    lgbm_idx = df[df['match_id'].isin(common_matches)].index
-    lgbm_probs = lgbm_preds[lgbm_idx]
+    # Get LGBM predictions for common matches (already in same order)
+    common_indices = df[df['match_id'].isin(common_matches)].index
+    lgbm_probs = lgbm_preds[common_indices]
+    y_common = y_encoded[common_indices]
     
-    ridge_metrics = compute_metrics(df_common['y'].values, ridge_probs)
-    lgbm_metrics = compute_metrics(df_common['y'].values, lgbm_probs)
+    ridge_metrics = compute_metrics(y_common, ridge_probs)
+    lgbm_metrics = compute_metrics(y_common, lgbm_probs)
     
     print(f"\nV2 Ridge:")
     print(f"  LogLoss: {ridge_metrics['logloss']:.4f}")
@@ -243,39 +249,65 @@ def compare_to_ridge(df, lgbm_preds):
     }
 
 
-def analyze_ev_deciles(df, preds):
-    """Analyze EV performance by decile"""
+def analyze_ev_deciles(df, preds, y_encoded, p_close=None):
+    """Analyze EV performance by decile with monotonicity check"""
     from services.metrics import normalize_triplet
     
     normalized_preds = np.array([normalize_triplet(p[0], p[1], p[2]) for p in preds])
     
     max_probs = np.max(normalized_preds, axis=1)
     picks = np.argmax(normalized_preds, axis=1)
-    
-    label_map = {'H': 0, 'D': 1, 'A': 2}
-    y_encoded = np.array([label_map[y] for y in df['y'].values])
-    
     pick_correct = (picks == y_encoded).astype(int)
     
-    ev_df = pd.DataFrame({
-        'max_prob': max_probs,
-        'pick_correct': pick_correct
-    })
+    # Calculate EV if closing probabilities available
+    if p_close is not None:
+        pick_model_prob = normalized_preds[np.arange(len(preds)), picks]
+        pick_close_prob = p_close[np.arange(len(preds)), picks]
+        ev_pick = pick_model_prob - pick_close_prob
+    else:
+        ev_pick = None
     
-    ev_df['decile'] = pd.qcut(ev_df['max_prob'], q=10, labels=False, duplicates='drop')
-    
-    print(f"\n{'='*70}")
-    print(f"EV DECILE ANALYSIS")
-    print(f"{'='*70}")
-    print(f"Decile | Avg Max Prob | Hit Rate | Count")
-    print(f"-------|--------------|----------|------")
-    
-    for decile in sorted(ev_df['decile'].unique()):
-        decile_data = ev_df[ev_df['decile'] == decile]
-        avg_prob = decile_data['max_prob'].mean()
-        hit_rate = decile_data['pick_correct'].mean()
-        count = len(decile_data)
-        print(f"  {decile:2d}   |    {avg_prob:.3f}     |  {hit_rate:.1%}  | {count:4d}")
+    # Decile analysis
+    if ev_pick is not None:
+        ev_df = pd.DataFrame({
+            'ev': ev_pick,
+            'pick_correct': pick_correct,
+            'max_prob': max_probs
+        })
+        bins = pd.qcut(ev_df['ev'], q=10, labels=False, duplicates='drop')
+        ev_df['bin'] = bins
+        
+        print(f"\n{'='*70}")
+        print(f"EV DECILE ANALYSIS (by EV, not max_prob)")
+        print(f"{'='*70}")
+        print(f"Decile | Avg EV  | Hit Rate | Count")
+        print(f"-------|---------|----------|------")
+        
+        for decile in sorted(ev_df['bin'].unique()):
+            decile_data = ev_df[ev_df['bin'] == decile]
+            avg_ev = decile_data['ev'].mean()
+            hit_rate = decile_data['pick_correct'].mean()
+            count = len(decile_data)
+            print(f"  {decile:2d}   | {avg_ev:+.4f}  |  {hit_rate:.1%}  | {count:4d}")
+    else:
+        ev_df = pd.DataFrame({
+            'max_prob': max_probs,
+            'pick_correct': pick_correct
+        })
+        ev_df['decile'] = pd.qcut(ev_df['max_prob'], q=10, labels=False, duplicates='drop')
+        
+        print(f"\n{'='*70}")
+        print(f"CONFIDENCE DECILE ANALYSIS (by max_prob)")
+        print(f"{'='*70}")
+        print(f"Decile | Avg Max Prob | Hit Rate | Count")
+        print(f"-------|--------------|----------|------")
+        
+        for decile in sorted(ev_df['decile'].unique()):
+            decile_data = ev_df[ev_df['decile'] == decile]
+            avg_prob = decile_data['max_prob'].mean()
+            hit_rate = decile_data['pick_correct'].mean()
+            count = len(decile_data)
+            print(f"  {decile:2d}   |    {avg_prob:.3f}     |  {hit_rate:.1%}  | {count:4d}")
     
     print(f"{'='*70}")
 
@@ -299,15 +331,15 @@ if __name__ == "__main__":
     print("EXPERIMENT 1: MARKET-ONLY FEATURES")
     print("="*70)
     results['market_only'] = train_lgbm_cv(df, MARKET_ONLY_FEATURES)
-    analyze_ev_deciles(df, results['market_only']['oof_preds'])
-    compare_to_ridge(df, results['market_only']['oof_preds'])
+    analyze_ev_deciles(df, results['market_only']['oof_preds'], results['market_only']['y_encoded'])
+    compare_to_ridge(df, results['market_only']['oof_preds'], results['market_only']['y_encoded'])
     
     print("\n" + "="*70)
     print("EXPERIMENT 2: FULL FEATURES (Market + ELO)")
     print("="*70)
     results['full'] = train_lgbm_cv(df, FULL_FEATURES)
-    analyze_ev_deciles(df, results['full']['oof_preds'])
-    compare_to_ridge(df, results['full']['oof_preds'])
+    analyze_ev_deciles(df, results['full']['oof_preds'], results['full']['y_encoded'])
+    compare_to_ridge(df, results['full']['oof_preds'], results['full']['y_encoded'])
     
     print("\n" + "="*70)
     print("SUMMARY COMPARISON")

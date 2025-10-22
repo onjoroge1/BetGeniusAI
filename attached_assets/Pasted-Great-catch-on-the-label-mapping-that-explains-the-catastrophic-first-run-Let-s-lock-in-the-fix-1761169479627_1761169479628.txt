@@ -1,0 +1,119 @@
+Great catch on the label mapping — that explains the “catastrophic” first run. Let’s lock in the fix and wrap this dry run cleanly so you can decide on shadowing.
+
+# 1) Lock the label order (no more surprises)
+
+Don’t rely on `LabelEncoder`. Hard-code the class order **to match your probability vector**.
+
+```python
+# training/train_v2_lgbm.py
+CLASS_TO_IDX = {'H': 0, 'D': 1, 'A': 2}   # <-- canonical
+IDX_TO_CLASS = ['H','D','A']
+
+y = df['y'].map(CLASS_TO_IDX).values  # never use LabelEncoder here
+# When computing log-loss:
+from sklearn.metrics import log_loss
+logloss = log_loss(y, preds, labels=[0,1,2])
+```
+
+Add a unit test (fast & local):
+
+```python
+assert CLASS_TO_IDX['H']==0 and CLASS_TO_IDX['D']==1 and CLASS_TO_IDX['A']==2
+```
+
+# 2) One-pass sanity checks (do these right after training)
+
+Run these quick verifications on the 462-sample set to ensure mapping + metrics are sound.
+
+**(a) Confusion snapshot**
+
+```python
+import numpy as np, pandas as pd
+from sklearn.metrics import confusion_matrix
+pred_idx = preds.argmax(axis=1)
+cm = confusion_matrix(y, pred_idx, labels=[0,1,2])
+# Rows true (H,D,A), cols predicted (H,D,A)
+print('Confusion matrix (H,D,A order):\n', cm)
+```
+
+* If H and A columns/rows were previously inverted, you’ll now see sensible diagonals (no “anti-skill” pattern).
+
+**(b) Paired deltas vs Ridge**
+
+```python
+# ridge_preds: Nx3 probabilities from your existing logs for the SAME 462 matches, in H,D, A order
+def metrics(P, y):
+    from sklearn.metrics import log_loss
+    brier = np.mean(np.sum((P - np.eye(3)[y])**2, axis=1))
+    hit = float((P.argmax(1)==y).mean())
+    return dict(logloss=log_loss(y,P,labels=[0,1,2]), brier=brier, hit=hit)
+
+m_ridge = metrics(ridge_preds, y)
+m_lgbm  = metrics(preds, y)
+delta = {k: m_lgbm[k]-m_ridge[k] for k in m_ridge}
+print('Ridge:', m_ridge)
+print('LGBM :', m_lgbm)
+print('Δ(LGBM - Ridge):', delta)
+```
+
+**Pass criteria for this dry run (not promotion):**
+
+* Δlogloss ≤ **-0.005** (i.e., better), **and** Brier ≤, **and** Hit ≥ (ties OK).
+
+**(c) EV deciles monotonicity**
+
+```python
+# pick EV using CLOSE no-vig for the chosen class
+pick_idx = preds.argmax(1)
+ev_pick = preds[np.arange(len(preds)), pick_idx] - p_close[np.arange(len(preds)), pick_idx]
+bins = pd.qcut(ev_pick, 10, duplicates='drop')
+tbl = pd.DataFrame({'ev':ev_pick, 'hit':(pick_idx==y)}).groupby(bins).agg(hit_rate=('hit','mean'), n=('hit','size'), ev=('ev','mean'))
+print(tbl)
+```
+
+You want a generally **increasing** hit_rate as avg EV rises.
+
+# 3) If numbers still wobble, try these minimal tweaks (same dataset)
+
+* **Param nudge (safer generalization on 462 rows):**
+
+  * `num_leaves=15–23` (was 31)
+  * `feature_fraction=0.7–0.8`
+  * `min_data_in_leaf=30–60`
+  * `lambda_l2=2–5`
+* **Split:** keep **TimeSeriesSplit** (no random KFold).
+* **Early stopping:** 100–200 rounds; cap total rounds ~1000.
+
+These reduce variance without “tuning to noise”.
+
+# 4) What to report back (so we can decide shadowing)
+
+Please paste:
+
+* **OOF multi_logloss** for:
+
+  * LGBM_market_only
+  * LGBM_full (even if same)
+* Paired deltas vs Ridge on the 462 **(same matches)**:
+
+  * Δlogloss, Δbrier, Δhit
+* EV summary (pick side):
+
+  * mean EV_close (LGBM vs Ridge), EV>0% (each)
+* EV-decile table (10 bins): avg EV and hit_rate per bin
+
+# 5) ELO note (don’t block the run)
+
+Your ELO variance (~±5) is too tight to help. Keep it in the “full” run for comparison, but plan this fix next:
+
+* Rebuild ELO over **≥2 seasons**, single rating + per-league home-advantage; K=20–30; strict chronological updates with **FT 90’** only.
+
+# 6) Policy you can use **today** (with EV/CLV live)
+
+* **Bypass consensus** if `max_p ≥ 0.62` **and** `EV_close > 0` **and** league ECE ≤ 0.05.
+* **Minimal consensus** if `0.54 ≤ max_p < 0.62` or `EV_close ≈ 0`.
+* **Full** otherwise or `has_close=false`.
+
+---
+
+If the fixed mapping still yields roughly Ridge-level performance (likely at this sample size), that’s fine — the point of this run is pipeline validation. The real gains should show as we scale toward **≥1,000** samples with richer features.
