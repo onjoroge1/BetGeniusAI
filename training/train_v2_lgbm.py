@@ -38,9 +38,43 @@ MARKET_ONLY_FEATURES = [
     "market_entropy", "favorite_margin"
 ]
 
+# Historical features categories
+FORM_FEATURES = [
+    "home_form_last5_wins", "home_form_last5_draws", "home_form_last5_losses",
+    "home_form_last5_ppg", "home_form_last5_goal_diff", "home_form_last5_avg_goals_for",
+    "away_form_last5_wins", "away_form_last5_draws", "away_form_last5_losses",
+    "away_form_last5_ppg", "away_form_last5_goal_diff", "away_form_last5_avg_goals_for"
+]
+
+VENUE_FEATURES = [
+    "home_last10_win_rate", "home_last10_ppg", "home_last10_avg_goals_for",
+    "away_last10_win_rate", "away_last10_ppg", "away_last10_avg_goals_for"
+]
+
+H2H_FEATURES = [
+    "h2h_last5_home_win_rate", "h2h_last5_avg_total_goals", "h2h_last5_home_goal_advantage"
+]
+
+TEMPORAL_FEATURES = [
+    "home_days_since_last_match", "away_days_since_last_match",
+    "home_matches_last_14days", "away_matches_last_14days"
+]
+
+ADVANCED_FEATURES = [
+    "home_adv_last5_shot_accuracy", "home_adv_last5_conversion_rate",
+    "away_adv_last5_shot_accuracy", "away_adv_last5_conversion_rate"
+]
+
+# Combined feature sets
 FULL_FEATURES = MARKET_ONLY_FEATURES + [
     "home_elo", "away_elo", "elo_diff"
 ]
+
+ENRICHED_FEATURES = MARKET_ONLY_FEATURES + FORM_FEATURES + VENUE_FEATURES + H2H_FEATURES + TEMPORAL_FEATURES + [
+    "home_elo", "away_elo", "elo_diff"
+]
+
+ALL_FEATURES = ENRICHED_FEATURES + ADVANCED_FEATURES
 
 LGBM_PARAMS = {
     "objective": "multiclass",
@@ -328,18 +362,44 @@ if __name__ == "__main__":
     results = {}
     
     print("\n" + "="*70)
-    print("EXPERIMENT 1: MARKET-ONLY FEATURES")
+    print("EXPERIMENT 1: MARKET-ONLY FEATURES (Baseline)")
     print("="*70)
     results['market_only'] = train_lgbm_cv(df, MARKET_ONLY_FEATURES)
     analyze_ev_deciles(df, results['market_only']['oof_preds'], results['market_only']['y_encoded'])
     compare_to_ridge(df, results['market_only']['oof_preds'], results['market_only']['y_encoded'])
     
-    print("\n" + "="*70)
-    print("EXPERIMENT 2: FULL FEATURES (Market + ELO)")
-    print("="*70)
-    results['full'] = train_lgbm_cv(df, FULL_FEATURES)
-    analyze_ev_deciles(df, results['full']['oof_preds'], results['full']['y_encoded'])
-    compare_to_ridge(df, results['full']['oof_preds'], results['full']['y_encoded'])
+    # Check if historical features are available
+    has_historical = any(col in df.columns for col in FORM_FEATURES)
+    
+    if has_historical:
+        print("\n" + "="*70)
+        print("EXPERIMENT 2: ENRICHED FEATURES (Market + Form + H2H + Venue + ELO)")
+        print("="*70)
+        available_enriched = [f for f in ENRICHED_FEATURES if f in df.columns]
+        print(f"Using {len(available_enriched)} features")
+        results['enriched'] = train_lgbm_cv(df, available_enriched)
+        analyze_ev_deciles(df, results['enriched']['oof_preds'], results['enriched']['y_encoded'])
+        compare_to_ridge(df, results['enriched']['oof_preds'], results['enriched']['y_encoded'])
+        
+        print("\n" + "="*70)
+        print("EXPERIMENT 3: ALL FEATURES (Enriched + Advanced Stats)")
+        print("="*70)
+        available_all = [f for f in ALL_FEATURES if f in df.columns]
+        print(f"Using {len(available_all)} features")
+        results['all_features'] = train_lgbm_cv(df, available_all)
+        analyze_ev_deciles(df, results['all_features']['oof_preds'], results['all_features']['y_encoded'])
+        compare_to_ridge(df, results['all_features']['oof_preds'], results['all_features']['y_encoded'])
+    else:
+        print("\n⚠️  Historical features not found in dataset")
+        print("   Run: python jobs/compute_historical_features_fast.py")
+        print("   Then: python datasets/build_training_matrix.py")
+        
+        print("\n" + "="*70)
+        print("EXPERIMENT 2: FULL FEATURES (Market + ELO)")
+        print("="*70)
+        results['full'] = train_lgbm_cv(df, FULL_FEATURES)
+        analyze_ev_deciles(df, results['full']['oof_preds'], results['full']['y_encoded'])
+        compare_to_ridge(df, results['full']['oof_preds'], results['full']['y_encoded'])
     
     print("\n" + "="*70)
     print("SUMMARY COMPARISON")
