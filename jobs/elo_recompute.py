@@ -190,46 +190,49 @@ def rebuild_elo_ratings(since_date: str = None):
     cursor = conn.cursor()
     
     # Fetch all historical matches with results
-    # Use training_matches which has canonical team IDs
+    # Use 3-table join: training_matches → fixtures → match_results
+    # This bridges the two ID spaces correctly
     print(f"📊 Fetching historical matches...")
     
     if since_date:
         sql = """
             SELECT 
-                tm.match_date::date as match_date,
+                f.kickoff_at::date as match_date,
                 tm.home_team_id,
                 tm.away_team_id,
                 tm.home_team,
                 tm.away_team,
                 mr.outcome,
-                COALESCE(mr.league, 'Unknown') as league
+                COALESCE(f.league_name, mr.league, 'Unknown') as league
             FROM training_matches tm
-            INNER JOIN match_results mr ON tm.match_id = mr.match_id
-            WHERE tm.match_date IS NOT NULL
-              AND tm.match_date >= %s
+            INNER JOIN fixtures f ON tm.match_id = f.match_id
+            INNER JOIN match_results mr ON f.match_id = mr.match_id
+            WHERE f.kickoff_at IS NOT NULL
+              AND f.kickoff_at::date >= %s::date
               AND tm.home_team_id IS NOT NULL
               AND tm.away_team_id IS NOT NULL
               AND mr.outcome IS NOT NULL
-            ORDER BY tm.match_date, tm.match_id
+            ORDER BY f.kickoff_at, tm.match_id
         """
         cursor.execute(sql, (since_date,))
     else:
         sql = """
             SELECT 
-                tm.match_date::date as match_date,
+                f.kickoff_at::date as match_date,
                 tm.home_team_id,
                 tm.away_team_id,
                 tm.home_team,
                 tm.away_team,
                 mr.outcome,
-                COALESCE(mr.league, 'Unknown') as league
+                COALESCE(f.league_name, mr.league, 'Unknown') as league
             FROM training_matches tm
-            INNER JOIN match_results mr ON tm.match_id = mr.match_id
-            WHERE tm.match_date IS NOT NULL
+            INNER JOIN fixtures f ON tm.match_id = f.match_id
+            INNER JOIN match_results mr ON f.match_id = mr.match_id
+            WHERE f.kickoff_at IS NOT NULL
               AND tm.home_team_id IS NOT NULL
               AND tm.away_team_id IS NOT NULL
               AND mr.outcome IS NOT NULL
-            ORDER BY tm.match_date, tm.match_id
+            ORDER BY f.kickoff_at, tm.match_id
         """
         cursor.execute(sql)
     

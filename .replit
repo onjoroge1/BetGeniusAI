@@ -2,7 +2,7 @@ modules = ["python-3.11", "python3", "postgresql-16"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "gcc", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "libyaml", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "tcl", "tk", "xsimd"]
+packages = ["arrow-cpp", "cairo", "ffmpeg-full", "freetype", "gcc", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "libyaml", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "tcl", "tk", "xsimd"]
 
 [workflows]
 runButton = "Project"
