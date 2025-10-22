@@ -1,0 +1,188 @@
+let’s ship Phase 1.2 now. you already proved temp scaling isn’t needed (T≈1). next move: sweep the blend/constraints to unlock confidence without breaking calibration.
+
+# Phase 1.2 — Blend/Constraint Sweep (do this now)
+
+## what to build
+
+**Files**
+
+* `experiments/v2_blend_sweep.py` (runner)
+* `models/v2/postprocess.py` (shared ops)
+* `config/v2_inference.json` (chosen params persisted)
+* `artifacts/sweeps/v2_blend_sweep.json` (results)
+
+**Params to sweep**
+
+* `alpha` (market blend): `{0.5, 0.6, 0.7, 0.8}`
+* `kl_cap` (max KL from market): `{0.15, 0.20, 0.25, None}`
+* `delta_tau` (delta temperature on model vs market logits): `{0.75, 1.0}`
+
+  * idea: compute deltas in logit space, scale by `delta_tau` before adding back.
+
+**Data split**
+
+* Use the **same 241-match paired set**.
+* Grouped CV by **kickoff date** (your LODO folds). Evaluate on each day.
+
+## logic (drop-in pseudocode)
+
+```python
+# models/v2/postprocess.py
+import numpy as np
+
+def _safe_norm(p):
+    s = max(1e-9, p.sum())
+    return p / s
+
+def _to_logits(p):
+    # clip to avoid infs
+    p = np.clip(p, 1e-6, 1 - 1e-6)
+    z = np.log(p)
+    z -= z.mean()  # center (optional, helps stability)
+    return z
+
+def _from_logits(z):
+    e = np.exp(z - z.max())
+    return e / e.sum()
+
+def apply_blend_and_constraints(p_market, p_model, *, alpha, kl_cap=None, delta_tau=1.0):
+    # 1) model delta in logit space (sharpen/soften with delta_tau)
+    z_mkt = _to_logits(p_market)
+    z_mod = _to_logits(p_model)
+    delta = (z_mod - z_mkt) / max(1e-6, delta_tau)
+
+    z_adj = z_mkt + delta
+    p_adj = _from_logits(z_adj)
+
+    # 2) convex blend with market
+    p_blend = _safe_norm((1 - alpha) * p_adj + alpha * p_market)
+
+    # 3) optional KL projection back to a cap
+    if kl_cap is not None:
+        # if KL(p_blend || p_market) > cap, interpolate back toward market
+        def kl(p, q): 
+            p = np.clip(p,1e-9,1); q = np.clip(q,1e-9,1)
+            return float((p * (np.log(p) - np.log(q))).sum())
+        k = kl(p_blend, p_market)
+        if k > kl_cap:
+            # find t ∈ (0,1]: p = normalize((1-t)*p_blend + t*p_market) to satisfy KL<=cap
+            # simple line search (few steps is fine)
+            t = 0.0
+            lo, hi = 0.0, 1.0
+            for _ in range(12):
+                mid = (lo + hi)/2
+                p_try = _safe_norm((1-mid)*p_blend + mid*p_market)
+                if kl(p_try, p_market) > kl_cap:
+                    lo = mid
+                else:
+                    hi = mid
+                    t = mid
+            p_blend = _safe_norm((1-t)*p_blend + t*p_market)
+    return p_blend
+```
+
+**metrics (per fold + aggregate)**
+
+* `logloss`, `brier`, `hit_rate`, `avg_max_p`, `ECE_global`, and **per-league ECE**.
+* store all in `artifacts/sweeps/v2_blend_sweep.json` sorted by `logloss`.
+
+**runner skeleton**
+
+```python
+# experiments/v2_blend_sweep.py
+from collections import defaultdict
+import json
+from models.v2.postprocess import apply_blend_and_constraints
+from services.metrics.calibration import ece_multiclass
+from services.metrics.utils import normalize_triplet
+# fetch paired dataset: [(match_id, league, date, p_mkt, p_v2_raw, y), ...]
+
+GRID = {
+  "alpha": [0.5,0.6,0.7,0.8],
+  "kl_cap": [0.15,0.20,0.25,None],
+  "delta_tau": [0.75,1.0],
+}
+
+def score(P, Y, leagues):
+    # compute logloss, brier, hit, ECE global + by league
+    ...
+
+def run():
+    data = load_paired_eval_rows()  # ensure pre-kickoff, normalized
+    folds = group_by_day(data)      # LODO
+    results = []
+    for a in GRID["alpha"]:
+        for k in GRID["kl_cap"]:
+            for t in GRID["delta_tau"]:
+                all_preds, all_labels, all_leagues = [], [], []
+                for day, rows in folds.items():
+                    for r in rows:
+                        p = apply_blend_and_constraints(
+                            r.p_market, r.p_v2_raw, alpha=a, kl_cap=k, delta_tau=t
+                        )
+                        all_preds.append(p); all_labels.append(r.y); all_leagues.append(r.league)
+                metrics = score(all_preds, all_labels, all_leagues)
+                results.append({"alpha":a,"kl_cap":k,"delta_tau":t, **metrics})
+    results.sort(key=lambda d: d["logloss"])
+    save_json("artifacts/sweeps/v2_blend_sweep.json", results)
+    # pick winner with guardrails
+    best = next(r for r in results if r["brier"] <= BASE_BRIER and r["ece_global"] <= 0.03)
+    write_config("config/v2_inference.json", {
+      "alpha": best["alpha"], "kl_cap": best["kl_cap"], "delta_tau": best["delta_tau"],
+      "enable_temp_scaling": False
+    })
+    print(json.dumps({"selected": best, "top5": results[:5]}, indent=2))
+
+if __name__ == "__main__":
+    run()
+```
+
+## guardrails / acceptance
+
+* **Primary:** `logloss` strictly ↓ vs current V2 (paired).
+* **Also:** `brier ≤` baseline; `hit_rate ≥` baseline.
+* **Calibration:** `ECE_global ≤ 0.03` and **no major league** > 0.05.
+* If no grid point passes guardrails, keep current config and emit a warning.
+
+## how to run (ops)
+
+```
+python experiments/v2_blend_sweep.py
+cat artifacts/sweeps/v2_blend_sweep.json | head
+cat config/v2_inference.json
+# redeploy inference with new config
+# then:
+curl "http://localhost:8000/metrics/evaluation?window=all&model_version=v2&include_calibration=true" -H "Authorization: Bearer betgenius_secure_key_2024"
+```
+
+---
+
+# Phase 1.3 (optional tiny add after 1.2): draw-aware prior
+
+If your reliability curve shows under-allocation to draws in high-entropy fixtures:
+
+```python
+# models/v2/draw_prior.py
+def nudge_draw(p, target_draw_rate, lam=0.2):
+    ph, pd, pa = p
+    pd = pd + lam * (target_draw_rate - pd)
+    s = ph + pd + pa
+    return np.array([ph/s, pd/s, pa/s])
+```
+
+Apply this **only** when:
+
+* market entropy ≥ threshold (very even match), and
+* `abs(ph-pa) ≤ Δ_thr`, and
+* league target draw rate known.
+
+Guardrails: logloss must not worsen; ECE draw-bin improves.
+
+---
+
+# what I need from you
+
+* green-light to proceed with the above build (I’ll assume yes and go straight to 1.2).
+* after the sweep, paste the selected config + the `/metrics/evaluation` JSON so we can decide whether to enable “minimal-consensus” for the high-confidence bucket.
+
+if you want, I can also prep the Phase 2 feature cards (ELO/form/market-drift + LightGBM) so they’re ready to queue right after 1.2.

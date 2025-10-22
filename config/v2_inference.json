@@ -1,0 +1,6 @@
+{
+  "alpha": 0.8,
+  "kl_cap": 0.15,
+  "delta_tau": 1.0,
+  "reason": "No improvement found, using safe defaults"
+}
