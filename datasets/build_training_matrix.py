@@ -128,7 +128,38 @@ def build_training_matrix(output_path: str = 'artifacts/datasets/v2_tabular.parq
     df = pd.read_sql(sql, conn)
     conn.close()
     
-    print(f"   Loaded {len(df)} matches with complete features")
+    print(f"   Loaded {len(df)} matches with market/ELO features")
+    
+    # Load historical features if available
+    hist_features_path = 'artifacts/datasets/historical_features.parquet'
+    if os.path.exists(hist_features_path):
+        print(f"📚 Loading historical features from {hist_features_path}...")
+        hist_df = pd.read_parquet(hist_features_path)
+        print(f"   Loaded {len(hist_df)} matches with {len(hist_df.columns)-1} historical features")
+        
+        # Merge on match_id
+        df_before = len(df)
+        df = df.merge(hist_df, on='match_id', how='left')
+        print(f"   Merged: {df_before} → {len(df)} matches ({len(df.columns)-4} total features)")
+        
+        # Fill any missing historical features with defaults
+        hist_cols = [c for c in hist_df.columns if c != 'match_id']
+        missing_hist = df[hist_cols].isna().sum().sum()
+        if missing_hist > 0:
+            print(f"   ⚠️  Filling {missing_hist} missing historical feature values with defaults")
+            for col in hist_cols:
+                if df[col].isna().any():
+                    if 'win_rate' in col or 'ppg' in col or 'accuracy' in col or 'conversion' in col:
+                        df[col].fillna(0.33 if 'home' in col else 0.25, inplace=True)
+                    elif 'matches' in col or 'wins' in col or 'draws' in col or 'losses' in col:
+                        df[col].fillna(0, inplace=True)
+                    else:
+                        df[col].fillna(df[col].median(), inplace=True)
+    else:
+        print(f"   ⚠️  Historical features not found at {hist_features_path}")
+        print(f"   💡 Run: python jobs/compute_historical_features_fast.py")
+    
+    print(f"   Total features loaded: {len(df.columns) - 4}")
     
     if len(df) == 0:
         print("❌ No training data found!")
