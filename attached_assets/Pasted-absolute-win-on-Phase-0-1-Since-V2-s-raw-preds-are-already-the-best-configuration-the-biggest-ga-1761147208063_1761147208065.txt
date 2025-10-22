@@ -1,0 +1,216 @@
+absolute win on Phase 0 + 1. Since V2’s raw preds are already the best configuration, the biggest gains now come from **better features + a stronger single learner**. Here’s Phase 2 as bite-size build cards you can hand to the agent right now.
+
+---
+
+# Phase 2 — Feature Enrichment + LightGBM
+
+## BUILD CARD 2.1 — Data plumbing (pre-match features, no leakage)
+
+```
+Objective: Create clean, pre-kick feature tables for every match.
+
+Create tables (or views):
+- team_features
+  (match_id, home_team_id, away_team_id,
+   home_elo, away_elo,
+   home_rank, away_rank,
+   home_ppm, away_ppm,
+   home_goal_diff_l5, away_goal_diff_l5,
+   home_form_wdl_l5, away_form_wdl_l5,
+   home_rest_days, away_rest_days,
+   manager_change_home_30d, manager_change_away_30d)
+
+- market_snapshots
+  (match_id, snapshot_ts, book, p_home, p_draw, p_away, source)
+
+- market_features
+  (match_id,
+   p_open_home, p_open_draw, p_open_away,
+   p_last_home, p_last_draw, p_last_away,
+   prob_drift_home, prob_drift_draw, prob_drift_away,
+   book_dispersion, odds_volatility)
+
+Rules:
+- For each match_id, pick **opening** = earliest snapshot_ts; **last** = latest snapshot before kickoff.
+- Compute drift = last − opening; dispersion = stddev across books at last snapshot; volatility = stddev over time (per outcome).
+- Ensure all records satisfy `snapshot_ts < kickoff_at`.
+
+Acceptance:
+- ≥95% coverage across matches; missing values imputed (median or league baseline).
+- Unit test that **every feature row** uses timestamps < kickoff_at.
+```
+
+## BUILD CARD 2.2 — ELO job (rolling strength)
+
+```
+Objective: Maintain rolling home/away ELO with league priors.
+
+Create:
+- jobs/elo_recompute.py
+  - Rebuild ELO daily from historical results.
+  - K-factor: 20 base, +5 for cups/derbies (configurable).
+  - Home advantage term per league.
+
+Persist:
+- elo_ratings(team_id, as_of_date, elo_home, elo_away)
+
+Join into team_features by nearest past as_of_date < kickoff.
+
+Acceptance:
+- Sanity check: league mean ≈ 1500; stdev 50–100.
+- No forward-looking records (as_of_date < kickoff).
+```
+
+## BUILD CARD 2.3 — Dataset builder (single source of truth)
+
+```
+Objective: One clean training matrix with all pre-kick features.
+
+Create:
+- datasets/build_training_matrix.py
+  - Inputs: model_inference_logs (v2 rows), match_results, team_features, market_features
+  - Output parquet/csv: artifacts/datasets/v2_tabular.parquet
+    Columns:
+      y ∈ {H,D,A},
+      base market probs (last),
+      open probs,
+      drift & dispersion,
+      elo & form & rest & manager flags,
+      league, kickoff_date
+
+Acceptance:
+- Row count == #matches with outcomes and pre-kick predictions.
+- No NaNs after deterministic imputation.
+```
+
+## BUILD CARD 2.4 — LightGBM multiclass model
+
+```
+Objective: Upgrade learner from ridge → gradient boosting.
+
+Create:
+- models/lgbm_multiclass.py
+  - params:
+    objective='multiclass', num_class=3,
+    learning_rate=0.05, num_leaves=31,
+    feature_fraction=0.8, min_data_in_leaf=50,
+    lambda_l2=1.0
+
+- training/train_v2_lgbm.py
+  - Temporal CV (e.g., 5 folds, rolling windows).
+  - Fit on features from build_training_matrix.py.
+  - Save model + feature list → artifacts/models/v2_lgbm.bin
+
+- Calibration:
+  - Per-league **temperature scaling** after LGBM fit (fallback to global).
+  - Save T values → artifacts/calibration/v2_lgbm_temps.json
+
+Acceptance (paired vs current V2 on identical matches):
+- LogLoss ↓ (primary), Brier ≤, Hit ≥
+- ECE_global ≤ 0.03; no major league > 0.05
+```
+
+## BUILD CARD 2.5 — Inference wiring + A/B eval
+
+```
+Objective: Serve LGBM as V2.1 behind a flag and compare against V2.
+
+Create:
+- config/model_registry.json
+  { "v2_current": "ridge", "v2_candidate": "lgbm", "enable_candidate_shadow": true }
+
+- inference/predict_v2.py
+  - If shadow enabled, compute both ridge & lgbm; log both to model_inference_logs (candidate flagged).
+
+- /metrics/evaluation
+  - Add compare=v2_ridge,v2_lgbm to return paired deltas + McNemar + bootstrap CIs.
+
+Acceptance:
+- Shadow logs show both preds for same matches.
+- Endpoint reports paired stats with CIs.
+```
+
+## BUILD CARD 2.6 — Draw-aware guard (small nudge, gated)
+
+```
+Objective: Improve draw placement in high-entropy fixtures.
+
+Create:
+- models/postprocess/draw_nudge.py
+  - if entropy(market_last) ≥ H_thr and |ph−pa| ≤ Δ_thr:
+        pd ← pd + λ*(league_draw_rate − pd); renormalize.
+
+Config per league:
+- defaults: H_thr=1.08, Δ_thr=0.06, λ=0.2
+
+Acceptance:
+- Draw-bin reliability gap ↓; overall LogLoss not worse.
+- Apply **only** to candidate model until validated.
+```
+
+---
+
+# Ops: exact prompts/commands for the agent
+
+1. **Data + features**
+
+```
+Run jobs/elo_recompute.py for last 2 seasons.
+Build market_snapshots and market_features with pre-kick snapshots.
+Generate team_features (ELO, form, rest, manager flags).
+```
+
+2. **Dataset & checks**
+
+```
+python datasets/build_training_matrix.py --since 2023-07-01
+# Verify:
+# - No leakage (all feature ts < kickoff)
+# - Coverage ≥95%
+```
+
+3. **Train candidate (LGBM)**
+
+```
+python training/train_v2_lgbm.py --cv temporal5 --save artifacts/models/v2_lgbm.bin
+# Fit per-league temperature, save temps json
+```
+
+4. **Shadow and evaluate**
+
+```
+Set config/model_registry.json: enable_candidate_shadow=true
+Deploy inference
+curl "/metrics/evaluation?window=all&model_version=v2_ridge"
+curl "/metrics/evaluation?window=all&model_version=v2_lgbm"
+curl "/metrics/evaluation?compare=v2_ridge,v2_lgbm&include_calibration=true"
+```
+
+5. **Ship criteria**
+
+* If LGBM passes all acceptance bars (paired deltas, ECE), flip:
+
+  ```
+  "v2_current": "lgbm", "v2_candidate": "ridge", enable_candidate_shadow=false
+  ```
+
+---
+
+# Policy hook (optional now, ready to enable later)
+
+Once LGBM is green: add a config gate for **minimal-consensus** on high-confidence, well-calibrated segments:
+
+```
+policy:
+  bypass_if:
+    max_p >= 0.62
+    ece_league <= 0.05
+    (optional when available) EV > 0 vs no-vig close & historical CLV >= 0
+  minimal_if:
+    0.54 <= max_p < 0.62
+  else: full_consensus
+```
+
+---
+
+Want me to generate the **exact file stubs** for 2.1–2.4 (scripts, param blocks, and minimal tests) so your agent can just fill in the SQL joins and training loop?
