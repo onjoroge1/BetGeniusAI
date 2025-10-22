@@ -1,0 +1,112 @@
+Absolutely—let’s lock in a clean, practical plan to (a) finish backfilling with proper CLOSE, (b) productionize EV/CLV, and (c) use it to guide policy and the Phase-2 model work.
+
+# What to do next (no detours)
+
+## 1) Finish backfilling OPEN/CLOSE (using what you already have)
+
+* **Process all remaining fixtures** with existing snapshots; avoid fabricated times.
+* **CLOSE rule:** the latest snapshot strictly **before kickoff_at**. If multiple books: take the **median** of no-vig probs per outcome.
+* **OPEN rule:** earliest valid snapshot before kickoff_at (median across books).
+* **When only one snapshot exists:** still compute, but tag `has_open=false` or `has_close=false` so metrics can filter with `?has_close=true`.
+
+### Make the job resilient
+
+* **Chunk by date** (e.g., 3–5 day windows) to avoid timeouts.
+* **Indexes:** ensure `(match_id, snapshot_ts)` on `odds_snapshots` (sounds like you already have it) and `(match_id)` on `market_features`.
+* **Idempotent upserts:** safe to re-run with `--force`.
+
+## 2) Productionize EV/CLV
+
+You already compute EV/CLV—great. Now add guardrails + QA:
+
+* **Normalization check:** 100% of open/close triplets must sum to 1.000±0.001 (no-vig).
+* **Coverage dashboard:** `% with_open`, `% with_close`, books per close, league coverage.
+* **Sanity bounds:** flag if `|drift_k| > 0.15`, or if **CLOSE earlier than OPEN** (clock skew).
+* **Latency tags:** `secs_to_kickoff` for CLOSE (smaller is better; outliers flagged).
+
+## 3) Make metrics tell a *story* (less noise than W/L)
+
+Extend `/metrics/evaluation` (if not already) to show:
+
+* **EV deciles** → realized hit% curve (EV↑ → hit%↑ is what we want).
+* **EV>0 rate** by league/time-to-kick buckets.
+* **CLV distribution** (mean, median, p75, p90).
+* **Stability over time:** 7-day rolling mean of EV and EV>0%.
+
+(You already saw **EV_mean ≈ +1.65%** and **EV>0 ≈ 72.4%**—that’s a strong early signal. Keep watching that on rolling windows.)
+
+## 4) Use EV/CLV in decisions (now)
+
+Until LGBM is trained on a bigger set, use EV to cheaply reduce consensus:
+
+* **Bypass consensus** if:
+
+  * `max_p ≥ 0.62` (league-specific threshold OK),
+  * **AND** `EV_close > 0`,
+  * **AND** ECE for that league ≤ 0.05.
+* **Minimal consensus** if:
+
+  * `0.54 ≤ max_p < 0.62` or `EV_close ≈ 0`.
+* **Full consensus/abstain** otherwise, or if `has_close=false`.
+
+Keep per-league thresholds in config so you can tune quickly.
+
+## 5) Data growth plan (so Phase-2 can proceed)
+
+Short-term (this week):
+
+* Re-run market_features for **all 900+ fixtures** you already have snapshots for (chunked).
+* Rebuild the training matrix. Expect ~**300–600** samples—enough to dry-run LGBM (“market-only” features) and prove the pipeline.
+
+Medium-term (next 2–4 weeks):
+
+* **Forward collection**: keep ingesting snapshots daily; CLOSE at T−1m (or last available).
+* Aim for **≥1,000** labeled matches across **10+ leagues** with both OPEN & CLOSE → then train the **full** LGBM (with ELO/form).
+
+If you later add a provider with authenticated **historical timestamped odds**, we can backfill 12–18 months. Until then, don’t fabricate times; your EV/CLV must stay trustworthy.
+
+## 6) Pitfalls to avoid
+
+* **Survivorship bias:** don’t drop matches just because a book didn’t quote; keep them but set `low_liquidity=true`.
+* **League mixing:** monitor EV/CLV by league—if a few leagues dominate, you may overestimate global edge.
+* **Clock issues:** ensure DB and provider timestamps are in UTC; CLOSE must be `< kickoff_at`.
+
+## 7) Clear success targets
+
+* **Data coverage:** `has_close` on **≥70%** of evaluated matches.
+* **Quality:** no-vig sum within ±0.001 for **100%** snapshots.
+* **EV signal:** EV>0 rate **≥60%** (sustained on rolling windows) and monotonic EV-decile→hit% curve.
+* **Calibration:** ECE global ≤ 0.03; per-league ≤ 0.05.
+
+---
+
+### Tiny helpers (drop-in)
+
+**No-vig transform (proportional)**
+
+```python
+def novig_from_decimal(odds):
+    # odds: [oH, oD, oA]
+    q = [1.0/max(1e-9,o) for o in odds]
+    R = sum(q)
+    return [x/R for x in q]
+```
+
+**EV/CLV per pick**
+
+```python
+def ev_and_clv(p_model, p_open, p_close, pick_idx):
+    ev_close = p_model[pick_idx] - p_close[pick_idx]
+    clv_prob = p_close[pick_idx] - p_open[pick_idx]
+    return ev_close, clv_prob
+```
+
+---
+
+## TL;DR
+
+* Yes—**finish backfilling with proper CLOSE** (real last pre-kick snapshot), compute **no-vig OPEN/CLOSE**, and log **EV_close** & **CLV** per pick.
+* Use EV/CLV immediately to guide **consensus policy** and to monitor real edge.
+* Grow data via **forward collection** and re-run market_features in chunks; once you have ≥1k matches across 10+ leagues, resume LightGBM (Phase-2 2.4–2.6).
+
+If you want, I can hand you a one-file **backfill runner** that chunks by date, writes market_features, and updates EV/CLV in batches so you can just run it on cron.
