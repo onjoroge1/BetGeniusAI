@@ -1,0 +1,133 @@
+heck yes — you’re ready to run the **first LightGBM dry run**. Here’s a tight, do-now plan that gets you signal without risking production.
+
+# What we’ll run (two quick experiments)
+
+1. **LGBM_market_only** — only market features (open/close, drift, dispersion, volatility).
+2. **LGBM_full** — market features + team ELO/form (but ELO looks flat; we’ll compare with and without it).
+
+Given 462 samples across 29 leagues, expect a *small*, noisy lift. This is a pipeline validation, not a production promotion.
+
+---
+
+# Step 0 — Freeze today’s dataset
+
+```bash
+cp artifacts/datasets/v2_tabular.parquet artifacts/datasets/v2_tabular_$(date +%F).parquet
+```
+
+---
+
+# Step 1 — Train LGBM (market-only first)
+
+In `training/train_v2_lgbm.py`, set:
+
+```python
+FEATS = [
+ "p_last_home","p_last_draw","p_last_away",
+ "p_open_home","p_open_draw","p_open_away",
+ "prob_drift_home","prob_drift_draw","prob_drift_away",
+ "book_dispersion","odds_volatility"
+]
+PARAMS = {
+ "objective": "multiclass", "num_class": 3,
+ "learning_rate": 0.05, "num_leaves": 31,
+ "feature_fraction": 0.8, "min_data_in_leaf": 40,
+ "lambda_l2": 2.0, "metric": "multi_logloss"
+}
+```
+
+Then:
+
+```bash
+python training/train_v2_lgbm.py
+```
+
+Record the **OOF multi_logloss** it prints.
+
+Now switch to **LGBM_full** by adding ELO/form/rest cols back into `FEATS` and re-run. If ELO stays nearly constant, expect little/no lift; that’s fine—this tells us to deprioritize ELO until we widen its variance window.
+
+---
+
+# Step 2 — Pair against current V2 ridge on the same 462
+
+Use your evaluation endpoint or a small scorer to:
+
+* Score the 462 with V2 ridge (you already have preds logged).
+* Score the 462 with the LGBM model you just trained.
+* Compute **paired deltas**:
+
+  * LogLoss (primary), Brier, Hit.
+  * EV/CLV deltas: mean EV_close (pick), EV>0% (pick).
+
+**Acceptance for a “pipeline pass” (not promotion):**
+
+* LGBM_market_only **LogLoss ≤** ridge by at least **0.005** (paired).
+* Brier ≤, Hit ≥ (ties OK given n=462).
+* EV_close mean **≥** ridge; EV>0% **≥** ridge.
+
+---
+
+# Step 3 — Shadow log (don’t serve yet)
+
+If Step 2 looks decent, enable shadow:
+
+```json
+// config/model_registry.json
+{ "v2_current": "ridge", "v2_candidate": "lgbm", "enable_candidate_shadow": true }
+```
+
+Deploy. This will log both preds for live matches without affecting decisions.
+
+---
+
+# Step 4 — Read the tea leaves (what “good” looks like)
+
+With n=462:
+
+* Expected **LogLoss** change: **-0.005 to -0.02** (market-only).
+* **Hit**: ±1–2 pts swing (noisy).
+* **EV_close mean**: small positive delta vs ridge (even **+0.003 to +0.010** is a W).
+* EV deciles: monotone-ish increase in realized hit% as EV decile rises.
+
+If LGBM_full ≈ LGBM_market_only, ELO isn’t helping yet (as suspected). We’ll fix ELO later (see “ELO quick fix” below).
+
+---
+
+# Step 5 — Use EV/CLV now (policy, optional)
+
+You can already tighten consensus:
+
+* **Bypass** if `max_p ≥ 0.62` **and** `EV_close > 0` **and** league ECE ≤ 0.05.
+* **Minimal** if `0.54 ≤ max_p < 0.62` or `EV_close ≈ 0`.
+* **Full** otherwise or `has_close=false`.
+
+This is cheap to ship and reduces calls while CLV/EV keeps you honest.
+
+---
+
+## ELO quick fix (don’t block the dry run)
+
+Your ELO variance is ~±5—too tight. Queue these changes, but don’t wait on them today:
+
+* **Rebuild from a longer horizon** (≥2 seasons), not just Sept–Oct 2025.
+* **Per-league home advantage** and **K-factor ~20–30**.
+* Use **single team rating** (plus a home-adv term) instead of separate home/away ratings at first; split later if variance improves.
+* Confirm the loop uses **FT 90’** results only and strictly chronological updates.
+
+Until then, keep ELO out of FEATS for production decisions; it may add noise.
+
+---
+
+## Exactly what to send me after the run
+
+* OOF multi_logloss for:
+
+  * LGBM_market_only
+  * LGBM_full
+* Paired metrics vs ridge on the 462 set:
+
+  * Δ LogLoss, Δ Brier, Δ Hit
+  * EV_close mean (pick), EV>0% (pick)
+* A quick EV-decile→hit% table (5 or 10 bins)
+
+I’ll read those and tell you whether to keep shadow on, tweak params, or hold for more data.

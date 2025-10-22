@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-10-22T20:40:34.249553",
+  "dataset": {
+    "path": "artifacts/datasets/v2_tabular.parquet",
+    "n_samples": 462,
+    "n_leagues": 29,
+    "date_range": [
+      "2025-09-21",
+      "2025-10-22"
+    ]
+  },
+  "market_only": {
+    "oof_logloss": 1.2888195274464316,
+    "oof_brier": 0.26584013053708305,
+    "oof_accuracy": 0.24891774891774893
+  },
+  "full": {
+    "oof_logloss": 3.497089585972715,
+    "oof_brier": 0.4638227842656131,
+    "oof_accuracy": 0.23376623376623376
+  }
+}
