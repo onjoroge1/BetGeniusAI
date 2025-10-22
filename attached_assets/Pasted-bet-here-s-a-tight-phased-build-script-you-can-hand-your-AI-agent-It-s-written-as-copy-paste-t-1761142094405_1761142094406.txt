@@ -1,0 +1,256 @@
+bet — here’s a tight, phased “build script” you can hand your AI agent. It’s written as copy-paste task cards the agent can execute in order. Start with Phase 0 + Phase 1 this sprint; Phase 2 is queued next.
+
+---
+
+# Phase 0 — Baseline Hygiene (do first)
+
+**BUILD CARD 0.1 — Normalize V1 on read + block time-leak**
+
+```
+Objective: Make metrics airtight.
+
+Create/Update:
+- services/metrics/utils.py:
+  - def normalize_triplet(p_home, p_draw, p_away) -> (ph,pd,pa):
+      s = max(1e-9, p_home + p_draw + p_away); return (p_home/s, p_draw/s, p_away/s)
+
+- services/metrics/evaluator.py:
+  - When loading rows for ANY model_version:
+      (p_home, p_draw, p_away) = normalize_triplet(...)
+  - Filter eval set: scored_at < kickoff_time (LEFT JOIN fixtures)
+  - Add 'filtered_out_reason' counters (post_kickoff, missing_kickoff).
+
+Outputs:
+- /metrics/evaluation now reports: total_evaluated, dropped_post_kick, dropped_missing_kick.
+- Unit test: tests/metrics/test_normalization.py (V1 sums 1.18 → 1.0).
+
+Acceptance:
+- V1/V2 prob sums ∈ [0.999, 1.001] for 100% rows.
+- post-kickoff rows excluded in results.
+```
+
+**BUILD CARD 0.2 — Add ECE + Reliability Curves**
+
+```
+Objective: Calibration visibility.
+
+Create:
+- services/metrics/calibration.py:
+  - def ece_multiclass(y_true, P, n_bins=10) -> float
+  - def reliability_table(y_true, P, n_bins=10) -> List[{bin, avg_max_p, true_freq, count}]
+
+Wire:
+- services/metrics/evaluator.py: compute ECE global + per league.
+
+Outputs:
+- Extend /metrics/evaluation JSON:
+  { "ece_global": 0.0x, "ece_by_league": [{"league":"EPL","ece":...}, ...],
+    "reliability": [{"bin":"0.0-0.1","avg_max_p":..,"true_freq":..,"n":..}, ...] }
+
+Acceptance:
+- Endpoint returns ECE + reliability without perf regressions.
+```
+
+---
+
+# Phase 1 — Stepwise V2 Core (this sprint)
+
+**BUILD CARD 1.1 — Multiclass Temperature Scaling Module**
+
+```
+Objective: Fix over/under-confidence without changing rankings.
+
+Create:
+- models/calibration/temp_scaler.py (PyTorch or NumPy)
+  - class TempScaler:
+      fit(logits, y) -> learns scalar T (per-global)
+      predict_proba(logits) -> softmax(logits / T)
+
+Storage:
+- Save learned T per "cohort": global + per-league (optional).
+  - table: model_calibration (model_version, cohort_key, T, fitted_at)
+
+Wire:
+- prediction_service for V2: apply TempScaler at inference if cohort T exists.
+
+Outputs:
+- CLI: python tools/fit_temp_scaler.py --model v2 --window 90d --by-league
+- Writes T(s) and logs pre/post ECE & log-loss deltas.
+
+Acceptance:
+- On last 241 matches (paired set), log-loss ↓, ECE ↓ or stable; hit% unchanged or ↑.
+```
+
+**BUILD CARD 1.2 — Blend/Constraint Sweep (α, KL, τ)**
+
+```
+Objective: Stop over-dispersion; find better confidence.
+
+Create:
+- experiments/v2_blend_sweep.py
+  - Grid:
+    alpha ∈ {0.5, 0.6, 0.7, 0.8}
+    kl_cap ∈ {0.15, 0.20, 0.25}
+    delta_tau ∈ {0.75, 1.0}
+  - For each config:
+    - re-score validation slice (recent 60-90d),
+    - apply TempScaler(T_global),
+    - compute: log-loss, Brier, hit, ECE, avg_max_p, by-league slices.
+
+Outputs:
+- artifacts/sweeps/v2_blend_sweep.json (sorted by log-loss).
+
+Acceptance:
+- Best config beats current V2 log-loss (paired); Brier ≤ current; ECE green (≤0.03 global).
+- Persist chosen config in CONFIG: config/v2_inference.json.
+```
+
+**BUILD CARD 1.3 — Draw-Aware Prior (optional but small win)**
+
+```
+Objective: Place more realistic mass on draws when teams are even.
+
+Create:
+- models/postprocess/draw_prior.py
+  - if entropy(P_market) ≥ H_thr and |ph - pa| ≤ Δ_thr:
+      p_draw ← p_draw + λ * (target_draw_rate_league - p_draw)
+  - renormalize.
+
+Params (configurable per league): H_thr, Δ_thr, λ ∈ [0.1, 0.3].
+
+Wire:
+- V2 postprocess pipeline before temperature scaling.
+
+Acceptance:
+- Slight ↑ in draw calibration (bin-level), overall log-loss ≤ previous step.
+```
+
+**BUILD CARD 1.4 — Paired Significance Tests**
+
+```
+Objective: Prove gains aren’t vibes.
+
+Create:
+- tools/paired_tests.py
+  - McNemar(V1_vs_V2_hits), bootstrap deltas for log-loss & Brier with 10k resamples.
+- /metrics/evaluation?compare=v1,v2 adds: { "mcnemar_p":..., "delta_logloss_CI": [l,u] }
+
+Acceptance:
+- Script runs locally; endpoint surfaces results for the last evaluated window.
+```
+
+---
+
+# Phase 2 — Features + Stronger Single Learner (queue next)
+
+**BUILD CARD 2.1 — Quick Feature Adds**
+
+```
+Objective: Add cheap, high-signal pre-match features.
+
+Create:
+- features/team_strength.py:
+  - rolling ELO (home/away), league rank, points_per_match, rolling goal_diff (L5/L10)
+- features/form_context.py:
+  - last5 W/D/L, rest_days, manager_change_30d, travel_proxy (country/region mismatch)
+- features/market_micro.py:
+  - open_prob, last_prob_pre_kick, prob_drift, bookmaker_stddev, odds_volatility
+
+Data:
+- migrations if needed:
+  - team_features (match_id, home_elo, away_elo, ...),
+  - market_snapshots (match_id, ts, book, p_home, p_draw, p_away).
+
+Wire:
+- training dataset builder to join these features (pre-kick snapshot only).
+
+Acceptance:
+- No leakage; ≥ 95% feature coverage across leagues; nulls imputed deterministically.
+```
+
+**BUILD CARD 2.2 — LightGBM Multiclass Prototype**
+
+```
+Objective: Replace ridge with a stronger single learner.
+
+Create:
+- models/lgbm_multiclass.py
+  - params: objective=multiclass, num_class=3, learning_rate=0.05,
+            num_leaves=31, feature_fraction=0.8, min_data_in_leaf=50
+- training/train_v2_lgbm.py
+  - temporal split CV; save model + feature list.
+- calibration: apply TempScaler (global + per-league) post-train.
+
+Outputs:
+- artifacts/models/v2_lgbm.bin, artifacts/calibration/T.json
+- eval report vs V1 & current V2 on identical sets.
+
+Acceptance:
+- Beats current V2 on log-loss/Brier (paired); ECE in range; no regressions by league.
+```
+
+**BUILD CARD 2.3 — Per-League Temperature**
+
+```
+Objective: Fix league-specific draw regimes.
+
+Create:
+- extend TempScaler to store per-league T; fallback to global T.
+- config/thresholds/by_league.json for τ_high (autonomy policy later).
+
+Acceptance:
+- ECE per-league ≤ 0.05, global ≤ 0.03.
+```
+
+---
+
+## EXACT PROMPT TO GIVE THE AGENT
+
+Copy-paste this, then let it run the cards in order:
+
+```
+You are SnapBet DevOps+ML Agent.
+
+Goal (Sprint): Implement Phase 0 and Phase 1 for V2 improvement and metrics hygiene, WITHOUT changing V1 logic except defensive normalization on read. Produce PRs per Build Card with tests and updated docs.
+
+Scope:
+- Implement BUILD CARD 0.1, 0.2, 1.1, 1.2, 1.4. (1.3 is optional; park unless trivial.)
+- Provide CLI tools to fit temperature scaling and to run the blend sweep.
+- Update /metrics/evaluation to include: ECE (global, per-league), reliability table, paired V1 vs V2 stats, and leak filters.
+
+Deliverables:
+1) Code:
+   - services/metrics/utils.py, evaluator.py, calibration.py
+   - models/calibration/temp_scaler.py
+   - experiments/v2_blend_sweep.py
+   - tools/fit_temp_scaler.py, tools/paired_tests.py
+2) Config:
+   - config/v2_inference.json (chosen alpha, kl_cap, tau, enable_temp_scaling=true)
+3) Artifacts:
+   - artifacts/sweeps/v2_blend_sweep.json
+   - artifacts/calibration/T_global.json (and per-league if enabled)
+4) Tests:
+   - tests/metrics/test_normalization.py
+   - tests/metrics/test_calibration.py
+5) Docs:
+   - docs/METRICS.md updated with ECE, reliability, and comparison semantics.
+
+Acceptance Criteria:
+- Probabilities normalized on read for ALL models.
+- No post-kick rows in evaluation; dropped counters visible.
+- ECE & reliability returned by the endpoint.
+- Temperature scaling reduces V2 log-loss on the last 241 paired matches.
+- Blend sweep outputs a config that beats current V2 on log-loss (paired) while Brier ≤ baseline, ECE green.
+- Paired tests (McNemar + bootstrap) included in endpoint response.
+
+Runbook (after merge):
+- Fit temp scaler: `python tools/fit_temp_scaler.py --model v2 --window 90d --by-league`
+- Sweep blends: `python experiments/v2_blend_sweep.py --window 60d --save artifacts/sweeps/v2_blend_sweep.json`
+- Set best config in config/v2_inference.json and redeploy.
+```
+
+---
+
+## After Phase 1 ships
+
+Ping me the new `/metrics/evaluation` JSON (with ECE/reliability + paired stats). Then I’ll hand you Phase 2 cards (features + LightGBM) tuned to whatever gaps still show (likely draw bins and certain leagues).
