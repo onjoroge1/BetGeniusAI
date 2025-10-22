@@ -1,0 +1,171 @@
+Short answer: **yes**—start backfilling now, and **include closing odds** so we can compute CLV/EV. That unlocks better model evaluation (less noisy than hit rate), safer “bypass consensus” gates, and clearer optimization feedback loops.
+
+Here’s a crisp plan you can hand to the agent.
+
+# What to backfill (priority order)
+
+1. **Results (FT 90’ only):** outcomes for the past **12–18 months** across 10+ leagues.
+2. **Odds snapshots:** for each match/outcome/bookmaker
+
+   * **Opening** snapshot (first pre-kick)
+   * **Pre-kick “closing”** snapshot (last pre-kick, e.g., ≤ T–1 min)
+   * (Optional later) multiple intraday snapshots for volatility
+3. **Fixtures metadata:** kickoff_at, league, teams (already present).
+
+# How we’ll compute CLV & EV
+
+* **No-vig implied probs** per snapshot:
+
+  * Convert decimal odds → implied probs; remove overround via **proportional normalization** (simple, robust).
+  * Store both raw and no-vig.
+* **Closing line (per outcome):** use **median across books** at the last valid pre-kick snapshot.
+* **Model EV (close):** `EV_close = p_model(outcome) − p_close_novig(outcome)`.
+* **CLV (probability form):**
+
+  * **Outcome-level:** `CLV_prob = p_close_novig(outcome) − p_open_novig(outcome)`.
+  * **Pick-level:** only for the model’s chosen outcome; same formula but logged on the selected side.
+* **CLV (price form, optional):** If we store decimal odds: `CLV_price = 1/odds_close − 1/odds_open` (or % change in fair price).
+
+# Minimal schemas (paste-ready)
+
+## odds snapshots (raw ingest)
+
+```sql
+CREATE TABLE IF NOT EXISTS odds_snapshots (
+  match_id BIGINT NOT NULL,
+  snapshot_ts TIMESTAMP NOT NULL,
+  bookmaker TEXT NOT NULL,
+  otype TEXT NOT NULL CHECK (otype IN ('open','update','close_guess')),
+  odds_home NUMERIC NOT NULL,
+  odds_draw NUMERIC NOT NULL,
+  odds_away NUMERIC NOT NULL,
+  PRIMARY KEY (match_id, snapshot_ts, bookmaker)
+);
+CREATE INDEX IF NOT EXISTS idx_odds_snapshots_m_ts ON odds_snapshots(match_id, snapshot_ts);
+```
+
+## engineered market features (with close + no-vig)
+
+```sql
+CREATE TABLE IF NOT EXISTS market_features (
+  match_id BIGINT PRIMARY KEY,
+  -- opening no-vig probs
+  p_open_h NUMERIC, p_open_d NUMERIC, p_open_a NUMERIC,
+  -- last pre-kick no-vig probs (our "closing")
+  p_close_h NUMERIC, p_close_d NUMERIC, p_close_a NUMERIC,
+  -- drifts (close - open)
+  drift_h NUMERIC, drift_d NUMERIC, drift_a NUMERIC,
+  -- microstructure
+  book_dispersion_close NUMERIC,
+  odds_volatility NUMERIC,
+  feature_ts TIMESTAMP NOT NULL
+);
+```
+
+## per-prediction CLV/EV (joins to your model logs)
+
+```sql
+ALTER TABLE model_inference_logs
+ADD COLUMN IF NOT EXISTS ev_close NUMERIC,
+ADD COLUMN IF NOT EXISTS clv_prob NUMERIC,
+ADD COLUMN IF NOT EXISTS close_ts TIMESTAMP;
+```
+
+# Ingestion & feature job (rules the agent should apply)
+
+* **Select opening:** earliest `snapshot_ts < kickoff_at` with ≥1 bookmaker.
+* **Select closing:** latest `snapshot_ts < kickoff_at`. If last snapshot is >10 minutes before kickoff and there’s a later one within 60 minutes labeled suspended/hidden, still use the latest valid pre-kick.
+* **Bookmaker aggregation:** median **no-vig** probability across books at each chosen snapshot (robust vs outliers).
+* **No-vig transform (proportional):**
+
+  * Raw implied: `q_k = 1/odds_k`.
+  * Overround: `R = Σ q_k`.
+  * No-vig: `p_k = q_k / R`.
+* **Volatility:** stddev of no-vig probs across time (within pre-kick snapshots).
+* **Dispersion:** stddev across bookmakers at close.
+
+# Computation hooks (what to add to the pipeline)
+
+**Market features job (update):**
+
+* Build `p_open_*` and `p_close_*` via median across books.
+* Compute `drift_* = p_close_* − p_open_*`.
+* Write `book_dispersion_close` (stddev across books at close) and `odds_volatility`.
+
+**EV/CLV writer (new small job):**
+
+* Join `model_inference_logs` ↔ `market_features` on `match_id`.
+* For the model’s chosen outcome `ŷ`:
+
+  * `ev_close = p_model(ŷ) − p_close(ŷ)`
+  * `clv_prob = p_close(ŷ) − p_open(ŷ)`
+* Save to `model_inference_logs` columns above.
+
+# Endpoint upgrades (quick)
+
+* `/metrics/evaluation` add:
+
+  * `"ev_close_mean"`, `"ev_close_p50"`, `"ev_close_by_league"`.
+  * `"clv_prob_mean"`, `"clv_hit_correlation"` (does better CLV correlate with wins?).
+  * Filter: `?has_close=true` to restrict to matches with valid close.
+* Optional: `/metrics/clv-breakdown?window=90d` with histograms/deciles.
+
+# Quality gates (so we trust the data)
+
+* **Snapshot validity:** 100% of open/close snapshots must have `snapshot_ts < kickoff_at`.
+* **Normalization:** 100% snapshots should have `p_home + p_draw + p_away` in `[0.999, 1.001]` after no-vig.
+* **Coverage:** Aim ≥70% of evaluated matches with **both** open & close.
+* **Book diversity:** at least 3 books at close for top leagues; otherwise flag `low_liquidity=true`.
+* **Reasonable drifts:** |drift| rarely > 0.15; flag outliers for audit.
+
+# What this buys us immediately
+
+* **Lower-noise model evaluation:** CLV/EV changes less with coin-flip outcomes; we can detect real signal faster.
+* **Safer autonomy policy:** Only bypass consensus when `(max_p ≥ τ_high) AND (EV_close > 0) AND (ECE OK)` per league.
+* **Feature power:** Drift/dispersion/volatility become inputs for V2.1 (and usually beat plain opening odds).
+
+# Copy-paste task cards for the agent
+
+**TASK A — Backfill open/close odds (12–18 months, 10+ leagues)**
+
+```
+Ingest odds_snapshots for each fixture with snapshot_ts < kickoff_at.
+Normalize each snapshot to no-vig probs.
+Mark the earliest pre-kick as OPEN; latest pre-kick as CLOSE per match/book.
+```
+
+**TASK B — Build market_features with close + drift**
+
+```
+For each match_id:
+  Aggregate across books with median(no-vig) at OPEN and CLOSE.
+  Compute drift_* = close - open, book_dispersion_close, odds_volatility.
+Upsert into market_features (feature_ts = close_ts).
+```
+
+**TASK C — Compute EV/CLV for model predictions**
+
+```
+Join model_inference_logs to market_features.
+For the chosen outcome y_hat:
+  ev_close = p_model(y_hat) - p_close(y_hat)
+  clv_prob = p_close(y_hat) - p_open(y_hat)
+Persist on model_inference_logs.
+```
+
+**TASK D — Extend /metrics/evaluation**
+
+```
+Return ev_close_mean, clv_prob_mean (global & by league).
+Add ?has_close=true filter.
+Add a small reliability table by EV deciles (EV↑ => realized hit% should ↑).
+```
+
+---
+
+## TL;DR
+
+* **Yes, start backfilling now—and include closing odds.**
+* Compute **no-vig OPEN and CLOSE**, then log **EV_close** and **CLV** per prediction.
+* Upgrade your endpoint to surface EV/CLV so we can judge the model on market efficiency, not just W/L noise.
+* Once coverage ≥70% with close, we proceed to LightGBM training and use drift/dispersion/volatility as core features.

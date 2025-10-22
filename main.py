@@ -3678,6 +3678,28 @@ def _interpret_temp_results(temp: float, before: dict, after: dict) -> str:
     else:
         return f"❌ SKIP: T={temp:.2f} degrades metrics, keep original predictions"
 
+def _interpret_ev(mean_ev: float, pos_ev_rate: float) -> str:
+    """Interpret Expected Value metrics"""
+    if mean_ev > 0.02 and pos_ev_rate > 0.55:
+        return f"✅ STRONG EDGE: Avg EV={mean_ev:.4f}, {100*pos_ev_rate:.1f}% positive EV"
+    elif mean_ev > 0.01 and pos_ev_rate > 0.52:
+        return f"✅ EDGE: Avg EV={mean_ev:.4f}, beating closing line"
+    elif abs(mean_ev) < 0.005:
+        return f"⚪ NEUTRAL: Avg EV≈0, model tracking market efficiently"
+    else:
+        return f"❌ NEGATIVE EV: Avg EV={mean_ev:.4f}, worse than closing line"
+
+def _interpret_clv(mean_clv: float, pos_clv_rate: float) -> str:
+    """Interpret Closing Line Value metrics"""
+    if mean_clv > 0.01 and pos_clv_rate > 0.55:
+        return f"✅ BEATING CLOSE: Avg CLV={mean_clv:.4f}, {100*pos_clv_rate:.1f}% positive CLV"
+    elif mean_clv > 0.005:
+        return f"✅ SLIGHT EDGE: Avg CLV={mean_clv:.4f}, picks moving in our favor"
+    elif abs(mean_clv) < 0.005:
+        return f"⚪ NEUTRAL: Avg CLV≈0, tracking market movement"
+    else:
+        return f"⚠️ CHASING STEAM: Avg CLV={mean_clv:.4f}, picks moving against us"
+
 @app.get("/metrics/evaluation")
 async def get_enhanced_evaluation(
     league: Optional[str] = Query(None, description="Filter by league name"),
@@ -3895,11 +3917,101 @@ async def get_enhanced_evaluation(
                 "message": f"Need at least 20 samples for calibration (have {total_matches})"
             }
         
-        # CLV analysis placeholder (no closing odds yet)
-        response["clv_analysis"] = {
-            "status": "no_closing_odds",
-            "message": "No closing odds available yet for CLV analysis"
-        }
+        # EV & CLV analysis (if available)
+        if include_clv:
+            try:
+                ev_clv_sql = f"""
+                    SELECT 
+                        COUNT(*) as total,
+                        AVG(mil.ev_close_pick) as avg_ev,
+                        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY mil.ev_close_pick) as median_ev,
+                        AVG(mil.clv_prob_pick) as avg_clv,
+                        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY mil.clv_prob_pick) as median_clv,
+                        SUM(CASE WHEN mil.ev_close_pick > 0 THEN 1 ELSE 0 END) as positive_ev_count,
+                        SUM(CASE WHEN mil.clv_prob_pick > 0 THEN 1 ELSE 0 END) as positive_clv_count,
+                        CORR(CASE WHEN mr.outcome = mil.pick_outcome THEN 1.0 ELSE 0.0 END, mil.ev_close_pick) as ev_hit_correlation,
+                        CORR(CASE WHEN mr.outcome = mil.pick_outcome THEN 1.0 ELSE 0.0 END, mil.clv_prob_pick) as clv_hit_correlation
+                    FROM model_inference_logs mil
+                    INNER JOIN match_results mr ON mil.match_id = mr.match_id
+                    LEFT JOIN fixtures f ON mil.match_id = f.match_id
+                    WHERE {where_sql}
+                      AND mil.ev_close_pick IS NOT NULL
+                      AND mil.clv_prob_pick IS NOT NULL
+                """
+                
+                cursor.execute(ev_clv_sql, params)
+                ev_clv_stats = cursor.fetchone()
+                
+                if ev_clv_stats and ev_clv_stats[0] > 0:
+                    (total_with_close, avg_ev, median_ev, avg_clv, median_clv,
+                     pos_ev_count, pos_clv_count, ev_corr, clv_corr) = ev_clv_stats
+                    
+                    # EV/CLV by league breakdown (if not filtering by league)
+                    ev_by_league = []
+                    if not league and total_with_close >= 50:
+                        league_sql = f"""
+                            SELECT 
+                                COALESCE(f.league_name, 'Unknown') as league,
+                                COUNT(*) as n,
+                                AVG(mil.ev_close_pick) as avg_ev,
+                                AVG(mil.clv_prob_pick) as avg_clv,
+                                SUM(CASE WHEN mil.ev_close_pick > 0 THEN 1 ELSE 0 END) as pos_ev
+                            FROM model_inference_logs mil
+                            INNER JOIN match_results mr ON mil.match_id = mr.match_id
+                            LEFT JOIN fixtures f ON mil.match_id = f.match_id
+                            WHERE {where_sql}
+                              AND mil.ev_close_pick IS NOT NULL
+                            GROUP BY COALESCE(f.league_name, 'Unknown')
+                            HAVING COUNT(*) >= 10
+                            ORDER BY AVG(mil.ev_close_pick) DESC
+                        """
+                        cursor.execute(league_sql, params)
+                        for lrow in cursor.fetchall():
+                            ev_by_league.append({
+                                "league": lrow[0],
+                                "sample_size": lrow[1],
+                                "avg_ev": round(float(lrow[2]), 4),
+                                "avg_clv": round(float(lrow[3]), 4),
+                                "positive_ev_rate": round(float(lrow[4]) / lrow[1], 4)
+                            })
+                    
+                    response["clv_analysis"] = {
+                        "status": "available",
+                        "coverage": f"{total_with_close}/{total_matches} ({100*total_with_close/total_matches:.1f}%)",
+                        "expected_value": {
+                            "mean": round(float(avg_ev), 4),
+                            "median": round(float(median_ev), 4),
+                            "positive_ev_rate": round(float(pos_ev_count) / total_with_close, 4),
+                            "interpretation": _interpret_ev(float(avg_ev), float(pos_ev_count) / total_with_close)
+                        },
+                        "closing_line_value": {
+                            "mean": round(float(avg_clv), 4),
+                            "median": round(float(median_clv), 4),
+                            "positive_clv_rate": round(float(pos_clv_count) / total_with_close, 4),
+                            "interpretation": _interpret_clv(float(avg_clv), float(pos_clv_count) / total_with_close)
+                        },
+                        "correlations": {
+                            "ev_vs_hit_rate": round(float(ev_corr), 4) if ev_corr is not None else None,
+                            "clv_vs_hit_rate": round(float(clv_corr), 4) if clv_corr is not None else None
+                        },
+                        "by_league": ev_by_league[:10] if ev_by_league else []
+                    }
+                else:
+                    response["clv_analysis"] = {
+                        "status": "no_data",
+                        "message": "No predictions have EV/CLV computed yet. Run jobs/compute_ev_clv.py"
+                    }
+            except Exception as e:
+                logger.warning(f"EV/CLV analysis failed: {e}")
+                response["clv_analysis"] = {
+                    "status": "error",
+                    "message": f"EV/CLV metrics unavailable: {str(e)}"
+                }
+        else:
+            response["clv_analysis"] = {
+                "status": "disabled",
+                "message": "Set include_clv=true to see EV/CLV analysis"
+            }
         
         cursor.close()
         conn.close()
