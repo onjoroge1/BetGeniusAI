@@ -3404,6 +3404,280 @@ async def compute_all_metrics(
         logger.error(f"Error computing metrics: {e}")
         raise HTTPException(status_code=500, detail=f"Error computing metrics: {str(e)}")
 
+@app.get("/metrics/temperature-scaling")
+async def temperature_scaling_lodo_cv(
+    model_version: str = Query("v2", description="Model version to calibrate"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Leave-One-Day-Out (LODO) Cross-Validation for Temperature Scaling.
+    
+    Process:
+    1. Group predictions by kickoff date
+    2. For each day: Fit T on other days, test on held-out day
+    3. Report per-fold and aggregated metrics (LogLoss, Brier, ECE)
+    4. Provide deployment recommendation based on fold consistency
+    
+    Designed for small temporal datasets (n~240, span~6 days).
+    """
+    try:
+        import psycopg2
+        import math
+        import numpy as np
+        from datetime import datetime, timezone, timedelta, date
+        from collections import defaultdict
+        from models.database import DatabaseManager
+        from services.metrics import normalize_triplet, ece_multiclass
+        from services.metrics.temperature import fit_temperature, calibrate_predictions
+        
+        db_manager = DatabaseManager()
+        conn = psycopg2.connect(db_manager.database_url)
+        cursor = conn.cursor()
+        
+        # Fetch all predictions with kickoff dates
+        sql = """
+            SELECT 
+                DATE(COALESCE(f.kickoff_at, mil.scored_at)) as match_date,
+                mil.p_home, mil.p_draw, mil.p_away,
+                mr.outcome
+            FROM model_inference_logs mil
+            INNER JOIN match_results mr ON mil.match_id = mr.match_id
+            LEFT JOIN fixtures f ON mil.match_id = f.match_id
+            WHERE mil.model_version = %s
+                AND mr.outcome IS NOT NULL
+                AND (f.kickoff_at IS NULL OR mil.scored_at < f.kickoff_at)
+            ORDER BY match_date
+        """
+        cursor.execute(sql, (model_version,))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        if len(rows) < 50:
+            return {
+                "status": "insufficient_data",
+                "message": f"Need at least 50 samples for LODO CV (have {len(rows)})",
+                "recommendation": "Wait for more predictions with results"
+            }
+        
+        # Group by match date
+        date_groups = defaultdict(list)
+        for row in rows:
+            match_date, ph, pd, pa, outcome = row
+            ph, pd, pa = float(ph), float(pd), float(pa)
+            ph_n, pd_n, pa_n = normalize_triplet(ph, pd, pa)
+            date_groups[match_date].append({
+                'probs': (ph_n, pd_n, pa_n),
+                'outcome': outcome
+            })
+        
+        # Sort dates chronologically
+        unique_dates = sorted(date_groups.keys())
+        n_folds = len(unique_dates)
+        
+        if n_folds < 3:
+            return {
+                "status": "insufficient_folds",
+                "message": f"Need at least 3 distinct match dates (have {n_folds})",
+                "dates": [str(d) for d in unique_dates],
+                "total_samples": len(rows)
+            }
+        
+        # Helper function for metrics calculation
+        def calc_metrics(probs, outcomes):
+            """Calculate Brier, LogLoss, Hit Rate, ECE"""
+            brier_scores, logloss_scores, hits = [], [], []
+            
+            for (ph, pd, pa), outcome in zip(probs, outcomes):
+                if outcome == 'H':
+                    brier = (1-ph)**2 + pd**2 + pa**2
+                    ll = -math.log(max(ph, 1e-10))
+                    hit = 1 if ph > max(pd, pa) else 0
+                elif outcome == 'D':
+                    brier = ph**2 + (1-pd)**2 + pa**2
+                    ll = -math.log(max(pd, 1e-10))
+                    hit = 1 if pd > max(ph, pa) else 0
+                else:  # 'A'
+                    brier = ph**2 + pd**2 + (1-pa)**2
+                    ll = -math.log(max(pa, 1e-10))
+                    hit = 1 if pa > max(ph, pd) else 0
+                
+                brier_scores.append(brier)
+                logloss_scores.append(ll)
+                hits.append(hit)
+            
+            ece = ece_multiclass(outcomes, probs, n_bins=10)
+            
+            return {
+                'brier': np.mean(brier_scores),
+                'logloss': np.mean(logloss_scores),
+                'hit_rate': np.mean(hits),
+                'ece': ece
+            }
+        
+        # Perform Leave-One-Day-Out CV
+        fold_results = []
+        
+        for i, test_date in enumerate(unique_dates):
+            # Train on all other dates
+            train_probs = []
+            train_outcomes = []
+            for train_date in unique_dates:
+                if train_date != test_date:
+                    for sample in date_groups[train_date]:
+                        train_probs.append(sample['probs'])
+                        train_outcomes.append(sample['outcome'])
+            
+            # Test on held-out date
+            test_probs_before = [s['probs'] for s in date_groups[test_date]]
+            test_outcomes = [s['outcome'] for s in date_groups[test_date]]
+            
+            # Skip if train set too small
+            if len(train_probs) < 20:
+                continue
+            
+            # Fit temperature on train set
+            try:
+                temp_opt, fit_info = fit_temperature(train_probs, train_outcomes)
+                
+                # Apply to test set
+                test_probs_after = calibrate_predictions(test_probs_before, temp_opt)
+                
+                # Calculate metrics
+                metrics_before = calc_metrics(test_probs_before, test_outcomes)
+                metrics_after = calc_metrics(test_probs_after, test_outcomes)
+                
+                fold_results.append({
+                    'fold': i + 1,
+                    'test_date': str(test_date),
+                    'test_samples': len(test_outcomes),
+                    'train_samples': len(train_probs),
+                    'temperature': round(temp_opt, 4),
+                    'before': {k: round(v, 4) for k, v in metrics_before.items()},
+                    'after': {k: round(v, 4) for k, v in metrics_after.items()},
+                    'delta': {
+                        'brier': round(metrics_after['brier'] - metrics_before['brier'], 4),
+                        'logloss': round(metrics_after['logloss'] - metrics_before['logloss'], 4),
+                        'ece': round(metrics_after['ece'] - metrics_before['ece'], 4),
+                        'hit_rate': round(metrics_after['hit_rate'] - metrics_before['hit_rate'], 4)
+                    }
+                })
+            except Exception as e:
+                logger.warning(f"Fold {i+1} failed: {e}")
+                continue
+        
+        if len(fold_results) < 2:
+            return {
+                "status": "cv_failed",
+                "message": "Not enough successful folds",
+                "attempted_folds": n_folds,
+                "successful_folds": len(fold_results)
+            }
+        
+        # Aggregate results across folds
+        avg_delta = {
+            'brier': np.mean([f['delta']['brier'] for f in fold_results]),
+            'logloss': np.mean([f['delta']['logloss'] for f in fold_results]),
+            'ece': np.mean([f['delta']['ece'] for f in fold_results]),
+            'hit_rate': np.mean([f['delta']['hit_rate'] for f in fold_results])
+        }
+        
+        std_delta = {
+            'brier': np.std([f['delta']['brier'] for f in fold_results]),
+            'logloss': np.std([f['delta']['logloss'] for f in fold_results]),
+            'ece': np.std([f['delta']['ece'] for f in fold_results])
+        }
+        
+        # Count positive/negative folds
+        improvements = {
+            'brier': sum(1 for f in fold_results if f['delta']['brier'] < 0),
+            'logloss': sum(1 for f in fold_results if f['delta']['logloss'] < 0),
+            'ece': sum(1 for f in fold_results if f['delta']['ece'] < 0)
+        }
+        
+        # Deployment decision (convert to native Python bool)
+        deploy = bool(
+            avg_delta['logloss'] < -0.005 and 
+            avg_delta['ece'] < 0.005 and
+            improvements['logloss'] >= len(fold_results) * 0.5
+        )
+        
+        # Refit on all data for production temperature
+        all_probs = []
+        all_outcomes = []
+        for samples in date_groups.values():
+            for s in samples:
+                all_probs.append(s['probs'])
+                all_outcomes.append(s['outcome'])
+        
+        prod_temp, prod_fit = fit_temperature(all_probs, all_outcomes)
+        
+        return {
+            "status": "success",
+            "model_version": model_version,
+            "cv_summary": {
+                "method": "Leave-One-Day-Out",
+                "total_folds": len(fold_results),
+                "date_range": f"{unique_dates[0]} to {unique_dates[-1]}",
+                "total_samples": len(rows)
+            },
+            "fold_results": fold_results,
+            "aggregated_metrics": {
+                "mean_delta": {k: round(v, 4) for k, v in avg_delta.items()},
+                "std_delta": {k: round(v, 4) for k, v in std_delta.items()},
+                "improvements": improvements,
+                "pct_improved": {
+                    k: round(100 * v / len(fold_results), 1)
+                    for k, v in improvements.items()
+                }
+            },
+            "production_fit": {
+                "temperature": round(prod_temp, 4),
+                "trained_on": f"All {len(all_probs)} samples",
+                "nll_improvement": round(prod_fit['improvement'], 4)
+            },
+            "deployment": {
+                "recommended": deploy,
+                "reason": _lodo_deployment_reason(avg_delta, improvements, len(fold_results))
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in temperature scaling: {e}")
+        raise HTTPException(status_code=500, detail=f"Temperature scaling error: {str(e)}")
+
+def _lodo_deployment_reason(avg_delta: dict, improvements: dict, n_folds: int) -> str:
+    """Generate deployment recommendation based on LODO CV results"""
+    ll_delta = avg_delta['logloss']
+    ece_delta = avg_delta['ece']
+    ll_pct = 100 * improvements['logloss'] / n_folds
+    ece_pct = 100 * improvements['ece'] / n_folds
+    
+    if ll_delta < -0.01 and ece_delta < -0.01 and ll_pct >= 70:
+        return f"✅ STRONGLY RECOMMEND: Mean LL Δ={ll_delta:.4f}, ECE Δ={ece_delta:.4f}, {ll_pct:.0f}% folds improved"
+    elif ll_delta < -0.005 and ece_delta < 0.005 and ll_pct >= 50:
+        return f"✅ RECOMMEND: Mean LL Δ={ll_delta:.4f}, ECE Δ={ece_delta:.4f}, {ll_pct:.0f}% folds improved"
+    elif abs(ll_delta) < 0.005 and abs(ece_delta) < 0.005:
+        return f"⚪ NEUTRAL: Temperature ≈ 1.0, model already well-calibrated (LL Δ={ll_delta:.4f})"
+    elif ll_delta > 0 or ece_delta > 0.01:
+        return f"❌ DO NOT DEPLOY: Mean LL Δ={ll_delta:.4f}, ECE Δ={ece_delta:.4f}, degrades metrics"
+    else:
+        return f"⚠️ INCONCLUSIVE: Mixed results (LL Δ={ll_delta:.4f}, {ll_pct:.0f}% improved). Need more data."
+
+def _interpret_temp_results(temp: float, before: dict, after: dict) -> str:
+    """Interpret temperature scaling results"""
+    ece_improvement = before['ece'] - after['ece']
+    ll_improvement = before['logloss'] - after['logloss']
+    
+    if ece_improvement > 0.01 and ll_improvement > 0.01:
+        return f"✅ APPLY: T={temp:.2f} improves calibration (ECE Δ={ece_improvement:.4f}) and accuracy (LL Δ={ll_improvement:.4f})"
+    elif ece_improvement > 0.005:
+        return f"✅ APPLY: T={temp:.2f} improves calibration (ECE Δ={ece_improvement:.4f}), neutral on accuracy"
+    elif abs(ece_improvement) < 0.005 and abs(ll_improvement) < 0.005:
+        return f"⚪ NEUTRAL: T={temp:.2f} ≈ 1.0, model already well-calibrated"
+    else:
+        return f"❌ SKIP: T={temp:.2f} degrades metrics, keep original predictions"
+
 @app.get("/metrics/evaluation")
 async def get_enhanced_evaluation(
     league: Optional[str] = Query(None, description="Filter by league name"),
@@ -3429,6 +3703,7 @@ async def get_enhanced_evaluation(
         from datetime import datetime, timezone, timedelta
         from models.database import DatabaseManager
         from services.metrics import normalize_triplet, ece_multiclass, reliability_table, ece_by_league
+        from services.metrics.temperature import fit_temperature, calibrate_predictions
         
         db_manager = DatabaseManager()
         conn = psycopg2.connect(db_manager.database_url)
