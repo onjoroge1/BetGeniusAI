@@ -1,0 +1,68 @@
+~/workspace$ python datasets/build_training_matrix.py
+======================================================================
+TRAINING MATRIX BUILDER - V2 LIGHTGBM
+======================================================================
+📊 Querying database for training data...
+/home/runner/workspace/datasets/build_training_matrix.py:128: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(sql, conn)
+   Loaded 462 matches with complete features
+
+🔍 Data Quality Checks:
+
+📊 Training Matrix Summary:
+   Total samples: 462
+   Date range: 2025-09-21 → 2025-10-22
+   Leagues: 1
+   Outcome distribution:
+      Home wins: 206 (44.6%)
+      Draws:     126 (27.3%)
+      Away wins: 130 (28.1%)
+   Features: 25 (excluding match_id, league, kickoff_date, y)
+
+   ELO Statistics:
+      Home ELO: 1499.6 ± 5.5
+      Away ELO: 1500.5 ± 5.3
+      ELO diff: -0.8 ± 9.9
+
+💾 Saved training matrix to: artifacts/datasets/v2_tabular.parquet
+   File size: 93.2 KB
+======================================================================
+
+✅ Training matrix ready for LightGBM!
+   Shape: (462, 29)
+   Columns: ['match_id', 'league', 'kickoff_date', 'p_open_home', 'p_open_draw', 'p_open_away', 'p_last_home', 'p_last_draw', 'p_last_away', 'prob_drift_home']...
+~/workspace$ python compute_market_features.py --force
+python: can't open file '/home/runner/workspace/compute_market_features.py': [Errno 2] No such file or directory
+~/workspace$ python jobs/compute_market_features.py --force
+======================================================================
+MARKET FEATURES COMPUTATION
+======================================================================
+📊 Processing 927 matches...
+   Progress: 50/927 (12 success, 38 skipped)
+   Progress: 100/927 (62 success, 38 skipped)
+   Progress: 150/927 (112 success, 38 skipped)
+   Progress: 200/927 (162 success, 38 skipped)
+   Progress: 250/927 (212 success, 38 skipped)
+   Progress: 300/927 (262 success, 38 skipped)
+   Progress: 350/927 (308 success, 42 skipped)
+   Progress: 400/927 (358 success, 42 skipped)
+   Progress: 450/927 (408 success, 42 skipped)
+   Progress: 500/927 (458 success, 42 skipped)
+   Progress: 550/927 (508 success, 42 skipped)
+   Progress: 600/927 (558 success, 42 skipped)
+   Progress: 650/927 (608 success, 42 skipped)
+   Progress: 700/927 (658 success, 42 skipped)
+   Progress: 750/927 (708 success, 42 skipped)
+   Progress: 800/927 (758 success, 42 skipped)
+   Progress: 850/927 (808 success, 42 skipped)
+   Progress: 900/927 (858 success, 42 skipped)
+
+======================================================================
+✅ COMPLETE: 885 features computed, 42 skipped, 0 errors
+======================================================================
+
+📊 Market Features Stats:
+   Total matches: 885
+   Avg coverage: 36.1 hours
+   Avg books: 8.5
+   Avg drift: 0.0171
