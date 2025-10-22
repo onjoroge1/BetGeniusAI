@@ -89,8 +89,15 @@ def train_lgbm_cv(df, features, n_splits=5):
     X = df[features].values
     y = df['y'].values
     
+    # FIX: Use fixed label mapping instead of alphabetical
+    # Predictions are structured as [p_home, p_draw, p_away]
+    # So: H→0, D→1, A→2
+    label_map = {'H': 0, 'D': 1, 'A': 2}
+    y_encoded = np.array([label_map[label] for label in y])
+    
+    # Create LabelEncoder with fixed classes for consistency
     le = LabelEncoder()
-    y_encoded = le.fit_transform(y)
+    le.classes_ = np.array(['H', 'D', 'A'])
     
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     
