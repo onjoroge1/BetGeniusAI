@@ -1,0 +1,79 @@
+Metrics sanity check (hit rate, Brier, log-loss, confidence)
+
+These are the things that most often make hit-rate look “mysteriously low” on 3-way football:
+
+A. Exact label alignment (gold vs preds)
+
+Ensure outcomes are exactly one of {"H","D","A"} and no extra values (e.g., "home", 1, "DRAW ", null).
+
+Draw edge cases: verify cup/knockout matches logged as FT results (not ET/Pen). If your source sometimes stores “A-P” (away win on pens), map to D for 90’ result, if your target is 1X2.
+
+Quick audit:
+
+SELECT outcome, COUNT(*) FROM match_results GROUP BY 1;
+
+
+You should see only H/D/A.
+
+B. One-row-per-match, per model, at decision time
+
+For each (match_id, model_version) used in evaluation, keep exactly one prediction — the final pre-kickoff inference (or your standard decision time).
+
+If you log multiple inference rows (shadow runs, retries), you’ll dilute accuracy.
+
+Quick audit (should be zero):
+
+SELECT match_id, model_version, COUNT(*) 
+FROM model_inference_logs
+WHERE used_in_eval = true
+GROUP BY 1,2
+HAVING COUNT(*) <> 1;
+
+
+C. Argmax logic and confidence
+
+Hit = argmax([pH,pD,pA]) equals gold label.
+
+avg_confidence = average of max([pH,pD,pA]) over evaluated matches.
+
+Draw is legit hard; models often under-predict D → lowers hit rate even if Brier/log-loss improve. Check class shares:
+
+SELECT 
+  AVG(CASE WHEN outcome='H' THEN 1 ELSE 0 END) AS pct_home,
+  AVG(CASE WHEN outcome='D' THEN 1 ELSE 0 END) AS pct_draw,
+  AVG(CASE WHEN outcome='A' THEN 1 ELSE 0 END) AS pct_away
+FROM match_results
+WHERE match_id IN (SELECT DISTINCT match_id FROM model_inference_logs WHERE used_in_eval = true);
+
+
+D. Same sample for V1 vs V2 (paired comparison)
+
+Ensure V1 and V2 are evaluated on the same set of matches when you compare.
+
+Quick audit:
+
+WITH v1 AS (SELECT DISTINCT match_id FROM eval_view WHERE model_version='v1'),
+     v2 AS (SELECT DISTINCT match_id FROM eval_view WHERE model_version='v2')
+SELECT 
+  (SELECT COUNT(*) FROM v1) AS v1_n,
+  (SELECT COUNT(*) FROM v2) AS v2_n,
+  (SELECT COUNT(*) FROM v1 JOIN v2 USING(match_id)) AS overlap;
+
+
+E. No leakage / correct time windows
+
+Only use features available before kickoff for the evaluated inference (no post-match stats, no closing odds if your policy is “pre-match only”).
+
+Verify each evaluated row’s inference_ts < kickoff_ts.
+
+F. Metric formulas (spot-check)
+
+Hit rate: mean( argmax(p)==y ).
+
+Brier (multi-class): mean( sum_k (p_k - 1{y=k})^2 ).
+
+Log-loss: -mean( log p_{y} ) with eps floor.
+
+Recompute on a 20-match random subset and confirm the service matches to 4 decimals.
+
+If the quick audits pass (your earlier 241/114/127 math did), the “low” hit rates are real, not a bug—3-way football with draws drags raw accuracy.
