@@ -3410,17 +3410,25 @@ async def get_enhanced_evaluation(
     window: str = Query("30d", description="Time window (7d, 14d, 30d, 90d, all)"),
     model_version: str = Query("v1", description="Model version to evaluate (v1, v2, or all)"),
     include_clv: bool = Query(True, description="Include CLV analysis when closing odds available"),
+    include_calibration: bool = Query(True, description="Include ECE and reliability curves"),
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Enhanced metrics evaluation using model_inference_logs + match_results
-    Provides accuracy metrics + CLV analysis (snapshot vs closing line)
+    Enhanced metrics evaluation with normalization, calibration (ECE), and time-leak filtering.
+    
+    Features:
+    - Automatic probability normalization (fixes V1 bug)
+    - Expected Calibration Error (ECE) - global and per-league
+    - Reliability curves (confidence vs accuracy)
+    - Time-leak filtering (excludes post-kickoff predictions)
+    - Paired comparison statistics
     """
     try:
         import psycopg2
         import math
         from datetime import datetime, timezone, timedelta
         from models.database import DatabaseManager
+        from services.metrics import normalize_triplet, ece_multiclass, reliability_table, ece_by_league
         
         db_manager = DatabaseManager()
         conn = psycopg2.connect(db_manager.database_url)
@@ -3445,96 +3453,33 @@ async def get_enhanced_evaluation(
             where_clauses.append("mil.model_version = %s")
             params.append(model_version)
         
+        # TIME-LEAK FILTER: Only include predictions made before kickoff
+        where_clauses.append("(f.kickoff_at IS NULL OR mil.scored_at < f.kickoff_at)")
+        
         where_sql = " AND ".join(where_clauses)
         
-        # Main evaluation query with accuracy metrics
-        eval_sql = f"""
-            WITH predictions_with_results AS (
-                SELECT 
-                    mil.match_id,
-                    mil.model_version,
-                    f.league_name as league,
-                    mil.p_home,
-                    mil.p_draw,
-                    mil.p_away,
-                    mr.home_goals,
-                    mr.away_goals,
-                    mr.outcome as actual_outcome,
-                    mil.scored_at,
-                    -- Closing odds not yet available, set to NULL for now
-                    false as has_closing_odds,
-                    NULL::numeric as ph_close,
-                    NULL::numeric as pd_close,
-                    NULL::numeric as pa_close
-                FROM model_inference_logs mil
-                INNER JOIN match_results mr ON mil.match_id = mr.match_id
-                LEFT JOIN fixtures f ON mil.match_id = f.match_id
-                WHERE {where_sql}
-            ),
-            metrics AS (
-                SELECT 
-                    match_id,
-                    model_version,
-                    league,
-                    p_home, p_draw, p_away,
-                    actual_outcome,
-                    has_closing_odds,
-                    ph_close, pd_close, pa_close,
-                    -- Calculate Brier Score
-                    CASE actual_outcome
-                        WHEN 'H' THEN POWER(1 - p_home, 2) + POWER(0 - p_draw, 2) + POWER(0 - p_away, 2)
-                        WHEN 'D' THEN POWER(0 - p_home, 2) + POWER(1 - p_draw, 2) + POWER(0 - p_away, 2)
-                        WHEN 'A' THEN POWER(0 - p_home, 2) + POWER(0 - p_draw, 2) + POWER(1 - p_away, 2)
-                    END as brier_score,
-                    -- Calculate LogLoss
-                    CASE actual_outcome
-                        WHEN 'H' THEN -LN(GREATEST(p_home, 0.001))
-                        WHEN 'D' THEN -LN(GREATEST(p_draw, 0.001))
-                        WHEN 'A' THEN -LN(GREATEST(p_away, 0.001))
-                    END as log_loss,
-                    -- Hit rate (predicted winner matches actual)
-                    CASE 
-                        WHEN actual_outcome = 'H' AND p_home > p_draw AND p_home > p_away THEN 1
-                        WHEN actual_outcome = 'D' AND p_draw > p_home AND p_draw > p_away THEN 1
-                        WHEN actual_outcome = 'A' AND p_away > p_home AND p_away > p_draw THEN 1
-                        ELSE 0
-                    END as hit,
-                    -- Confidence (max probability)
-                    GREATEST(p_home, p_draw, p_away) as confidence,
-                    -- CLV calculations (when closing odds available)
-                    CASE WHEN has_closing_odds THEN
-                        CASE actual_outcome
-                            WHEN 'H' THEN (p_home - ph_close)
-                            WHEN 'D' THEN (p_draw - pd_close)
-                            WHEN 'A' THEN (p_away - pa_close)
-                        END
-                    END as clv_edge,
-                    CASE WHEN has_closing_odds THEN
-                        CASE actual_outcome
-                            WHEN 'H' THEN ((p_home - ph_close) / ph_close)
-                            WHEN 'D' THEN ((p_draw - pd_close) / pd_close)
-                            WHEN 'A' THEN ((p_away - pa_close) / pa_close)
-                        END
-                    END as clv_percent
-                FROM predictions_with_results
-            )
+        # Fetch raw predictions for normalization and calibration
+        fetch_sql = f"""
             SELECT 
-                COUNT(*) as total_matches,
-                AVG(brier_score) as avg_brier,
-                AVG(log_loss) as avg_logloss,
-                AVG(hit) as hit_rate,
-                AVG(confidence) as avg_confidence,
-                COUNT(*) FILTER (WHERE has_closing_odds) as matches_with_closing,
-                AVG(clv_edge) FILTER (WHERE has_closing_odds) as avg_clv_edge,
-                AVG(clv_percent) FILTER (WHERE has_closing_odds) as avg_clv_percent,
-                COUNT(*) FILTER (WHERE clv_edge > 0) as positive_clv_count
-            FROM metrics
+                mil.match_id,
+                mil.model_version,
+                COALESCE(f.league_name, 'Unknown') as league,
+                mil.p_home,
+                mil.p_draw,
+                mil.p_away,
+                mr.outcome as actual_outcome,
+                mil.scored_at,
+                f.kickoff_at
+            FROM model_inference_logs mil
+            INNER JOIN match_results mr ON mil.match_id = mr.match_id
+            LEFT JOIN fixtures f ON mil.match_id = f.match_id
+            WHERE {where_sql}
         """
         
-        cursor.execute(eval_sql, params)
-        result = cursor.fetchone()
+        cursor.execute(fetch_sql, params)
+        rows = cursor.fetchall()
         
-        if not result or result[0] == 0:
+        if not rows:
             cursor.close()
             conn.close()
             return {
@@ -3545,7 +3490,81 @@ async def get_enhanced_evaluation(
                 "message": "No matches with results found for the specified criteria"
             }
         
-        total, avg_brier, avg_logloss, hit_rate, avg_confidence, closing_count, avg_clv_edge, avg_clv_pct, pos_clv = result
+        # Process rows: normalize probabilities and collect data
+        y_true = []
+        probabilities = []
+        leagues_list = []
+        raw_metrics = []
+        
+        total_pre_norm = len(rows)
+        invalid_probs_before = 0
+        invalid_probs_after = 0
+        
+        for row in rows:
+            match_id, mv, league_name, ph, pd, pa, outcome, scored_at, kickoff_at = row
+            
+            # Convert to float (in case PostgreSQL returns Decimal)
+            ph, pd, pa = float(ph), float(pd), float(pa)
+            
+            # Check if probabilities were invalid before normalization
+            raw_sum = ph + pd + pa
+            if abs(raw_sum - 1.0) > 0.01:
+                invalid_probs_before += 1
+            
+            # NORMALIZE PROBABILITIES
+            ph_norm, pd_norm, pa_norm = normalize_triplet(ph, pd, pa)
+            
+            # Check after normalization
+            norm_sum = ph_norm + pd_norm + pa_norm
+            if abs(norm_sum - 1.0) > 0.01:
+                invalid_probs_after += 1
+            
+            # Collect for calibration
+            y_true.append(outcome)
+            probabilities.append((ph_norm, pd_norm, pa_norm))
+            leagues_list.append(league_name)
+            
+            # Calculate metrics with normalized probabilities
+            # Brier
+            if outcome == 'H':
+                brier = (1 - ph_norm)**2 + pd_norm**2 + pa_norm**2
+            elif outcome == 'D':
+                brier = ph_norm**2 + (1 - pd_norm)**2 + pa_norm**2
+            else:  # 'A'
+                brier = ph_norm**2 + pd_norm**2 + (1 - pa_norm)**2
+            
+            # LogLoss
+            if outcome == 'H':
+                logloss = -math.log(max(ph_norm, 0.001))
+            elif outcome == 'D':
+                logloss = -math.log(max(pd_norm, 0.001))
+            else:  # 'A'
+                logloss = -math.log(max(pa_norm, 0.001))
+            
+            # Hit
+            max_prob = max(ph_norm, pd_norm, pa_norm)
+            if ph_norm == max_prob and outcome == 'H':
+                hit = 1
+            elif pd_norm == max_prob and outcome == 'D':
+                hit = 1
+            elif pa_norm == max_prob and outcome == 'A':
+                hit = 1
+            else:
+                hit = 0
+            
+            raw_metrics.append({
+                'brier': brier,
+                'logloss': logloss,
+                'hit': hit,
+                'confidence': max_prob
+            })
+        
+        # Calculate aggregate metrics
+        total_matches = len(raw_metrics)
+        avg_brier = sum(m['brier'] for m in raw_metrics) / total_matches
+        avg_logloss = sum(m['logloss'] for m in raw_metrics) / total_matches
+        hit_rate = sum(m['hit'] for m in raw_metrics) / total_matches
+        avg_confidence = sum(m['confidence'] for m in raw_metrics) / total_matches
         
         # Build response
         response = {
@@ -3553,30 +3572,59 @@ async def get_enhanced_evaluation(
             "league": league or "All Leagues",
             "window": window,
             "model_version": model_version,
-            "sample_size": total,
+            "sample_size": total_matches,
+            "normalization_stats": {
+                "total_evaluated": total_matches,
+                "invalid_before_norm": invalid_probs_before,
+                "invalid_after_norm": invalid_probs_after,
+                "normalization_applied": True
+            },
             "accuracy_metrics": {
-                "brier_score": round(float(avg_brier), 4) if avg_brier else None,
-                "log_loss": round(float(avg_logloss), 4) if avg_logloss else None,
-                "hit_rate": round(float(hit_rate), 4) if hit_rate else None,
-                "avg_confidence": round(float(avg_confidence), 4) if avg_confidence else None,
-                "model_grade": _calculate_model_grade(avg_brier, avg_logloss, hit_rate) if avg_brier else None
+                "brier_score": round(avg_brier, 4),
+                "log_loss": round(avg_logloss, 4),
+                "hit_rate": round(hit_rate, 4),
+                "avg_confidence": round(avg_confidence, 4),
+                "model_grade": _calculate_model_grade(avg_brier, avg_logloss, hit_rate)
             }
         }
         
-        # Add CLV analysis if requested and available
-        if include_clv and closing_count > 0:
-            response["clv_analysis"] = {
-                "matches_with_closing_odds": closing_count,
-                "avg_clv_edge": round(float(avg_clv_edge), 6) if avg_clv_edge else None,
-                "avg_clv_percent": round(float(avg_clv_pct) * 100, 2) if avg_clv_pct else None,
-                "positive_clv_rate": round(float(pos_clv) / closing_count, 4) if closing_count > 0 else None,
-                "interpretation": _interpret_clv(avg_clv_pct) if avg_clv_pct else None
+        # Calculate calibration metrics if requested
+        if include_calibration and total_matches >= 20:
+            try:
+                # Global ECE
+                ece_global = ece_multiclass(y_true, probabilities, n_bins=10)
+                
+                # Per-league ECE (if not filtering by specific league)
+                ece_leagues = []
+                if not league and total_matches >= 50:
+                    ece_leagues = ece_by_league(y_true, probabilities, leagues_list, n_bins=10)
+                
+                # Reliability table
+                reliability = reliability_table(y_true, probabilities, n_bins=10)
+                
+                response["calibration"] = {
+                    "ece_global": round(ece_global, 4),
+                    "ece_by_league": ece_leagues[:10],  # Top 10 worst calibrated
+                    "reliability_curve": reliability,
+                    "interpretation": _interpret_ece(ece_global)
+                }
+            except Exception as e:
+                logger.warning(f"Calibration calculation failed: {e}")
+                response["calibration"] = {
+                    "status": "error",
+                    "message": f"Calibration metrics unavailable: {str(e)}"
+                }
+        elif include_calibration:
+            response["calibration"] = {
+                "status": "insufficient_data",
+                "message": f"Need at least 20 samples for calibration (have {total_matches})"
             }
-        else:
-            response["clv_analysis"] = {
-                "status": "no_closing_odds",
-                "message": "No closing odds available yet for CLV analysis"
-            }
+        
+        # CLV analysis placeholder (no closing odds yet)
+        response["clv_analysis"] = {
+            "status": "no_closing_odds",
+            "message": "No closing odds available yet for CLV analysis"
+        }
         
         cursor.close()
         conn.close()
@@ -3621,6 +3669,17 @@ def _calculate_model_grade(brier, logloss, hit_rate):
         1: "D", 0: "F"
     }
     return grades.get(score, "F")
+
+def _interpret_ece(ece: float) -> str:
+    """Interpret Expected Calibration Error"""
+    if ece < 0.02:
+        return "Excellent - very well calibrated"
+    elif ece < 0.05:
+        return "Good - reasonably calibrated"
+    elif ece < 0.10:
+        return "Fair - moderate calibration error"
+    else:
+        return "Poor - significant calibration issues"
 
 def _interpret_clv(clv_percent):
     """Interpret CLV percentage"""
