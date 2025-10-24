@@ -8,7 +8,7 @@ Preferred communication style: Simple, everyday language.
 Production Model Decision: Use simple weighted consensus based on performance comparison showing 0.031549 LogLoss improvement over complex model.
 Model Performance Analysis: Model rating 6.3/10 (B Grade) with 54.3% 3-way accuracy and 62.4% 2-way accuracy. Rating corrected after fixing Brier score normalization issue (0.191 vs incorrectly reported 0.573).
 Improvement Priority: Focus on enhanced feature engineering and gradient boosting ensemble methods for immediate gains, with deep learning and reinforcement learning as longer-term research directions.
-**Historical Feature Pipeline**: Reusable feature extraction system extracting 65+ features (form, H2H, venue, temporal, advanced stats) from 31 years of match data (14,527 matches, 1993-2024).
+**Historical Feature Pipeline**: Reusable feature extraction system extracting 65 features (24 form, 10 venue, 7 H2H, 8 temporal, 16 advanced stats) from 24 years of match data (11,476 matches, 2000-2024). Provides 100% feature coverage for LightGBM training.
 
 ## System Architecture
 
@@ -23,7 +23,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Metrics Hygiene**: Implemented defensive probability normalization, pre-kickoff filtering, and ECE + reliability curves for robust model evaluation. V2 model shows improved Brier and LogLoss compared to V1.
 - **Calibration & Constraints**: Extensive testing of temperature scaling and blend/KL/Δτ sweeps determined that the V2 training configuration is already optimal for current features.
 - **Historical Feature Engineering Pipeline**: Operational extraction system built on 14,527 matches (1993-2024) from `historical_odds` table. Extracts 65 features per match: team form (last 5), venue performance (last 10), head-to-head (last 5), temporal features, and advanced stats (shooting, discipline). Pipeline is reusable across all leagues.
-- **LightGBM Development**: Validated pipeline with fixed label encoding (H=0, D=1, A=2). **Historical baseline (Oct 2025):** Trained on 3,516 matches (2015-2024) using historical bookmaker odds as market features. Test set (704 matches): LogLoss 1.0106, Brier 0.2006, 49.1% 3-way accuracy, 63.3% 2-way accuracy - materially outperforms random baseline (33.3%). CSV import pipeline enables rapid historical data ingestion from football-data.co.uk (14,662+ matches loaded).
+- **LightGBM Development**: Validated pipeline with fixed label encoding (H=0, D=1, A=2). **Enriched Model (Oct 2025):** Trained on 10,895 matches (2002-2024) using 62 features (12 market + 50 historical). Test set (2,179 matches): LogLoss 0.9864, Brier 0.1963, 52.0% 3-way accuracy, 69.5% 2-way accuracy. Represents +2.9% accuracy and -0.024 LogLoss improvement over market-only baseline (~2.5σ effect size). CSV import pipeline enables rapid historical data ingestion from football-data.co.uk (14,662+ matches loaded).
 - **Production Model (V1)**: Utilizes a simple weighted consensus based on bookmaker analysis.
 - **V2 Shadow Testing System**: An operational market-delta ridge regression model running in shadow mode (A/B testing) alongside V1. It predicts deltas from the market in logit space, with guardrails like KL divergence and probability caps. Features auto-promotion criteria for V2 to become primary.
 - **Enhanced Architecture**: Dual-table population, timing-optimized data collection, and cross-table synchronization.
