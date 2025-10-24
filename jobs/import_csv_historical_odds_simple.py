@@ -51,6 +51,7 @@ def import_csv(csv_path):
     cur = conn.cursor()
     
     inserted = 0
+    skipped = 0
     for _, row in df.iterrows():
         try:
             date = parse_date(row['Date'])
@@ -70,6 +71,7 @@ def import_csv(csv_path):
                     home_fouls, away_fouls, home_corners, away_corners,
                     home_yellows, away_yellows, home_reds, away_reds
                 ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (match_date, home_team, away_team, league) DO NOTHING
             """, (
                 date, str(get_season(date)), league_code, LEAGUE_MAPPING.get(league_code, league_code),
                 str(row['HomeTeam']).strip(), str(row['AwayTeam']).strip(),
@@ -86,14 +88,18 @@ def import_csv(csv_path):
                 safe_int(row.get('HF')), safe_int(row.get('AF')), safe_int(row.get('HC')), safe_int(row.get('AC')),
                 safe_int(row.get('HY')), safe_int(row.get('AY')), safe_int(row.get('HR')), safe_int(row.get('AR'))
             ))
-            inserted += 1
+            if cur.rowcount > 0:
+                inserted += 1
+            else:
+                skipped += 1
         except Exception as e:
+            skipped += 1
             continue
     
     conn.commit()
     cur.close()
     conn.close()
-    print(f"   ✅ Inserted {inserted} matches")
+    print(f"   ✅ Inserted {inserted} matches, skipped {skipped} duplicates")
     return inserted
 
 if __name__ == "__main__":
