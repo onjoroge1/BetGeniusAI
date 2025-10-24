@@ -8,7 +8,8 @@ Preferred communication style: Simple, everyday language.
 Production Model Decision: Use simple weighted consensus based on performance comparison showing 0.031549 LogLoss improvement over complex model.
 Model Performance Analysis: Model rating 6.3/10 (B Grade) with 54.3% 3-way accuracy and 62.4% 2-way accuracy. Rating corrected after fixing Brier score normalization issue (0.191 vs incorrectly reported 0.573).
 Improvement Priority: Focus on enhanced feature engineering and gradient boosting ensemble methods for immediate gains, with deep learning and reinforcement learning as longer-term research directions.
-**Historical Feature Pipeline**: Reusable feature extraction system extracting 65 features (24 form, 10 venue, 7 H2H, 8 temporal, 16 advanced stats) from 24 years of match data (11,476 matches, 2000-2024). Provides 100% feature coverage for LightGBM training.
+**Historical Feature Pipeline**: Reusable feature extraction system extracting 65 features (24 form, 10 venue, 7 H2H, 8 temporal, 16 advanced stats) from 32 years of match data (25,174 matches, 1993-2025). Provides 100% feature coverage for LightGBM training.
+**Training Dataset Expansion (Oct 2025)**: Successfully expanded from 10,895 to 21,406 trainable matches (+96.5%) with deduplication via unique constraint on (match_date, home_team, away_team, league). Major leagues (Serie A, La Liga, Premier League, Bundesliga) all have 18-22 seasons of coverage through 2025.
 
 ## System Architecture
 
@@ -39,7 +40,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Fixture ID Resolver**: Robust system for resolving fixture IDs across different data sources.
 - **League Coverage**: Dynamic selection across 35 leagues.
 - **Training Data**: Over 9,846 matches for ML model training, synchronized with odds consensus.
-- **Historical Match Data**: 14,662 matches (1993-2024) across 7 leagues with results, bookmaker odds (Bet365, Pinnacle, William Hill, etc.), and in-game statistics (shots, corners, cards). Powers historical feature engineering pipeline and LightGBM training via CSV import from football-data.co.uk.
+- **Historical Match Data**: 25,174 matches (1993-2025) across 8 leagues with results, bookmaker odds (Bet365, Pinnacle, William Hill, etc.), and in-game statistics (shots, corners, cards). Powers historical feature engineering pipeline and LightGBM training via CSV import from football-data.co.uk. Deduplication system ensures clean imports.
 - **Authentic Odds Collection**: Live collection from 21+ bookmakers via The Odds API.
 - **CLV Monitoring**: Advanced system for detecting pricing inefficiencies, robust consensus calculation, and real-time alerts. Includes closing line capture and realized CLV tracking.
 - **CLV Daily Brief**: Automated daily aggregation and reporting of CLV performance.
