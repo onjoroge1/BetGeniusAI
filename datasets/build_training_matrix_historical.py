@@ -45,7 +45,7 @@ def odds_to_prob(home_odds, draw_odds, away_odds):
 
 
 def build_historical_training_matrix(output_path: str = 'artifacts/datasets/v2_tabular_historical.parquet',
-                                     min_date: str = '2015-01-01'):
+                                     min_date: str = '2000-01-01'):
     """
     Build training matrix from historical_odds table.
     
@@ -262,7 +262,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Build historical training matrix')
     parser.add_argument('--output', type=str, default='artifacts/datasets/v2_tabular_historical.parquet',
                        help='Output path for parquet file')
-    parser.add_argument('--min-date', type=str, default='2015-01-01',
+    parser.add_argument('--min-date', type=str, default='2000-01-01',
                        help='Minimum match date to include (YYYY-MM-DD)')
     
     args = parser.parse_args()
