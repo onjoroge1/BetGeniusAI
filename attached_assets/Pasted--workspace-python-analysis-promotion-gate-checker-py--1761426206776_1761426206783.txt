@@ -1,0 +1,86 @@
+~/workspace$ python analysis/promotion_gate_checker.py
+
+======================================================================
+LIGHTGBM PROMOTION GATE CHECKER
+======================================================================
+
+Evaluated 36,942 matches
+Date range: 2002-08-17 00:00:00 → 2025-06-01 00:00:00
+
+======================================================================
+GATE 1: LogLoss Improvement
+======================================================================
+Model LogLoss:    0.9861
+Baseline LogLoss: 0.9861
+Δ LogLoss:        +0.0000
+Target:           ≤ -0.02
+Status:           ❌ FAIL
+
+======================================================================
+GATE 2: Positive EV Rate
+======================================================================
+% EV_close > 0:   0.0%
+Mean EV_close:    +0.0000
+Target:           > 0% with positive mean
+Status:           ❌ FAIL
+
+======================================================================
+GATE 3: EV Decile Monotonicity (Top Half)
+======================================================================
+Hit rates by decile:
+  Decile 0: 36.9%
+  Decile 1: 39.0%
+  Decile 2: 41.5%
+  Decile 3: 43.5%
+  Decile 4: 45.7%
+→ Decile 5: 50.5%
+→ Decile 6: 54.3%
+→ Decile 7: 59.2%
+→ Decile 8: 67.7%
+→ Decile 9: 79.5%
+
+Monotonic in top half: True
+Target:                Strictly increasing in deciles 5-9
+Status:                ✅ PASS
+
+======================================================================
+GATE 4: Hit@Coverage Dominance
+======================================================================
+At τ=0.60: 72.7% hit @ 21.5% coverage (EV: +0.0000)
+At τ=0.62: 74.2% hit @ 18.8% coverage (EV: +0.0000)
+Baseline:  72.7% hit @ 21.5% coverage (EV: 0.0000)
+Target:    Dominate baseline at 60-65% coverage
+Status:    ✅ PASS
+
+======================================================================
+GATE 5: Calibration Quality
+======================================================================
+ECE (global):     0.0095
+Max league ECE:   0.0507 (Scottish Championship)
+Target:           ECE_global ≤ 0.08, no league > 0.12
+Status:           ✅ PASS
+
+======================================================================
+ADDITIONAL METRICS
+======================================================================
+3-way Accuracy:   51.8%
+Brier Score:      0.1960
+Target Accuracy:  55-60%
+
+======================================================================
+FINAL VERDICT
+======================================================================
+❌ PROMOTION BLOCKED - CRITERIA NOT MET
+
+Failed gates:
+  - Gate 1: LogLoss improvement insufficient (Δ=+0.0000, need ≤-0.02)
+  - Gate 2: Insufficient positive EV (0.0% > 0)
+
+Recommended actions:
+1. Analyze failure modes
+2. Iterate on features/hyperparameters
+3. Re-train and re-evaluate
+
+======================================================================
+
+~/workspace$ 

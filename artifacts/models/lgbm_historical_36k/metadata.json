@@ -1,0 +1,43 @@
+{
+  "timestamp": "2025-10-25T20:52:32.583605",
+  "n_folds": 3,
+  "n_features": 46,
+  "params": {
+    "objective": "multiclass",
+    "num_class": 3,
+    "metric": "multi_logloss",
+    "learning_rate": 0.03,
+    "num_leaves": 31,
+    "min_data_in_leaf": 60,
+    "lambda_l2": 3.0,
+    "feature_fraction": 0.75,
+    "verbosity": -1,
+    "seed": 42
+  },
+  "oof_metrics": {
+    "logloss": 1.0093968075029118,
+    "brier": 0.20126200918245238,
+    "accuracy_3way": 0.5072546153429701,
+    "accuracy_2way": 0.6818633403245391
+  },
+  "fold_metrics": [
+    {
+      "logloss": 1.0072494254947353,
+      "brier": 0.2008661257868051,
+      "accuracy_3way": 0.5024610336341263,
+      "accuracy_2way": 0.6861313868613139
+    },
+    {
+      "logloss": 1.0009723342457097,
+      "brier": 0.199065716820927,
+      "accuracy_3way": 0.5099291332450744,
+      "accuracy_2way": 0.679542808762832
+    },
+    {
+      "logloss": 0.9838541362647781,
+      "brier": 0.1954201443096757,
+      "accuracy_3way": 0.5202800731722702,
+      "accuracy_2way": 0.7000856898029134
+    }
+  ]
+}
