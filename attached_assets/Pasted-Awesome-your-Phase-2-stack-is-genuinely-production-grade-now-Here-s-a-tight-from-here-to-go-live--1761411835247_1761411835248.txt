@@ -1,0 +1,111 @@
+Awesome—your Phase 2 stack is genuinely production-grade now. Here’s a tight “from here to go-live” plan plus a couple of handy drop-ins you can use immediately.
+
+Go-live checklist (short + actionable)
+	1.	Train the final model (36k+ set, time-aware CV)
+
+	•	Output OOF preds → artifacts/eval/oof_preds.parquet.
+
+	2.	Run EV/CLV evaluation (you already wired eval_ev_clv.py)
+
+	•	Confirm promotion gate is met:
+	•	ΔLogLoss ≤ −0.02 vs baseline (p_close).
+	•	EV_close>0 rate ≥ baseline.
+	•	EV-deciles monotone in top half.
+	•	Hit@Coverage at ~60–65% strictly dominates.
+	•	ECE_global ≤ 0.08 and no league > 0.12.
+
+	3.	Ship the selection policy now (applies to ridge/LGBM alike)
+
+if max_p >= 0.62 and ev_close > 0 and league_ece <= 0.05:
+    decision = "bypass_consensus"
+elif 0.56 <= max_p < 0.62 or abs(ev_close) < 0.005:
+    decision = "light_consensus"
+else:
+    decision = "full_consensus_or_abstain"
+
+Report: hit%, coverage, mean EV_close.
+	4.	Close the Ligue 1 gap (2022–2025)
+
+	•	Import those F1 seasons → refresh features → rebuild matrix.
+
+	5.	Monitoring (daily)
+
+	•	Rolling 7/14/30d: LogLoss, Hit@coverage(τ∈{0.56,0.60,0.62}), Mean EV_close, %EV_close>0, ECE_global + top 5 leagues.
+
+Per-league τ tuner (quick lift without retraining)
+
+Use this to auto-pick thresholds per league (keeps variance under control).
+
+# analysis/tune_tau_per_league.py
+import pandas as pd, numpy as np
+df = pd.read_parquet("artifacts/eval/oof_preds.parquet")           # y_true, p_hat_*
+cl = pd.read_parquet("artifacts/eval/close_probs.parquet")         # p_close_*
+df = df.merge(cl, on="match_id", how="inner")
+
+def norm(a,b,c):
+    x=np.clip(np.array([a,b,c],float),1e-6,1); s=x.sum(); return x/s
+
+ph = np.vstack([norm(*r) for r in df[["p_hat_home","p_hat_draw","p_hat_away"]].to_numpy()])
+pc = np.vstack([norm(*r) for r in df[["p_close_home","p_close_draw","p_close_away"]].to_numpy()])
+y  = df["y_true"].map({'H':0,'D':1,'A':2}).to_numpy()
+pick = ph.argmax(1)
+df["max_p"]   = ph.max(1)
+df["ev_close"]= ph[np.arange(len(df)),pick]-pc[np.arange(len(df)),pick]
+
+def sweep(group, taus=(0.56,0.58,0.60,0.62,0.64), ev_gate=None, min_kept=150):
+    best=None
+    for t in taus:
+        m = (group["max_p"]>=t)
+        if ev_gate is not None: m &= (group["ev_close"]>ev_gate)
+        kept=m.sum()
+        if kept<min_kept: continue
+        hit=(group.loc[m,"_pick"]==group.loc[m,"_y"]).mean()
+        ev = group.loc[m,"ev_close"].mean()
+        score = hit + 0.5*ev   # simple tradeoff; adjust weight as you like
+        cand=(t, kept, hit, ev, score)
+        if best is None or score>best[-1]: best=cand
+    return best
+
+tmp = df.assign(_y=y, _pick=pick)
+rows=[]
+for lg, g in tmp.groupby("league"):
+    res = sweep(g, ev_gate=0.0)
+    if res:
+        t, kept, hit, ev, score = res
+        rows.append((lg, t, kept, hit, ev, score))
+out = pd.DataFrame(rows, columns=["league","tau","kept","hit","mean_ev","score"]).sort_values("score", ascending=False)
+print(out.head(20))
+out.to_csv("artifacts/eval/league_tau_table.csv", index=False)
+
+How to use:
+	•	Write league_tau_table.csv → load into selection service.
+	•	For leagues not listed or with low sample, fall back to global τ=0.62.
+
+Guardrails (so results stay trustworthy)
+	•	No leakage: keep using strictly pre-kick snapshots for features; exclude any row where snapshot_ts ≥ kickoff.
+	•	Label map: freeze to {'H':0,'D':1,'A':2} everywhere (training, inference, eval).
+	•	Prob hygiene: always de-vig → clip to [1e−6,1] → renormalize.
+	•	Retraining policy: retrain only if ≥10% sample growth, or +2k new matches, or biweekly—whichever first; always re-validate EV/CLV gates.
+
+What improvement to expect now
+	•	With 36k+ samples + 46 features, your OOF/holdout should land in:
+	•	LogLoss: 0.94–0.98 (vs p_close ~0.986 baseline).
+	•	3-way Acc: 55–58% for top-confidence slices; ~52–54% overall.
+	•	Hit@Coverage: at τ≈0.62 expect ~74–78% hit at ~15–25% coverage, positive mean EV_close.
+
+Quick SQL you’ll reuse
+	•	EV dashboard (last 14 days, global):
+
+SELECT
+  COUNT(*)                                   AS n,
+  AVG((p_hat = outcome)::int)                AS hit_rate,
+  AVG(ev_close)                              AS mean_ev,
+  AVG((ev_close>0)::int)                     AS pct_ev_pos
+FROM daily_predictions
+WHERE kickoff_date >= CURRENT_DATE - INTERVAL '14 days';
+
+	•	League ECE (stored from your eval script) – alert on league > 0.12.
+
+⸻
+
+If you want me to also hand you a tiny “promotion gate checker” that ingests the eval CSVs and prints PASS/FAIL with the exact deltas, say the word and I’ll drop it in.
