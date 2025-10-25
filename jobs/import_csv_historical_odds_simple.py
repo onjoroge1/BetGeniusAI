@@ -13,10 +13,10 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 
 LEAGUE_MAPPING = {
     'SC0': 'Scottish Premiership', 'SC1': 'Scottish Championship', 'SC2': 'Scottish League One', 'SC3': 'Scottish League Two',
-    'E0': 'Premier League', 'E1': 'Championship', 'E2': 'League One', 'E3': 'League Two',
+    'E0': 'Premier League', 'E1': 'Championship', 'E2': 'League One', 'E3': 'League Two', 'EPL': 'EPL',
     'SP1': 'La Liga', 'SP2': 'La Liga 2', 'I1': 'Serie A', 'I2': 'Serie B',
     'D1': 'Bundesliga', 'D2': 'Bundesliga 2', 'F1': 'Ligue 1', 'F2': 'Ligue 2',
-    'N1': 'Eredivisie', 'B1': 'Jupiler League', 'P1': 'Primeira Liga', 'T1': 'Super Lig',
+    'N1': 'Eredivisie', 'B1': 'Jupiler League', 'P1': 'Primeira Liga', 'T1': 'Super Lig', 'G1': 'Super League Greece',
 }
 
 def parse_date(s):
