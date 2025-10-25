@@ -1,0 +1,140 @@
+🔥 Huge lift—going from ~25k → 40,769 rows (and 36,942 trainable) is exactly what we needed. Here’s a tight, do-this-next plan to capitalize on the expansion and push accuracy toward the 55–60% band while keeping EV/CLV honest.
+
+What to do now (in order)
+
+1) Extract features for the full 40k set (idempotent)
+
+Make sure all new rows get the same feature coverage you used in the 10.9k experiment.
+
+# Historical + form/H2H/venue/temporal/advanced stats (no leakage)
+python jobs/compute_historical_features_all.py --min-date 2000-01-01
+
+# Sanity check coverage
+python - <<'PY'
+import pandas as pd
+df = pd.read_parquet('artifacts/features/historical_features.parquet')
+print(len(df), 'feature rows')
+print('sample cols:', df.columns[:12].tolist())
+PY
+
+Hygiene guard (must remain true):
+	•	All features derived only from matches strictly before each row’s match_date.
+	•	No peeking at final score, close odds, or post-match stats.
+
+2) Rebuild the training matrix (market + historical)
+
+Use the historical builder you created; keep the large window to leverage your 32 years.
+
+python datasets/build_training_matrix_historical.py --min-date 2000-01-01
+
+python - <<'PY'
+import pandas as pd
+df = pd.read_parquet('artifacts/datasets/v2_tabular_historical.parquet')
+print('rows:', len(df), '| leagues:', df['league'].nunique())
+print(df['y'].value_counts(normalize=True))
+print('feature count:', len(df.columns))
+PY
+
+Target: you should see ~36k trainable rows with full feature coverage.
+
+3) Train LightGBM with time-aware CV
+
+Use season-based or rolling splits (not random KFold). Solid, conservative params for this size:
+
+params = dict(
+  objective="multiclass", num_class=3, metric="multi_logloss",
+  learning_rate=0.03, num_leaves=31, min_data_in_leaf=60,
+  lambda_l2=3.0, feature_fraction=0.75, verbosity=-1, seed=42
+)
+# Early stopping 200; max rounds ~2000 depending on CV
+
+	•	Label map MUST be {'H':0, 'D':1, 'A':2} (your previous bug).
+	•	Save:
+	•	OOF preds (for calibration/ECE and per-league temps)
+	•	Feature importances
+	•	Model artifact + feature list
+
+4) Evaluate beyond accuracy: EV/CLV + hit@coverage
+
+On a recent holdout (e.g., 2023–2025) + OOF:
+	•	Core: logloss, brier, 3-way acc, 2-way acc (exclude draws).
+	•	EV/CLV:
+	•	EV_close = p_model(outcome) − p_close_novig(outcome)
+	•	%EV>0 and decile monotonicity (confidence deciles → hit%).
+	•	Hit@coverage curves: sweep τ in [0.54, 0.70] and optionally require EV_close>0.
+	•	Report: Hit% @ Coverage per τ and per league.
+	•	Per-league ECE and tiny per-league temperature (optional) for calibration.
+
+Quick scripts you already have:
+
+# Endpoint already surfaces EV/CLV; verify after retrain
+curl -s "http://localhost:8000/metrics/evaluation?include_clv=true&model_version=v2_lgbm" \
+ -H "Authorization: Bearer betgenius_secure_key_2024" | python -m json.tool
+
+5) Selection policy (instant hit% lift without retraining)
+
+Deploy for shadow metrics immediately:
+
+if max_p >= 0.62 and EV_close > 0 and league_ece <= 0.05:
+    pick = argmax(p)        # bypass consensus
+elif 0.56 <= max_p < 0.62 or abs(EV_close) < 0.005:
+    pick = light_consensus  # small hedge
+else:
+    pick = full_consensus   # or abstain if no close
+
+Always report coverage with hit% (e.g., “56.4% @ 61% coverage”).
+
+6) Data hygiene you should lock now
+	•	You already deduped via ON CONFLICT DO NOTHING. Keep the unique and helpful indexes:
+
+ALTER TABLE historical_odds
+  ADD CONSTRAINT uq_hist_match UNIQUE (match_date, home_team, away_team, league);
+
+CREATE INDEX IF NOT EXISTS idx_hist_league_date ON historical_odds(league, match_date);
+CREATE INDEX IF NOT EXISTS idx_hist_result ON historical_odds(result);
+
+	•	Normalize league labels (clean the legacy “EPL” bucket):
+
+UPDATE historical_odds
+SET league_name = 'Premier League', league = 'E0'
+WHERE league IN ('EPL');
+
+	•	Ensure no-vig conversion is consistent (cap extreme odds, e.g., implied probs clipped to [0.01, 0.98] before renorm).
+
+7) Targeted backfill (what still needs data)
+
+You already plugged major gaps; remaining actionable gap you called out earlier:
+	•	Ligue 1 recent seasons if not fully covered yet (22/23, 23/24, 24/25).
+Import, then rerun feature extraction + matrix build.
+
+A quick “gap report” to keep using:
+
+WITH s AS (
+  SELECT league_name, COUNT(*) AS matches,
+         MIN(match_date) AS first_match, MAX(match_date) AS last_match
+  FROM historical_odds GROUP BY league_name
+)
+SELECT league_name, matches, first_match, last_match,
+       CASE WHEN last_match < DATE '2024-01-01' THEN 'STALE' ELSE 'OK' END freshness,
+       CASE WHEN matches < 2000 THEN 'LOW_VOL' ELSE 'OK' END volume
+FROM s
+ORDER BY (freshness='STALE') DESC, (volume='LOW_VOL') DESC, matches ASC;
+
+8) Promotion gates (keep it disciplined)
+
+Promote the new LGBM only if these hold on the recent holdout:
+	•	Δlogloss vs ridge ≤ −0.02
+	•	%EV>0 ≥ your current ridge baseline
+	•	EV-decile → hit% monotonic in the top half
+	•	Hit@coverage strictly dominates current policy at 55–65% coverage
+
+⸻
+
+TL;DR
+	•	Run feature extraction, rebuild the matrix, time-aware CV retrain.
+	•	Evaluate with EV/CLV + hit@coverage (not just W/L).
+	•	Deploy the selection policy now for an immediate hit% bump on kept bets.
+	•	Clean league labels (merge “EPL”), keep dedup/indexes in place.
+	•	Use the gap report to top up any stale or low-volume leagues.
+
+If you want, I can drop in a tiny “hit@coverage sweeper” script that ingests your OOF preds + close odds and prints the Pareto curve per league so you can pick thresholds that maximize headline hit% while preserving EV.
