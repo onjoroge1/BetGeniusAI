@@ -1,0 +1,199 @@
+Amazing push. You’ve got the data, features, and training infra in place—now let’s lock in decision-quality evaluation (EV/CLV + hit@coverage) and a promotion gate. Below are drop-in scripts and exact steps so you can run everything end-to-end without guesswork.
+
+1) Export predictions you’ll evaluate
+
+From your time-aware CV (or single split), save:
+	•	match_id, league, kickoff_date, y_true ∈ {H,D,A}
+	•	p_hat_home, p_hat_draw, p_hat_away (OOF or holdout)
+	•	Optionally max_p = max(p_hat_*)
+
+If you don’t have a file yet, write one after training:
+
+# after training loop, write OOF preds
+oof_df = pd.DataFrame({
+  "match_id": match_ids,
+  "league": leagues,
+  "kickoff_date": dates,
+  "y_true": y_true,              # 'H'/'D'/'A'
+  "p_hat_home": oof[:,0],
+  "p_hat_draw": oof[:,1],
+  "p_hat_away": oof[:,2],
+})
+oof_df.to_parquet("artifacts/eval/oof_preds.parquet", index=False)
+
+2) Build CLOSE (no-vig) probabilities for the same matches
+
+If you already computed market features + close no-vig, you can export them with a single SQL:
+
+-- CLOSE no-vig probs (H/D/A) for the evaluation matches
+COPY (
+  SELECT mf.match_id,
+         mf.p_close_home_novig AS p_close_home,
+         mf.p_close_draw_novig AS p_close_draw,
+         mf.p_close_away_novig AS p_close_away
+  FROM market_features mf
+  WHERE mf.match_id IN (
+    SELECT DISTINCT match_id FROM model_inference_logs
+  )
+) TO PROGRAM 'gzip > artifacts/eval/close_probs.csv.gz' WITH CSV HEADER;
+
+If your eval is purely historical (from historical_odds), export from the historical builder output that already contains p_last_* (close) no-vig.
+
+3) EV/CLV + hit@coverage sweeper (drop-in)
+
+Save as analysis/eval_ev_clv.py and run it; it prints the headline tables and a per-league summary.
+
+import pandas as pd, numpy as np
+
+# Inputs
+oof_path   = "artifacts/eval/oof_preds.parquet"
+close_path = "artifacts/eval/close_probs.csv.gz"  # or .parquet
+
+CLASS2IDX = {'H':0,'D':1,'A':2}
+IDX2CLASS = {0:'H',1:'D',2:'A'}
+
+def normalize_triplet(h,d,a):
+    v = np.clip(np.array([h,d,a], dtype=float), 1e-6, 1.0)
+    s = v.sum()
+    return v/s if s>0 else np.array([1/3,1/3,1/3])
+
+# Load
+oof = pd.read_parquet(oof_path)
+close = pd.read_csv(close_path)
+
+# Join & clean
+df = (oof.merge(close, on="match_id", how="inner")
+        .dropna(subset=["p_hat_home","p_hat_draw","p_hat_away",
+                        "p_close_home","p_close_draw","p_close_away"]))
+# Normalize both (safety)
+ph = np.stack([df.p_hat_home, df.p_hat_draw, df.p_hat_away], axis=1)
+pc = np.stack([df.p_close_home, df.p_close_draw, df.p_close_away], axis=1)
+ph = np.vstack([normalize_triplet(*row) for row in ph])
+pc = np.vstack([normalize_triplet(*row) for row in pc])
+
+df[["p_hat_home","p_hat_draw","p_hat_away"]] = ph
+df[["p_close_home","p_close_draw","p_close_away"]] = pc
+
+# Core metrics
+y = df.y_true.map(CLASS2IDX).values
+y_onehot = np.eye(3)[y]
+
+logloss = -np.log(np.clip(ph[np.arange(len(y)), y], 1e-6, 1.0)).mean()
+brier   = ((ph - y_onehot)**2).sum(axis=1).mean()/3.0
+acc3    = (ph.argmax(axis=1) == y).mean()
+
+# EV_close per pick (model pick vs closing no-vig)
+pick_idx = ph.argmax(axis=1)
+df["max_p"]   = ph.max(axis=1)
+df["ev_close"] = ph[np.arange(len(df)), pick_idx] - pc[np.arange(len(df)), pick_idx]
+
+# CLV (closing - opening). If you have p_open_* columns, compute:
+for k in ["home","draw","away"]:
+    pk = f"p_open_{k}"
+    if pk in df.columns:
+        df[f"clv_{k}"] = df[f"p_close_{k}"] - df[pk]
+    else:
+        df[f"clv_{k}"] = np.nan
+# Headline CLV (picked-side)
+df["clv_pick"] = df[[f"clv_{IDX2CLASS[i].lower()}" for i in range(3)]].to_numpy()[np.arange(len(df)), pick_idx]
+
+# EV deciles (by model confidence of the picked outcome)
+q = pd.qcut(df["max_p"], 10, labels=False, duplicates="drop")
+ev_table = (df.assign(decile=q)
+              .groupby("decile")
+              .agg(avg_conf=("max_p","mean"),
+                   hit_rate =("y_true", lambda col: (pick_idx[q==col.index.values[0]]==y[q==col.index.values[0]]).mean()
+                              if len(col)>0 else np.nan),
+                   mean_ev  =("ev_close","mean"),
+                   n        =("match_id","count"))
+              .reset_index().sort_values("decile"))
+# Hit@coverage sweep
+def sweep(thresholds=(0.54,0.56,0.58,0.60,0.62,0.64,0.66,0.68,0.70), ev_gate=None):
+    rows=[]
+    for t in thresholds:
+        mask = df["max_p"]>=t
+        if ev_gate is not None:
+            mask &= df["ev_close"]>ev_gate
+        kept = mask.sum()
+        if kept==0:
+            rows.append((t, ev_gate, 0.0, 0, np.nan, np.nan)); continue
+        kept_idx = np.where(mask)[0]
+        hit = (pick_idx[kept_idx]==y[kept_idx]).mean()
+        mean_ev = df.loc[mask,"ev_close"].mean()
+        rows.append((t, ev_gate, kept/len(df), kept, hit, mean_ev))
+    return pd.DataFrame(rows, columns=["tau","ev_gate","coverage","kept","hit_rate","mean_ev"])
+
+hitcov        = sweep()
+hitcov_evpos  = sweep(ev_gate=0.0)
+
+# Per-league ECE (optional quick binning)
+def ece(group, bins=10):
+    p = group["max_p"].to_numpy()
+    ypick = (pick_idx[group.index]==y[group.index]).astype(int)
+    bins = np.linspace(0.0,1.0,bins+1)
+    inds = np.digitize(p, bins)-1
+    e=0; n=len(group)
+    for b in range(len(bins)-1):
+        m = (inds==b)
+        if m.sum()==0: continue
+        conf = p[m].mean()
+        acc  = ypick[m].mean()
+        e += (m.sum()/n)*abs(acc-conf)
+    return e
+
+ece_global = ece(df)
+ece_by_league = df.groupby("league").apply(ece).sort_values()
+
+# Print summary
+print("\n=== GLOBAL METRICS ===")
+print(f"LogLoss: {logloss:.4f} | Brier: {brier:.4f} | 3-way Acc: {acc3*100:.1f}%")
+print(f"EV_close>0 rate: {(df['ev_close']>0).mean()*100:.1f}% | Mean EV_close: {df['ev_close'].mean():+.4f}")
+print(f"ECE (global): {ece_global:.4f}")
+
+print("\n=== EV DECILES (by confidence) ===")
+print(ev_table.to_string(index=False, float_format=lambda x:f"{x:.4f}"))
+
+print("\n=== HIT@COVERAGE (no EV gate) ===")
+print(hitcov.to_string(index=False, float_format=lambda x:f"{x:.4f}"))
+
+print("\n=== HIT@COVERAGE (EV_close>0 gate) ===")
+print(hitcov_evpos.to_string(index=False, float_format=lambda x:f"{x:.4f}"))
+
+print("\n=== ECE by league (lower is better) ===")
+print(ece_by_league.head(12))
+
+Run it:
+
+python analysis/eval_ev_clv.py
+
+4) Promotion gate (copy/paste)
+
+Promote the new LightGBM only if ALL of the below hold on a recent holdout window (e.g., last 1–2 seasons):
+	•	ΔLogLoss(LGBM − Ridge) ≤ −0.02
+	•	%EV_close>0 ≥ Ridge baseline
+	•	EV-decile table: strictly increasing hit% in the top half (deciles 5→9)
+	•	Hit@Coverage at ~60% coverage strictly dominates your current policy (both hit% and mean EV)
+	•	ECE_global ≤ 0.08, and no major league > 0.12 (or apply tiny per-league temperature if needed)
+
+5) Immediate selection policy (shadow, lifts hit% now)
+
+Use on today’s predictions while the full training finishes on beefier compute:
+
+if max_p >= 0.62 and ev_close > 0 and league_ece <= 0.05:
+    decision = "bypass_consensus"
+elif 0.56 <= max_p < 0.62 or abs(ev_close) < 0.005:
+    decision = "light_consensus"
+else:
+    decision = "full_consensus_or_abstain"
+
+Report it as: “Hit 57.1% @ 61% coverage (EV_close mean +0.013)”.
+
+6) Small hygiene nudges
+	•	Keep your ON CONFLICT unique constraint.
+	•	Merge legacy “EPL” into “Premier League” (you already did—nice).
+	•	Clip extreme implied probs before de-vig and renormalize (avoid tails exploding EV/CLV).
+	•	Lock label map to {'H':0,'D':1,'A':2} everywhere.
+
+⸻
+
+If you want, I can also drop a tiny script that sweeps per-league thresholds (τ per league) to hit league-specific sweet spots without overfitting.
