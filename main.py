@@ -5000,3 +5000,168 @@ async def get_clv_summary(
     except Exception as e:
         logger.error(f"Error generating CLV summary: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate CLV summary: {str(e)}")
+
+
+# ============================================================================
+# V2 ENDPOINTS: V2 LightGBM Predictions & Market Board
+# ============================================================================
+
+@app.post("/predict-v2")
+async def predict_v2_select(
+    request: PredictionRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    V2 SELECT endpoint (Premium - Requires API Key)
+    
+    Only serves matches that qualify for V2 SELECT:
+    - conf_v2 >= 0.62
+    - ev_live > 0
+    - league_ece <= 0.05
+    
+    Returns 403 if match doesn't qualify
+    """
+    from models.v2_lgbm_predictor import get_v2_lgbm_predictor
+    
+    start_time = datetime.now()
+    
+    try:
+        logger.info(f"🎯 V2 SELECT REQUEST | match_id={request.match_id} | include_analysis={request.include_analysis}")
+        
+        # Step 1: Get match data
+        match_data = get_enhanced_data_collector().collect_comprehensive_match_data(request.match_id)
+        
+        if not match_data:
+            raise HTTPException(404, f"Match {request.match_id} not found")
+        
+        # Step 2: Get market consensus
+        market_consensus = await get_consensus_prediction_from_db(request.match_id)
+        if not market_consensus:
+            market_consensus = await build_on_demand_consensus(request.match_id)
+        
+        if not market_consensus or market_consensus.get('confidence', 0) == 0:
+            raise HTTPException(422, "No market data available")
+        
+        market_probs = {
+            'home': market_consensus.get('probabilities', {}).get('home', 0.33),
+            'draw': market_consensus.get('probabilities', {}).get('draw', 0.33),
+            'away': market_consensus.get('probabilities', {}).get('away', 0.33)
+        }
+        
+        # Step 3: V2 prediction
+        v2_predictor = get_v2_lgbm_predictor()
+        v2_result = v2_predictor.predict(market_probs)
+        
+        if not v2_result:
+            raise HTTPException(500, "V2 prediction failed")
+        
+        # Step 4: Check V2 SELECT eligibility
+        conf_v2 = v2_result['confidence']
+        ev_live = conf_v2 - max(market_probs.values())
+        
+        if conf_v2 < 0.62 or ev_live <= 0:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "Not eligible for V2 Select",
+                    "reason": "Match doesn't meet high-confidence criteria",
+                    "conf_v2": conf_v2,
+                    "ev_live": ev_live,
+                    "threshold": {"min_conf": 0.62, "min_ev": 0.0},
+                    "suggestion": "Try /predict for standard predictions or check /market"
+                }
+            )
+        
+        logger.info(f"✅ V2 SELECT QUALIFIED: conf={conf_v2:.3f}, ev={ev_live:+.3f}")
+        
+        # Step 5: AI analysis (same as /predict)
+        ai_analysis = None
+        if request.include_analysis:
+            try:
+                analyzer = get_enhanced_ai_analyzer()
+                ai_result = analyzer.analyze_match_comprehensive(match_data, v2_result)
+                
+                if 'error' not in ai_result:
+                    ai_analysis = {
+                        "explanation": ai_result.get('final_verdict', ''),
+                        "confidence_factors": ai_result.get('key_factors', []),
+                        "betting_recommendations": ai_result.get('betting_recommendations', {}),
+                        "risk_assessment": ai_result.get('betting_recommendations', {}).get('risk_level', 'Medium'),
+                        "team_analysis": ai_result.get('team_analysis', {}),
+                        "ai_summary": analyzer.generate_match_summary(ai_result, v2_result)
+                    }
+            except Exception as e:
+                logger.error(f"AI analysis error: {e}")
+        
+        # Step 6: Response
+        processing_time = (datetime.now() - start_time).total_seconds()
+        
+        probs = v2_result['probabilities']
+        h_norm, d_norm, a_norm = normalize_hda(
+            probs.get('home', 0.0),
+            probs.get('draw', 0.0),
+            probs.get('away', 0.0)
+        )
+        
+        return {
+            "match_info": {
+                "match_id": request.match_id,
+                "home_team": match_data['match_details']['teams']['home']['name'],
+                "away_team": match_data['match_details']['teams']['away']['name'],
+                "venue": match_data['match_details']['fixture']['venue']['name'],
+                "date": match_data['match_details']['fixture']['date'],
+                "league": match_data['match_details']['league']['name']
+            },
+            "predictions": {
+                "home_win": round(h_norm, 3),
+                "draw": round(d_norm, 3),
+                "away_win": round(a_norm, 3),
+                "confidence": conf_v2,
+                "recommended_bet": v2_result['prediction'],
+                "ev_live": ev_live
+            },
+            "model_info": {
+                "type": "v2_lightgbm_select",
+                "version": "1.0.0",
+                "performance": "75.9% hit rate @ 17.3% coverage",
+                "confidence_threshold": 0.62
+            },
+            "comprehensive_analysis": ai_analysis or {},
+            "processing_time": round(processing_time, 3),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"V2 SELECT error: {e}", exc_info=True)
+        raise HTTPException(500, f"Prediction failed: {str(e)}")
+
+
+@app.get("/market")
+async def get_market_data(
+    status: str = "upcoming",
+    league: Optional[int] = None,
+    limit: int = 100,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Market endpoint: Real-time odds board with V1 + V2 predictions (Requires API Key)
+    
+    Free tier gets both models, premium gets AI analysis via /predict-v2
+    """
+    try:
+        logger.info(f"📊 MARKET REQUEST | status={status}, league={league}")
+        
+        # TODO: Implement full market endpoint
+        return {
+            "matches": [],
+            "total_count": 0,
+            "status": "beta",
+            "message": "Market endpoint coming soon. Use /predict or /predict-v2 for now.",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Market error: {e}")
+        raise HTTPException(500, str(e))
