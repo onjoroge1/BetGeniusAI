@@ -1,0 +1,215 @@
+Love it—here’s a tight plan that keeps **/predict** intact, adds **/predict-v2**, and ships a clean, real-time **/market** that powers the UI you mocked.
+
+# Decisions (short)
+
+* **Keep** `/predict` (V1 consensus + optional AI analysis).
+* **Add** `/predict-v2` (V2-Select only; same response shape as `/predict`; uses same `/predict/available` with `?model=v2`).
+* **Add** `/market` (real-time odds board; shows **V1** and **V2** side-by-side; premium badge when V2-Select qualifies).
+* **Real-time source**: read from `odds_snapshots` (and your `market_features` open/close). Do **not** couple to the CLV producer; it’s post-hoc.
+
+---
+
+# How we compute/confidence & selection
+
+* `v1_probs` = no-vig probabilities from **current** odds (or your consensus table).
+* `v2_probs` = LightGBM V2 prediction (pre-match; can be recomputed when inputs change).
+* `conf_v2 = max(v2_probs.values())`.
+* `ev_live = max(v2_probs) − max(v1_probs_current)`.
+* **V2-Select gate** (premium): `conf_v2 ≥ 0.62 and ev_live > 0 and league_ece ≤ 0.05`.
+
+If V1 is missing for a match, leave the V1 fields **null** (don’t default to 33%). The UI will hide the V1 row for that match.
+
+---
+
+# API contracts
+
+### 1) `/predict-v2` (V2-Select)
+
+* Works like `/predict`, but:
+
+  * swaps V1 for V2,
+  * enforces the **Select** gate,
+  * (optionally) calls your OpenAI analyzer for reasons.
+* **Available listings**: reuse `/predict/available?model=v2` (same handler adds a filter for Select-eligible matches).
+
+**Request**
+
+```http
+POST /predict-v2
+{
+  "match_id": "af:fixture:12345",
+  "include_analysis": true
+}
+```
+
+**Response** (same shape as `/predict`)
+
+```json
+{
+  "match_info": { ... },
+  "predictions": {
+    "home_win": 0.21, "draw": 0.18, "away_win": 0.61,
+    "confidence": 0.61,
+    "recommended_bet": "away",
+    "ev_live": 0.13
+  },
+  "model_info": {
+    "type": "v2_lightgbm_select",
+    "performance": "≈76% hit @ ~17% coverage",
+    "confidence_threshold": 0.62
+  },
+  "comprehensive_analysis": { ... }   // OpenAI results (same formatter as /predict)
+}
+```
+
+If the match doesn’t qualify for Select, return **403** with a helpful reason and a CTA to use `/predict` (V1) or view `/market`.
+
+---
+
+### 2) `/market` (odds board; real-time)
+
+* Reads **latest odds** per bookmaker from `odds_snapshots`.
+* Produces both **V1** and **V2** blocks for the UI.
+* Shows “Unlock Premium” when V2-Select is true.
+* Supports `status=upcoming|live`, league filters, paging.
+
+**Request**
+
+```http
+GET /market?status=upcoming&league=39&limit=50
+```
+
+**Response (one row per match)**
+*(fields correspond to your screenshot: teams/logos, league/flag, time/clock, odds by book, prediction pill)*
+
+```json
+{
+  "matches": [
+    {
+      "match_id": "af:fixture:12345",
+      "status": "UPCOMING",                 // or LIVE
+      "clock": null,                        // "43:00" if live
+      "score": null,                        // {"home":0,"away":1} if live
+      "kickoff_at": "2025-10-27T19:00:00Z",
+
+      "league": {"id":39,"name":"Premier League","flag":"🇬🇧"},
+      "home": {"id":50,"name":"Crystal Palace","logo":"https://..."},
+      "away": {"id":33,"name":"Manchester United","logo":"https://..."},
+
+      "odds": {
+        "books": {
+          "Bet365":   {"home":3.80,"draw":3.75,"away":1.95},
+          "Unibet":   {"home":3.85,"draw":3.80,"away":1.92},
+          "Pinnacle": {"home":3.90,"draw":3.85,"away":1.90}
+        },
+        "novig_current": {"home":0.27,"draw":0.26,"away":0.47},
+        "novig_open":    {"home":0.29,"draw":0.25,"away":0.46},
+        "novig_close":   {"home":0.28,"draw":0.24,"away":0.48}
+      },
+
+      "models": {
+        "v1_consensus": {
+          "probs": {"home":0.28,"draw":0.24,"away":0.48},   // or nulls if missing
+          "pick": "away",
+          "confidence": 0.48,
+          "source": "market_consensus"
+        },
+        "v2_lightgbm": {
+          "probs": {"home":0.21,"draw":0.18,"away":0.61},
+          "pick": "away",
+          "confidence": 0.61,
+          "source": "ml_model"
+        }
+      },
+
+      "analysis": {
+        "agreement": {
+          "same_pick": true,
+          "confidence_delta": 0.13,
+          "divergence": "low"
+        },
+        "premium_available": {
+          "v2_select_qualified": true,
+          "reason": "conf=0.61, ev=+0.13",
+          "cta_url": "/predict-v2/af:fixture:12345"
+        }
+      },
+
+      "ui_hints": {
+        "primary_model": "v2_lightgbm",
+        "show_premium_badge": true,
+        "confidence_pct": 61
+      }
+    }
+  ],
+  "timestamp": "2025-10-26T18:25:00Z"
+}
+```
+
+---
+
+# Cadence & data freshness
+
+* **Collectors** keep `odds_snapshots` fresh (e.g., 30–60s upcoming; 5–10s live).
+* `/market` is **read-only** with a 5–10s Redis cache TTL.
+* A tiny **picker job** (same cadence) can pre-compute Select eligibility and cache:
+
+  * `conf_v2`, `ev_live`, `premium_lock`, and a compact UI blob.
+
+---
+
+# Handling edge cases (important)
+
+* **No V1 odds** yet → set `models.v1_consensus.probs = null` (UI hides V1 row).
+* **No V2** (rare—e.g., data gap) → set `models.v2_lightgbm.probs = null` and `ui_hints.primary_model = "v1_consensus"`.
+* **Books disagree** → still compute no-vig from available books; expose per-book odds as in the mock.
+* **Live** → pull score/clock from API-Football; same structure.
+
+---
+
+# Minimal SQL for latest odds (per book, per match)
+
+```sql
+WITH latest AS (
+  SELECT DISTINCT ON (match_id, bookmaker, outcome)
+    match_id, bookmaker, outcome, odds_decimal
+  FROM odds_snapshots
+  WHERE match_id = $1 AND market = 'h2h'
+  ORDER BY match_id, bookmaker, outcome, ts_snapshot DESC
+)
+SELECT bookmaker,
+       MAX(CASE WHEN outcome='H' THEN odds_decimal END) AS home,
+       MAX(CASE WHEN outcome='D' THEN odds_decimal END) AS draw,
+       MAX(CASE WHEN outcome='A' THEN odds_decimal END) AS away
+FROM latest
+GROUP BY bookmaker;
+```
+
+Then convert to no-vig probabilities for `novig_current`.
+
+---
+
+# Rollout checklist
+
+1. **/predict-v2**
+
+* Reuse `/predict` controller → swap in V2 predictor.
+* Add Select gate & 403 for non-eligible.
+* Keep OpenAI analyzer pathway identical.
+* Support `/predict/available?model=v2` (filter by Select gate).
+
+2. **/market**
+
+* Handler that reads snapshots + logos + (optional) consensus table.
+* Compute `v1_probs`, `v2_probs`, `conf_v2`, `ev_live`.
+* Populate `premium_available` and `ui_hints` per row.
+* Return JSON exactly matching the table UI.
+
+3. **Cache**
+
+* Redis key `market:{status}:{league}:{page}` (TTL 10s).
+* Redis key `select_gate:{match_id}` for fast premium badge.
+
+---
+
+If you want, I can draft the FastAPI handlers (`/predict-v2`, `/market`) and the small allocator helper in code next so you can drop them straight into the service.
