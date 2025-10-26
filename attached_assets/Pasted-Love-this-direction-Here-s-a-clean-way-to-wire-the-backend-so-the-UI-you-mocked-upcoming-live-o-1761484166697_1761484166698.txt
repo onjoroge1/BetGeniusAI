@@ -1,0 +1,224 @@
+Love this direction. Here’s a clean way to wire the backend so the UI you mocked (upcoming + live, odds by book, prediction pill with %/premium) “just works”—and so we can flip between V2-Select and Ensemble with zero UI changes.
+
+⸻
+
+1) Concepts
+
+V2-Select
+	•	Show a pick only when V2 confidence is high and it has positive EV vs the live/closing market.
+	•	Business goal: fewer picks, higher win rate (sticky, premium-worthy).
+
+Ensemble (V1+V2)
+	•	Always available; blends V1 (market no-vig) with V2 (model).
+	•	Business goal: complete coverage & consistent baseline.
+
+⸻
+
+2) Signals we compute per match
+
+We’ll compute (and cache) these for both upcoming and live:
+	•	v1_probs: no-vig market probabilities (from current odds; close odds once available)
+	•	v2_probs: LightGBM predictions (pre-match)
+	•	conf_v2: max(v2_probs)
+	•	delta: disagreement = abs(max(v2_probs) - max(v1_probs))
+	•	ev_live: (max(v2_probs) - max(v1_probs_current)) (positive means value right now)
+	•	clv_run: (v1_probs_current - v1_probs_close) when close exists (for running CLV)
+	•	ensemble_probs: piecewise weight of V1/V2 (see §4)
+	•	pick_type: "v2_select" or "ensemble"
+	•	premium_lock: boolean (e.g., lock V2-Select; show Ensemble free)
+
+⸻
+
+3) Data plumbing (tables/views)
+
+Use what you already have; add a thin computed view and one cache table.
+
+Tables (existing):
+	•	fixtures (match meta; API-Football IDs; kickoff_at; league; team ids; logos)
+	•	odds_snapshots (book, ts, home/draw/away)
+	•	market_features (open/close/current novig, dispersion, drift)
+	•	model_inference_logs (V2 predictions; v1 if you store it)
+	•	live_scores (clock, score, status) from API-Football
+
+New: materialized view (or job-filled table) market_state
+	•	One row per match, updated every 15–30s:
+	•	match_id, status, kickoff_at
+	•	p_open_* (novig), p_close_* (novig), p_current_* (novig)
+	•	best_prices by book (Bet365/Unibet/Pinnacle) for UI
+	•	dispersion_*, drift_*, secs_to_kickoff
+
+New: cache table predictions_view_cache
+	•	match_id, generated_at, v1_probs, v2_probs, ensemble_probs, conf_v2, delta, ev_live, clv_run, pick_type, premium_lock
+
+Jobs:
+	•	Odds aggregator (30s upcoming, 5–10s live) fills market_state.
+	•	Picker job (same cadence) reads market_state + latest V2 and writes predictions_view_cache.
+
+⸻
+
+4) Decision logic (V2-Select vs Ensemble)
+
+# inputs: v1_probs (current novig), v2_probs (pre-match), league_ece
+
+conf_v2 = max(v2_probs)
+delta = abs(max(v2_probs) - max(v1_probs))
+ev_live = max(v2_probs) - max(v1_probs)           # simple EV vs current market
+is_eligible_league = (league_ece <= 0.05)
+
+v2_select = (conf_v2 >= 0.62 and ev_live > 0 and is_eligible_league)
+
+# blending weights
+if v2_select and delta >= 0.10:
+    w = 0.70
+elif conf_v2 >= 0.62:
+    w = 0.60
+elif conf_v2 >= 0.56:
+    w = 0.50
+else:
+    w = 0.30
+
+ensemble_probs = w * v2_probs + (1 - w) * v1_probs
+
+pick_type = "v2_select" if v2_select else "ensemble"
+premium_lock = (pick_type == "v2_select")  # lock your edge
+
+
+⸻
+
+5) New API: /market
+
+Yes—leverage current CLV, real-time odds, and API-Football.
+
+GET /market?status=upcoming|live&league=...&from=...&to=...&limit=...&premium=false|true
+
+Response (one item = one match row in your screenshot):
+
+{
+  "match_id": "af:fixture:12345",
+  "status": "LIVE",                       // or UPCOMING
+  "clock": "43:00",                       // live only
+  "score": {"home": 0, "away": 1},        // live only
+  "kickoff_at": "2025-10-27T19:00:00Z",
+  "league": {"id": 39, "name": "Premier League", "flag": "🇬🇧"},
+  "home": {"id": 50, "name": "Crystal Palace", "logo": "https://..."},
+  "away": {"id": 33, "name": "Manchester United", "logo": "https://..."},
+  "odds": {
+    "books": {
+      "Bet365": {"home": 3.80, "draw": 3.75, "away": 1.95},
+      "Unibet": {"home": 3.85, "draw": 3.80, "away": 1.92},
+      "Pinnacle": {"home": 3.90, "draw": 3.85, "away": 1.90}
+    },
+    "novig_current": {"home": 0.27, "draw": 0.26, "away": 0.47},
+    "novig_open":    {"home": 0.29, "draw": 0.25, "away": 0.46},
+    "novig_close":   {"home": 0.28, "draw": 0.24, "away": 0.48}
+  },
+  "model": {
+    "v1_probs": {"home": 0.28, "draw": 0.24, "away": 0.48},
+    "v2_probs": {"home": 0.21, "draw": 0.18, "away": 0.61},
+    "ensemble_probs": {"home": 0.23, "draw": 0.20, "away": 0.57},
+    "conf_v2": 0.61,
+    "delta": 0.13,
+    "ev_live": 0.13,                      // max(v2)-max(v1_current)
+    "clv_run": 0.01                        // current vs close, if close exists
+  },
+  "prediction": {
+    "type": "v2_select",                   // or "ensemble"
+    "pick": "away",                        // "home" | "draw" | "away"
+    "confidence_pct": 61,
+    "badge": "LIVE",                       // UI decoration
+    "premium_lock": true,                  // show "Unlock Premium" pill
+    "cta_url": "/premium/match/af:fixture:12345"
+  }
+}
+
+Sorting: live first, then upcoming; inside group by prediction.confidence_pct DESC.
+
+⸻
+
+6) What to show per column (to match your image)
+	•	Match: home crest + names stacked; away beneath. (logos from API-Football team endpoints)
+	•	League: league flag + name (API-Football leagues)
+	•	Time: kickoff_at for upcoming; LIVE + clock & score for live
+	•	Odds: three rows (Home/Draw/Away) × three books (Bet365, Unibet, Pinnacle)
+	•	Prediction:
+	•	left text = pick (“Manchester United”, “Paris SG”, …)
+	•	pill = confidence_pct (from V2-Select or Ensemble)
+	•	if premium_lock=true → “Unlock Premium” instead of %
+
+⸻
+
+7) Update cadence & performance
+	•	Odds snapshots → aggregate to market_state every 30s (upcoming) / 5–10s (live)
+	•	Live scores/clock → API-Football every 10–15s
+	•	Picker job → recompute per match on each market_state refresh
+	•	/market cache → Redis 5–10s TTL; UI polls every 10–15s
+
+⸻
+
+8) Team logos & flags
+	•	Yes, API-Football: teams/{team_id} returns logo URLs; leagues/{league_id} for league emblems/flags.
+	•	Persist URLs in teams & leagues tables; refresh daily.
+
+⸻
+
+9) Premium rules (simple defaults)
+	•	Lock V2-Select rows (premium_lock=true) except 1–2 free “sample” matches/day.
+	•	Leave Ensemble rows unlocked for broad coverage.
+	•	For live tab, lock when ev_live > 0 and conf_v2 >= 0.62.
+
+⸻
+
+10) Minimal SQL to materialize market_state (sketch)
+
+-- one latest snapshot per book
+WITH latest AS (
+  SELECT DISTINCT ON (match_id, bookmaker)
+    match_id, bookmaker, ts_snapshot,
+    home_odds, draw_odds, away_odds
+  FROM odds_snapshots
+  WHERE ts_snapshot <= now()
+  ORDER BY match_id, bookmaker, ts_snapshot DESC
+),
+novig AS (
+  SELECT
+    match_id,
+    bookmaker,
+    1/home_odds    AS imp_h,
+    1/draw_odds    AS imp_d,
+    1/away_odds    AS imp_a
+  FROM latest
+),
+agg AS (
+  SELECT
+    match_id,
+    jsonb_object_agg(bookmaker, jsonb_build_object(
+      'home', (SELECT home_odds FROM latest l WHERE l.match_id = n.match_id AND l.bookmaker = n.bookmaker),
+      'draw', (SELECT draw_odds FROM latest l WHERE l.match_id = n.match_id AND l.bookmaker = n.bookmaker),
+      'away', (SELECT away_odds FROM latest l WHERE l.match_id = n.match_id AND l.bookmaker = n.bookmaker)
+    )) AS books,
+    -- no-vig average across books
+    (SUM(imp_h)/NULLIF(SUM(imp_h+imp_d+imp_a),0)) AS p_cur_home,
+    (SUM(imp_d)/NULLIF(SUM(imp_h+imp_d+imp_a),0)) AS p_cur_draw,
+    (SUM(imp_a)/NULLIF(SUM(imp_h+imp_d+imp_a),0)) AS p_cur_away
+  FROM novig n
+  GROUP BY match_id
+)
+SELECT f.match_id, f.kickoff_at, f.league_id, f.home_team_id, f.away_team_id,
+       a.books,
+       a.p_cur_home, a.p_cur_draw, a.p_cur_away
+FROM fixtures f
+JOIN agg a USING (match_id);
+
+(Your existing market_features already handles open/close; reuse that to add p_open_*, p_close_*.)
+
+⸻
+
+11) Why this structure works
+	•	The UI needs one object that already has odds (by book), clean probabilities, prediction, and display bits (logos, live badge).
+	•	The picker job isolates business logic (V2-Select vs Ensemble) and can evolve without touching the UI.
+	•	Using API-Football + odds snapshots gives both freshness (live) and credibility (books listed).
+	•	CLV/EV are computed in real-time against the same market feed powering the UI.
+
+⸻
+
+If you want, I can draft the /market FastAPI endpoint (models + handler) and a tiny picker job that fills predictions_view_cache using the logic above—so you can drop it straight into your service.
