@@ -61,12 +61,13 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Outcome Standardization**: Unified H/D/A outcome codes for consistent data handling.
 - **Timezone Architecture**: All timestamp columns use timezone-aware UTC.
 - **CLV Alert Archival**: Expired alerts are archived instead of deleted to preserve historical data.
+- **Match Status Architecture**: Database only stores 2 status values (`'scheduled'`, `'finished'`). "Upcoming" matches determined by time-based filtering (`kickoff_at > NOW() AND status = 'scheduled'`). This approach is more reliable than status flags and requires no maintenance.
 
 ### API Endpoints
 - **Prediction API**: Main endpoints for match predictions.
   - `/predict` - V1 consensus predictions with optional AI analysis
   - `/predict-v2` - **NEW (Oct 2025)** V2 SELECT endpoint (premium, high-confidence only: conf >= 0.62, EV > 0). Uses V2 LightGBM model (52.7% overall, 75.9% @ 62% threshold). Requires API key authentication.
-  - `/market` - **NEW (Oct 2025)** Market board showing both V1 + V2 predictions side-by-side (free tier, authenticated). Designed for real-time odds comparison with premium upgrade CTA.
+  - `/market` - **NEW (Oct 2025)** Market board showing both V1 + V2 predictions side-by-side (free tier, authenticated). Designed for real-time odds comparison with premium upgrade CTA. **Architecture:** Reads pre-computed V1 from `consensus_predictions` (updated every 60s by scheduler), fetches latest odds from `odds_snapshots`, generates V2 on-demand. Uses time-based filtering (`kickoff_at > NOW()`) instead of status flags for "upcoming" matches. Response time: ~500ms for 10 matches.
 - **Admin Endpoints**: For data management, match discovery, and training statistics.
 - **V2 Shadow System Endpoints**: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`.
 - **Calibration & Optimization Endpoints**: `/metrics/evaluation`, `/metrics/temperature-scaling`.
