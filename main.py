@@ -5148,20 +5148,328 @@ async def get_market_data(
     """
     Market endpoint: Real-time odds board with V1 + V2 predictions (Requires API Key)
     
+    Data sources:
+    - odds_snapshots: Latest raw odds per bookmaker (updated every 60s)
+    - consensus_predictions: V1 probabilities (pre-computed by scheduler)
+    - V2 predictor: Generate V2 predictions on-demand
+    
     Free tier gets both models, premium gets AI analysis via /predict-v2
     """
+    import psycopg2
+    from models.v2_lgbm_predictor import get_v2_lgbm_predictor
+    
     try:
-        logger.info(f"📊 MARKET REQUEST | status={status}, league={league}")
+        logger.info(f"📊 MARKET REQUEST | status={status}, league={league}, limit={limit}")
         
-        # TODO: Implement full market endpoint
+        matches = []
+        
+        with psycopg2.connect(os.environ.get('DATABASE_URL')) as conn:
+            cursor = conn.cursor()
+            
+            # Step 1: Get fixtures based on status
+            if status == "upcoming":
+                # Get upcoming matches with odds
+                if league:
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at
+                        FROM fixtures f
+                        JOIN odds_snapshots os ON f.match_id = os.match_id
+                        WHERE f.status = 'upcoming'
+                            AND f.kickoff_at > NOW()
+                            AND f.league_id = %s
+                        ORDER BY f.kickoff_at ASC
+                        LIMIT %s
+                    """
+                    cursor.execute(query, (league, limit))
+                else:
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at
+                        FROM fixtures f
+                        JOIN odds_snapshots os ON f.match_id = os.match_id
+                        WHERE f.status = 'upcoming'
+                            AND f.kickoff_at > NOW()
+                        ORDER BY f.kickoff_at ASC
+                        LIMIT %s
+                    """
+                    cursor.execute(query, (limit,))
+            
+            elif status == "live":
+                # Get live matches
+                if league:
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at
+                        FROM fixtures f
+                        JOIN odds_snapshots os ON f.match_id = os.match_id
+                        WHERE f.status = 'live'
+                            AND f.league_id = %s
+                        ORDER BY f.kickoff_at DESC
+                        LIMIT %s
+                    """
+                    cursor.execute(query, (league, limit))
+                else:
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at
+                        FROM fixtures f
+                        JOIN odds_snapshots os ON f.match_id = os.match_id
+                        WHERE f.status = 'live'
+                        ORDER BY f.kickoff_at DESC
+                        LIMIT %s
+                    """
+                    cursor.execute(query, (limit,))
+            
+            else:
+                raise HTTPException(400, "Status must be 'upcoming' or 'live'")
+            
+            fixtures = cursor.fetchall()
+            
+            if not fixtures:
+                return {
+                    "matches": [],
+                    "total_count": 0,
+                    "message": "No matches found",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            
+            # Step 2: For each fixture, get odds and predictions
+            for row in fixtures:
+                match_id, home_team, away_team, league_id, league_name, kickoff_at = row
+                
+                # Get latest odds per bookmaker from odds_snapshots
+                cursor.execute("""
+                    WITH latest AS (
+                        SELECT DISTINCT ON (bookmaker, outcome)
+                            bookmaker,
+                            outcome,
+                            odds_decimal,
+                            ts_snapshot
+                        FROM odds_snapshots
+                        WHERE match_id = %s AND market = 'h2h'
+                        ORDER BY bookmaker, outcome, ts_snapshot DESC
+                    )
+                    SELECT bookmaker,
+                           MAX(CASE WHEN outcome='H' THEN odds_decimal END) AS home,
+                           MAX(CASE WHEN outcome='D' THEN odds_decimal END) AS draw,
+                           MAX(CASE WHEN outcome='A' THEN odds_decimal END) AS away
+                    FROM latest
+                    GROUP BY bookmaker
+                """, (match_id,))
+                
+                odds_rows = cursor.fetchall()
+                
+                # Build bookmaker odds dict
+                books = {}
+                for bk_name, h_odds, d_odds, a_odds in odds_rows:
+                    if h_odds and d_odds and a_odds:
+                        books[bk_name] = {
+                            "home": float(h_odds),
+                            "draw": float(d_odds),
+                            "away": float(a_odds)
+                        }
+                
+                if not books:
+                    logger.warning(f"No odds for match {match_id}, skipping")
+                    continue
+                
+                # Calculate no-vig consensus from current odds
+                novig_current = calculate_novig_consensus(books)
+                
+                # Step 3: Get V1 consensus from consensus_predictions table (pre-computed)
+                cursor.execute("""
+                    SELECT p_home, p_draw, p_away
+                    FROM consensus_predictions
+                    WHERE match_id = %s
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """, (match_id,))
+                
+                v1_row = cursor.fetchone()
+                
+                if v1_row:
+                    v1_probs = {
+                        'home': float(v1_row[0]),
+                        'draw': float(v1_row[1]),
+                        'away': float(v1_row[2])
+                    }
+                    v1_pick = max(v1_probs, key=v1_probs.get)
+                    v1_conf = max(v1_probs.values())
+                    
+                    v1_data = {
+                        "probs": v1_probs,
+                        "pick": v1_pick,
+                        "confidence": round(v1_conf, 3),
+                        "source": "market_consensus"
+                    }
+                else:
+                    # Fallback if no pre-computed consensus
+                    v1_data = None
+                    logger.warning(f"No V1 consensus for match {match_id}")
+                
+                # Step 4: Generate V2 prediction
+                try:
+                    v2_predictor = get_v2_lgbm_predictor()
+                    v2_result = v2_predictor.predict(novig_current)
+                    
+                    if v2_result:
+                        v2_probs = v2_result['probabilities']
+                        v2_pick = v2_result['prediction']
+                        v2_conf = v2_result['confidence']
+                        
+                        v2_data = {
+                            "probs": v2_probs,
+                            "pick": v2_pick,
+                            "confidence": round(v2_conf, 3),
+                            "source": "ml_model"
+                        }
+                    else:
+                        v2_data = None
+                        logger.warning(f"V2 prediction failed for match {match_id}")
+                
+                except Exception as e:
+                    logger.error(f"V2 prediction error for match {match_id}: {e}")
+                    v2_data = None
+                
+                # Step 5: Calculate agreement and V2 SELECT eligibility
+                if v1_data and v2_data:
+                    same_pick = (v1_data['pick'] == v2_data['pick'])
+                    conf_delta = v2_data['confidence'] - v1_data['confidence']
+                    divergence = "high" if abs(conf_delta) > 0.15 else "low"
+                    
+                    # V2 SELECT criteria
+                    ev_live = v2_data['confidence'] - v1_data['confidence']
+                    v2_select_qualified = (v2_data['confidence'] >= 0.62 and ev_live > 0)
+                    
+                    analysis = {
+                        "agreement": {
+                            "same_pick": same_pick,
+                            "confidence_delta": round(conf_delta, 3),
+                            "divergence": divergence
+                        },
+                        "premium_available": {
+                            "v2_select_qualified": v2_select_qualified,
+                            "reason": f"conf={v2_data['confidence']:.2f}, ev={ev_live:+.3f}",
+                            "cta_url": f"/predict-v2" if v2_select_qualified else None
+                        }
+                    }
+                    
+                    ui_hints = {
+                        "primary_model": "v2_lightgbm",
+                        "show_premium_badge": v2_select_qualified,
+                        "confidence_pct": int(v2_data['confidence'] * 100)
+                    }
+                else:
+                    analysis = None
+                    ui_hints = {"primary_model": "v1_consensus" if v1_data else None}
+                
+                # Build match object
+                match_obj = {
+                    "match_id": match_id,
+                    "status": status.upper(),
+                    "kickoff_at": kickoff_at.isoformat() if kickoff_at else None,
+                    "league": {
+                        "id": league_id,
+                        "name": league_name
+                    },
+                    "home": {"name": home_team},
+                    "away": {"name": away_team},
+                    "odds": {
+                        "books": books,
+                        "novig_current": novig_current
+                    },
+                    "models": {
+                        "v1_consensus": v1_data,
+                        "v2_lightgbm": v2_data
+                    },
+                    "analysis": analysis,
+                    "ui_hints": ui_hints
+                }
+                
+                matches.append(match_obj)
+        
+        logger.info(f"✅ MARKET: Returned {len(matches)} matches")
+        
         return {
-            "matches": [],
-            "total_count": 0,
-            "status": "beta",
-            "message": "Market endpoint coming soon. Use /predict or /predict-v2 for now.",
+            "matches": matches,
+            "total_count": len(matches),
             "timestamp": datetime.utcnow().isoformat()
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Market error: {e}")
-        raise HTTPException(500, str(e))
+        logger.error(f"Market error: {e}", exc_info=True)
+        raise HTTPException(500, f"Market data unavailable: {str(e)}")
+
+
+def calculate_novig_consensus(books: dict) -> dict:
+    """
+    Calculate no-vig consensus from bookmaker odds
+    
+    Args:
+        books: Dict of {bookmaker: {home, draw, away}}
+    
+    Returns:
+        {home, draw, away} probabilities
+    """
+    if not books:
+        return {'home': 0.33, 'draw': 0.33, 'away': 0.34}
+    
+    h_probs, d_probs, a_probs = [], [], []
+    
+    for book_odds in books.values():
+        h, d, a = book_odds['home'], book_odds['draw'], book_odds['away']
+        
+        # Convert to implied probs
+        h_imp = 1/h if h > 0 else 0
+        d_imp = 1/d if d > 0 else 0
+        a_imp = 1/a if a > 0 else 0
+        
+        # Remove vig
+        total = h_imp + d_imp + a_imp
+        if total > 0:
+            h_probs.append(h_imp / total)
+            d_probs.append(d_imp / total)
+            a_probs.append(a_imp / total)
+    
+    if not h_probs:
+        return {'home': 0.33, 'draw': 0.33, 'away': 0.34}
+    
+    # Average across bookmakers
+    import numpy as np
+    h_avg = float(np.mean(h_probs))
+    d_avg = float(np.mean(d_probs))
+    a_avg = float(np.mean(a_probs))
+    
+    # Normalize
+    total = h_avg + d_avg + a_avg
+    if total > 0:
+        return {
+            'home': round(h_avg / total, 3),
+            'draw': round(d_avg / total, 3),
+            'away': round(a_avg / total, 3)
+        }
+    
+    return {'home': 0.33, 'draw': 0.33, 'away': 0.34}
