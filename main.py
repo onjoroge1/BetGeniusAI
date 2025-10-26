@@ -5167,8 +5167,12 @@ async def get_market_data(
             cursor = conn.cursor()
             
             # Step 1: Get fixtures based on status
+            # Note: System uses kickoff_at for determining status (scheduled/finished only in DB)
+            # "upcoming" = kickoff_at > NOW() AND status = 'scheduled'
+            # "live" = kickoff_at <= NOW() AND kickoff_at > NOW() - INTERVAL '2 hours' AND status = 'scheduled'
+            
             if status == "upcoming":
-                # Get upcoming matches with odds
+                # Get upcoming matches with odds (future kickoffs)
                 if league:
                     query = """
                         SELECT DISTINCT
@@ -5180,8 +5184,8 @@ async def get_market_data(
                             f.kickoff_at
                         FROM fixtures f
                         JOIN odds_snapshots os ON f.match_id = os.match_id
-                        WHERE f.status = 'upcoming'
-                            AND f.kickoff_at > NOW()
+                        WHERE f.kickoff_at > NOW()
+                            AND f.status = 'scheduled'
                             AND f.league_id = %s
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
@@ -5198,15 +5202,15 @@ async def get_market_data(
                             f.kickoff_at
                         FROM fixtures f
                         JOIN odds_snapshots os ON f.match_id = os.match_id
-                        WHERE f.status = 'upcoming'
-                            AND f.kickoff_at > NOW()
+                        WHERE f.kickoff_at > NOW()
+                            AND f.status = 'scheduled'
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
                     """
                     cursor.execute(query, (limit,))
             
             elif status == "live":
-                # Get live matches
+                # Get live/in-progress matches (recently kicked off, not finished)
                 if league:
                     query = """
                         SELECT DISTINCT
@@ -5218,7 +5222,9 @@ async def get_market_data(
                             f.kickoff_at
                         FROM fixtures f
                         JOIN odds_snapshots os ON f.match_id = os.match_id
-                        WHERE f.status = 'live'
+                        WHERE f.kickoff_at <= NOW()
+                            AND f.kickoff_at > NOW() - INTERVAL '2 hours'
+                            AND f.status = 'scheduled'
                             AND f.league_id = %s
                         ORDER BY f.kickoff_at DESC
                         LIMIT %s
@@ -5235,7 +5241,9 @@ async def get_market_data(
                             f.kickoff_at
                         FROM fixtures f
                         JOIN odds_snapshots os ON f.match_id = os.match_id
-                        WHERE f.status = 'live'
+                        WHERE f.kickoff_at <= NOW()
+                            AND f.kickoff_at > NOW() - INTERVAL '2 hours'
+                            AND f.status = 'scheduled'
                         ORDER BY f.kickoff_at DESC
                         LIMIT %s
                     """
@@ -5261,21 +5269,21 @@ async def get_market_data(
                 # Get latest odds per bookmaker from odds_snapshots
                 cursor.execute("""
                     WITH latest AS (
-                        SELECT DISTINCT ON (bookmaker, outcome)
-                            bookmaker,
+                        SELECT DISTINCT ON (book_id, outcome)
+                            book_id,
                             outcome,
                             odds_decimal,
                             ts_snapshot
                         FROM odds_snapshots
                         WHERE match_id = %s AND market = 'h2h'
-                        ORDER BY bookmaker, outcome, ts_snapshot DESC
+                        ORDER BY book_id, outcome, ts_snapshot DESC
                     )
-                    SELECT bookmaker,
+                    SELECT book_id,
                            MAX(CASE WHEN outcome='H' THEN odds_decimal END) AS home,
                            MAX(CASE WHEN outcome='D' THEN odds_decimal END) AS draw,
                            MAX(CASE WHEN outcome='A' THEN odds_decimal END) AS away
                     FROM latest
-                    GROUP BY bookmaker
+                    GROUP BY book_id
                 """, (match_id,))
                 
                 odds_rows = cursor.fetchall()
@@ -5299,10 +5307,10 @@ async def get_market_data(
                 
                 # Step 3: Get V1 consensus from consensus_predictions table (pre-computed)
                 cursor.execute("""
-                    SELECT p_home, p_draw, p_away
+                    SELECT consensus_h, consensus_d, consensus_a
                     FROM consensus_predictions
                     WHERE match_id = %s
-                    ORDER BY updated_at DESC
+                    ORDER BY created_at DESC
                     LIMIT 1
                 """, (match_id,))
                 
