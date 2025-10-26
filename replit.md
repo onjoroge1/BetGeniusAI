@@ -25,8 +25,9 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Metrics Hygiene**: Implemented defensive probability normalization, pre-kickoff filtering, and ECE + reliability curves for robust model evaluation. V2 model shows improved Brier and LogLoss compared to V1.
 - **Calibration & Constraints**: Extensive testing of temperature scaling and blend/KL/Δτ sweeps determined that the V2 training configuration is already optimal for current features.
 - **Historical Feature Engineering Pipeline**: Operational extraction system built on 14,527 matches (1993-2024) from `historical_odds` table. Extracts 65 features per match: team form (last 5), venue performance (last 10), head-to-head (last 5), temporal features, and advanced stats (shooting, discipline). Pipeline is reusable across all leagues.
-- **LightGBM Development**: Validated pipeline with fixed label encoding (H=0, D=1, A=2). **Enriched Model (Oct 2025):** Trained on 10,895 matches (2002-2024) using 62 features (12 market + 50 historical). Test set (2,179 matches): LogLoss 0.9864, Brier 0.1963, 52.0% 3-way accuracy, 69.5% 2-way accuracy. Represents +2.9% accuracy and -0.024 LogLoss improvement over market-only baseline (~2.5σ effect size). CSV import pipeline enables rapid historical data ingestion from football-data.co.uk (14,662+ matches loaded).
-- **Production Model (V1)**: Utilizes a simple weighted consensus based on bookmaker analysis.
+- **LightGBM Development**: Validated pipeline with fixed label encoding (H=0, D=1, A=2). **Enriched Model (Oct 2025):** Trained on 36,942 matches (1993-2025) using 62 features (12 market + 50 historical). Full OOF evaluation: 52.7% 3-way accuracy, 75.9% hit rate @ 62% confidence threshold (17.3% coverage), 80.6% top decile accuracy. Model ensemble (5-fold CV) deployed as V2 LightGBM predictor service.
+- **Production Model (V1)**: Utilizes a simple weighted consensus based on bookmaker analysis (54.3% historical accuracy).
+- **V2 LightGBM Production Deployment (Oct 2025)**: V2 SELECT endpoint launched with strict quality gate (conf >= 0.62, EV > 0). Three-tier product strategy: Free `/market` (both V1+V2), Free `/predict` (V1 + optional AI), Premium `/predict-v2` (V2 SELECT + always-on AI analysis). All endpoints require API key authentication. MVP uses market-only features pending historical feature integration.
 - **V2 Shadow Testing System**: An operational market-delta ridge regression model running in shadow mode (A/B testing) alongside V1. It predicts deltas from the market in logit space, with guardrails like KL divergence and probability caps. Features auto-promotion criteria for V2 to become primary.
 - **Enhanced Architecture**: Dual-table population, timing-optimized data collection, and cross-table synchronization.
 - **Auto-Retraining System**: Models retrain automatically based on match volume.
@@ -63,6 +64,9 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### API Endpoints
 - **Prediction API**: Main endpoints for match predictions.
+  - `/predict` - V1 consensus predictions with optional AI analysis
+  - `/predict-v2` - **NEW (Oct 2025)** V2 SELECT endpoint (premium, high-confidence only: conf >= 0.62, EV > 0). Uses V2 LightGBM model (52.7% overall, 75.9% @ 62% threshold). Requires API key authentication.
+  - `/market` - **NEW (Oct 2025)** Market board showing both V1 + V2 predictions side-by-side (free tier, authenticated). Designed for real-time odds comparison with premium upgrade CTA.
 - **Admin Endpoints**: For data management, match discovery, and training statistics.
 - **V2 Shadow System Endpoints**: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`.
 - **Calibration & Optimization Endpoints**: `/metrics/evaluation`, `/metrics/temperature-scaling`.
