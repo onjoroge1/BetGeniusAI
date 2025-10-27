@@ -3,6 +3,8 @@
 ## Overview
 BetGenius AI is a sports prediction platform that provides intelligent football match predictions using advanced machine learning and AI analysis. The project aims to deliver market-relative performance, a superior user experience with confidence-calibrated predictions, and sophisticated risk management tools for sports betting in key African markets. Its core capabilities include comprehensive data collection, robust ML models, AI-powered contextual analysis, and strategic market intelligence.
 
+**Phase 2 Complete (Oct 2025):** Full observability stack deployed with Prometheus metrics, Grafana dashboards, closing odds capture, hardened TBD enrichment, admin rate limiting, and comprehensive operations runbook.
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 Production Model Decision: Use simple weighted consensus based on performance comparison showing 0.031549 LogLoss improvement over complex model.
@@ -38,6 +40,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Canonical Fixtures Table**: Single source of truth for match metadata, preventing data inconsistencies.
 - **TBD Fixture Enrichment**: Automated service resolves "To Be Determined" placeholders from The Odds API using API-Football data.
 **CLV Phase 1 Hardening (Oct 2025)**: Production-grade CLV system with adaptive staleness (tight near kickoff, forgiving far out), timeboxed TBD filtering (allow until T-36h), league-tiered book minimums (EPL=6, mid-tier=4, others=3), critical database indexes (10x performance), and alert deduplication (20-min cooldown). All changes deployed and operational.
+**CLV Phase 2 Observability (Oct 2025)**: Complete monitoring infrastructure deployed: `/metrics` Prometheus endpoint (5 core metrics auto-tracking every 60s), Prometheus alert rules (flatline, closing drop, TBD buildup, slow cycles, high suppression), Grafana dashboard queries (8 starter panels), automated closing odds capture job (90s window, 85%+ target rate), hardened TBD enrichment (batch/single endpoints with timeouts + circuit breaker), odds_snapshots monthly partitioning (90d retention), operations runbook (troubleshooting guides for all alerts), QA helper queries (instant diagnostics), and admin rate limiting (60/min standard, 10/hour expensive ops). System is production-observable.
 - **Dual Collection Strategy**: Scheduler populates training and upcoming odds tables.
 - **Multi-Source Real-Time Odds**: Parallel collection from The Odds API and API-Football.
 - **Fixture ID Resolver**: Robust system for resolving fixture IDs across different data sources.

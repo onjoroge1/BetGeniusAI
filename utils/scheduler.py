@@ -582,17 +582,20 @@ class BackgroundScheduler:
             logger.error(f"🧹 CLV TTL Cleanup error: {e}")
     
     async def _run_closing_sampler(self):
-        """Run Phase 2 closing sampler (collects composite odds near kickoff)"""
+        """Run Phase 2 closing capture (collects closing odds near kickoff)"""
         try:
-            from models.clv_closing_sampler import CLVClosingSampler
+            from models.closing_capture import run_closing_capture
             
-            sampler = CLVClosingSampler()
-            sampler.run_cycle()
+            stats = run_closing_capture()
+            
+            if stats.get('odds_captured', 0) > 0:
+                logger.debug(f"📸 Closing capture: {stats['odds_captured']} odds captured " +
+                           f"(capture rate: {stats.get('capture_rate_24h', 0):.1f}%)")
             
             self.last_closing_sampler_run = datetime.utcnow()
                 
         except Exception as e:
-            logger.error(f"📊 Closing Sampler error: {e}")
+            logger.error(f"📸 Closing capture error: {e}")
     
     async def _run_closing_settler(self):
         """Run Phase 2 closing settler (settles alerts with realized CLV)"""

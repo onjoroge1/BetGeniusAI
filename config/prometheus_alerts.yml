@@ -1,0 +1,90 @@
+# BetGenius AI - CLV Monitoring Alert Rules
+# Prometheus Alert Manager configuration for production CLV system monitoring
+
+groups:
+- name: clv-production-alerts
+  interval: 30s
+  rules:
+  
+  # CRITICAL: CLV pipeline flatline while snapshots are flowing
+  - alert: CLVNoAlertsButSnapshotsFlowing
+    expr: |
+      rate(clv_alerts_created_total[15m]) == 0
+      and sum(rate(odds_snapshot_age_seconds_count[10m])) > 0
+    for: 15m
+    labels:
+      severity: page
+      component: clv_producer
+      team: platform
+    annotations:
+      summary: "CLV pipeline silent for 15m while snapshots are flowing"
+      description: "CLV alert producer has not created any alerts in the last 15 minutes despite active odds snapshot collection. This indicates a potential pipeline stall."
+      runbook: "Check clv_producer logs for errors, verify TBD backlog with `tbd_fixtures_unenriched` metric, confirm candidates SQL returns rows"
+      impact: "Missing CLV opportunities - users are not being notified of value bets"
+  
+  # WARNING: Closing odds capture rate degraded
+  - alert: ClosingOddsCaptureDegraded
+    expr: closing_capture_rate_pct < 85
+    for: 30m
+    labels:
+      severity: ticket
+      component: closing_capture
+      team: platform
+    annotations:
+      summary: "Closing odds capture rate below 85% for 30m"
+      description: "Only {{ $value | humanizePercentage }} of fixtures had closing odds captured in the last 24h. Target is >90%."
+      runbook: "Check closing capture job logs around KO, verify time sync (UTC everywhere), consider widening capture window to 120s"
+      impact: "CLV validation degraded - cannot accurately measure realized CLV performance"
+  
+  # WARNING: TBD fixture buildup inside 24h window
+  - alert: TBDFixtureBuildupNearKickoff
+    expr: tbd_fixtures_unenriched > 10
+    for: 20m
+    labels:
+      severity: ticket
+      component: tbd_enrichment
+      team: platform
+    annotations:
+      summary: "{{ $value }} TBD fixtures inside 24h window need enrichment"
+      description: "High backlog of fixtures with TBD teams approaching kickoff. These will be filtered from CLV analysis."
+      runbook: "Check enrichment queue depth, verify API-Football provider status, run `/admin/enrich-tbd-batch?limit=50`, consider raising CLV_TBD_ALLOW_BEFORE_HOURS temporarily"
+      impact: "Reduced CLV coverage - TBD fixtures are excluded from opportunity scanning"
+  
+  # WARNING: CLV producer cycle duration spike
+  - alert: CLVProducerSlowCycle
+    expr: histogram_quantile(0.95, sum(rate(clv_producer_duration_seconds_bucket[5m])) by (le)) > 30
+    for: 10m
+    labels:
+      severity: ticket
+      component: clv_producer
+      team: platform
+    annotations:
+      summary: "CLV producer p95 cycle time > 30s for 10m"
+      description: "CLV producer is taking longer than expected. p95 latency: {{ $value | humanizeDuration }}"
+      runbook: "Check database query performance, verify indexes on odds_snapshots and fixtures, review `gather_odds_ms` and `analyze_ms` timings in logs"
+      impact: "Delayed CLV alerts - users may receive stale opportunities"
+  
+  # INFO: High alert suppression rate (LOW_CLV)
+  - alert: HighCLVSuppressionRate
+    expr: |
+      sum(increase(clv_opportunities_scanned_total[1h])) > 100
+      and (sum(increase(clv_alerts_created_total[1h])) / sum(increase(clv_opportunities_scanned_total[1h]))) < 0.05
+    for: 2h
+    labels:
+      severity: info
+      component: clv_gates
+      team: product
+    annotations:
+      summary: "CLV alert yield < 5% for 2h (high suppression)"
+      description: "Only {{ $value | humanizePercentage }} of scanned opportunities resulted in alerts. Check if quality gates are too strict."
+      runbook: "Review suppression reasons in logs, analyze CLV threshold by league tier, consider calibrating minimum CLV bps requirements"
+      impact: "Low alert volume - may be missing valuable opportunities or gates are too conservative"
+
+# Scrape config example (add to prometheus.yml)
+# scrape_configs:
+#   - job_name: 'betgenius-clv'
+#     scrape_interval: 15s
+#     scrape_timeout: 10s
+#     static_configs:
+#       - targets: ['localhost:8000']
+#     metrics_path: '/metrics'

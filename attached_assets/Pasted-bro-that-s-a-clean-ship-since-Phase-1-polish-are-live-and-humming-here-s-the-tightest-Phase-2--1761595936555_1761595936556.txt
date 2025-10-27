@@ -1,0 +1,188 @@
+bro, that’s a clean ship. since Phase 1 + polish are live and humming, here’s the tightest “Phase 2 in one sitting” pack so you can light up dashboards + paging today.
+
+# 1) Expose `/metrics` (Prometheus scrape)
+
+Add this once to your API (FastAPI example):
+
+```python
+# metrics_server.py
+from fastapi import FastAPI
+from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
+from prometheus_client import multiprocess
+from starlette.responses import Response
+
+app = FastAPI()
+
+@app.get("/metrics")
+def metrics():
+    registry = CollectorRegistry()
+    try:
+        multiprocess.MultiProcessCollector(registry)  # if using gunicorn workers
+    except Exception:
+        pass
+    data = generate_latest(registry)
+    return Response(media_type=CONTENT_TYPE_LATEST, content=data)
+```
+
+Prometheus scrape job:
+
+```yaml
+scrape_configs:
+  - job_name: snapbet-clv
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["your-hostname:8000"]
+```
+
+# 2) Alerting rules (copy-paste)
+
+```yaml
+groups:
+- name: clv-alerts
+  rules:
+  - alert: CLVNoAlertsButSnapshots
+    expr: rate(clv_alerts_created_total[15m]) == 0
+          and sum( (time() - odds_snapshot_age_seconds_bucket) >= 0 ) > 0
+    for: 15m
+    labels: { severity: page }
+    annotations:
+      summary: "CLV pipeline silent while snapshots are flowing"
+      runbook: "Check clv_producer logs & TBD backlog"
+
+  - alert: ClosingCaptureDrop
+    expr: closing_capture_rate_pct < 85
+    for: 30m
+    labels: { severity: ticket }
+    annotations:
+      summary: "Closing capture rate degraded (<85%)"
+
+  - alert: TBDBuildupInside24h
+    expr: tbd_fixtures_unenriched > 10
+    for: 20m
+    labels: { severity: ticket }
+    annotations:
+      summary: "TBD fixtures inside 24h need enrichment"
+```
+
+# 3) Starter Grafana panels (fields match your metrics)
+
+* **Stat:** `sum(increase(clv_alerts_created_total[1h]))` (by league in a breakdown)
+* **Gauge:** `closing_capture_rate_pct`
+* **Time series:** `histogram_quantile(0.95, sum(rate(odds_snapshot_age_seconds_bucket[15m])) by (le))` (label `le`)
+* **Single stat:** `tbd_fixtures_unenriched`
+* **Bar:** `sum by (outcome) (increase(clv_alerts_created_total[24h]))`
+
+(If you want, I can drop a full JSON later, but these five get you 90% there.)
+
+# 4) “Canary” without fake matches (simple + safe)
+
+Count snapshots vs alerts to detect stalls, no synthetic rows needed:
+
+```promql
+# heartbeat: snapshots flowing last 10m?
+snapshots_ok = sum(rate(odds_snapshot_age_seconds_count[10m])) > 0
+# alerts flowing last 10–15m?
+alerts_ok = sum(rate(clv_alerts_created_total[15m])) > 0
+# alert if snapshots_ok and not alerts_ok (already in rules above)
+```
+
+# 5) Closing capture job: quick SQL + cron
+
+Run every minute around KO to stamp “closing”:
+
+```sql
+-- capture if not already captured and KO within 90s window
+INSERT INTO closing_odds (match_id, market, price, line, ts_closing)
+SELECT los.match_id, los.market, los.price, los.line, los.ts_snapshot
+FROM (
+  SELECT DISTINCT ON (match_id, market)
+         match_id, market, price, line, ts_snapshot
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '5 minutes'
+  ORDER BY match_id, market, ts_snapshot DESC
+) los
+JOIN fixtures f USING(match_id)
+LEFT JOIN closing_odds co USING(match_id, market)
+WHERE co.match_id IS NULL
+  AND f.kickoff_at BETWEEN NOW() - INTERVAL '90 seconds' AND NOW();
+```
+
+# 6) TBD enrichment hardening (timeout-proof)
+
+* Split endpoints:
+
+  * `POST /admin/enrich-tbd-batch?limit=50` (async queue → worker)
+  * `POST /admin/enrich-tbd-one?match_id=…` (fast, retry x3, 2s timeout)
+* Circuit-breaker: stop batch if failure rate >30% in last 5 min.
+* Cron cadence: every 30 min; bump to 10 min for fixtures inside 24h.
+
+# 7) Data retention & speed (no Timescale needed)
+
+Partition `odds_snapshots` monthly; keeps scans snappy:
+
+```sql
+-- parent
+ALTER TABLE odds_snapshots
+  PARTITION BY RANGE (ts_snapshot);
+
+-- create current + next month partitions
+CREATE TABLE IF NOT EXISTS odds_snapshots_2025_10
+  PARTITION OF odds_snapshots
+  FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
+
+CREATE TABLE IF NOT EXISTS odds_snapshots_2025_11
+  PARTITION OF odds_snapshots
+  FOR VALUES FROM ('2025-11-01') TO ('2025-12-01');
+```
+
+Retention (keep 90d):
+
+```sql
+-- monthly job
+DO $$
+BEGIN
+  EXECUTE 'DROP TABLE IF EXISTS odds_snapshots_' ||
+    to_char(now() - interval '4 months', 'YYYY_MM');
+END $$;
+```
+
+# 8) Runbook (pocket version)
+
+* **Symptom:** “No alerts 15m, snapshots ok”
+  **Check:** /metrics, log `opps= n, LOW_CLV= x`
+  **Likely:** staleness too tight (envs), TBD backlog.
+  **Fix:** verify env, run enrich-batch, confirm candidates SQL returns rows.
+
+* **Symptom:** “Closing capture <85%”
+  **Check:** job logs around KO, time sync.
+  **Fix:** widen capture window to 120s, confirm UTC everywhere.
+
+* **Symptom:** “High TBD <24h”
+  **Check:** enrichment queue depth, provider status.
+  **Fix:** throttle per-league, retry with alt provider, raise `TBD_ALLOW_BEFORE_HOURS` temporarily (but T-12h guard still protects KO quality).
+
+# 9) Tiny QA queries (drop in psql)
+
+```sql
+-- Yield by league (last 24h)
+SELECT league_id,
+       COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24h') AS alerts_24h,
+       AVG((payload->>'clv_bps')::float) AS avg_clv_bps
+FROM clv_alerts
+GROUP BY 1
+ORDER BY alerts_24h DESC;
+
+-- Snapshot age on alerts (p95 approx)
+SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY (payload->>'snapshot_age_sec')::float)
+FROM clv_alerts
+WHERE created_at > NOW() - INTERVAL '24h';
+```
+
+# 10) Security quickies
+
+* Rotate that admin Bearer key today; add rate-limit: `60/min` on `/admin/*`.
+* Ensure `window_tag` is always set from producer (your partial unique index is perfect now).
+
+---
+
+You’re production-grade and observable. If you want the Grafana JSON or a Makefile target to seed partitions + cron, say the word and I’ll drop it in the next message.

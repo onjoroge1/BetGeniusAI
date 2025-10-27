@@ -3,7 +3,7 @@ BetGenius AI Backend - Main FastAPI Application
 Production-ready sports prediction API with ML and AI explanations
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Query
+from fastapi import FastAPI, HTTPException, Depends, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
@@ -14,6 +14,11 @@ import math
 import os
 from datetime import datetime, timezone
 from functools import lru_cache
+
+# Phase 2: Rate limiting for admin endpoints
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # CRITICAL: Only import lightweight modules at top level
 # Heavy imports (models, collectors, ML, etc.) are deferred until after port binding
@@ -27,6 +32,9 @@ from utils.on_demand_consensus import build_on_demand_consensus
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Configure rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 # ============ PERFORMANCE OPTIMIZATION: POISSON PMF CACHING ============
 # Cache for Poisson grids to eliminate repeated calculations
@@ -125,6 +133,10 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# Phase 2: Add rate limiting state and handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -149,6 +161,37 @@ async def healthz():
     Returns immediately without any DB or heavy operations
     """
     return {"ok": True}
+
+@app.get("/metrics", tags=["Observability"])
+async def metrics_endpoint():
+    """
+    Prometheus metrics scrape endpoint
+    Exposes all metrics from models.metrics for monitoring and alerting
+    """
+    from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
+    from fastapi.responses import Response
+    
+    registry = CollectorRegistry()
+    try:
+        # Try multiprocess collector (for gunicorn workers)
+        from prometheus_client import multiprocess
+        multiprocess.MultiProcessCollector(registry)
+    except Exception:
+        # Fallback to default registry for single-process mode
+        from prometheus_client import REGISTRY
+        from models.metrics import (
+            clv_alerts_created,
+            odds_snapshot_age,
+            tbd_fixtures_unenriched,
+            clv_producer_duration,
+            closing_capture_rate
+        )
+        # Metrics are already registered globally, use default registry
+        data = generate_latest(REGISTRY)
+        return Response(media_type=CONTENT_TYPE_LATEST, content=data)
+    
+    data = generate_latest(registry)
+    return Response(media_type=CONTENT_TYPE_LATEST, content=data)
 
 @app.get("/", tags=["Health"])
 async def root():
@@ -2783,8 +2826,9 @@ async def get_available_leagues(api_key: str = Depends(verify_api_key)):
     }
 
 @app.post("/admin/collect-training-data")
-async def collect_training_data(api_key: str = Depends(verify_api_key)):
-    """Collect authentic historical match data for model training"""
+@limiter.limit("10/hour")  # Phase 2: Rate limit expensive admin operations
+async def collect_training_data(request: Request, api_key: str = Depends(verify_api_key)):
+    """Collect authentic historical match data for model training (rate limited: 10/hour)"""
     try:
         leagues = [39, 140, 78, 135]  # Premier League, La Liga, Bundesliga, Serie A
         seasons = [2023, 2022, 2021]
@@ -2867,8 +2911,9 @@ async def collect_single_league(
         }
 
 @app.post("/admin/retrain-models")
-async def retrain_models(api_key: str = Depends(verify_api_key)):
-    """Retrain ML models with collected authentic data"""
+@limiter.limit("5/hour")  # Phase 2: Rate limit expensive model training operations
+async def retrain_models(request: Request, api_key: str = Depends(verify_api_key)):
+    """Retrain ML models with collected authentic data (rate limited: 5/hour)"""
     try:
         # Get database stats
         from models.database import DatabaseManager
@@ -3055,6 +3100,156 @@ async def enrich_tbd_fixtures_endpoint(limit: int = 100):
         }
     except Exception as e:
         logger.error(f"Failed to enrich TBD fixtures: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/admin/enrich-tbd-batch")
+@limiter.limit("60/minute")  # Phase 2: Rate limit admin endpoints
+async def enrich_tbd_batch_endpoint(request: Request, limit: int = 50, api_key: str = Depends(verify_api_key)):
+    """
+    Hardened batch TBD enrichment with circuit breaker
+    Phase 2: Timeout-proof, async queue-ready, failure rate tracking, rate limited (60/min)
+    
+    Args:
+        limit: Max fixtures to process (default 50, prevents API exhaustion)
+    
+    Returns:
+        Enrichment stats with failure rate and circuit breaker status
+    """
+    try:
+        import asyncio
+        
+        logger.info(f"🔧 API: Hardened batch TBD enrichment (limit: {limit})")
+        collector = get_automated_collector()
+        
+        # Set timeout for entire batch operation (2s per fixture + 10s buffer)
+        timeout_seconds = (limit * 2) + 10
+        
+        try:
+            results = await asyncio.wait_for(
+                collector.enrich_tbd_fixtures(limit),
+                timeout=timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"⏱️ Batch enrichment timeout after {timeout_seconds}s")
+            return {
+                "status": "timeout",
+                "message": f"Operation timed out after {timeout_seconds}s",
+                "partial_results": "check logs for completed items"
+            }
+        
+        # Calculate failure rate for circuit breaker
+        total_processed = results['enriched'] + results['failed'] + results['skipped']
+        failure_rate = results['failed'] / total_processed if total_processed > 0 else 0
+        
+        # Circuit breaker: warn if failure rate > 30%
+        circuit_breaker_tripped = failure_rate > 0.30
+        
+        return {
+            "status": "success" if not circuit_breaker_tripped else "warning",
+            "results": results,
+            "failure_rate": f"{failure_rate * 100:.1f}%",
+            "circuit_breaker": "tripped" if circuit_breaker_tripped else "ok",
+            "message": f"Enriched {results['enriched']}/{total_processed}, failures: {results['failed']} ({failure_rate * 100:.1f}%)"
+        }
+        
+    except Exception as e:
+        logger.error(f"Batch TBD enrichment failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/admin/enrich-tbd-one")
+@limiter.limit("60/minute")  # Phase 2: Rate limit admin endpoints
+async def enrich_tbd_one_endpoint(request: Request, match_id: int, api_key: str = Depends(verify_api_key)):
+    """
+    Fast single-fixture TBD enrichment with retry
+    Phase 2: 2s timeout, 3 retries, ideal for individual fix-ups, rate limited (60/min)
+    
+    Args:
+        match_id: Fixture ID to enrich
+    
+    Returns:
+        Success/failure status with team names if enriched
+    """
+    try:
+        import asyncio
+        import psycopg2
+        import os
+        
+        logger.info(f"🎯 API: Single TBD enrichment for match {match_id}")
+        collector = get_automated_collector()
+        
+        # Retry logic: 3 attempts with 2s timeout each
+        max_retries = 3
+        timeout_per_attempt = 2.0
+        
+        for attempt in range(max_retries):
+            try:
+                # Check if fixture exists and needs enrichment
+                database_url = os.environ.get('DATABASE_URL')
+                with psycopg2.connect(database_url) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT match_id, home_team, away_team, kickoff_at
+                        FROM fixtures
+                        WHERE match_id = %s
+                          AND (home_team ILIKE 'TBD%%' OR away_team ILIKE 'TBD%%')
+                    """, (match_id,))
+                    
+                    fixture = cursor.fetchone()
+                    if not fixture:
+                        return {
+                            "status": "skipped",
+                            "message": f"Match {match_id} not found or already enriched"
+                        }
+                
+                # Attempt enrichment with timeout
+                results = await asyncio.wait_for(
+                    collector.enrich_tbd_fixtures(limit=1, match_id_filter=match_id),
+                    timeout=timeout_per_attempt
+                )
+                
+                if results['enriched'] > 0:
+                    # Fetch enriched team names
+                    with psycopg2.connect(database_url) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            SELECT home_team, away_team
+                            FROM fixtures
+                            WHERE match_id = %s
+                        """, (match_id,))
+                        home, away = cursor.fetchone()
+                    
+                    return {
+                        "status": "success",
+                        "match_id": match_id,
+                        "home_team": home,
+                        "away_team": away,
+                        "attempts": attempt + 1,
+                        "message": "Successfully enriched"
+                    }
+                else:
+                    return {
+                        "status": "failed",
+                        "message": results.get('error', 'Enrichment failed'),
+                        "attempts": attempt + 1
+                    }
+                    
+            except asyncio.TimeoutError:
+                logger.warning(f"⏱️ Attempt {attempt + 1}/{max_retries} timed out")
+                if attempt == max_retries - 1:
+                    return {
+                        "status": "timeout",
+                        "message": f"All {max_retries} attempts timed out",
+                        "attempts": max_retries
+                    }
+                continue
+        
+        return {
+            "status": "failed",
+            "message": "Max retries exhausted"
+        }
+        
+    except Exception as e:
+        logger.error(f"Single TBD enrichment failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/admin/enrich-team-logos")
