@@ -64,25 +64,33 @@ class WeeklyDataCollector:
             'errors': 0
         }
     
-    def fetch_finished_matches(self, league_id: int, date_from: str, date_to: str) -> List[Dict]:
+    def fetch_finished_matches(self, league_id: int, date_from: str, date_to: str, season: int) -> List[Dict]:
         """Fetch finished matches for a league in date range"""
         url = f"{RAPIDAPI_BASE_URL}/fixtures"
         params = {
             'league': league_id,
-            'season': 2024,  # Current season
+            'season': season,
             'status': 'FT',  # Finished matches only
             'from': date_from,
             'to': date_to
         }
+        
+        print(f"   🔍 API Request: {url}")
+        print(f"      Params: league={league_id}, season={season}, from={date_from}, to={date_to}")
         
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
             
+            print(f"      Response status: {response.status_code}")
+            
             if data.get('response'):
+                print(f"      Found {len(data['response'])} matches")
                 return data['response']
-            return []
+            else:
+                print(f"      ⚠️  Empty response: {data}")
+                return []
             
         except Exception as e:
             print(f"❌ Error fetching matches for league {league_id}: {e}")
@@ -202,13 +210,14 @@ class WeeklyDataCollector:
             self.stats['errors'] += 1
             return False
     
-    def collect_league_week(self, league_id: int, date_from: str, date_to: str):
+    def collect_league_week(self, league_id: int, date_from: str, date_to: str, season: int):
         """Collect all finished matches for a league in the past week"""
         print(f"\n📊 Processing League ID: {league_id}")
         print(f"   Date range: {date_from} to {date_to}")
+        print(f"   Season: {season}")
         
         # Fetch finished matches
-        matches = self.fetch_finished_matches(league_id, date_from, date_to)
+        matches = self.fetch_finished_matches(league_id, date_from, date_to, season)
         
         if not matches:
             print(f"   ℹ️  No finished matches found")
@@ -266,14 +275,24 @@ class WeeklyDataCollector:
         date_to = today.strftime('%Y-%m-%d')
         date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
         
+        # Determine season (year when season started)
+        # For European leagues: if before July, use previous year, else use current year
+        current_year = today.year
+        current_month = today.month
+        if current_month < 7:
+            season = current_year - 1
+        else:
+            season = current_year
+        
         print(f"\n📅 Date Range: {date_from} to {date_to} ({days} days)")
+        print(f"📆 Season: {season}")
         print(f"🎯 Leagues: {len(leagues)} leagues")
-        print(f"🗄️  Database: {self.database_url[:30]}...")
+        print(f"🗄️  Database: {self.database_url[:50]}...")
         print(f"🔑 API Key: {self.rapidapi_key[:10]}...")
         
         # Process each league
         for league_id in leagues:
-            self.collect_league_week(league_id, date_from, date_to)
+            self.collect_league_week(league_id, date_from, date_to, season)
         
         # Print summary
         self.print_summary()
