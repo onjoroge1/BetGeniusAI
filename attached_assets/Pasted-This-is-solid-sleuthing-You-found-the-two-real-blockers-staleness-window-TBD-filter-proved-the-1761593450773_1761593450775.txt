@@ -1,0 +1,141 @@
+This is solid sleuthing. You found the two real blockers (staleness window + TBD filter), proved them with SQL, and got alerts flowing. Here’s how I’d lock this down so it’s robust and easy to monitor going forward:
+
+# Hardening the CLV pipeline (quick wins → sturdier system)
+
+**1) Align collection cadence with CLV staleness (or vice-versa)**
+
+* Option A (preferred): poll odds **every 2–5 min** for matches ≤72h out (top leagues), 10–15 min for long-tail.
+* Option B: keep current cadence but make the CLV window **adaptive** to time-to-kickoff:
+
+  * `staleness_sec = clamp( max(600, round(0.15 * (kickoff_at - now))) , 600, 7200 )`
+  * This keeps near-KO alerts tight but tolerates slower collectors farther out.
+
+**2) Kill the hardcoded 10-min check everywhere**
+
+* Thread `CLV_STALENESS_SEC` through SQL, job configs, and any ORM scopes.
+* Add a unit test that fails if the literal “600” appears in alert queries (easy regex guard).
+
+**3) TBD enrichment policy (no more deadlocks)**
+
+* Keep the **default: filter TBD**, but make it **timeboxed**:
+
+  * Allow TBD **until T-36h** with a “degraded” flag; require enrichment after that or the match is excluded.
+* Make the enrichment job **idempotent, retried**, and **bounded** (timeouts, circuit-breaker).
+* If enrichment fails, **fallback mapping**: store provider fixture IDs and hydrate `home_team/away_team` from any second source (API-Football fixtures, league feed) before KO.
+
+**4) Book quality / de-duplication**
+
+* Minimum distinct books should be **league-tiered** (e.g., EPL ≥6, Serie B ≥3) and **exclude clones/skins**.
+* Normalize odds sources so identical trading desks don’t double-count (group by `trading_group_id` where possible).
+
+**5) CLV consistency rules (apples-to-apples)**
+
+* Convert all odds to **decimal**, and compute CLV off **the same market & side** (e.g., 1X2 home/away/draw, not mixing ML with Asian lines).
+* For handicaps/totals, compare **price at constant line**; if line shifts, compute **implied edge from line+price** (or drop from CLV calc to avoid bias).
+* “Closing” = final pre-KO snapshot; if a provider is late, use **latest ≤ 90s before KO** and flag as `closing_is_estimate=true`.
+
+**6) Alert hygiene**
+
+* **Dedupe**: identical alert keys `(match_id, market, side)` within a rolling **cooldown** window.
+* **Expiry**: alerts auto-expire at KO; archive with the snapshot IDs that produced them (provenance).
+* **Versioning**: store `alert_version` and config hashes to track which code/config generated each alert.
+
+**7) Observability (so this never surprises you again)**
+
+* Prometheus counters:
+
+  * `clv_alerts_created_total`, `clv_alerts_active`, `odds_snapshots_recent{bucket}`, `tbd_fixtures_unenriched`, `enrichment_failures_total`.
+* Histograms:
+
+  * `odds_snapshot_age_seconds`, `alert_latency_seconds` (snapshot → alert), `enrichment_duration_seconds`.
+* Grafana panels:
+
+  * “Upcoming matches with recent odds by league”, “TBD fixtures approaching KO”, “CLV by league/book count”, “Closing capture success %”.
+* Add a **synthetic canary**: a fake match with injected odds every minute to verify end-to-end alerting.
+
+**8) SQL/data-model touch-ups**
+
+* Indexes you’ll likely want:
+
+  * `odds_snapshots (match_id, market, book_id, ts_snapshot DESC)`
+  * `odds_snapshots (ts_snapshot DESC)`
+  * `fixtures (kickoff_at), fixtures (match_id)`
+* Materialized view for “latest snapshot per (match, market, book)”:
+
+  ```sql
+  CREATE MATERIALIZED VIEW mv_latest_odds AS
+  SELECT DISTINCT ON (match_id, market, book_id)
+         match_id, market, book_id, price, line, ts_snapshot
+  FROM odds_snapshots
+  ORDER BY match_id, market, book_id, ts_snapshot DESC;
+  ```
+
+  Refresh on a short cadence or use a partitioned table + `MAX(ts_snapshot)` subquery if MV overhead is an issue.
+
+**9) Backfill & validation (prove it works historically)**
+
+* Build a **replay harness** for last 30–60 days:
+
+  * Recompute CLV with only snapshots available **at each point in time**, then compare to captured closing.
+  * Track precision of “positive CLV” vs. realized market move; bucket by league, book count, snapshot age, and TBD-status.
+* Output: lift curves and a **guardrail threshold** (e.g., hide alerts <0.8% unless book count ≥6).
+
+**10) Edge cases & ops**
+
+* **Postponed/abandoned**: auto-expire and tag; don’t count toward realized CLV stats.
+* **DST & timezones**: ensure everything is UTC in DB; only localize in UI. (We’re a week from US DST flip—worth double-checking.)
+* **Admin security**: rotate that Bearer key, scrub from logs, rate-limit `/admin/enrich-tbd-fixtures`.
+
+---
+
+## Concrete changes you can drop in
+
+**Adaptive staleness in SQL (example):**
+
+```sql
+-- assuming kickoff_at is available
+AND os.ts_snapshot > NOW() - make_interval(secs => LEAST(
+  GREATEST(600, EXTRACT(EPOCH FROM (f.kickoff_at - NOW())) * 0.15)::int,
+  7200
+))
+```
+
+**Timeboxed TBD filter:**
+
+```sql
+-- allow TBD only when T-36h or more
+AND (
+  (f.kickoff_at - NOW() <= interval '36 hours'
+    AND f.home_team NOT ILIKE 'TBD%' AND f.away_team NOT ILIKE 'TBD%')
+  OR (f.kickoff_at - NOW() > interval '36 hours')
+)
+```
+
+**Alert cooldown (pseudocode):**
+
+```python
+alert_key = (match_id, market, side)
+if recent_alert_exists(alert_key, within=timedelta(minutes=20)):
+    skip()  # avoid spam on tiny drift
+```
+
+**Book-count by league tier (config):**
+
+```yaml
+league_min_books:
+  tier1: 6   # EPL, UCL, LaLiga, Serie A, Bundesliga
+  tier2: 4   # Top-10 leagues
+  tier3: 3   # Others
+```
+
+---
+
+## Your report looks good—two tweaks
+
+1. Add a **“Why this alert exists”** block per sample alert (snapshot age, book count, drift since last check).
+2. Track **closing capture rate** as a top-line KPI. If this dips, CLV quality degrades (and users will feel it).
+
+If you want, I can turn this into:
+
+* a short **migration checklist** (indexes, config, env), and
+* a **Grafana JSON** dashboard + **Prometheus rules** (alert if `tbd_fixtures_unenriched > 0` for matches within 24h, or if `clv_alerts_created_total` flatlines >15 min).
