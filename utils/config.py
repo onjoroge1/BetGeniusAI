@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     CLV_ALERT_TTL_SEC: int = int(os.getenv("CLV_ALERT_TTL_SEC", "900"))
     CLV_ALERT_TTL_NEAR_KO_SEC: int = int(os.getenv("CLV_ALERT_TTL_NEAR_KO_SEC", "300"))
     
+    # CLV Phase 1 Hardening: Adaptive Staleness
+    CLV_MIN_STALENESS_SEC: int = int(os.getenv("CLV_MIN_STALENESS_SEC", "600"))  # 10 min floor
+    CLV_MAX_STALENESS_SEC: int = int(os.getenv("CLV_MAX_STALENESS_SEC", "7200"))  # 2 hour ceiling
+    
+    # CLV Phase 1 Hardening: TBD Filtering
+    CLV_TBD_ALLOW_BEFORE_HOURS: int = int(os.getenv("CLV_TBD_ALLOW_BEFORE_HOURS", "36"))  # Allow TBD only >36h before KO
+    
+    # CLV Phase 1 Hardening: Alert Deduplication
+    CLV_ALERT_COOLDOWN_MIN: int = int(os.getenv("CLV_ALERT_COOLDOWN_MIN", "20"))  # 20 min cooldown for duplicates
+    
     # CLV Daily Brief Settings
     ENABLE_CLV_DAILY_BRIEF: bool = os.getenv("ENABLE_CLV_DAILY_BRIEF", "true").lower() == "true"
     CLV_DAILY_RETAIN_DAYS: int = int(os.getenv("CLV_DAILY_RETAIN_DAYS", "90"))

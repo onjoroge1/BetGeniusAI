@@ -1,0 +1,228 @@
+say less — let’s ship Phase 1 right now. below are drop-in migrations + code edits you can paste. they match exactly what you outlined: adaptive staleness, time-boxed TBD, league-tier min books, critical indexes, and alert de-dupe.
+
+# 1) DB migration — indexes + de-dupe key
+
+Create one migration file (e.g., `20251027_phase1.sql`):
+
+```sql
+-- 1) critical indexes
+CREATE INDEX IF NOT EXISTS idx_odds_snapshots_match_ts
+  ON odds_snapshots(match_id, ts_snapshot DESC);
+
+CREATE INDEX IF NOT EXISTS idx_odds_snapshots_ts
+  ON odds_snapshots(ts_snapshot DESC);
+
+CREATE INDEX IF NOT EXISTS idx_fixtures_kickoff
+  ON fixtures(kickoff_at);
+
+-- 2) (optional but helpful) market/book index
+CREATE INDEX IF NOT EXISTS idx_odds_snapshots_mkt_book_ts
+  ON odds_snapshots(match_id, market, book_id, ts_snapshot DESC);
+
+-- 3) alert de-dup: constrain duplicates within a rolling window tag
+-- assumes alerts table has: match_id, market, side, window_tag, created_at
+-- (window_tag = e.g. '5m', '15m', or a hashed epoch bucket you compute in code)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = 'ux_alerts_key_window'
+  ) THEN
+    CREATE UNIQUE INDEX ux_alerts_key_window
+      ON alerts(match_id, market, side, window_tag);
+  END IF;
+END $$;
+
+-- 4) (optional) partial uniqueness if you keep an 'active' flag to avoid blocking archives
+-- CREATE UNIQUE INDEX ux_alerts_key_window_active
+--   ON alerts(match_id, market, side, window_tag)
+--   WHERE is_active = true;
+```
+
+# 2) config — league tiers + staleness bounds
+
+Add to your config (env or YAML):
+
+```yaml
+CLV:
+  MIN_STALENESS_SEC: 600      # 10m floor
+  MAX_STALENESS_SEC: 7200     # 120m ceiling
+  TBD_ALLOW_BEFORE_HOURS: 36  # allow TBD names only if KO is >36h away
+  ALERT_COOLDOWN_MIN: 20      # duplicate suppression window for alerts
+
+  LEAGUE_MIN_BOOKS:
+    tier1: 6   # EPL/UCL/LaLiga/SerieA/Bundesliga, etc.
+    tier2: 4   # secondary top leagues
+    tier3: 3   # long tail
+
+  # optional: map league_id -> tier, else default tier2
+  LEAGUE_TIERS:
+    "39": tier1    # EPL example
+    "140": tier1   # LaLiga
+    "135": tier1   # Serie A
+    "78": tier1    # Bundesliga
+    "61": tier1    # Ligue 1
+```
+
+# 3) Python — adaptive staleness + time-boxed TBD + tiered min-books
+
+Patch `clv_alert_producer.py` (names adjusted to your style):
+
+```python
+from datetime import datetime, timezone, timedelta
+from typing import Dict
+
+MIN_STALENESS = int(os.getenv("CLV_MIN_STALENESS_SEC", 600))
+MAX_STALENESS = int(os.getenv("CLV_MAX_STALENESS_SEC", 7200))
+TBD_ALLOW_BEFORE_HOURS = int(os.getenv("CLV_TBD_ALLOW_BEFORE_HOURS", 36))
+ALERT_COOLDOWN_MIN = int(os.getenv("CLV_ALERT_COOLDOWN_MIN", 20))
+
+LEAGUE_TIERS: Dict[str, str] = {
+    **{k: v for k, v in (os.getenv("CLV_LEAGUE_TIERS_JSON") and json.loads(os.getenv("CLV_LEAGUE_TIERS_JSON")) or {}).items()}
+}
+LEAGUE_MIN_BOOKS: Dict[str, int] = {
+    "tier1": 6, "tier2": 4, "tier3": 3,
+    **(os.getenv("CLV_LEAGUE_MIN_BOOKS_JSON") and json.loads(os.getenv("CLV_LEAGUE_MIN_BOOKS_JSON")) or {})
+}
+
+def _seconds_to_ko(ko: datetime) -> int:
+    now = datetime.now(timezone.utc)
+    return max(0, int((ko - now).total_seconds()))
+
+def _adaptive_staleness(ko: datetime) -> int:
+    secs = _seconds_to_ko(ko)
+    # 15% of time-to-KO, clamped to [MIN_STALENESS, MAX_STALENESS]
+    raw = max(MIN_STALENESS, round(0.15 * secs))
+    return max(MIN_STALENESS, min(raw, MAX_STALENESS))
+
+def _allow_tbd_for_ko(ko: datetime) -> bool:
+    return _seconds_to_ko(ko) > (TBD_ALLOW_BEFORE_HOURS * 3600)
+
+def _tier_for_league(league_id: str) -> str:
+    return LEAGUE_TIERS.get(str(league_id), "tier2")
+
+def _min_books_for_league(league_id: str) -> int:
+    return LEAGUE_MIN_BOOKS.get(_tier_for_league(league_id), 4)
+```
+
+## SQL builder changes
+
+Where you build the find-candidates query, inject both adaptive staleness and TBD rule:
+
+```python
+# ko is fixtures.kickoff_at for the row (bind as param)
+staleness_sec = _adaptive_staleness(ko)
+
+tbd_clause = """
+AND (
+  (f.kickoff_at - NOW() <= INTERVAL '36 hours'
+   AND f.home_team NOT ILIKE 'TBD%%'
+   AND f.away_team NOT ILIKE 'TBD%%')
+  OR (f.kickoff_at - NOW() > INTERVAL '36 hours')
+)
+"""
+
+sql = f"""
+SELECT
+  os.match_id,
+  COALESCE(lm.league_name, CAST(os.league_id AS text)) AS league_name,
+  os.league_id,
+  f.kickoff_at,
+  COUNT(DISTINCT os.book_id) AS book_count,
+  MAX(os.ts_snapshot)        AS latest_odds
+FROM odds_snapshots os
+LEFT JOIN league_map lm ON os.league_id = lm.league_id
+JOIN fixtures f ON f.match_id = os.match_id
+WHERE f.kickoff_at > NOW()
+  AND f.kickoff_at < NOW() + INTERVAL '72 hours'
+  AND os.ts_snapshot > NOW() - make_interval(secs => {staleness_sec})
+  {tbd_clause}
+GROUP BY os.match_id, league_name, os.league_id, f.kickoff_at
+HAVING COUNT(DISTINCT os.book_id) >= %s
+ORDER BY f.kickoff_at ASC
+LIMIT %s;
+"""
+
+min_books = _min_books_for_league(row["league_id"])
+rows = db.fetch_all(sql, (min_books, limit,))
+```
+
+(If you cannot compute `min_books` until after grouping, fetch candidates first, then filter in Python by league-tier `book_count`.)
+
+# 4) Alert de-dupe — cooldown + window_tag
+
+Before inserting a new alert, enforce cooldown. One simple technique is to bucket time into 20-minute windows and use the unique index:
+
+```python
+def _window_tag(now_utc: datetime, cooldown_min: int = ALERT_COOLDOWN_MIN) -> str:
+    epoch_bucket = int(now_utc.timestamp() // (cooldown_min * 60))
+    return f"{cooldown_min}m-{epoch_bucket}"
+
+def create_alert_if_fresh(match_id, market, side, payload):
+    now_utc = datetime.now(timezone.utc)
+    window_tag = _window_tag(now_utc)
+
+    try:
+        db.execute(
+            """
+            INSERT INTO alerts (match_id, market, side, window_tag, payload, created_at, is_active)
+            VALUES (%s, %s, %s, %s, %s::jsonb, NOW(), true)
+            ON CONFLICT ON CONSTRAINT ux_alerts_key_window DO NOTHING;
+            """,
+            (match_id, market, side, window_tag, json.dumps(payload)),
+        )
+        return True
+    except Exception as e:
+        logger.warning("alert insert skipped (likely duplicate): %s", e)
+        return False
+```
+
+# 5) “no more hardcodes” test (quick guard)
+
+Add a tiny unit test to nuke regressions:
+
+```python
+def test_no_hardcoded_600_in_alert_queries():
+    from pathlib import Path
+    src = Path(__file__).read_text(encoding="utf-8")
+    assert "make_interval(secs => 600)" not in src
+    assert "INTERVAL '10 minutes'" not in src
+```
+
+# 6) Ops checklist (apply right now)
+
+1. Run the migration SQL.
+2. Deploy the `clv_alert_producer.py` changes.
+3. Set envs:
+
+   * `CLV_MIN_STALENESS_SEC=600`
+   * `CLV_MAX_STALENESS_SEC=7200`
+   * `CLV_TBD_ALLOW_BEFORE_HOURS=36`
+   * `CLV_ALERT_COOLDOWN_MIN=20`
+   * (optional) `CLV_LEAGUE_TIERS_JSON` / `CLV_LEAGUE_MIN_BOOKS_JSON`
+4. Restart the service.
+5. Smoke test:
+
+   * One SQL probe for candidates (ensure `os.ts_snapshot` within adaptive window now lands results).
+   * Create 2 alerts for the same `(match, market, side)` inside 5 minutes — second should be skipped (unique index).
+
+# 7) Optional tiny perf win (no MV yet)
+
+If your “latest odds” join is hot, use `DISTINCT ON` in a CTE:
+
+```sql
+WITH latest AS (
+  SELECT DISTINCT ON (match_id, market, book_id)
+         match_id, market, book_id, price, line, ts_snapshot
+  FROM odds_snapshots
+  WHERE ts_snapshot > NOW() - INTERVAL '3 hours'
+  ORDER BY match_id, market, book_id, ts_snapshot DESC
+)
+-- then aggregate latest instead of the raw table
+```
+
+---
+
+that’s Phase 1, fully wired. if you paste these in, you’ll get the tighter near-KO behavior, fewer junk matches early, cleaner alerts, and a big speed-up from indexes — without touching your collector cadence (yet).

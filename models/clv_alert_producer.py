@@ -7,6 +7,7 @@ import os
 import psycopg2
 import hashlib
 import uuid
+import json
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 import logging
@@ -16,6 +17,27 @@ from models.database import DatabaseManager, CLVAlert
 from utils.config import settings
 
 logger = logging.getLogger(__name__)
+
+LEAGUE_TIER_MAP = {
+    "39": "tier1",
+    "140": "tier1",
+    "135": "tier1",
+    "78": "tier1",
+    "61": "tier1",
+    "2": "tier1",
+    "3": "tier1",
+    "13": "tier2",
+    "45": "tier2",
+    "46": "tier2",
+    "47": "tier2",
+    "48": "tier2",
+}
+
+TIER_MIN_BOOKS = {
+    "tier1": 6,
+    "tier2": 4,
+    "tier3": 3,
+}
 
 class CLVAlertProducer:
     """
@@ -28,9 +50,6 @@ class CLVAlertProducer:
         self.db_manager = DatabaseManager()
         self.database_url = os.environ.get('DATABASE_URL')
         
-        # Feature flag: Filter out TBD fixtures (teams not determined yet)
-        self.allow_tbd = os.getenv("ALLOW_TBD_FIXTURES", "0") == "1"  # Default OFF - no TBD matches
-        
         if not settings.ENABLE_CLV_CLUB:
             logger.info("CLV Club is disabled in config")
         
@@ -42,6 +61,50 @@ class CLVAlertProducer:
             'Bundesliga',
             'Ligue 1'
         ]
+    
+    def _seconds_to_kickoff(self, kickoff: datetime) -> int:
+        """Calculate seconds until kickoff"""
+        now = datetime.now(timezone.utc)
+        if kickoff.tzinfo is None:
+            kickoff = kickoff.replace(tzinfo=timezone.utc)
+        return max(0, int((kickoff - now).total_seconds()))
+    
+    def _adaptive_staleness(self, kickoff: datetime) -> int:
+        """
+        Calculate adaptive staleness window based on time to kickoff
+        Tighter near kickoff, more forgiving far out
+        Returns: staleness in seconds
+        """
+        secs_to_ko = self._seconds_to_kickoff(kickoff)
+        raw = max(settings.CLV_MIN_STALENESS_SEC, round(0.15 * secs_to_ko))
+        return max(settings.CLV_MIN_STALENESS_SEC, min(raw, settings.CLV_MAX_STALENESS_SEC))
+    
+    def _allow_tbd_for_kickoff(self, kickoff: datetime) -> bool:
+        """Allow TBD fixtures only if kickoff is far enough in the future"""
+        secs_to_ko = self._seconds_to_kickoff(kickoff)
+        threshold = settings.CLV_TBD_ALLOW_BEFORE_HOURS * 3600
+        return secs_to_ko > threshold
+    
+    def _get_tier_for_league(self, league_id: str) -> str:
+        """Map league ID to tier (tier1, tier2, tier3)"""
+        return LEAGUE_TIER_MAP.get(str(league_id), "tier2")
+    
+    def _get_min_books_for_league(self, league_id: Optional[str]) -> int:
+        """Get minimum book count requirement for a league"""
+        if league_id is None:
+            return 4
+        tier = self._get_tier_for_league(league_id)
+        return TIER_MIN_BOOKS.get(tier, 4)
+    
+    def _window_tag(self, now_utc: datetime, cooldown_min: Optional[int] = None) -> str:
+        """
+        Generate window tag for alert deduplication
+        Bucketed by cooldown period (default 20 min)
+        """
+        if cooldown_min is None:
+            cooldown_min = settings.CLV_ALERT_COOLDOWN_MIN
+        epoch_bucket = int(now_utc.timestamp() // (cooldown_min * 60))
+        return f"{cooldown_min}m-{epoch_bucket}"
     
     def _generate_alert_hash(self, match_id: int, outcome: str, minute: datetime) -> str:
         """
@@ -59,52 +122,79 @@ class CLVAlertProducer:
     def _get_upcoming_fixtures(self, max_hours_ahead: int = 72) -> List[Dict[str, Any]]:
         """
         Get fixtures within the next N hours that have recent odds
+        Phase 1: Uses adaptive staleness and timeboxed TBD filtering
         
         Returns:
-            List of dicts with match_id, league, kickoff_time
+            List of dicts with match_id, league, league_id, kickoff_time
         """
         try:
             with psycopg2.connect(self.database_url) as conn:
                 cursor = conn.cursor()
                 
-                # Find fixtures with odds in the target window
-                # ✅ FIX: Use fixtures table (not matches) since fresh odds link to fixtures
-                # ✅ Filter out TBD/placeholder fixtures (unless feature flag enabled)
-                # Note: %% is used to escape % in psycopg2 SQL strings
-                tbd_guard = "" if self.allow_tbd else "AND f.home_team NOT ILIKE 'TBD%%' AND f.away_team NOT ILIKE 'TBD%%'"
+                # Phase 1: Timeboxed TBD filter
+                # Allow TBD only if kickoff > 36h away, require enrichment after that
+                tbd_clause = """
+                AND (
+                  (f.kickoff_at - NOW() <= INTERVAL '36 hours'
+                   AND f.home_team NOT ILIKE 'TBD%%'
+                   AND f.away_team NOT ILIKE 'TBD%%')
+                  OR (f.kickoff_at - NOW() > INTERVAL '36 hours')
+                )
+                """
                 
+                # Phase 1: Use max staleness for initial query, filter by adaptive staleness later
                 sql_query = f"""
                     SELECT 
                         os.match_id,
                         COALESCE(lm.league_name, CAST(os.league_id AS text)) as league_name,
-                        f.kickoff_at as kickoff_at
+                        os.league_id,
+                        f.kickoff_at as kickoff_at,
+                        COUNT(DISTINCT os.book_id) as book_count,
+                        MAX(os.ts_snapshot) as latest_odds
                     FROM odds_snapshots os
                     LEFT JOIN league_map lm ON os.league_id = lm.league_id
                     LEFT JOIN fixtures f ON os.match_id = f.match_id
                     WHERE f.kickoff_at > NOW()
                       AND f.kickoff_at < NOW() + make_interval(hours => %s)
                       AND os.ts_snapshot > NOW() - make_interval(secs => %s)
-                      {tbd_guard}
+                      {tbd_clause}
                     GROUP BY os.match_id, lm.league_name, os.league_id, f.kickoff_at
-                    HAVING COUNT(DISTINCT os.book_id) >= %s
+                    ORDER BY f.kickoff_at ASC
                 """
                 
-                cursor.execute(sql_query, (max_hours_ahead, settings.CLV_STALENESS_SEC, settings.CLV_MIN_BOOKS_MINOR))
+                cursor.execute(sql_query, (max_hours_ahead, settings.CLV_MAX_STALENESS_SEC))
                 
                 fixtures = []
                 for row in cursor.fetchall():
-                    match_id, league, kickoff_at = row
-                    # Ensure kickoff_at is timezone-aware (database returns naive datetime)
+                    match_id, league, league_id, kickoff_at, book_count, latest_odds = row
+                    
+                    # Ensure kickoff_at is timezone-aware
                     if kickoff_at.tzinfo is None:
-                        from datetime import timezone
                         kickoff_at = kickoff_at.replace(tzinfo=timezone.utc)
+                    
+                    # Phase 1: Apply adaptive staleness filter
+                    adaptive_staleness_sec = self._adaptive_staleness(kickoff_at)
+                    now = datetime.now(timezone.utc)
+                    if latest_odds.tzinfo is None:
+                        latest_odds = latest_odds.replace(tzinfo=timezone.utc)
+                    
+                    odds_age_sec = (now - latest_odds).total_seconds()
+                    if odds_age_sec > adaptive_staleness_sec:
+                        continue
+                    
+                    # Phase 1: Apply league-tiered min books
+                    min_books = self._get_min_books_for_league(str(league_id))
+                    if book_count < min_books:
+                        continue
+                    
                     fixtures.append({
                         'match_id': match_id,
                         'league': league,
+                        'league_id': league_id,
                         'kickoff_time': kickoff_at
                     })
                 
-                logger.debug(f"Found {len(fixtures)} fixtures with recent odds")
+                logger.debug(f"Found {len(fixtures)} fixtures with recent odds (adaptive staleness + tiered books)")
                 return fixtures
                 
         except Exception as e:
@@ -243,21 +333,17 @@ class CLVAlertProducer:
     
     def _save_alert(self, opportunity, fixture_info: Dict) -> bool:
         """
-        Save CLV alert to database with idempotency check
+        Save CLV alert to database with deduplication via window_tag
+        Phase 1: Uses window_tag for 20-minute cooldown deduplication
         
         Returns:
             True if alert was created, False if skipped (duplicate)
         """
         try:
             current_time = datetime.now(timezone.utc)
-            current_minute = current_time.replace(second=0, microsecond=0)
             
-            # Generate idempotency hash
-            alert_hash = self._generate_alert_hash(
-                opportunity.match_id,
-                opportunity.outcome,
-                current_minute
-            )
+            # Phase 1: Generate window_tag for deduplication
+            window_tag = self._window_tag(current_time)
             
             # Calculate TTL
             ttl_seconds = self.engine.calculate_alert_ttl(
@@ -268,21 +354,20 @@ class CLVAlertProducer:
             
             session = self.db_manager.SessionLocal()
             
-            # Check for existing alert with same hash (idempotency)
+            # Phase 1: Check for duplicate alert using window_tag
+            # This enforces 20-minute cooldown on same (match_id, outcome)
             existing = session.query(CLVAlert).filter_by(
                 match_id=opportunity.match_id,
-                outcome=opportunity.outcome
-            ).filter(
-                CLVAlert.created_at >= current_minute,
-                CLVAlert.created_at < current_minute + timedelta(minutes=1)
+                outcome=opportunity.outcome,
+                window_tag=window_tag
             ).first()
             
             if existing:
-                logger.debug(f"Alert already exists for match {opportunity.match_id} outcome {opportunity.outcome}")
+                logger.debug(f"Alert already exists for match {opportunity.match_id} outcome {opportunity.outcome} in window {window_tag}")
                 session.close()
                 return False
             
-            # Create new alert
+            # Phase 1: Create new alert with window_tag
             alert = CLVAlert(
                 alert_id=uuid.uuid4(),
                 match_id=opportunity.match_id,
@@ -294,7 +379,7 @@ class CLVAlertProducer:
                 clv_pct=opportunity.clv_pct,
                 stability=opportunity.stability,
                 books_used=opportunity.books_used,
-                window_tag=opportunity.window_tag,
+                window_tag=window_tag,
                 expires_at=expires_at,
                 created_at=current_time
             )
