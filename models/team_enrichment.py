@@ -18,8 +18,8 @@ class TeamEnrichmentService:
     
     def __init__(self):
         self.api_key = os.environ.get('RAPIDAPI_KEY')
-        self.api_host = "v3.football.api-sports.io"
-        self.base_url = f"https://{self.api_host}"
+        self.api_host = "api-football-v1.p.rapidapi.com"
+        self.base_url = f"https://{self.api_host}/v3"
         self.cache_ttl_days = 30  # Refresh logos every 30 days
         
     def _make_api_request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
@@ -30,22 +30,28 @@ class TeamEnrichmentService:
         }
         
         try:
+            url = f"{self.base_url}{endpoint}"
+            logger.info(f"API-Football request: {url} with params: {params}")
+            
             response = requests.get(
-                f"{self.base_url}{endpoint}",
+                url,
                 headers=headers,
                 params=params or {},
                 timeout=10
             )
             
+            logger.info(f"API-Football response status: {response.status_code}")
+            
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"API-Football response: results={len(data.get('response', []))} items")
                 return data
             else:
-                logger.error(f"API-Football error: {response.status_code} - {response.text}")
+                logger.error(f"API-Football error: {response.status_code} - {response.text[:500]}")
                 return None
                 
         except Exception as e:
-            logger.error(f"API-Football request failed: {e}")
+            logger.error(f"API-Football request failed: {e}", exc_info=True)
             return None
     
     def search_team_by_name(self, team_name: str, league_id: Optional[int] = None) -> Optional[Dict]:
