@@ -1,0 +1,94 @@
+massive W. phase 1 is live and tight. before we roll into metrics, here’s a short post-deploy “trust but verify” list + two tiny polish tweaks you can apply in-place.
+
+# Post-deploy quick checks (2–3 mins)
+
+* Smoke SQL: candidates actually flowing
+
+  ```sql
+  -- upcoming fixtures with adaptive staleness (sanity)
+  SELECT COUNT(*) AS n
+  FROM odds_snapshots os
+  JOIN fixtures f USING(match_id)
+  WHERE f.kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '72 hours'
+    AND os.ts_snapshot > NOW() - INTERVAL '2 hours';
+  ```
+* Dedupe: confirm zero dupes in the current cooldown bucket
+
+  ```sql
+  SELECT match_id, outcome, window_tag, COUNT(*) c
+  FROM clv_alerts
+  WHERE created_at > NOW() - INTERVAL '1 hour'
+  GROUP BY 1,2,3 HAVING COUNT(*)>1;
+  ```
+* Index use: quick EXPLAIN to confirm `idx_odds_snapshots_match_ts` hits on candidate query.
+
+# Two tiny polish tweaks (low effort, nice payoff)
+
+1. **Partial unique index** (only when `window_tag` present). Prevents legacy rows from blocking inserts:
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS ux_clv_alerts_key_window
+  ON clv_alerts(match_id, outcome, window_tag)
+  WHERE window_tag IS NOT NULL;
+```
+
+2. **Fail-safe TBD guard near KO** (protects against last-minute unenriched records even if someone toggles envs):
+
+```sql
+-- require non-TBD inside T-12h as a stricter last gate
+AND (
+  (f.kickoff_at - NOW() > INTERVAL '12 hours')
+  OR (
+    f.home_team NOT ILIKE 'TBD%' AND f.away_team NOT ILIKE 'TBD%'
+  )
+)
+```
+
+# Minimal metrics starter (so Phase 2 is half done already)
+
+Drop these now and you’ll have signal even before Grafana:
+
+```python
+# metrics.py
+from prometheus_client import Counter, Gauge, Histogram
+
+clv_alerts_created = Counter(
+    "clv_alerts_created_total", "CLV alerts created", ["league", "outcome"]
+)
+odds_snapshot_age = Histogram(
+    "odds_snapshot_age_seconds", "Age of snapshots on winning alert"
+)
+tbd_fixtures_unenriched = Gauge(
+    "tbd_fixtures_unenriched", "Count of fixtures with TBD inside 24h"
+)
+closing_capture_rate = Gauge(
+    "closing_capture_rate_pct", "Share of fixtures where closing was captured in last 24h"
+)
+```
+
+Wire-in (one line each) where you:
+
+* create an alert → `clv_alerts_created.labels(league, outcome).inc()`
+* pick the snapshot for the alert → `odds_snapshot_age.observe((now - latest_ts).total_seconds())`
+* after each cycle → set `tbd_fixtures_unenriched.set(<SQL count>)`
+* cron job hourly → `closing_capture_rate.set(100.0 * captured/total)`
+
+# Ops guardrails (set & forget)
+
+* Env sanity:
+
+  * `CLV_MIN_STALENESS_SEC=600`, `CLV_MAX_STALENESS_SEC=7200`
+  * `CLV_TBD_ALLOW_BEFORE_HOURS=36`
+  * `CLV_ALERT_COOLDOWN_MIN=20`
+* Log one-liners per cycle:
+
+  * `opps=n, alerts=m, LOW_CLV=x, staleness=Y sec (p50/p95), tbd_<24h=z`
+* Add a canary alert if `clv_alerts_created_total` doesn’t move for **15 min** while `odds_snapshots_recent>0`.
+
+# What I’d watch this week
+
+* **Closing capture rate** (goal >90% once a few matches finish).
+* **Alert yield** (opportunities → alerts). If too low, revisit CLV bps thresholds by league tier.
+* **Snapshot age p95** on alerts. If creeping up near 2h, consider the adaptive collector cadence next.
+
+You’re in a great spot: cleaner inputs, adaptive freshness, no dupe spam, and faster queries. When you’re ready, I’ll drop the Prometheus + Grafana panels as JSON so you can import and go.

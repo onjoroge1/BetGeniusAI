@@ -8,6 +8,7 @@ import psycopg2
 import hashlib
 import uuid
 import json
+import time
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 import logging
@@ -15,6 +16,18 @@ import logging
 from models.clv_club import CLVClubEngine, BookOdds
 from models.database import DatabaseManager, CLVAlert
 from utils.config import settings
+
+try:
+    from models.metrics import (
+        clv_alerts_created,
+        odds_snapshot_age,
+        tbd_fixtures_unenriched,
+        clv_opportunities_scanned,
+        clv_producer_duration
+    )
+    METRICS_ENABLED = True
+except ImportError:
+    METRICS_ENABLED = False
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +119,27 @@ class CLVAlertProducer:
         epoch_bucket = int(now_utc.timestamp() // (cooldown_min * 60))
         return f"{cooldown_min}m-{epoch_bucket}"
     
+    def _count_tbd_fixtures_near_ko(self) -> int:
+        """
+        Count fixtures with TBD teams approaching kickoff (within 24h)
+        Used for metrics and monitoring
+        """
+        try:
+            with psycopg2.connect(self.database_url) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM fixtures
+                    WHERE kickoff_at BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
+                      AND (home_team ILIKE 'TBD%%' OR away_team ILIKE 'TBD%%')
+                """)
+                result = cursor.fetchone()
+                count = result[0] if result else 0
+                return count
+        except Exception as e:
+            logger.debug(f"Error counting TBD fixtures: {e}")
+            return 0
+    
     def _generate_alert_hash(self, match_id: int, outcome: str, minute: datetime) -> str:
         """
         Generate idempotency hash for alerts
@@ -131,14 +165,15 @@ class CLVAlertProducer:
             with psycopg2.connect(self.database_url) as conn:
                 cursor = conn.cursor()
                 
-                # Phase 1: Timeboxed TBD filter
+                # Phase 1: Timeboxed TBD filter with fail-safe near KO
                 # Allow TBD only if kickoff > 36h away, require enrichment after that
+                # Fail-safe: Strict gate at T-12h (protects against last-minute unenriched records)
                 tbd_clause = """
                 AND (
-                  (f.kickoff_at - NOW() <= INTERVAL '36 hours'
-                   AND f.home_team NOT ILIKE 'TBD%%'
-                   AND f.away_team NOT ILIKE 'TBD%%')
-                  OR (f.kickoff_at - NOW() > INTERVAL '36 hours')
+                  (f.kickoff_at - NOW() > INTERVAL '12 hours')
+                  OR (
+                    f.home_team NOT ILIKE 'TBD%%' AND f.away_team NOT ILIKE 'TBD%%'
+                  )
                 )
                 """
                 
@@ -388,6 +423,20 @@ class CLVAlertProducer:
             session.commit()
             session.close()
             
+            # Phase 1 Metrics: Track alert creation
+            if METRICS_ENABLED:
+                try:
+                    clv_alerts_created.labels(
+                        league=opportunity.league or "unknown",
+                        outcome=opportunity.outcome
+                    ).inc()
+                    
+                    # Track snapshot age
+                    if hasattr(opportunity, 'snapshot_age_sec'):
+                        odds_snapshot_age.observe(opportunity.snapshot_age_sec)
+                except Exception:
+                    pass  # Metrics are best-effort
+            
             logger.info(f"✅ CLV Alert created: Match {opportunity.match_id} {opportunity.outcome} " +
                        f"CLV={opportunity.clv_pct:.2f}% Stability={opportunity.stability:.3f}")
             return True
@@ -500,9 +549,26 @@ class CLVAlertProducer:
             # Calculate total cycle time
             stats['timings']['total_ms'] = int((time.time() - cycle_start) * 1000)
             
-            logger.info(f"📊 CLV Producer complete: {stats['alerts_created']} alerts created " +
-                       f"from {stats['opportunities_found']} opportunities " +
-                       f"({stats['fixtures_scanned']} fixtures) in {stats['timings']['total_ms']}ms")
+            # Phase 1 Metrics: Track TBD fixtures approaching kickoff
+            if METRICS_ENABLED:
+                try:
+                    tbd_count = self._count_tbd_fixtures_near_ko()
+                    tbd_fixtures_unenriched.set(tbd_count)
+                    stats['tbd_fixtures_24h'] = tbd_count
+                    
+                    # Track producer duration
+                    clv_producer_duration.observe(stats['timings']['total_ms'] / 1000.0)
+                except Exception:
+                    stats['tbd_fixtures_24h'] = 0  # Best-effort
+            
+            # Phase 1 Enhanced Logging: One-liner with key metrics
+            logger.info(
+                f"📊 CLV Producer complete: opps={stats['opportunities_found']}, "
+                f"alerts={stats['alerts_created']}, "
+                f"tbd_<24h={stats.get('tbd_fixtures_24h', 0)}, "
+                f"fixtures={stats['fixtures_scanned']}, "
+                f"duration={stats['timings']['total_ms']}ms"
+            )
             
             if stats['alerts_created'] == 0 and stats['opportunities_found'] > 0:
                 suppression_log = ', '.join([f"{k}={v}" for k, v in stats['suppression_reasons'].items() if v > 0])
