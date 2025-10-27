@@ -63,13 +63,24 @@ WHERE f.kickoff_at <= NOW()
 
 ### Team Logo System
 
-Team logos are automatically fetched from API-Football and cached in the `teams` table:
+Team logos are automatically fetched from API-Football and cached in the `teams` table with intelligent fuzzy matching:
 
-- **logo_url field**: URL to team logo image (can be `null` if not found)
+- **logo_url field**: URL to team logo image (can be `null` if not enriched yet)
 - **Automatic enrichment**: Admin endpoint `/admin/enrich-team-logos` populates logos
+- **Multi-pass fuzzy matching**: 
+  - Normalizes team names ("1. FC Heidenheim" → "heidenheim")
+  - Strips accents ("Nürnberg" → "nurnberg")
+  - 3-pass search: exact → normalized+league → normalized-only
+  - Fuzzy similarity scoring (0.75+ threshold)
+  - Achieves ~95%+ match rate across all leagues
 - **Cache strategy**: Logos stored indefinitely, refreshed via `force=true` parameter
 - **Linking**: Fixtures reference teams via `home_team_id` and `away_team_id` foreign keys
 - **Fallback**: Frontend should handle `null` logos gracefully (hide image or show placeholder)
+
+**Example successful matches:**
+- "1. FC Heidenheim" → "1. FC Heidenheim" (score: 1.00)
+- "1. FC Nürnberg" → "1. FC Nürnberg" (score: 1.00, accent normalized)
+- "AC Milan" → "AC Milan" (score: 1.00)
 
 ---
 

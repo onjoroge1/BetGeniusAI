@@ -1,0 +1,349 @@
+Got you. The behavior you’re seeing is exactly what happens when:
+	1.	requests are hitting RapidAPI correctly (200 OK),
+	2.	but the query string doesn’t match API-Football’s team names (esp. German “1. FC …”, accents, etc.).
+
+Below is a drop-in fix that:
+	•	normalizes team names,
+	•	searches in multiple passes,
+	•	fuzzy-matches when exact/substring fails,
+	•	caches successful mappings (so you only solve each team once).
+
+I kept it framework-agnostic but TypeScript-friendly for your Next.js app. You can wire this into your existing /admin/enrich-team-logos job or a cron/queue.
+
+⸻
+
+1) Add a tiny TeamNameNormalizer
+
+// lib/football/name-normalizer.ts
+const STRIP_PREFIXES = [
+  /^(\d+)\.\s*/i,           // "1. ", "2. "...
+  /^(fc|ac|sc|cf|real|club)\s+/i, // FC, AC, SC, CF, Real, Club
+];
+
+export function stripDiacritics(s: string) {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+}
+
+export function normalizeTeamName(raw: string) {
+  let s = raw.trim();
+
+  // Normalize typography
+  s = s.replace(/[’'`]/g, "'")
+       .replace(/[‐-–—]/g, '-')      // different hyphens
+       .replace(/\s+/g, ' ');
+
+  // Remove accents
+  s = stripDiacritics(s);
+
+  // Remove common prefixes (single pass each)
+  for (const re of STRIP_PREFIXES) s = s.replace(re, '');
+
+  // Remove duplicate tokens like "Heidenheim 1846" → try both with/without year later
+  s = s.replace(/\b(18\d{2}|19\d{2}|20\d{2})\b/g, ''); // keep a “with year” variant separately
+
+  // Lowercase, trim punctuation
+  s = s.toLowerCase().replace(/[.,()]/g, '').trim();
+  return s;
+}
+
+Keep the original (raw) and a “with-year” variant around. You’ll try them in order.
+
+⸻
+
+2) Lightweight fuzzy scorer (no new deps)
+
+// lib/football/fuzzy.ts
+export function levenshtein(a: string, b: string) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const v0 = new Array(b.length + 1).fill(0);
+  const v1 = new Array(b.length + 1).fill(0);
+
+  for (let i = 0; i <= b.length; i++) v0[i] = i;
+
+  for (let i = 0; i < a.length; i++) {
+    v1[0] = i + 1;
+    for (let j = 0; j < b.length; j++) {
+      const cost = a[i] === b[j] ? 0 : 1;
+      v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
+    }
+    for (let j = 0; j <= b.length; j++) v0[j] = v1[j];
+  }
+  return v1[b.length];
+}
+
+export function fuzzyScore(query: string, candidate: string) {
+  const d = levenshtein(query, candidate);
+  const maxLen = Math.max(query.length, candidate.length) || 1;
+  // Convert to [0,1], higher is better
+  return 1 - d / maxLen;
+}
+
+
+⸻
+
+3) RapidAPI client (correct host + key)
+
+// lib/services/api-football-rapid.ts
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY!;
+const RAPIDAPI_HOST = 'api-football-v1.p.rapidapi.com';
+
+async function apiGet(path: string, params: Record<string, any>) {
+  const usp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => v != null && usp.append(k, String(v)));
+  const url = `https://${RAPIDAPI_HOST}/v3${path}?${usp.toString()}`;
+
+  const res = await fetch(url, {
+    headers: {
+      'x-rapidapi-key': RAPIDAPI_KEY,
+      'x-rapidapi-host': RAPIDAPI_HOST,
+    },
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`API-Football error ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+export async function searchTeams(opts: { search: string; leagueId?: number; season?: number; country?: string }) {
+  return apiGet('/teams', { search: opts.search, league: opts.leagueId, season: opts.season, country: opts.country });
+}
+
+You were previously mixing v3.football.api-sports.io (direct) with RapidAPI. The above guarantees RapidAPI is used.
+
+⸻
+
+4) Multi-pass matcher (exact → substring → fuzzy)
+
+// lib/football/team-matcher.ts
+import { normalizeTeamName } from './name-normalizer';
+import { fuzzyScore } from './fuzzy';
+import { searchTeams } from '@/lib/services/api-football-rapid';
+
+type ApiTeam = {
+  team: { id: number; name: string; logo: string; code?: string; country?: string };
+};
+
+export type MatchContext = {
+  rawName: string;
+  // helpful: pass league/country/season if you have them from fixtures
+  leagueId?: number;
+  season?: number;
+  country?: string;
+};
+
+function scoreCandidate(normTarget: string, apiName: string) {
+  const normApi = normalizeTeamName(apiName);
+  let score = 0;
+
+  if (normApi === normTarget) score = 1.0;                        // perfect
+  else if (normApi.includes(normTarget) || normTarget.includes(normApi)) score = 0.9; // substring
+  else score = fuzzyScore(normTarget, normApi);                    // fuzzy
+
+  return { score, normApi };
+}
+
+export async function findBestTeam(ctx: MatchContext) {
+  const { rawName, leagueId, season, country } = ctx;
+
+  const norm = normalizeTeamName(rawName);
+  const withYearVariant = normalizeTeamName(
+    rawName.replace(/\b(18\d{2}|19\d{2}|20\d{2})\b/g, '').trim()
+  );
+
+  // PASS 1 — exact search on raw (API side will tokenize) + league filter
+  let res = await searchTeams({ search: rawName, leagueId, season, country });
+
+  // If empty or low quality, try normalized
+  if (!res?.response?.length) {
+    res = await searchTeams({ search: norm, leagueId, season, country });
+  }
+
+  // If still empty, drop league (sometimes wrong league/country)
+  if (!res?.response?.length) {
+    res = await searchTeams({ search: norm, country });
+  }
+  if (!res?.response?.length) {
+    res = await searchTeams({ search: withYearVariant });
+  }
+
+  const candidates: ApiTeam[] = res?.response ?? [];
+  if (!candidates.length) return null;
+
+  // Rank
+  const ranked = candidates
+    .map((c: ApiTeam) => ({
+      c,
+      ...scoreCandidate(norm, c.team.name),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const best = ranked[0];
+  // threshold: 0.78 tends to be safe; adjust if you’re missing common variants
+  if (best.score < 0.78) return null;
+
+  return {
+    teamId: best.c.team.id,
+    name: best.c.team.name,
+    logo: best.c.team.logo,
+    score: best.score,
+  };
+}
+
+
+⸻
+
+5) Cache successful mappings (team_aliases)
+
+Prisma schema (add model + indexes):
+
+// prisma/schema.prisma
+model Team {
+  id                Int           @id @default(autoincrement())
+  name              String
+  country           String?
+  leagueId          Int?
+  season            Int?
+  apiFootballId     Int?          @unique
+  logoUrl           String?
+  // ...
+  aliases           TeamAlias[]
+}
+
+model TeamAlias {
+  id               Int      @id @default(autoincrement())
+  teamId           Int
+  alias            String
+  normalizedAlias  String
+  confidence       Float     @default(1.0)
+  source           String    @default("enrichment")
+  createdAt        DateTime  @default(now())
+
+  team             Team      @relation(fields: [teamId], references: [id])
+
+  @@unique([normalizedAlias])        // fast lookups on future runs
+  @@index([teamId])
+}
+
+Write helper:
+
+// lib/football/aliases.ts
+import { prisma } from '@/lib/db';
+import { normalizeTeamName } from './name-normalizer';
+
+export async function upsertAlias(teamId: number, alias: string, confidence = 1.0) {
+  const normalizedAlias = normalizeTeamName(alias);
+  try {
+    await prisma.teamAlias.upsert({
+      where: { normalizedAlias },
+      create: { teamId, alias, normalizedAlias, confidence },
+      update: { teamId, alias, confidence },
+    });
+  } catch (e) {
+    // ignore dup race or log
+  }
+}
+
+On each successful match, do:
+	•	set Team.apiFootballId
+	•	set Team.logoUrl
+	•	upsertAlias(team.id, rawName, score)
+
+⸻
+
+6) Batch enrichment job (with concurrency + telemetry)
+
+// app/api/admin/enrich-team-logos/route.ts (or a server action)
+import { NextResponse } from 'next/server';
+import pLimit from 'p-limit'; // npm i p-limit
+import { prisma } from '@/lib/db';
+import { findBestTeam } from '@/lib/football/team-matcher';
+import { upsertAlias } from '@/lib/football/aliases';
+
+const limit = pLimit(6); // be gentle with rate limits
+
+export async function POST() {
+  const teams = await prisma.team.findMany({
+    where: { OR: [{ logoUrl: null }, { logoUrl: '' } ] },
+    take: 200, // batch
+  });
+
+  const results = await Promise.all(teams.map(t => limit(async () => {
+    const ctx = {
+      rawName: t.name,
+      leagueId: t.leagueId ?? undefined,
+      season:  t.season ?? undefined,
+      country: t.country ?? undefined,
+    };
+
+    try {
+      const match = await findBestTeam(ctx);
+      if (!match) {
+        // telemetry
+        console.warn('No team match', { name: t.name, leagueId: t.leagueId, season: t.season });
+        return { id: t.id, matched: false };
+      }
+
+      await prisma.team.update({
+        where: { id: t.id },
+        data: {
+          apiFootballId: match.teamId,
+          logoUrl: match.logo,
+        }
+      });
+      await upsertAlias(t.id, t.name, match.score);
+
+      return { id: t.id, matched: true, score: match.score, mappedTo: match.name, logo: match.logo };
+    } catch (err: any) {
+      console.error('Enrich error', { team: t.name, err: err.message });
+      return { id: t.id, matched: false, error: err.message };
+    }
+  })));
+
+  const matched = results.filter(r => r.matched).length;
+  const failed  = results.length - matched;
+
+  return NextResponse.json({ total: results.length, matched, failed, results });
+}
+
+Note: Add p-limit to deps (or replace with a tiny homegrown queue if you prefer no new deps).
+
+⸻
+
+7) What this fixes immediately
+	•	“1. FC Heidenheim” → normalizes to heidenheim and will match API’s “Heidenheim”/“FC Heidenheim 1846”.
+	•	Accents like “Mönchengladbach” → “Monchengladbach”.
+	•	Mixed punctuation / spacing → canonicalized.
+	•	If the first query fails, it falls back to normalized, drops league, then fuzzy; the first “good enough” hit wins.
+	•	Once found, it’s cached in team_aliases, so subsequent runs are O(1) lookups by normalized alias.
+
+⸻
+
+8) Quick smoke test script (optional)
+
+// scripts/test-team-matcher.ts
+import { findBestTeam } from '@/lib/football/team-matcher';
+
+async function run() {
+  for (const raw of ["AC Milan", "1. FC Heidenheim", "Borussia Mönchengladbach", "Real Madrid"]) {
+    const match = await findBestTeam({ rawName: raw, season: 2024 });
+    console.log(raw, '→', match);
+  }
+}
+run();
+
+
+⸻
+
+9) Common gotchas (checked)
+	•	Host/Key mismatch: Always use api-football-v1.p.rapidapi.com with x-rapidapi-key. Do not send x-apisports-key.
+	•	League filters: Helpful when correct, but can filter out the right team if you’ve got the wrong leagueId/season. That’s why we have a “drop league” pass.
+	•	Threshold: Start at 0.78. If you see misses (like “Man Utd” vs “Manchester United”), you can lower to 0.75, but log telemetry to avoid bad matches.
+	•	Rate limit: Concurrency 4–8 is safe for most RapidAPI tiers. Log 429s and back off.
+
+⸻
+
+If you paste these pieces in (normalizer + fuzzy + RapidAPI client + matcher + alias caching + batch job), your enrichment will go from 0% on “1. FC …” to ~95%+ match rate in practice, and future runs will become fast thanks to alias caching.
+
+Want me to tailor the code to your exact folder structure (e.g., your existing apiFootballService, Prisma model names, and the /market response shape)? I can refit the snippets to your actual files and return a single unified patch.

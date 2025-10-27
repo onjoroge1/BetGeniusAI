@@ -22,7 +22,7 @@ class TeamEnrichmentService:
         self.base_url = f"https://{self.api_host}/v3"
         self.cache_ttl_days = 30  # Refresh logos every 30 days
         
-    def _make_api_request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
+    def _make_api_request(self, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict]:
         """Make request to API-Football with rate limiting"""
         headers = {
             'x-rapidapi-host': self.api_host,
@@ -54,45 +54,123 @@ class TeamEnrichmentService:
             logger.error(f"API-Football request failed: {e}", exc_info=True)
             return None
     
+    def normalize_team_name(self, name: str) -> str:
+        """
+        Normalize team name for better matching:
+        - Strip ordinal prefixes (1., 2., etc.)
+        - Remove common club tokens (FC, AC, SC, CF)
+        - Remove accents/diacritics
+        - Lowercase and clean punctuation
+        """
+        import unicodedata
+        import re
+        
+        s = name.strip()
+        
+        # Remove accents
+        s = ''.join(c for c in unicodedata.normalize('NFD', s) 
+                   if unicodedata.category(c) != 'Mn')
+        
+        # Strip ordinal prefixes like "1. "
+        s = re.sub(r'^\d+\.\s*', '', s)
+        
+        # Strip common club prefixes (but keep for variant)
+        s = re.sub(r'^(FC|AC|SC|CF|Real|Club)\s+', '', s, flags=re.IGNORECASE)
+        
+        # Remove years
+        s = re.sub(r'\b(18\d{2}|19\d{2}|20\d{2})\b', '', s)
+        
+        # Normalize whitespace and punctuation
+        s = re.sub(r'[.,()]+', '', s)
+        s = re.sub(r'\s+', ' ', s)
+        
+        return s.strip().lower()
+    
     def search_team_by_name(self, team_name: str, league_id: Optional[int] = None) -> Optional[Dict]:
         """
-        Search for team by name in API-Football
-        Returns: {team_id, name, logo, country, etc.}
+        Search for team by name in API-Football with multi-pass strategy:
+        1. Exact match with league filter
+        2. Normalized name with league filter  
+        3. Normalized name without league filter
+        4. Fuzzy substring matching
+        Returns: {api_football_team_id, name, logo_url, country, etc.}
         """
+        from difflib import SequenceMatcher
+        
+        normalized = self.normalize_team_name(team_name)
+        
+        # PASS 1: Exact search with league
         params = {'search': team_name}
         if league_id:
-            params['league'] = league_id
+            params['league'] = str(league_id)
             
         data = self._make_api_request('/teams', params)
+        candidates = data.get('response', []) if data else []
         
-        if data and data.get('response'):
-            results = data['response']
-            
-            # Try exact match first
-            for item in results:
-                team = item.get('team', {})
-                if team.get('name', '').lower() == team_name.lower():
-                    return {
-                        'api_football_team_id': team.get('id'),
-                        'name': team.get('name'),
-                        'logo_url': team.get('logo'),
-                        'country': team.get('country'),
-                        'slug': team.get('code', '').lower()
-                    }
-            
-            # Fallback to first result if no exact match
-            if results:
-                team = results[0].get('team', {})
-                return {
-                    'api_football_team_id': team.get('id'),
-                    'name': team.get('name'),
-                    'logo_url': team.get('logo'),
-                    'country': team.get('country'),
-                    'slug': team.get('code', '').lower()
-                }
+        # PASS 2: If no results, try normalized name with league
+        if not candidates and normalized != team_name.lower():
+            logger.info(f"Pass 2: Trying normalized '{normalized}' with league={league_id}")
+            params = {'search': normalized}
+            if league_id:
+                params['league'] = str(league_id)
+            data = self._make_api_request('/teams', params)
+            candidates = data.get('response', []) if data else []
         
-        logger.warning(f"No team found for: {team_name}")
-        return None
+        # PASS 3: If still no results, try without league filter
+        if not candidates:
+            logger.info(f"Pass 3: Trying '{normalized}' without league filter")
+            params = {'search': normalized}
+            data = self._make_api_request('/teams', params)
+            candidates = data.get('response', []) if data else []
+        
+        # PASS 4: Fuzzy matching - score all candidates
+        if not candidates:
+            logger.warning(f"No candidates found for: {team_name}")
+            return None
+        
+        # Score all candidates
+        scored = []
+        for item in candidates:
+            team = item.get('team', {})
+            api_name = team.get('name', '')
+            api_norm = self.normalize_team_name(api_name)
+            
+            # Exact normalized match = 1.0
+            if api_norm == normalized:
+                score = 1.0
+            # Substring match = 0.9
+            elif normalized in api_norm or api_norm in normalized:
+                score = 0.9
+            # Fuzzy similarity
+            else:
+                score = SequenceMatcher(None, normalized, api_norm).ratio()
+            
+            scored.append({
+                'score': score,
+                'api_name': api_name,
+                'team': team
+            })
+        
+        # Sort by score descending
+        scored.sort(key=lambda x: x['score'], reverse=True)
+        best = scored[0]
+        
+        # Threshold: require 0.75+ similarity
+        if best['score'] < 0.75:
+            logger.warning(f"Best match for '{team_name}' is '{best['api_name']}' with score {best['score']:.2f} (below threshold)")
+            return None
+        
+        logger.info(f"Match: '{team_name}' → '{best['api_name']}' (score: {best['score']:.2f})")
+        
+        team = best['team']
+        return {
+            'api_football_team_id': team.get('id'),
+            'name': team.get('name'),
+            'logo_url': team.get('logo'),
+            'country': team.get('country'),
+            'slug': team.get('code', '').lower(),
+            'match_score': best['score']
+        }
     
     def upsert_team(self, conn, team_data: Dict) -> Optional[int]:
         """

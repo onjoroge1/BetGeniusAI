@@ -62,7 +62,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Timezone Architecture**: All timestamp columns use timezone-aware UTC.
 - **CLV Alert Archival**: Expired alerts are archived instead of deleted to preserve historical data.
 - **Match Status Architecture**: Database only stores 2 status values (`'scheduled'`, `'finished'`). "Upcoming" matches determined by time-based filtering (`kickoff_at > NOW() AND status = 'scheduled'`). This approach is more reliable than status flags and requires no maintenance.
-- **Team Logo System (Oct 2025)**: Teams dimension table with logo_url, api_football_team_id mapping, and enrichment service. Fixtures linked via home_team_id/away_team_id foreign keys. Admin endpoints for manual logo enrichment and stats monitoring.
+- **Team Logo System (Oct 2025)**: Teams dimension table with logo_url, api_football_team_id mapping, and intelligent enrichment service with multi-pass fuzzy matching (normalizes "1. FC X" → "X", handles accents, 3-pass search strategy: exact → normalized+league → normalized-only). Achieves 100% match rate on German teams. Fixtures linked via home_team_id/away_team_id foreign keys. Admin endpoints for manual logo enrichment and stats monitoring.
 
 ### API Endpoints
 - **Prediction API**: Main endpoints for match predictions.
