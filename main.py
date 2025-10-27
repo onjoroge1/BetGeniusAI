@@ -3150,6 +3150,111 @@ async def get_team_stats(api_key: str = Depends(verify_api_key)):
         logger.error(f"Failed to get team stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/teams")
+async def get_teams(
+    search: Optional[str] = None,
+    league_id: Optional[int] = None,
+    has_logo: Optional[bool] = None,
+    limit: int = 100,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Frontend API: Get teams with logos (Requires API Key)
+    
+    Query Parameters:
+    - search: Filter teams by name (case-insensitive partial match)
+    - league_id: Filter teams that have fixtures in this league
+    - has_logo: Filter teams with/without logos (true/false)
+    - limit: Maximum number of teams to return (default: 100)
+    
+    Returns:
+    - List of teams with id, name, logo_url, country, and fixture count
+    
+    Example: /teams?search=arsenal&has_logo=true
+    """
+    try:
+        import psycopg2
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cursor = conn.cursor()
+        
+        # Build query with filters
+        conditions = []
+        params = []
+        
+        base_query = """
+            SELECT 
+                t.team_id,
+                t.name,
+                t.logo_url,
+                t.country,
+                t.slug,
+                COUNT(DISTINCT f.match_id) as fixture_count,
+                t.logo_last_synced_at
+            FROM teams t
+            LEFT JOIN fixtures f ON (f.home_team_id = t.team_id OR f.away_team_id = t.team_id)
+        """
+        
+        # Add filters
+        if search:
+            conditions.append("LOWER(t.name) LIKE LOWER(%s)")
+            params.append(f"%{search}%")
+        
+        if league_id is not None:
+            conditions.append("f.league_id = %s")
+            params.append(league_id)
+        
+        if has_logo is not None:
+            if has_logo:
+                conditions.append("t.logo_url IS NOT NULL")
+            else:
+                conditions.append("t.logo_url IS NULL")
+        
+        # Construct WHERE clause
+        if conditions:
+            base_query += " WHERE " + " AND ".join(conditions)
+        
+        # Group by and order
+        base_query += """
+            GROUP BY t.team_id, t.name, t.logo_url, t.country, t.slug, t.logo_last_synced_at
+            ORDER BY t.name ASC
+            LIMIT %s
+        """
+        params.append(limit)
+        
+        cursor.execute(base_query, tuple(params))
+        rows = cursor.fetchall()
+        
+        teams = []
+        for row in rows:
+            teams.append({
+                "team_id": row[0],
+                "name": row[1],
+                "logo_url": row[2],
+                "country": row[3],
+                "slug": row[4],
+                "fixture_count": row[5],
+                "logo_last_synced": row[6].isoformat() if row[6] else None
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "count": len(teams),
+            "teams": teams,
+            "filters": {
+                "search": search,
+                "league_id": league_id,
+                "has_logo": has_logo,
+                "limit": limit
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get teams: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/examples")
 async def get_prediction_examples():
     """Show example predictions and how to use the API (no auth required)"""

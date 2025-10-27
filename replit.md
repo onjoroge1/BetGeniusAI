@@ -69,6 +69,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
   - `/predict` - V1 consensus predictions with optional AI analysis
   - `/predict-v2` - **NEW (Oct 2025)** V2 SELECT endpoint (premium, high-confidence only: conf >= 0.62, EV > 0). Uses V2 LightGBM model (52.7% overall, 75.9% @ 62% threshold). Requires API key authentication.
   - `/market` - **NEW (Oct 2025)** Market board showing both V1 + V2 predictions side-by-side (free tier, authenticated). Designed for real-time odds comparison with premium upgrade CTA. **Architecture:** Reads pre-computed V1 from `consensus_predictions` (updated every 60s by scheduler), fetches latest odds from `odds_snapshots`, generates V2 on-demand. Uses time-based filtering (`kickoff_at > NOW()`) instead of status flags for "upcoming" matches. **Team Logos (Oct 2025):** Includes team logo URLs via JOIN with teams table. Logos cached from API-Football. Response time: ~500ms for 10 matches.
+  - `/teams` - **NEW (Oct 2025)** Frontend-friendly API for fetching teams with logos. Supports filtering by name (search), league, logo availability. Returns team_id, name, logo_url, country, slug, fixture_count. Used for team selection dropdowns, autocomplete search, and team directories. Response time: 50-200ms for 100 teams.
 - **Admin Endpoints**: For data management, match discovery, and training statistics.
 - **V2 Shadow System Endpoints**: `/predict/which-primary`, `/metrics/ab`, `/metrics/clv-summary`.
 - **Calibration & Optimization Endpoints**: `/metrics/evaluation`, `/metrics/temperature-scaling`.

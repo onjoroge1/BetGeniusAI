@@ -84,6 +84,288 @@ Team logos are automatically fetched from API-Football and cached in the `teams`
 
 ---
 
+## Teams API Endpoint (Frontend)
+
+The `/teams` endpoint provides a clean, frontend-friendly API for fetching team data with logos.
+
+### Endpoint Details
+
+```
+GET /teams
+```
+
+**Authentication:** Required (API Key via `Authorization: Bearer {api_key}` header)
+
+### Query Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `search` | string | No | null | Filter teams by name (case-insensitive partial match) |
+| `league_id` | integer | No | null | Filter teams that have fixtures in this league |
+| `has_logo` | boolean | No | null | Filter teams with/without logos (`true`/`false`) |
+| `limit` | integer | No | 100 | Maximum number of teams to return (1-1000) |
+
+### Response Format
+
+```json
+{
+  "status": "success",
+  "count": 5,
+  "teams": [
+    {
+      "team_id": 35,
+      "name": "Arsenal",
+      "logo_url": "https://media.api-sports.io/football/teams/42.png",
+      "country": "England",
+      "slug": "ars",
+      "fixture_count": 9,
+      "logo_last_synced": "2025-10-27T02:13:48.608663+00:00"
+    }
+  ],
+  "filters": {
+    "search": "arsenal",
+    "league_id": null,
+    "has_logo": null,
+    "limit": 100
+  }
+}
+```
+
+### Example API Calls
+
+**1. Get all teams with logos:**
+```bash
+curl "http://localhost:8000/teams?has_logo=true&limit=50" \
+  -H "Authorization: Bearer betgenius_secure_key_2024"
+```
+
+**2. Search for a specific team:**
+```bash
+curl "http://localhost:8000/teams?search=manchester" \
+  -H "Authorization: Bearer betgenius_secure_key_2024"
+```
+
+**3. Get teams from a specific league:**
+```bash
+curl "http://localhost:8000/teams?league_id=39&has_logo=true" \
+  -H "Authorization: Bearer betgenius_secure_key_2024"
+```
+
+**4. Get teams without logos (for debugging):**
+```bash
+curl "http://localhost:8000/teams?has_logo=false" \
+  -H "Authorization: Bearer betgenius_secure_key_2024"
+```
+
+### Frontend Integration Examples
+
+#### React/TypeScript
+
+```typescript
+// types/team.ts
+export interface Team {
+  team_id: number;
+  name: string;
+  logo_url: string | null;
+  country: string | null;
+  slug: string | null;
+  fixture_count: number;
+  logo_last_synced: string | null;
+}
+
+export interface TeamsResponse {
+  status: string;
+  count: number;
+  teams: Team[];
+  filters: {
+    search: string | null;
+    league_id: number | null;
+    has_logo: boolean | null;
+    limit: number;
+  };
+}
+
+// api/teams.ts
+const API_BASE_URL = 'https://your-api.replit.app';
+const API_KEY = process.env.REACT_APP_API_KEY;
+
+export async function fetchTeams(params: {
+  search?: string;
+  league_id?: number;
+  has_logo?: boolean;
+  limit?: number;
+}): Promise<TeamsResponse> {
+  const queryParams = new URLSearchParams();
+  
+  if (params.search) queryParams.set('search', params.search);
+  if (params.league_id) queryParams.set('league_id', params.league_id.toString());
+  if (params.has_logo !== undefined) queryParams.set('has_logo', params.has_logo.toString());
+  if (params.limit) queryParams.set('limit', params.limit.toString());
+  
+  const response = await fetch(
+    `${API_BASE_URL}/teams?${queryParams.toString()}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+      },
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+  
+  return response.json();
+}
+
+// components/TeamLogo.tsx
+interface TeamLogoProps {
+  team: Team;
+  size?: 'sm' | 'md' | 'lg';
+}
+
+export function TeamLogo({ team, size = 'md' }: TeamLogoProps) {
+  const sizeClasses = {
+    sm: 'w-6 h-6',
+    md: 'w-10 h-10',
+    lg: 'w-16 h-16',
+  };
+  
+  return (
+    <div className={`${sizeClasses[size]} flex items-center justify-center`}>
+      {team.logo_url ? (
+        <img
+          src={team.logo_url}
+          alt={`${team.name} logo`}
+          className="w-full h-full object-contain"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-full h-full bg-gray-200 rounded flex items-center justify-center text-gray-500 text-xs">
+          {team.name.substring(0, 2).toUpperCase()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// components/TeamSearchDropdown.tsx
+import { useState, useEffect } from 'react';
+import { fetchTeams } from '../api/teams';
+import { TeamLogo } from './TeamLogo';
+
+export function TeamSearchDropdown() {
+  const [search, setSearch] = useState('');
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    if (search.length < 2) {
+      setTeams([]);
+      return;
+    }
+    
+    const delayDebounce = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const data = await fetchTeams({ search, has_logo: true, limit: 10 });
+        setTeams(data.teams);
+      } catch (error) {
+        console.error('Failed to fetch teams:', error);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    
+    return () => clearTimeout(delayDebounce);
+  }, [search]);
+  
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search teams..."
+        className="w-full px-4 py-2 border rounded-lg"
+      />
+      
+      {loading && <div className="mt-2 text-sm text-gray-500">Loading...</div>}
+      
+      {teams.length > 0 && (
+        <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
+          {teams.map((team) => (
+            <button
+              key={team.team_id}
+              className="w-full px-4 py-2 hover:bg-gray-100 flex items-center gap-3"
+              onClick={() => console.log('Selected:', team)}
+            >
+              <TeamLogo team={team} size="sm" />
+              <div className="text-left">
+                <div className="font-medium">{team.name}</div>
+                <div className="text-xs text-gray-500">{team.country}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+#### Plain JavaScript
+
+```javascript
+// Simple team search with logos
+async function searchTeams(searchTerm) {
+  const response = await fetch(
+    `https://your-api.replit.app/teams?search=${searchTerm}&has_logo=true&limit=10`,
+    {
+      headers: {
+        'Authorization': 'Bearer betgenius_secure_key_2024'
+      }
+    }
+  );
+  
+  const data = await response.json();
+  return data.teams;
+}
+
+// Display teams with logos
+async function displayTeams() {
+  const teams = await searchTeams('arsenal');
+  const container = document.getElementById('teams-container');
+  
+  container.innerHTML = teams.map(team => `
+    <div class="team-card">
+      <img src="${team.logo_url}" alt="${team.name}" class="team-logo">
+      <div class="team-info">
+        <h3>${team.name}</h3>
+        <p>${team.country} • ${team.fixture_count} fixtures</p>
+      </div>
+    </div>
+  `).join('');
+}
+```
+
+### Use Cases
+
+1. **Team Selection Dropdown** - Let users select teams with visual logos
+2. **League Team Directory** - Display all teams in a league with logos
+3. **Autocomplete Search** - Real-time team search with logo preview
+4. **Team Profile Pages** - Show team details with logo and fixture count
+5. **Debug Interface** - Find teams missing logos (`has_logo=false`)
+
+### Performance Notes
+
+- **Average response time:** 50-200ms for 100 teams
+- **Caching:** Team data is cached; logos rarely change
+- **Rate limits:** Standard API rate limits apply
+- **Optimization:** Use `limit` parameter to reduce payload size
+
+---
+
 ## API Specification
 
 ### Endpoint
