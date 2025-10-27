@@ -3057,6 +3057,99 @@ async def enrich_tbd_fixtures_endpoint(limit: int = 100):
         logger.error(f"Failed to enrich TBD fixtures: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/admin/enrich-team-logos")
+async def enrich_team_logos_endpoint(limit: int = 50, force: bool = False, api_key: str = Depends(verify_api_key)):
+    """
+    Enrich teams with logos from API-Football
+    
+    Fetches team metadata (logos, names, etc.) from API-Football and stores in teams table.
+    Also links fixtures to teams via home_team_id and away_team_id.
+    
+    Args:
+        limit: Max teams to process (default 50, rate limit protection)
+        force: Re-fetch even if already cached (default False)
+    
+    Returns:
+        Stats about teams enriched and fixtures linked
+    """
+    try:
+        logger.info(f"🎨 API: Team logo enrichment requested (limit: {limit}, force: {force})")
+        
+        # Import here to avoid circular dependencies
+        from models.team_enrichment import get_team_enrichment_service
+        
+        service = get_team_enrichment_service()
+        
+        # Step 1: Enrich teams with logos
+        enrich_stats = service.enrich_teams_from_fixtures(limit=limit, force=force)
+        
+        # Step 2: Link fixtures to teams
+        link_stats = service.link_fixtures_to_teams()
+        
+        return {
+            "status": "success",
+            "enrichment": enrich_stats,
+            "linking": link_stats,
+            "message": f"Enriched {enrich_stats['teams_enriched']}/{enrich_stats['teams_processed']} teams, linked {link_stats['fixtures_linked']} fixtures"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to enrich team logos: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admin/team-stats")
+async def get_team_stats(api_key: str = Depends(verify_api_key)):
+    """Get statistics about teams in the database"""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cursor = conn.cursor()
+        
+        # Count teams with/without logos
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_teams,
+                COUNT(logo_url) as teams_with_logos,
+                COUNT(*) - COUNT(logo_url) as teams_without_logos,
+                COUNT(CASE WHEN logo_last_synced_at > NOW() - INTERVAL '30 days' THEN 1 END) as recently_synced
+            FROM teams
+        """)
+        team_stats = cursor.fetchone()
+        
+        # Count fixtures linked to teams
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_fixtures,
+                COUNT(home_team_id) as fixtures_with_home_linked,
+                COUNT(away_team_id) as fixtures_with_away_linked,
+                COUNT(CASE WHEN home_team_id IS NOT NULL AND away_team_id IS NOT NULL THEN 1 END) as fully_linked
+            FROM fixtures
+        """)
+        fixture_stats = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "teams": {
+                "total": team_stats[0],
+                "with_logos": team_stats[1],
+                "without_logos": team_stats[2],
+                "recently_synced": team_stats[3]
+            },
+            "fixtures": {
+                "total": fixture_stats[0],
+                "home_linked": fixture_stats[1],
+                "away_linked": fixture_stats[2],
+                "fully_linked": fixture_stats[3]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get team stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/examples")
 async def get_prediction_examples():
     """Show example predictions and how to use the API (no auth required)"""
@@ -5172,7 +5265,7 @@ async def get_market_data(
             # "live" = kickoff_at <= NOW() AND kickoff_at > NOW() - INTERVAL '2 hours' AND status = 'scheduled'
             
             if status == "upcoming":
-                # Get upcoming matches with odds (future kickoffs)
+                # Get upcoming matches with odds (future kickoffs) + team logos
                 if league:
                     query = """
                         SELECT DISTINCT
@@ -5181,9 +5274,13 @@ async def get_market_data(
                             f.away_team,
                             f.league_id,
                             f.league_name,
-                            f.kickoff_at
+                            f.kickoff_at,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
                         FROM fixtures f
                         JOIN odds_snapshots os ON f.match_id = os.match_id
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at > NOW()
                             AND f.status = 'scheduled'
                             AND f.league_id = %s
@@ -5199,9 +5296,13 @@ async def get_market_data(
                             f.away_team,
                             f.league_id,
                             f.league_name,
-                            f.kickoff_at
+                            f.kickoff_at,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
                         FROM fixtures f
                         JOIN odds_snapshots os ON f.match_id = os.match_id
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at > NOW()
                             AND f.status = 'scheduled'
                         ORDER BY f.kickoff_at ASC
@@ -5210,7 +5311,7 @@ async def get_market_data(
                     cursor.execute(query, (limit,))
             
             elif status == "live":
-                # Get live/in-progress matches (recently kicked off, not finished)
+                # Get live/in-progress matches (recently kicked off, not finished) + team logos
                 if league:
                     query = """
                         SELECT DISTINCT
@@ -5219,9 +5320,13 @@ async def get_market_data(
                             f.away_team,
                             f.league_id,
                             f.league_name,
-                            f.kickoff_at
+                            f.kickoff_at,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
                         FROM fixtures f
                         JOIN odds_snapshots os ON f.match_id = os.match_id
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at <= NOW()
                             AND f.kickoff_at > NOW() - INTERVAL '2 hours'
                             AND f.status = 'scheduled'
@@ -5238,9 +5343,13 @@ async def get_market_data(
                             f.away_team,
                             f.league_id,
                             f.league_name,
-                            f.kickoff_at
+                            f.kickoff_at,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
                         FROM fixtures f
                         JOIN odds_snapshots os ON f.match_id = os.match_id
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at <= NOW()
                             AND f.kickoff_at > NOW() - INTERVAL '2 hours'
                             AND f.status = 'scheduled'
@@ -5264,7 +5373,7 @@ async def get_market_data(
             
             # Step 2: For each fixture, get odds and predictions
             for row in fixtures:
-                match_id, home_team, away_team, league_id, league_name, kickoff_at = row
+                match_id, home_team, away_team, league_id, league_name, kickoff_at, home_logo, away_logo = row
                 
                 # Get latest odds per bookmaker from odds_snapshots
                 cursor.execute("""
@@ -5401,8 +5510,14 @@ async def get_market_data(
                         "id": league_id,
                         "name": league_name
                     },
-                    "home": {"name": home_team},
-                    "away": {"name": away_team},
+                    "home": {
+                        "name": home_team,
+                        "logo_url": home_logo
+                    },
+                    "away": {
+                        "name": away_team,
+                        "logo_url": away_logo
+                    },
                     "odds": {
                         "books": books,
                         "novig_current": novig_current
