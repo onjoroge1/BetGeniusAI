@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     CLV_MIN_STABILITY: float = float(os.getenv("CLV_MIN_STABILITY", "0.60"))  # Relaxed from 0.70 to 0.60
     CLV_MIN_CLV_PCT_BASIC: float = float(os.getenv("CLV_MIN_CLV_PCT_BASIC", "0.4"))  # Relaxed from 2.0% to 0.4% (40 bps)
     CLV_MIN_CLV_PCT_PRO: float = float(os.getenv("CLV_MIN_CLV_PCT_PRO", "0.6"))  # Relaxed from 3.0% to 0.6%
-    CLV_STALENESS_SEC: int = int(os.getenv("CLV_STALENESS_SEC", "600"))  # Increased from 120 to 600 (10 minutes)
+    CLV_STALENESS_SEC: int = int(os.getenv("CLV_STALENESS_SEC", "3600"))  # 60 minutes to match discrete collection windows
     CLV_TRIM_FRACTION: float = float(os.getenv("CLV_TRIM_FRACTION", "0.10"))
     CLV_CLOSING_METHOD: str = os.getenv("CLV_CLOSING_METHOD", "LAST5_VWAP")
     CLV_CLOSING_WINDOW_SEC: int = int(os.getenv("CLV_CLOSING_WINDOW_SEC", "300"))

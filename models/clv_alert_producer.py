@@ -83,13 +83,13 @@ class CLVAlertProducer:
                     LEFT JOIN fixtures f ON os.match_id = f.match_id
                     WHERE f.kickoff_at > NOW()
                       AND f.kickoff_at < NOW() + make_interval(hours => %s)
-                      AND os.ts_snapshot > NOW() - INTERVAL '10 minutes'
+                      AND os.ts_snapshot > NOW() - make_interval(secs => %s)
                       {tbd_guard}
                     GROUP BY os.match_id, lm.league_name, os.league_id, f.kickoff_at
                     HAVING COUNT(DISTINCT os.book_id) >= %s
                 """
                 
-                cursor.execute(sql_query, (max_hours_ahead, settings.CLV_MIN_BOOKS_MINOR))
+                cursor.execute(sql_query, (max_hours_ahead, settings.CLV_STALENESS_SEC, settings.CLV_MIN_BOOKS_MINOR))
                 
                 fixtures = []
                 for row in cursor.fetchall():
@@ -122,7 +122,7 @@ class CLVAlertProducer:
             with psycopg2.connect(self.database_url) as conn:
                 cursor = conn.cursor()
                 
-                # Get most recent odds per bookmaker (within last 5 minutes)
+                # Get most recent odds per bookmaker (within staleness window)
                 cursor.execute("""
                     WITH ranked_odds AS (
                         SELECT 
@@ -136,13 +136,13 @@ class CLVAlertProducer:
                             ) as rn
                         FROM odds_snapshots os
                         WHERE os.match_id = %s
-                          AND os.ts_snapshot > NOW() - INTERVAL '5 minutes'
+                          AND os.ts_snapshot > NOW() - make_interval(secs => %s)
                     )
                     SELECT book_id, outcome, odds_decimal, ts_snapshot
                     FROM ranked_odds
                     WHERE rn = 1
                     ORDER BY book_id, outcome
-                """, (match_id,))
+                """, (match_id, settings.CLV_STALENESS_SEC))
                 
                 # Group by book_id to build complete 3-way odds
                 book_odds_map = {}
