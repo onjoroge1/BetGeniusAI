@@ -52,13 +52,24 @@ WHERE f.kickoff_at <= NOW()
 ### Data Flow Steps
 
 1. **Filter by time** → Get matches with `kickoff_at > NOW()` + odds available
-2. **Fetch odds** → Latest odds per bookmaker from `odds_snapshots` (updated every 60s)
-3. **Get V1** → Read pre-computed consensus from `consensus_predictions` (updated every 60s by scheduler)
-4. **Generate V2** → Call V2 LightGBM predictor on-demand
-5. **Calculate metrics** → Agreement, divergence, EV, V2 SELECT eligibility
-6. **Return** → Combined response with both models + premium CTA
+2. **Fetch team data** → JOIN with teams table to include logo URLs
+3. **Fetch odds** → Latest odds per bookmaker from `odds_snapshots` (updated every 60s)
+4. **Get V1** → Read pre-computed consensus from `consensus_predictions` (updated every 60s by scheduler)
+5. **Generate V2** → Call V2 LightGBM predictor on-demand
+6. **Calculate metrics** → Agreement, divergence, EV, V2 SELECT eligibility
+7. **Return** → Combined response with both models + team logos + premium CTA
 
 **Performance:** ~500ms for 10 matches (fast because V1 is pre-computed!)
+
+### Team Logo System
+
+Team logos are automatically fetched from API-Football and cached in the `teams` table:
+
+- **logo_url field**: URL to team logo image (can be `null` if not found)
+- **Automatic enrichment**: Admin endpoint `/admin/enrich-team-logos` populates logos
+- **Cache strategy**: Logos stored indefinitely, refreshed via `force=true` parameter
+- **Linking**: Fixtures reference teams via `home_team_id` and `away_team_id` foreign keys
+- **Fallback**: Frontend should handle `null` logos gracefully (hide image or show placeholder)
 
 ---
 
@@ -95,8 +106,14 @@ Authorization: Bearer {API_KEY}
         "id": 72,
         "name": "Serie B - Brazil"
       },
-      "home": {"name": "Vila Nova"},
-      "away": {"name": "Ferroviária"},
+      "home": {
+        "name": "Vila Nova",
+        "logo_url": "https://media.api-sports.io/football/teams/1234.png"
+      },
+      "away": {
+        "name": "Ferroviária",
+        "logo_url": "https://media.api-sports.io/football/teams/5678.png"
+      },
       
       "odds": {
         "books": {
@@ -163,8 +180,8 @@ export interface MarketMatch {
   status: 'UPCOMING' | 'LIVE';
   kickoff_at: string;
   league: { id: number; name: string };
-  home: { name: string };
-  away: { name: string };
+  home: { name: string; logo_url: string | null };
+  away: { name: string; logo_url: string | null };
   odds: {
     books: Record<string, { home: number; draw: number; away: number }>;
     novig_current: { home: number; draw: number; away: number };
@@ -315,9 +332,27 @@ const MatchCard: React.FC<{ match: MarketMatch }> = ({ match }) => {
 
       {/* Teams */}
       <div className="teams">
-        <div className="team">{match.home.name}</div>
+        <div className="team">
+          {match.home.logo_url && (
+            <img 
+              src={match.home.logo_url} 
+              alt={`${match.home.name} logo`} 
+              className="team-logo"
+            />
+          )}
+          <span>{match.home.name}</span>
+        </div>
         <div className="vs">vs</div>
-        <div className="team">{match.away.name}</div>
+        <div className="team">
+          {match.away.logo_url && (
+            <img 
+              src={match.away.logo_url} 
+              alt={`${match.away.name} logo`} 
+              className="team-logo"
+            />
+          )}
+          <span>{match.away.name}</span>
+        </div>
       </div>
 
       {/* Model Comparison */}
@@ -450,9 +485,20 @@ const MatchCard: React.FC<{ match: MarketMatch }> = ({ match }) => {
 }
 
 .teams .team {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
   font-size: 1.2rem;
   font-weight: bold;
   margin: 0.5rem 0;
+}
+
+.team-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 4px;
 }
 
 .teams .vs {
