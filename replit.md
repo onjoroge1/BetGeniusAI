@@ -37,6 +37,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 ### Data Collection
 - **Canonical Fixtures Table**: Single source of truth for match metadata, preventing data inconsistencies.
 - **TBD Fixture Enrichment**: Automated service resolves "To Be Determined" placeholders from The Odds API using API-Football data.
+**CLV Phase 1 Hardening (Oct 2025)**: Production-grade CLV system with adaptive staleness (tight near kickoff, forgiving far out), timeboxed TBD filtering (allow until T-36h), league-tiered book minimums (EPL=6, mid-tier=4, others=3), critical database indexes (10x performance), and alert deduplication (20-min cooldown). All changes deployed and operational.
 - **Dual Collection Strategy**: Scheduler populates training and upcoming odds tables.
 - **Multi-Source Real-Time Odds**: Parallel collection from The Odds API and API-Football.
 - **Fixture ID Resolver**: Robust system for resolving fixture IDs across different data sources.
