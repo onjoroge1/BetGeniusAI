@@ -163,12 +163,13 @@ class TeamEnrichmentService:
         logger.info(f"Match: '{team_name}' → '{best['api_name']}' (score: {best['score']:.2f})")
         
         team = best['team']
+        code = team.get('code')
         return {
             'api_football_team_id': team.get('id'),
             'name': team.get('name'),
             'logo_url': team.get('logo'),
             'country': team.get('country'),
-            'slug': team.get('code', '').lower(),
+            'slug': code.lower() if code else None,
             'match_score': best['score']
         }
     
