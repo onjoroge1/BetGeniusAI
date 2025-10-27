@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetGenius AI - Quick Start Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        .config-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .config-panel h2 {
+            margin-bottom: 16px;
+            color: #1a1a1a;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #444;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .matches-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .match-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .team {
+            font-weight: 600;
+            font-size: 16px;
+            color: #1a1a1a;
+        }
+
+        .vs {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .kickoff {
+            text-align: center;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        .prediction-section {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .v1-prediction {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+        }
+
+        .v2-prediction {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+        }
+
+        .prediction-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .outcome {
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+            margin: 8px 0;
+        }
+
+        .metrics {
+            display: flex;
+            gap: 12px;
+            margin: 8px 0;
+        }
+
+        .metric {
+            flex: 1;
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #10b981;
+        }
+
+        .probabilities {
+            display: flex;
+            justify-content: space-around;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .prob-item {
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 18px;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 16px;
+        }
+
+        .unavailable {
+            text-align: center;
+            color: #f59e0b;
+            font-size: 13px;
+            padding: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚽ BetGenius AI</h1>
+            <p>Quick Start Demo - V2 Predictions</p>
+        </div>
+
+        <div class="config-panel">
+            <h2>⚙️ Configuration</h2>
+            <div class="input-group">
+                <label for="apiKey">API Key</label>
+                <input type="text" id="apiKey" placeholder="Enter your API key here">
+            </div>
+            <div class="input-group">
+                <label for="baseUrl">Base URL</label>
+                <input type="text" id="baseUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+            </div>
+            <button class="btn" onclick="loadMatches()">🔄 Load Matches</button>
+        </div>
+
+        <div id="content">
+            <div class="empty">👆 Enter your API key and click "Load Matches" to get started</div>
+        </div>
+    </div>
+
+    <script>
+        let apiKey = '';
+        let baseUrl = 'http://localhost:8000';
+
+        async function loadMatches() {
+            apiKey = document.getElementById('apiKey').value;
+            baseUrl = document.getElementById('baseUrl').value;
+
+            if (!apiKey) {
+                alert('Please enter your API key');
+                return;
+            }
+
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">Loading matches...</div>';
+
+            try {
+                const response = await fetch(`${baseUrl}/market`, {
+                    headers: { 'X-API-Key': apiKey }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const matches = await response.json();
+
+                if (matches.length === 0) {
+                    content.innerHTML = '<div class="empty">No upcoming matches available</div>';
+                    return;
+                }
+
+                renderMatches(matches);
+
+            } catch (error) {
+                content.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        function renderMatches(matches) {
+            const content = document.getElementById('content');
+            
+            const html = `
+                <div class="matches-container">
+                    ${matches.map(match => renderMatch(match)).join('')}
+                </div>
+            `;
+
+            content.innerHTML = html;
+        }
+
+        function renderMatch(match) {
+            const v1 = match.v1_prediction;
+            const v2 = match.v2_prediction;
+            const kickoff = new Date(match.kickoff_at).toLocaleString();
+
+            return `
+                <div class="match-card">
+                    <div class="match-header">
+                        <div class="team">${match.home_team}</div>
+                        <div class="vs">vs</div>
+                        <div class="team">${match.away_team}</div>
+                    </div>
+
+                    <div class="kickoff">⏰ ${kickoff}</div>
+
+                    ${v1 ? `
+                        <div class="prediction-section v1-prediction">
+                            <div class="prediction-label">🥈 V1 Consensus</div>
+                            <div class="outcome">${v1.predicted_outcome}</div>
+                            <div class="probabilities">
+                                <div class="prob-item">H: ${(v1.home_prob * 100).toFixed(1)}%</div>
+                                <div class="prob-item">D: ${(v1.draw_prob * 100).toFixed(1)}%</div>
+                                <div class="prob-item">A: ${(v1.away_prob * 100).toFixed(1)}%</div>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${v2 ? `
+                        <div class="prediction-section v2-prediction">
+                            <div class="prediction-label">🥇 V2 SELECT (70% Accuracy)</div>
+                            <div class="outcome">${v2.predicted_outcome}</div>
+                            <div class="metrics">
+                                <div class="metric">
+                                    <div class="metric-label">CONFIDENCE</div>
+                                    <div class="metric-value">${(v2.confidence * 100).toFixed(1)}%</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">EV</div>
+                                    <div class="metric-value">${(v2.expected_value * 100).toFixed(2)}%</div>
+                                </div>
+                            </div>
+                            <div class="probabilities">
+                                <div class="prob-item">H: ${(v2.home_prob * 100).toFixed(1)}%</div>
+                                <div class="prob-item">D: ${(v2.draw_prob * 100).toFixed(1)}%</div>
+                                <div class="prob-item">A: ${(v2.away_prob * 100).toFixed(1)}%</div>
+                            </div>
+                        </div>
+                    ` : '<div class="unavailable">⚠️ V2 prediction unavailable<br><small>(Below quality threshold)</small></div>'}
+
+                    ${match.best_odds ? `
+                        <div style="padding: 12px; background: #f5f5f5; border-radius: 6px; margin-top: 12px;">
+                            <div style="font-size: 11px; font-weight: 600; color: #666; margin-bottom: 6px;">📊 BEST ODDS</div>
+                            <div class="probabilities">
+                                <div class="prob-item">H: ${match.best_odds.home?.toFixed(2) || 'N/A'}</div>
+                                <div class="prob-item">D: ${match.best_odds.draw?.toFixed(2) || 'N/A'}</div>
+                                <div class="prob-item">A: ${match.best_odds.away?.toFixed(2) || 'N/A'}</div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

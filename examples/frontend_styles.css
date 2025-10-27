@@ -1,0 +1,423 @@
+/**
+ * Example CSS styles for BetGenius AI frontend components
+ * Customize colors, spacing, and animations to match your brand
+ */
+
+/* ============================================
+   Match Card Styles
+   ============================================ */
+
+.match-card {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.match-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* Match Header */
+.match-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.match-header .team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.match-header .team img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.match-header .team span {
+  font-weight: 600;
+  font-size: 16px;
+  color: #1a1a1a;
+}
+
+.match-header .vs {
+  font-size: 12px;
+  color: #666;
+  padding: 0 12px;
+}
+
+/* Kickoff Time */
+.kickoff {
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 16px;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 6px;
+}
+
+/* Predictions */
+.prediction {
+  margin: 16px 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f9f9f9;
+}
+
+.prediction.v1 {
+  border-left: 4px solid #94a3b8;
+}
+
+.prediction.v2 {
+  border-left: 4px solid #10b981;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.prediction .label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.prediction .outcome {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.prediction .probabilities {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  font-size: 14px;
+  color: #444;
+}
+
+.prediction .probabilities span {
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 4px;
+}
+
+/* V2 Quality Metrics */
+.prediction .metrics {
+  display: flex;
+  gap: 16px;
+  margin: 12px 0;
+}
+
+.prediction .metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.prediction .metric .label {
+  font-size: 11px;
+  color: #666;
+  text-transform: none;
+}
+
+.prediction .metric .value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.confidence-badge {
+  color: #10b981;
+}
+
+.ev-badge {
+  color: #3b82f6;
+}
+
+/* AI Analysis */
+.ai-analysis {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+}
+
+.ai-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.ai-analysis p {
+  font-size: 14px;
+  color: #444;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Premium CTA */
+.premium-cta {
+  margin-top: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 8px;
+  text-align: center;
+  border: 2px solid #f59e0b;
+}
+
+.cta-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #f59e0b;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.premium-cta p {
+  font-size: 14px;
+  color: #444;
+  margin: 8px 0;
+}
+
+.upgrade-btn {
+  padding: 10px 24px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.upgrade-btn:hover {
+  background: #d97706;
+}
+
+/* Best Odds */
+.best-odds {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 6px;
+}
+
+.best-odds .label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.odds-grid {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+/* Unavailable State */
+.unavailable {
+  text-align: center;
+  color: #f59e0b;
+  font-size: 14px;
+  padding: 12px;
+}
+
+.unavailable small {
+  display: block;
+  margin-top: 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+/* Loading & Error States */
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-style: italic;
+}
+
+.error {
+  text-align: center;
+  padding: 20px;
+  color: #ef4444;
+  background: #fee2e2;
+  border-radius: 6px;
+  margin: 16px 0;
+}
+
+/* ============================================
+   Market Board Styles
+   ============================================ */
+
+.market-board {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.market-board .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.market-board h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.refresh-btn {
+  padding: 10px 20px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.refresh-btn:hover {
+  background: #2563eb;
+}
+
+.matches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 20px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  font-size: 18px;
+}
+
+/* ============================================
+   Probability Chart
+   ============================================ */
+
+.probability-chart {
+  margin: 12px 0;
+}
+
+.bar-container {
+  margin-bottom: 8px;
+}
+
+.bar {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.bar.home {
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+  color: white;
+}
+
+.bar.draw {
+  background: linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%);
+  color: white;
+}
+
+.bar.away {
+  background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+  color: white;
+}
+
+.bar-label {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 768px) {
+  .matches-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .match-header .team span {
+    font-size: 14px;
+  }
+
+  .match-header .team img {
+    width: 24px;
+    height: 24px;
+  }
+
+  .prediction .outcome {
+    font-size: 20px;
+  }
+
+  .market-board h1 {
+    font-size: 24px;
+  }
+}
+
+/* ============================================
+   Dark Mode Support
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  .match-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .match-header .team span {
+    color: #f1f5f9;
+  }
+
+  .kickoff {
+    background: #0f172a;
+    color: #cbd5e1;
+  }
+
+  .prediction {
+    background: #0f172a;
+  }
+
+  .prediction .outcome {
+    color: #f1f5f9;
+  }
+
+  .best-odds {
+    background: #0f172a;
+  }
+}
