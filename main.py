@@ -5496,6 +5496,19 @@ async def predict_v2_select(
             probs.get('away', 0.0)
         )
         
+        # Convert prediction from H/D/A to home_win/draw/away_win format
+        prediction_mapping = {
+            'H': 'home_win',
+            'D': 'draw',
+            'A': 'away_win'
+        }
+        raw_prediction = v2_result['prediction']
+        recommended_bet = prediction_mapping.get(raw_prediction, raw_prediction)
+        
+        # Determine recommendation tone based on confidence
+        # V2 SELECT always has conf >= 0.62, so always "confident"
+        recommendation_tone = "confident"
+        
         return {
             "match_info": {
                 "match_id": request.match_id,
@@ -5509,17 +5522,19 @@ async def predict_v2_select(
                 "home_win": round(h_norm, 3),
                 "draw": round(d_norm, 3),
                 "away_win": round(a_norm, 3),
-                "confidence": conf_v2,
-                "recommended_bet": v2_result['prediction'],
-                "ev_live": ev_live
+                "confidence": round(conf_v2, 3),
+                "recommended_bet": recommended_bet,
+                "recommendation_tone": recommendation_tone,
+                "ev_live": round(ev_live, 3)
             },
             "model_info": {
                 "type": "v2_lightgbm_select",
                 "version": "1.0.0",
                 "performance": "75.9% hit rate @ 17.3% coverage",
-                "confidence_threshold": 0.62
+                "confidence_threshold": 0.62,
+                "bookmaker_count": len(match_data.get('odds', {}).get('bookmakers', [])) if match_data.get('odds') else 0
             },
-            "comprehensive_analysis": ai_analysis or {},
+            "comprehensive_analysis": ai_analysis if ai_analysis else {},
             "processing_time": round(processing_time, 3),
             "timestamp": datetime.now().isoformat()
         }
