@@ -37,16 +37,17 @@ class ClosingOddsCapture:
                 cursor = conn.cursor()
                 
                 # Capture closing odds within 90s window
-                # Uses most recent snapshot per (match_id, bookmaker_id, market)
+                # Uses most recent snapshot per (match_id, book_id, market)
+                # Note: odds_snapshots stores outcome-level odds, need to pivot for h/d/a
                 capture_query = """
                 WITH recent_snapshots AS (
-                    SELECT DISTINCT ON (os.match_id, os.bookmaker, os.market)
+                    SELECT DISTINCT ON (os.match_id, os.book_id, os.market)
                         os.match_id,
-                        os.bookmaker,
+                        os.book_id,
                         os.market,
-                        os.h_odds_dec,
-                        os.d_odds_dec,
-                        os.a_odds_dec,
+                        MAX(CASE WHEN os.outcome = 'home' THEN os.odds_decimal END) as h_odds_dec,
+                        MAX(CASE WHEN os.outcome = 'draw' THEN os.odds_decimal END) as d_odds_dec,
+                        MAX(CASE WHEN os.outcome = 'away' THEN os.odds_decimal END) as a_odds_dec,
                         os.ts_snapshot,
                         f.kickoff_at
                     FROM odds_snapshots os
@@ -54,7 +55,8 @@ class ClosingOddsCapture:
                     WHERE os.ts_snapshot > NOW() - INTERVAL '5 minutes'
                       AND f.kickoff_at BETWEEN NOW() - INTERVAL '90 seconds' AND NOW() + INTERVAL '90 seconds'
                       AND f.status = 'scheduled'
-                    ORDER BY os.match_id, os.bookmaker, os.market, os.ts_snapshot DESC
+                    GROUP BY os.match_id, os.book_id, os.market, os.ts_snapshot, f.kickoff_at
+                    ORDER BY os.match_id, os.book_id, os.market, os.ts_snapshot DESC
                 )
                 INSERT INTO closing_odds (
                     match_id, bookmaker_id, market,
@@ -63,7 +65,7 @@ class ClosingOddsCapture:
                 )
                 SELECT 
                     rs.match_id,
-                    rs.bookmaker as bookmaker_id,
+                    rs.book_id as bookmaker_id,
                     rs.market,
                     rs.h_odds_dec,
                     rs.d_odds_dec,
@@ -72,7 +74,7 @@ class ClosingOddsCapture:
                     NOW() as created_at
                 FROM recent_snapshots rs
                 LEFT JOIN closing_odds co ON rs.match_id = co.match_id 
-                    AND rs.bookmaker = co.bookmaker_id 
+                    AND rs.book_id = co.bookmaker_id 
                     AND rs.market = co.market
                 WHERE co.match_id IS NULL
                 ON CONFLICT (match_id, bookmaker_id, market) DO NOTHING
