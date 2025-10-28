@@ -3345,6 +3345,54 @@ async def get_team_stats(api_key: str = Depends(verify_api_key)):
         logger.error(f"Failed to get team stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/admin/link-fixtures-to-teams")
+async def link_fixtures_to_teams_endpoint(
+    batch_size: int = 100,
+    dry_run: bool = False,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Link fixtures to teams table using fuzzy name matching.
+    
+    Populates home_team_id and away_team_id foreign keys by matching team names.
+    Creates new teams if they don't exist in the teams table.
+    
+    Args:
+        batch_size: Number of fixtures to process per batch (default: 100)
+        dry_run: If True, only logs what would be done without updating DB
+    
+    Returns:
+        Statistics about linkage success rate and teams created
+    
+    Example:
+        POST /admin/link-fixtures-to-teams?dry_run=true  # Test run
+        POST /admin/link-fixtures-to-teams?batch_size=50  # Real run
+    """
+    try:
+        logger.info(f"🔗 API: Team linkage requested (batch_size: {batch_size}, dry_run: {dry_run})")
+        
+        from models.team_linkage import link_fixtures_to_teams
+        
+        stats = link_fixtures_to_teams(batch_size=batch_size, dry_run=dry_run)
+        
+        return {
+            "status": "success" if not dry_run else "dry_run",
+            "stats": {
+                "total_processed": stats['total_processed'],
+                "total_linked": stats['total_linked'],
+                "total_skipped": stats['total_skipped'],
+                "teams_created": stats['teams_created'],
+                "success_rate": f"{stats['total_linked'] / stats['total_processed'] * 100:.1f}%" if stats['total_processed'] > 0 else "0%",
+                "avg_home_match_score": f"{stats['avg_home_score']:.2f}",
+                "avg_away_match_score": f"{stats['avg_away_score']:.2f}"
+            },
+            "message": f"{'[DRY RUN] Would link' if dry_run else 'Successfully linked'} {stats['total_linked']}/{stats['total_processed']} fixtures, created {stats['teams_created']} new teams"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to link fixtures to teams: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/teams")
 async def get_teams(
     search: Optional[str] = None,
