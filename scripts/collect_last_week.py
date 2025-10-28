@@ -155,52 +155,62 @@ class WeeklyDataCollector:
             else:
                 outcome = 'D'
             
-            # Check if already exists
-            cursor.execute(
-                "SELECT 1 FROM historical_odds WHERE fixture_id = %s",
-                (fixture['id'],)
-            )
+            # Extract match date (convert to date only)
+            match_date = fixture['date'].split('T')[0] if 'T' in fixture['date'] else fixture['date']
+            
+            # Check if already exists (by match details since no fixture_id column)
+            cursor.execute("""
+                SELECT 1 FROM historical_odds 
+                WHERE match_date = %s 
+                AND home_team = %s 
+                AND away_team = %s
+                AND league_name = %s
+            """, (match_date, teams['home']['name'], teams['away']['name'], league['name']))
+            
             if cursor.fetchone():
-                print(f"   ⏭️  Match {fixture['id']} already in database")
+                print(f"   ⏭️  Match already in database: {teams['home']['name']} vs {teams['away']['name']}")
                 self.stats['matches_skipped'] += 1
                 return False
             
-            # Insert into historical_odds
+            # Insert into historical_odds (matching existing schema)
             insert_query = """
                 INSERT INTO historical_odds (
-                    fixture_id, league_id, league_name, season,
-                    match_date, home_team, away_team,
-                    home_goals, away_goals, actual_outcome,
-                    h_odds_consensus, d_odds_consensus, a_odds_consensus,
-                    bookmaker_count, created_at
+                    match_date, season, league, league_name,
+                    home_team, away_team,
+                    home_goals, away_goals, result,
+                    b365_h, b365_d, b365_a,
+                    avg_h, avg_d, avg_a,
+                    created_at
                 ) VALUES (
                     %s, %s, %s, %s,
+                    %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
-                    %s, NOW()
+                    NOW()
                 )
             """
             
             cursor.execute(insert_query, (
-                fixture['id'],
-                league['id'],
+                match_date,
+                str(league['season']),
+                str(league['id']),
                 league['name'],
-                league['season'],
-                fixture['date'],
                 teams['home']['name'],
                 teams['away']['name'],
                 goals['home'],
                 goals['away'],
                 outcome,
-                odds['home'],
-                odds['draw'],
-                odds['away'],
-                1  # Single bookmaker for now
+                odds['home'],  # b365_h
+                odds['draw'],  # b365_d
+                odds['away'],  # b365_a
+                odds['home'],  # avg_h (same as b365 for now)
+                odds['draw'],  # avg_d
+                odds['away']   # avg_a
             ))
             
             conn.commit()
-            print(f"   ✅ Inserted: {teams['home']['name']} vs {teams['away']['name']} ({outcome})")
+            print(f"   ✅ Inserted: {teams['home']['name']} vs {teams['away']['name']} ({outcome}) - {match_date}")
             self.stats['matches_inserted'] += 1
             return True
             
