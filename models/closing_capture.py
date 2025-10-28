@@ -1,6 +1,7 @@
 """
 Closing Odds Capture Job
-Captures closing odds within 90s window around kickoff for CLV validation
+Captures AGGREGATED closing odds within 90s window around kickoff for CLV validation
+Stores consensus closing line (averaged across bookmakers) in closing_odds table
 """
 
 import psycopg2
@@ -13,8 +14,9 @@ logger = logging.getLogger(__name__)
 
 class ClosingOddsCapture:
     """
-    Captures closing odds for matches approaching/at kickoff
+    Captures aggregated closing odds for matches approaching/at kickoff
     Runs every 60s to catch odds right before match starts
+    Stores CONSENSUS closing line (averaged across bookmakers)
     """
     
     def __init__(self):
@@ -22,7 +24,8 @@ class ClosingOddsCapture:
     
     def capture_closing_odds(self) -> Dict[str, Any]:
         """
-        Capture closing odds for matches at kickoff (within ±90s window)
+        Capture AGGREGATED closing odds for matches at kickoff (within ±90s window)
+        Calculates consensus closing line by averaging across all bookmakers
         Returns stats about captured odds
         """
         stats = {
@@ -36,48 +39,69 @@ class ClosingOddsCapture:
             with psycopg2.connect(self.database_url) as conn:
                 cursor = conn.cursor()
                 
-                # Capture closing odds within 90s window
-                # Uses most recent snapshot per (match_id, book_id, market)
-                # Note: odds_snapshots stores outcome-level odds, need to pivot for h/d/a
+                # Capture AGGREGATED closing odds within 90s window
+                # Average across all bookmakers to get consensus closing line
                 capture_query = """
-                WITH recent_snapshots AS (
-                    SELECT DISTINCT ON (os.match_id, os.book_id, os.market)
+                WITH kickoff_matches AS (
+                    -- Find matches in kickoff window
+                    SELECT match_id, kickoff_at
+                    FROM fixtures
+                    WHERE kickoff_at BETWEEN NOW() - INTERVAL '90 seconds' AND NOW() + INTERVAL '90 seconds'
+                      AND status = 'scheduled'
+                ),
+                latest_odds AS (
+                    -- Get most recent odds snapshot for each match/book/outcome (last 5 minutes)
+                    SELECT DISTINCT ON (os.match_id, os.book_id, os.outcome)
                         os.match_id,
                         os.book_id,
-                        os.market,
-                        MAX(CASE WHEN os.outcome = 'home' THEN os.odds_decimal END) as h_odds_dec,
-                        MAX(CASE WHEN os.outcome = 'draw' THEN os.odds_decimal END) as d_odds_dec,
-                        MAX(CASE WHEN os.outcome = 'away' THEN os.odds_decimal END) as a_odds_dec,
-                        os.ts_snapshot,
-                        f.kickoff_at
+                        os.outcome,
+                        os.odds_decimal,
+                        os.ts_snapshot
                     FROM odds_snapshots os
-                    JOIN fixtures f USING(match_id)
+                    JOIN kickoff_matches km USING(match_id)
                     WHERE os.ts_snapshot > NOW() - INTERVAL '5 minutes'
-                      AND f.kickoff_at BETWEEN NOW() - INTERVAL '90 seconds' AND NOW() + INTERVAL '90 seconds'
-                      AND f.status = 'scheduled'
-                    GROUP BY os.match_id, os.book_id, os.market, os.ts_snapshot, f.kickoff_at
-                    ORDER BY os.match_id, os.book_id, os.market, os.ts_snapshot DESC
+                      AND os.market = 'h2h'
+                    ORDER BY os.match_id, os.book_id, os.outcome, os.ts_snapshot DESC
+                ),
+                aggregated_closing AS (
+                    -- Aggregate across bookmakers to get consensus closing line
+                    SELECT 
+                        match_id,
+                        AVG(CASE WHEN outcome = 'home' THEN odds_decimal END) as h_close_odds,
+                        AVG(CASE WHEN outcome = 'draw' THEN odds_decimal END) as d_close_odds,
+                        AVG(CASE WHEN outcome = 'away' THEN odds_decimal END) as a_close_odds,
+                        MAX(ts_snapshot) as closing_time,
+                        COUNT(DISTINCT book_id) as num_books,
+                        COUNT(*) as samples_used
+                    FROM latest_odds
+                    GROUP BY match_id
+                    HAVING COUNT(DISTINCT book_id) >= 3  -- Require at least 3 bookmakers for consensus
+                       AND COUNT(DISTINCT outcome) = 3   -- Must have home/draw/away
                 )
                 INSERT INTO closing_odds (
-                    match_id, bookmaker_id, market,
-                    h_odds_dec, d_odds_dec, a_odds_dec,
-                    ts_closing, created_at
+                    match_id,
+                    h_close_odds,
+                    d_close_odds,
+                    a_close_odds,
+                    closing_time,
+                    avg_books_closing,
+                    method_used,
+                    samples_used,
+                    created_at
                 )
                 SELECT 
-                    rs.match_id,
-                    rs.book_id as bookmaker_id,
-                    rs.market,
-                    rs.h_odds_dec,
-                    rs.d_odds_dec,
-                    rs.a_odds_dec,
-                    rs.ts_snapshot as ts_closing,
+                    ac.match_id,
+                    ac.h_close_odds,
+                    ac.d_close_odds,
+                    ac.a_close_odds,
+                    ac.closing_time,
+                    ac.num_books,
+                    '90s_snapshot' as method_used,
+                    ac.samples_used,
                     NOW() as created_at
-                FROM recent_snapshots rs
-                LEFT JOIN closing_odds co ON rs.match_id = co.match_id 
-                    AND rs.book_id = co.bookmaker_id 
-                    AND rs.market = co.market
-                WHERE co.match_id IS NULL
-                ON CONFLICT (match_id, bookmaker_id, market) DO NOTHING
+                FROM aggregated_closing ac
+                LEFT JOIN closing_odds co USING(match_id)
+                WHERE co.match_id IS NULL  -- Don't re-capture
                 RETURNING match_id;
                 """
                 
@@ -107,7 +131,7 @@ class ClosingOddsCapture:
                 stats['already_captured'] = result[0] if result else 0
                 
                 if stats['odds_captured'] > 0:
-                    logger.info(f"📸 Closing capture: {stats['odds_captured']} odds captured for {stats['matches_in_window']} matches in KO window")
+                    logger.info(f"📸 Closing capture: {stats['odds_captured']} consensus lines captured for {stats['matches_in_window']} matches in KO window")
                 elif stats['matches_in_window'] > 0:
                     logger.debug(f"📸 Closing capture: No new odds (already captured for {stats['already_captured']} matches)")
                 
