@@ -1321,12 +1321,13 @@ class AutomatedCollector:
             with psycopg2.connect(database_url) as conn:
                 cursor = conn.cursor()
                 
-                # Get TBD fixtures (prioritize upcoming matches)
+                # Get TBD fixtures (prioritize upcoming matches closest to NOW)
                 cursor.execute("""
                     SELECT match_id, league_id, kickoff_at
                     FROM fixtures
                     WHERE (home_team LIKE 'TBD%%' OR away_team LIKE 'TBD%%')
                       AND status IN ('scheduled', 'NS')
+                      AND kickoff_at > NOW()
                     ORDER BY kickoff_at ASC
                     LIMIT %s
                 """, (limit,))
