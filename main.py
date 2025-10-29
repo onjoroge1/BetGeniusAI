@@ -5597,7 +5597,7 @@ async def predict_v2_select(
 @app.get("/market")
 async def get_market_data(
     status: str = "upcoming",
-    league: Optional[int] = None,
+    league_id: Optional[int] = None,
     limit: int = 100,
     api_key: str = Depends(verify_api_key)
 ):
@@ -5615,7 +5615,7 @@ async def get_market_data(
     from models.v2_lgbm_predictor import get_v2_lgbm_predictor
     
     try:
-        logger.info(f"📊 MARKET REQUEST | status={status}, league={league}, limit={limit}")
+        logger.info(f"📊 MARKET REQUEST | status={status}, league={league_id}, limit={limit}")
         
         matches = []
         
@@ -5629,7 +5629,7 @@ async def get_market_data(
             
             if status == "upcoming":
                 # Get upcoming matches with odds (future kickoffs) + team logos
-                if league:
+                if league_id:
                     query = """
                         SELECT DISTINCT
                             f.match_id,
@@ -5638,6 +5638,8 @@ async def get_market_data(
                             f.league_id,
                             f.league_name,
                             f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
                             ht.logo_url as home_logo,
                             at.logo_url as away_logo
                         FROM fixtures f
@@ -5650,7 +5652,7 @@ async def get_market_data(
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
                     """
-                    cursor.execute(query, (league, limit))
+                    cursor.execute(query, (league_id, limit))
                 else:
                     query = """
                         SELECT DISTINCT
@@ -5660,6 +5662,8 @@ async def get_market_data(
                             f.league_id,
                             f.league_name,
                             f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
                             ht.logo_url as home_logo,
                             at.logo_url as away_logo
                         FROM fixtures f
@@ -5675,7 +5679,7 @@ async def get_market_data(
             
             elif status == "live":
                 # Get live/in-progress matches (recently kicked off, not finished) + team logos
-                if league:
+                if league_id:
                     query = """
                         SELECT DISTINCT
                             f.match_id,
@@ -5684,6 +5688,8 @@ async def get_market_data(
                             f.league_id,
                             f.league_name,
                             f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
                             ht.logo_url as home_logo,
                             at.logo_url as away_logo
                         FROM fixtures f
@@ -5697,7 +5703,7 @@ async def get_market_data(
                         ORDER BY f.kickoff_at DESC
                         LIMIT %s
                     """
-                    cursor.execute(query, (league, limit))
+                    cursor.execute(query, (league_id, limit))
                 else:
                     query = """
                         SELECT DISTINCT
@@ -5707,6 +5713,8 @@ async def get_market_data(
                             f.league_id,
                             f.league_name,
                             f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
                             ht.logo_url as home_logo,
                             at.logo_url as away_logo
                         FROM fixtures f
@@ -5736,7 +5744,7 @@ async def get_market_data(
             
             # Step 2: For each fixture, get odds and predictions
             for row in fixtures:
-                match_id, home_team, away_team, league_id, league_name, kickoff_at, home_logo, away_logo = row
+                match_id, home_team, away_team, league_id, league_name, kickoff_at, home_team_id, away_team_id, home_logo, away_logo = row
                 
                 # Get latest odds per bookmaker from odds_snapshots
                 cursor.execute("""
@@ -5875,10 +5883,12 @@ async def get_market_data(
                     },
                     "home": {
                         "name": home_team,
+                        "team_id": home_team_id,
                         "logo_url": home_logo
                     },
                     "away": {
                         "name": away_team,
+                        "team_id": away_team_id,
                         "logo_url": away_logo
                     },
                     "odds": {

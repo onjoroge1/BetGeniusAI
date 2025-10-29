@@ -1,0 +1,116 @@
+{
+  "summary": {
+    "total": 21,
+    "passed": 19,
+    "failed": 0,
+    "warnings": 2,
+    "success_rate": "90.5%"
+  },
+  "tests": [
+    {
+      "name": "Market API returns 200 OK",
+      "status": "PASS",
+      "details": ""
+    },
+    {
+      "name": "Market response has required fields",
+      "status": "PASS",
+      "details": "Fields: matches, total_count, timestamp"
+    },
+    {
+      "name": "Match objects have required fields",
+      "status": "PASS",
+      "details": "17 matches validated"
+    },
+    {
+      "name": "Team objects have required fields",
+      "status": "PASS",
+      "details": "home and away teams validated"
+    },
+    {
+      "name": "No TBD fixtures in upcoming matches",
+      "status": "PASS",
+      "details": "Checked 17 matches"
+    },
+    {
+      "name": "All matches have team_id linkage",
+      "status": "PASS",
+      "details": "17 matches fully linked"
+    },
+    {
+      "name": "Logo coverage acceptable",
+      "status": "PASS",
+      "details": "29.4% teams, 41.2% matches"
+    },
+    {
+      "name": "Limit parameter works",
+      "status": "PASS",
+      "details": "Requested 5, got 5"
+    },
+    {
+      "name": "League filter works",
+      "status": "PASS",
+      "details": "All 6 matches from league 39"
+    },
+    {
+      "name": "Teams API returns 200 OK",
+      "status": "PASS",
+      "details": ""
+    },
+    {
+      "name": "Teams response has required fields",
+      "status": "PASS",
+      "details": ""
+    },
+    {
+      "name": "Team objects have required fields",
+      "status": "PASS",
+      "details": "100 teams validated"
+    },
+    {
+      "name": "Team name search works",
+      "status": "PASS",
+      "details": "Found 3 Manchester teams"
+    },
+    {
+      "name": "Logo filter works",
+      "status": "PASS",
+      "details": "All 20 teams have logos"
+    },
+    {
+      "name": "Missing auth blocked (401/403)",
+      "status": "PASS",
+      "details": "Unauthorized access blocked"
+    },
+    {
+      "name": "Invalid API key blocked (401/403)",
+      "status": "PASS",
+      "details": "Bad credentials rejected"
+    },
+    {
+      "name": "Market API response time slow",
+      "status": "WARN",
+      "details": "1926ms (target: <1000ms)"
+    },
+    {
+      "name": "Teams API response time slow",
+      "status": "WARN",
+      "details": "545ms (target: <500ms)"
+    },
+    {
+      "name": "Logo URLs are valid",
+      "status": "PASS",
+      "details": "Checked 20 teams"
+    },
+    {
+      "name": "All team names are non-empty",
+      "status": "PASS",
+      "details": "Checked 34 teams"
+    },
+    {
+      "name": "All kickoff times are in future",
+      "status": "PASS",
+      "details": "Checked 17 matches"
+    }
+  ]
+}
