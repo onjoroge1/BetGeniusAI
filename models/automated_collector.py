@@ -1367,6 +1367,46 @@ class AutomatedCollector:
                         results["failed"] += 1
                 
                 logger.info(f"✅ Enrichment complete: {results['enriched']} enriched, {results['failed']} failed, {results['skipped']} skipped")
+                
+                # Auto-link enriched fixtures to teams table
+                if results['enriched'] > 0:
+                    try:
+                        from models.team_linkage import TeamLinkageService
+                        linkage_service = TeamLinkageService()
+                        
+                        # Get enriched fixtures
+                        cursor.execute("""
+                            SELECT match_id, home_team, away_team, league_id
+                            FROM fixtures 
+                            WHERE (home_team LIKE 'TBD%%' OR away_team LIKE 'TBD%%') = FALSE
+                              AND (home_team_id IS NULL OR away_team_id IS NULL)
+                            ORDER BY kickoff_at ASC
+                            LIMIT %s
+                        """, (results['enriched'] * 2,))
+                        
+                        enriched_fixtures = cursor.fetchall()
+                        
+                        if enriched_fixtures:
+                            logger.info(f"🔗 Auto-linking {len(enriched_fixtures)} enriched fixtures to teams table...")
+                            linked = 0
+                            for match_id, home_team, away_team, league_id in enriched_fixtures:
+                                link_result = linkage_service.link_fixture(match_id, home_team, away_team, league_id)
+                                if link_result and link_result.get('success'):
+                                    linked += 1
+                            
+                            results['fixtures_linked'] = linked
+                            logger.info(f"✅ Auto-linked {linked}/{len(enriched_fixtures)} enriched fixtures to teams")
+                        else:
+                            results['fixtures_linked'] = 0
+                            logger.info(f"⏭️ No fixtures to auto-link")
+                            
+                    except Exception as link_error:
+                        logger.error(f"⚠️ Auto-linking failed: {link_error}")
+                        results['link_error'] = str(link_error)
+                        results['fixtures_linked'] = 0
+                else:
+                    results['fixtures_linked'] = 0
+                
                 return results
                 
         except Exception as e:
