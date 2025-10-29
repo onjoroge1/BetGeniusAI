@@ -320,12 +320,15 @@ class ApiFootballIngestion:
             
             cursor.execute("""
                 INSERT INTO fixtures (
-                    match_id, league_id, home_team, away_team, 
+                    match_id, league_id, league_name, home_team, away_team, 
                     kickoff_at, season, status, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+                SELECT %s, %s, COALESCE(lm.league_name, 'League ' || %s), %s, %s, %s, %s, %s, now()
+                FROM (SELECT 1) AS dummy
+                LEFT JOIN league_map lm ON lm.league_id = %s
                 ON CONFLICT (match_id) DO UPDATE SET
                     league_id = EXCLUDED.league_id,
+                    league_name = EXCLUDED.league_name,
                     kickoff_at = EXCLUDED.kickoff_at,
                     status = CASE
                         WHEN EXCLUDED.kickoff_at < now() THEN 'finished'
@@ -335,11 +338,13 @@ class ApiFootballIngestion:
             """, (
                 match_id,
                 league_id,
+                str(league_id),  # Fallback for COALESCE
                 'TBD',  # Team names not available in odds data
                 'TBD',
                 kickoff_aware,
                 2024,
-                'finished' if is_finished else 'scheduled'
+                'finished' if is_finished else 'scheduled',
+                league_id  # For LEFT JOIN
             ))
         except Exception as fixture_err:
             logger.warning(f"Failed to upsert fixture {match_id}: {fixture_err}")

@@ -1075,12 +1075,15 @@ class AutomatedCollector:
                         
                         cursor.execute("""
                             INSERT INTO fixtures (
-                                match_id, league_id, home_team, away_team, 
+                                match_id, league_id, league_name, home_team, away_team, 
                                 kickoff_at, season, status, updated_at
                             )
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+                            SELECT %s, %s, COALESCE(lm.league_name, 'League ' || %s), %s, %s, %s, %s, %s, now()
+                            FROM (SELECT 1) AS dummy
+                            LEFT JOIN league_map lm ON lm.league_id = %s
                             ON CONFLICT (match_id) DO UPDATE SET
                                 league_id = EXCLUDED.league_id,
+                                league_name = EXCLUDED.league_name,
                                 home_team = CASE 
                                     WHEN fixtures.home_team LIKE 'TBD%%' THEN EXCLUDED.home_team
                                     ELSE fixtures.home_team
@@ -1098,11 +1101,13 @@ class AutomatedCollector:
                         """, (
                             match_id,
                             book_odds.get('league_id', 0),
+                            str(book_odds.get('league_id', 0)),  # Fallback for COALESCE
                             'TBD',  # Team names not in odds_data, will be enriched from API-Football
                             'TBD',
                             kickoff_at,
                             2024,
-                            'finished' if kickoff_at < datetime.utcnow() else 'scheduled'
+                            'finished' if kickoff_at < datetime.utcnow() else 'scheduled',
+                            book_odds.get('league_id', 0)  # For LEFT JOIN
                         ))
                     except Exception as fixture_err:
                         logger.warning(f"Failed to upsert fixture {match_id}: {fixture_err}")
