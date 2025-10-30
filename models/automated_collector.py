@@ -964,8 +964,9 @@ class AutomatedCollector:
         secs_to_kickoff = int((match_time - current_time).total_seconds())
         
         for bookmaker in bookmakers:
+            # Use The Odds API's stable 'key' instead of hash() for deterministic IDs
+            book_id = bookmaker.get('key', 'unknown')
             book_name = bookmaker.get('title', 'Unknown')
-            book_id = hash(book_name) % 1000  # Simple ID from name
             
             markets = bookmaker.get('markets', [])
             for market in markets:

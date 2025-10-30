@@ -5927,11 +5927,11 @@ def resolve_bookmaker_name(book_id: str, cursor) -> str:
     Resolve book_id to human-readable bookmaker name
     
     Args:
-        book_id: Either 'apif:XX' format or numeric string
+        book_id: Either 'apif:XX' format, numeric string, or stable key
         cursor: Database cursor for lookups
     
     Returns:
-        Bookmaker name or original ID if not found
+        Bookmaker name (always returns a human-readable name)
     """
     # Handle API-Football format (apif:XX)
     if book_id.startswith('apif:'):
@@ -5945,20 +5945,26 @@ def resolve_bookmaker_name(book_id: str, cursor) -> str:
         result = cursor.fetchone()
         if result and result[0]:
             return result[0]
+        return f"bookmaker_{api_id}"  # Fallback for unmapped API-Football IDs
     
-    # Handle The Odds API format (numeric or string)
+    # Handle The Odds API format (numeric or stable key)
     else:
         cursor.execute("""
             SELECT canonical_name 
             FROM bookmaker_xwalk 
-            WHERE theodds_book_id = %s
+            WHERE theodds_book_id = %s OR canonical_name = %s
             LIMIT 1
-        """, (book_id,))
+        """, (book_id, book_id))
         result = cursor.fetchone()
         if result and result[0]:
             return result[0]
     
-    # Fallback: return original ID
+    # Enhanced fallback for legacy numeric IDs
+    if book_id.isdigit():
+        # Return friendly name for unmapped legacy bookmakers
+        return f"bookmaker_{book_id}"
+    
+    # For stable keys that somehow aren't mapped, return as-is (they're already readable)
     return book_id
 
 
