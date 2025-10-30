@@ -5768,11 +5768,13 @@ async def get_market_data(
                 
                 odds_rows = cursor.fetchall()
                 
-                # Build bookmaker odds dict
+                # Build bookmaker odds dict with resolved names
                 books = {}
-                for bk_name, h_odds, d_odds, a_odds in odds_rows:
+                for book_id, h_odds, d_odds, a_odds in odds_rows:
                     if h_odds and d_odds and a_odds:
-                        books[bk_name] = {
+                        # Resolve book_id to human-readable name
+                        bookmaker_name = resolve_bookmaker_name(book_id, cursor)
+                        books[bookmaker_name] = {
                             "home": float(h_odds),
                             "draw": float(d_odds),
                             "away": float(a_odds)
@@ -5918,6 +5920,46 @@ async def get_market_data(
     except Exception as e:
         logger.error(f"Market error: {e}", exc_info=True)
         raise HTTPException(500, f"Market data unavailable: {str(e)}")
+
+
+def resolve_bookmaker_name(book_id: str, cursor) -> str:
+    """
+    Resolve book_id to human-readable bookmaker name
+    
+    Args:
+        book_id: Either 'apif:XX' format or numeric string
+        cursor: Database cursor for lookups
+    
+    Returns:
+        Bookmaker name or original ID if not found
+    """
+    # Handle API-Football format (apif:XX)
+    if book_id.startswith('apif:'):
+        api_id = book_id.replace('apif:', '')
+        cursor.execute("""
+            SELECT canonical_name 
+            FROM bookmaker_xwalk 
+            WHERE api_football_book_id::text = %s
+            LIMIT 1
+        """, (api_id,))
+        result = cursor.fetchone()
+        if result and result[0]:
+            return result[0]
+    
+    # Handle The Odds API format (numeric or string)
+    else:
+        cursor.execute("""
+            SELECT canonical_name 
+            FROM bookmaker_xwalk 
+            WHERE theodds_book_id = %s
+            LIMIT 1
+        """, (book_id,))
+        result = cursor.fetchone()
+        if result and result[0]:
+            return result[0]
+    
+    # Fallback: return original ID
+    return book_id
 
 
 def calculate_novig_consensus(books: dict) -> dict:
