@@ -3349,6 +3349,258 @@ async def get_team_stats(api_key: str = Depends(verify_api_key)):
         logger.error(f"Failed to get team stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/admin/stats/live-betting")
+async def get_live_betting_stats(api_key: str = Depends(verify_api_key)):
+    """
+    Get Phase 2 Live Betting Intelligence statistics
+    
+    Returns metrics for:
+    - Momentum calculation coverage and performance
+    - Live market generation rates
+    - Live data collection health
+    - AI analysis generation stats
+    """
+    try:
+        import psycopg2
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cursor = conn.cursor()
+        
+        # Momentum stats
+        cursor.execute("""
+            SELECT 
+                COUNT(DISTINCT match_id) as unique_matches,
+                COUNT(*) as total_calculations,
+                AVG(momentum_home) as avg_home_momentum,
+                AVG(momentum_away) as avg_away_momentum,
+                MAX(updated_at) as latest_update,
+                MIN(updated_at) as oldest_update
+            FROM live_momentum
+            WHERE updated_at > NOW() - INTERVAL '24 hours'
+        """)
+        momentum_stats = cursor.fetchone()
+        
+        # Live market stats
+        cursor.execute("""
+            SELECT 
+                COUNT(DISTINCT match_id) as unique_matches,
+                COUNT(*) as total_predictions,
+                MAX(updated_at) as latest_update,
+                MIN(updated_at) as oldest_update
+            FROM live_model_markets
+            WHERE updated_at > NOW() - INTERVAL '24 hours'
+        """)
+        market_stats = cursor.fetchone()
+        
+        # Live stats collection
+        cursor.execute("""
+            SELECT 
+                COUNT(DISTINCT match_id) as unique_matches,
+                COUNT(*) as total_snapshots,
+                MAX(timestamp) as latest_collection
+            FROM live_match_stats
+            WHERE timestamp > NOW() - INTERVAL '24 hours'
+        """)
+        stats_collection = cursor.fetchone()
+        
+        # Live events collection
+        cursor.execute("""
+            SELECT 
+                COUNT(DISTINCT match_id) as unique_matches,
+                COUNT(*) as total_events,
+                MAX(timestamp) as latest_event
+            FROM match_events
+            WHERE timestamp > NOW() - INTERVAL '24 hours'
+        """)
+        events_collection = cursor.fetchone()
+        
+        # AI analysis stats
+        cursor.execute("""
+            SELECT 
+                COUNT(DISTINCT match_id) as unique_matches,
+                COUNT(*) as total_analyses,
+                MAX(generated_at) as latest_analysis
+            FROM live_ai_analysis
+            WHERE generated_at > NOW() - INTERVAL '24 hours'
+        """)
+        ai_stats = cursor.fetchone()
+        
+        # Currently live matches
+        cursor.execute("""
+            SELECT COUNT(DISTINCT f.match_id)
+            FROM fixtures f
+            JOIN matches m ON f.match_id = m.match_id
+            WHERE f.kickoff_at <= NOW()
+              AND f.kickoff_at > NOW() - INTERVAL '2 hours'
+              AND f.status = 'scheduled'
+              AND m.api_football_fixture_id IS NOT NULL
+        """)
+        current_live = cursor.fetchone()[0]
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "period": "Last 24 hours",
+            "current_live_matches": current_live,
+            "momentum_engine": {
+                "unique_matches": momentum_stats[0] or 0,
+                "total_calculations": momentum_stats[1] or 0,
+                "avg_home_momentum": round(float(momentum_stats[2]), 1) if momentum_stats[2] else None,
+                "avg_away_momentum": round(float(momentum_stats[3]), 1) if momentum_stats[3] else None,
+                "latest_update": momentum_stats[4].isoformat() if momentum_stats[4] else None,
+                "oldest_update": momentum_stats[5].isoformat() if momentum_stats[5] else None
+            },
+            "live_markets": {
+                "unique_matches": market_stats[0] or 0,
+                "total_predictions": market_stats[1] or 0,
+                "latest_update": market_stats[2].isoformat() if market_stats[2] else None,
+                "oldest_update": market_stats[3].isoformat() if market_stats[3] else None
+            },
+            "live_stats_collection": {
+                "unique_matches": stats_collection[0] or 0,
+                "total_snapshots": stats_collection[1] or 0,
+                "latest_collection": stats_collection[2].isoformat() if stats_collection[2] else None
+            },
+            "live_events": {
+                "unique_matches": events_collection[0] or 0,
+                "total_events": events_collection[1] or 0,
+                "latest_event": events_collection[2].isoformat() if events_collection[2] else None
+            },
+            "ai_analysis": {
+                "unique_matches": ai_stats[0] or 0,
+                "total_analyses": ai_stats[1] or 0,
+                "latest_analysis": ai_stats[2].isoformat() if ai_stats[2] else None
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get live betting stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admin/stats/resolver")
+async def get_resolver_stats(api_key: str = Depends(verify_api_key)):
+    """
+    Get Fixture ID Resolver statistics and health metrics
+    
+    Returns metrics for:
+    - Resolution success rates by pass
+    - Unresolved fixture counts
+    - API-Football linkage coverage
+    - Recent resolver performance
+    """
+    try:
+        import psycopg2
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cursor = conn.cursor()
+        
+        # Overall linkage stats
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_fixtures,
+                COUNT(m.api_football_fixture_id) as resolved_fixtures,
+                COUNT(*) - COUNT(m.api_football_fixture_id) as unresolved_fixtures,
+                ROUND(100.0 * COUNT(m.api_football_fixture_id) / COUNT(*), 2) as resolution_rate
+            FROM fixtures f
+            LEFT JOIN matches m ON f.match_id = m.match_id
+            WHERE f.kickoff_at > NOW() - INTERVAL '30 days'
+        """)
+        overall_stats = cursor.fetchone()
+        
+        # Upcoming matches linkage
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_upcoming,
+                COUNT(m.api_football_fixture_id) as resolved_upcoming,
+                COUNT(*) - COUNT(m.api_football_fixture_id) as unresolved_upcoming
+            FROM fixtures f
+            LEFT JOIN matches m ON f.match_id = m.match_id
+            WHERE f.kickoff_at > NOW()
+              AND f.status = 'scheduled'
+        """)
+        upcoming_stats = cursor.fetchone()
+        
+        # TBD placeholder stats
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_tbd,
+                COUNT(CASE WHEN f.home_team_id IS NULL OR f.away_team_id IS NULL THEN 1 END) as unlinked_tbd
+            FROM fixtures f
+            WHERE (f.home_team LIKE '%TBD%' OR f.away_team LIKE '%TBD%')
+              AND f.kickoff_at > NOW()
+        """)
+        tbd_stats = cursor.fetchone()
+        
+        # Recent resolver activity (last 24 hours)
+        cursor.execute("""
+            SELECT 
+                COUNT(DISTINCT m.match_id) as fixtures_resolved,
+                MAX(f.kickoff_at) as latest_sync
+            FROM matches m
+            JOIN fixtures f ON m.match_id = f.match_id
+            WHERE m.api_football_fixture_id IS NOT NULL
+              AND f.kickoff_at > NOW() - INTERVAL '24 hours'
+        """)
+        recent_activity = cursor.fetchone()
+        
+        # League coverage
+        cursor.execute("""
+            SELECT 
+                f.league_name,
+                COUNT(*) as total_fixtures,
+                COUNT(m.api_football_fixture_id) as resolved,
+                ROUND(100.0 * COUNT(m.api_football_fixture_id) / COUNT(*), 1) as resolution_rate
+            FROM fixtures f
+            LEFT JOIN matches m ON f.match_id = m.match_id
+            WHERE f.kickoff_at > NOW()
+              AND f.status = 'scheduled'
+            GROUP BY f.league_name
+            HAVING COUNT(*) >= 5
+            ORDER BY resolution_rate ASC
+            LIMIT 10
+        """)
+        league_coverage = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "overall_linkage": {
+                "total_fixtures_30d": overall_stats[0],
+                "resolved": overall_stats[1],
+                "unresolved": overall_stats[2],
+                "resolution_rate_pct": float(overall_stats[3]) if overall_stats[3] else 0.0
+            },
+            "upcoming_matches": {
+                "total": upcoming_stats[0],
+                "resolved": upcoming_stats[1],
+                "unresolved": upcoming_stats[2],
+                "resolution_rate_pct": round(100.0 * upcoming_stats[1] / upcoming_stats[0], 2) if upcoming_stats[0] > 0 else 0.0
+            },
+            "tbd_placeholders": {
+                "total": tbd_stats[0] or 0,
+                "unlinked": tbd_stats[1] or 0
+            },
+            "recent_activity_24h": {
+                "fixtures_resolved": recent_activity[0] or 0,
+                "latest_sync": recent_activity[1].isoformat() if recent_activity[1] else None
+            },
+            "league_coverage": [
+                {
+                    "league": row[0],
+                    "total_fixtures": row[1],
+                    "resolved": row[2],
+                    "resolution_rate_pct": float(row[3]) if row[3] else 0.0
+                }
+                for row in league_coverage
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get resolver stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/admin/link-fixtures-to-teams")
 async def link_fixtures_to_teams_endpoint(
     batch_size: int = 100,
