@@ -1,0 +1,328 @@
+fire. this is a clean way to lock in Phase 2 without breaking anything you already shipped. i’ll lay out exactly what to add, with drop-in code stubs, DB bits, response contracts, and a short rollout checklist. you can paste these pieces straight into your repo.
+
+# Phase 2 — what we ship now
+
+## 1) Momentum Engine (0–100 score)
+
+**Goal:** turn raw live stats + odds drift into a single, rolling score you can show and trigger AI on.
+
+**Signal recipe (last 10 real-time minutes, exponentially decayed):**
+
+* Shots on target rate z-score (home vs away)
+* Dangerous attacks differential per minute (if available)
+* Possession differential (bounded contribution)
+* xG differential (if your source returns it; else 0)
+* Odds velocity (probability change, not price, per outcome)
+* Discipline modifier (recent red card = ±15 hard bump for team with advantage)
+
+**Weighting (good starting priors):**
+`w_shots=0.35, w_dangAtt=0.20, w_poss=0.10, w_xg=0.20, w_oddsVel=0.15`
+Clamp to [-3, +3] z domain → min-max → 0–100.
+
+**Table (new):**
+
+```sql
+CREATE TABLE IF NOT EXISTS live_momentum (
+  match_id        BIGINT PRIMARY KEY,
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  home_score      INT,
+  away_score      INT,
+  minute          INT,
+  momentum_home   INT,   -- 0..100
+  momentum_away   INT,   -- 0..100
+  driver_summary  JSONB   -- {shots:"home", odds:"away_tightening", red_card:"home", ...}
+);
+CREATE INDEX IF NOT EXISTS idx_live_momentum_updated_at ON live_momentum(updated_at DESC);
+```
+
+**Job (every 60s, after live stats & odds snapshots are refreshed):**
+
+```python
+# models/momentum_calculator.py
+from math import exp
+
+def exp_decay(minutes_ago, half_life=6):
+    # half-life 6 minutes → recent events matter most
+    return exp(-0.693 * minutes_ago / half_life)
+
+def bounded(x, lo=-2.5, hi=2.5):
+    return max(lo, min(hi, x))
+
+def to_0_100(x, lo=-3, hi=3):
+    x = max(lo, min(hi, x))
+    return round((x - lo) * 100.0 / (hi - lo))
+
+def compute_momentum(window):  # window carries last ~12-15 mins of stats & odds
+    # build decayed aggregates
+    agg = {
+      "shots_on_tgt_home":0, "shots_on_tgt_away":0,
+      "dang_att_home":0, "dang_att_away":0,
+      "poss_home":0, "poss_away":0,
+      "xg_home":0, "xg_away":0,
+      "prob_move_home":0, "prob_move_draw":0, "prob_move_away":0,
+      "w":0
+    }
+    for i, snap in enumerate(reversed(window)):  # 0 = most recent
+        w = exp_decay(i)
+        agg["w"] += w
+        agg["shots_on_tgt_home"] += snap.sot_home * w
+        agg["shots_on_tgt_away"] += snap.sot_away * w
+        agg["dang_att_home"] += snap.da_home * w
+        agg["dang_att_away"] += snap.da_away * w
+        agg["poss_home"] += snap.poss_home * w
+        agg["poss_away"] += snap.poss_away * w
+        agg["xg_home"] += (snap.xg_home or 0) * w
+        agg["xg_away"] += (snap.xg_away or 0) * w
+        # odds velocity: use delta of implied probabilities in this minute
+        agg["prob_move_home"] += snap.delta_prob_home * w
+        agg["prob_move_draw"] += snap.delta_prob_draw * w
+        agg["prob_move_away"] += snap.delta_prob_away * w
+
+    # normalize by weight
+    for k in list(agg.keys()):
+        if k != "w" and agg["w"] > 0:
+            agg[k] /= agg["w"]
+
+    # build differentials
+    shot_diff  = agg["shots_on_tgt_home"] - agg["shots_on_tgt_away"]
+    dang_diff  = agg["dang_att_home"]    - agg["dang_att_away"]
+    poss_diff  = (agg["poss_home"] - agg["poss_away"]) / 100.0
+    xg_diff    = agg["xg_home"] - agg["xg_away"]
+    odds_bias  = agg["prob_move_home"] - agg["prob_move_away"]
+
+    # scale terms to pseudo-z ranges (empirical)
+    z_shot  = bounded(shot_diff / 1.5)
+    z_dang  = bounded(dang_diff / 6.0)
+    z_poss  = bounded(poss_diff / 0.25)
+    z_xg    = bounded(xg_diff / 0.6)
+    z_odds  = bounded(odds_bias / 0.06)
+
+    score_home = 0.35*z_shot + 0.20*z_dang + 0.10*z_poss + 0.20*z_xg + 0.15*z_odds
+    score_away = -score_home  # symmetric
+
+    # red card modifier
+    if window[-1].red_home and not window[-1].red_away:
+        score_away += 0.9
+    if window[-1].red_away and not window[-1].red_home:
+        score_home += 0.9
+
+    return to_0_100(score_home), to_0_100(score_away)
+```
+
+## 2) In-Play Market Estimates (premium)
+
+**Goal:** publish *model* probabilities for: Full-time 1X2 (live), Over/Under live line, “Next Goal” market.
+
+**Minimal viable math (fast & robust):**
+
+* Start from current implied probs (novig-adjusted).
+* Blend with a time-aware prior (pre-match model) using a decay `α(t)` (e.g., early game α=0.5 → market heavier; late game α→0.8 → live stats heavier).
+* Use momentum differential as a transient boost/penalty within a tight cap (±5 p.p.) to avoid whipsaw.
+
+**Response shape (new subobject under /market):**
+
+```json
+"model_markets": {
+  "updated_at": "2025-11-01T17:05:22Z",
+  "win_draw_win": { "home": 0.41, "draw": 0.30, "away": 0.29 },
+  "over_under":   { "line": 2.5, "over": 0.54, "under": 0.46 },
+  "next_goal":    { "home": 0.47, "none": 0.11, "away": 0.42 }
+}
+```
+
+**Table (optional cache):**
+
+```sql
+CREATE TABLE IF NOT EXISTS live_model_markets (
+  match_id     BIGINT PRIMARY KEY,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  wdw          JSONB NOT NULL,
+  ou           JSONB NOT NULL,
+  next_goal    JSONB NOT NULL
+);
+```
+
+## 3) Realtime delivery — WebSockets (or SSE)
+
+* **Backend:** add a `/ws/live` socket that emits a small delta payload whenever `live_momentum`, `odds_velocity`, `live_data`, or `model_markets` updates for a match.
+* **Frontend:** subscribe by match_id; optimistic update the live page without polling.
+
+**FastAPI socket sketch:**
+
+```python
+# routes/realtime.py
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+router = APIRouter()
+
+active = {}  # match_id -> set(websocket)
+
+@router.websocket("/ws/live/{match_id}")
+async def live_feed(ws: WebSocket, match_id: int):
+    await ws.accept()
+    s = active.setdefault(match_id, set())
+    s.add(ws)
+    try:
+        while True:
+            await ws.receive_text()  # keepalive / ping
+    except WebSocketDisconnect:
+        s.remove(ws)
+
+# utility called by jobs
+async def push_update(match_id: int, payload: dict):
+    for ws in list(active.get(match_id, [])):
+        try:
+            await ws.send_json(payload)
+        except:
+            active[match_id].discard(ws)
+```
+
+**Delta payload example (tiny & frequent):**
+
+```json
+{
+  "t":"upd",
+  "match_id":1478060,
+  "minute":67,
+  "score":[1,2],
+  "mom":[64,38],
+  "odv":{"home":-0.03,"draw":+0.01,"away":+0.02},
+  "mkt":{"home":0.41,"draw":0.30,"away":0.29}
+}
+```
+
+## 4) /market contract additions (backwards-compatible)
+
+For single match or lists, extend with:
+
+```json
+{
+  "live_data": {...},            // (already in Phase 1)
+  "live_events": [...],          // (already in Phase 1)
+  "odds": {
+    "current": {...},
+    "velocity": {...},           // (Phase 1)
+    "last_15m": [...]            // (Phase 1)
+  },
+  "momentum": {
+    "home": 64, "away": 38,
+    "driver_summary": {
+      "shots_on_target":"home",
+      "odds":"away_tightening",
+      "red_card": null
+    }
+  },
+  "model_markets": {...},        // (new in Phase 2)
+  "ai_analysis": {...}           // uses momentum + events (see #5)
+}
+```
+
+## 5) Smarter AI triggers (tie momentum to copy)
+
+Keep your existing triggers and add **momentum inflection**:
+
+* Fire when `abs(momentum_home - momentum_away)` crosses 20, or flips leaders.
+* Fire on **Next Goal favorite flip** (model_markets.next_goal argmax changes).
+* Add a small **cooldown** (3–4 min) to avoid spam.
+
+**Analyzer cue payload (so prompts have structure):**
+
+```json
+{
+  "minute": 67,
+  "score": [1,2],
+  "momentum": {"home":64, "away":38, "leader":"home", "swing":"+22 over 8m"},
+  "events_since_last": [{"min":62,"type":"yellow","team":"home"}],
+  "odds_velocity": {"home":-0.03,"away":+0.02},
+  "model_markets": {"wdw":{"home":0.41,"draw":0.30,"away":0.29},"next_goal":{"home":0.47,"none":0.11,"away":0.42}},
+  "key_angles": ["Home momentum building", "Away still priced short vs flow (+EV live lay)"]
+}
+```
+
+## 6) Observability & guardrails
+
+* Prometheus counters: `momentum_jobs_run_total`, `live_model_markets_compute_ms`, `ws_clients_gauge`, `ai_analyses_triggered_total{reason=...}`.
+* Alert if `live_data` in DB lags > 3 minutes while a match is live.
+* Feature flags: `enable_momentum`, `enable_model_markets`, `enable_ws`.
+
+---
+
+# Drop-in changes you can make now
+
+### A) Scheduler wiring (pseudo)
+
+```python
+# utils/scheduler.py
+jobs = [
+  live_data_collector.run,        # Phase 1
+  odds_velocity.update,           # Phase 1
+  fixture_id_resolver.run,        # Phase 2 T1 (already added)
+  momentum_calculator.run,        # NEW
+  live_model_markets.run,         # NEW
+  live_ai_analyzer.run,           # Phase 1; now consumes momentum/model_markets
+]
+```
+
+### B) FastAPI route registration
+
+```python
+# main.py
+from routes.realtime import router as realtime_router
+app.include_router(realtime_router, prefix="")
+```
+
+### C) Frontend (Next.js) quick hook for sockets
+
+```ts
+// app/match/[match_id]/useLiveFeed.ts
+import { useEffect, useRef, useState } from "react";
+
+export function useLiveFeed(matchId: number) {
+  const wsRef = useRef<WebSocket | null>(null);
+  const [last, setLast] = useState<any>(null);
+
+  useEffect(() => {
+    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_API_WS}/ws/live/${matchId}`);
+    wsRef.current = ws;
+    ws.onmessage = (e) => setLast(JSON.parse(e.data));
+    ws.onopen = () => ws.send("ping");
+    return () => ws.close();
+  }, [matchId]);
+
+  return last; // {score, minute, mom, odv, mkt}
+}
+```
+
+---
+
+# Rollout checklist (quick)
+
+1. **DB:** create `live_momentum` + (optional) `live_model_markets`.
+2. **Jobs:** add `momentum_calculator` then `live_model_markets` to the minute loop.
+3. **API:** extend `/market` serializer to include `momentum` + `model_markets`.
+4. **Realtime:** enable `/ws/live/{match_id}` and push from jobs.
+5. **AI:** add momentum-inflection trigger & cooldown to `live_ai_analyzer`.
+6. **Dash QA:** temporary `/admin/momentum-debug?match_id=` returning raw components & weights.
+7. **Docs:** short README section with formulas and ranges so your team knows what “64” means on the UI.
+
+---
+
+# What’s pending after this (Phase 2 tail / Phase 3)
+
+* **Better ID linkage reliability:** keep your resolver running; also normalize team names (accents/aliases) and optionally pre-resolve at fixture ingestion time.
+* **xG enrichment:** if/when shot coordinates land, swap xG term to *observed* instead of proxy.
+* **Cash-out hints:** once model_markets stabilize, surface “take profit” nudges when your model diverges from book by ≥5 p.p. for ≥5 minutes.
+* **Historical backtests:** log momentum + model_markets every minute → evaluate calibration vs final result and CLV.
+
+---
+
+# Your next step (I’ll default if you don’t reply)
+
+I’ll proceed with:
+
+1. creating `live_momentum` table + job,
+2. adding `model_markets` computation + cache,
+3. wiring the WebSocket route and emit deltas,
+4. extending `/market` to return the new blocks,
+5. updating the AI analyzer to use the momentum inflection rule.
+
+If you’d prefer SSE over WebSockets, or want different momentum weights/half-life, say the word — otherwise I’ll ship with the defaults above.

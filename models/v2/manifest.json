@@ -1,6 +1,6 @@
 {
   "version": "v2.1-delta",
-  "trained_at": "2025-10-11T02:38:17.830302",
+  "trained_at": "2025-11-01T18:04:49.854200",
   "training_method": "market_delta_ridge",
   "architecture": "delta_logit_blend",
   "hyperparameters": {

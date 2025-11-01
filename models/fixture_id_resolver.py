@@ -29,18 +29,103 @@ class FixtureIDResolver:
             "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
         }
         
+        # Manual override mappings for problematic team names
+        # Format: (our_name, api_football_name) pairs for exact matching
+        self.manual_overrides = self._load_manual_overrides()
+    
+    def _load_manual_overrides(self) -> Dict[str, str]:
+        """
+        Load manual team name overrides from database
+        Returns: dict of {our_team_name: api_football_team_name}
+        """
+        try:
+            with psycopg2.connect(self.db_url) as conn:
+                cursor = conn.cursor()
+                
+                # Create manual overrides table if it doesn't exist
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS fixture_id_manual_overrides (
+                        override_id SERIAL PRIMARY KEY,
+                        our_team_name VARCHAR(255) NOT NULL UNIQUE,
+                        api_football_team_name VARCHAR(255) NOT NULL,
+                        notes TEXT,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        last_used_at TIMESTAMPTZ,
+                        use_count INTEGER DEFAULT 0
+                    )
+                """)
+                
+                # Load overrides into memory
+                cursor.execute("""
+                    SELECT our_team_name, api_football_team_name 
+                    FROM fixture_id_manual_overrides
+                """)
+                
+                overrides = {}
+                for our_name, api_name in cursor.fetchall():
+                    overrides[our_name.lower().strip()] = api_name
+                
+                conn.commit()
+                logger.info(f"Loaded {len(overrides)} manual team name overrides")
+                return overrides
+                
+        except Exception as e:
+            logger.warning(f"Failed to load manual overrides: {e}")
+            return {}
+    
+    def check_manual_override(self, team_name: str) -> Optional[str]:
+        """Check if team has a manual override mapping"""
+        key = team_name.lower().strip()
+        return self.manual_overrides.get(key)
+        
     def normalize_team_name(self, name: str) -> str:
-        """Normalize team names for fuzzy matching"""
+        """
+        Enhanced normalization for team names with multi-language support
+        Handles: German prefixes (1., FSV, etc.), accents, abbreviations
+        """
         if not name:
             return ""
-        # Remove common prefixes/suffixes
+        
+        # Convert to lowercase and strip
         normalized = name.lower().strip()
-        prefixes = ['1.', 'fc ', 'as ', 'ac ', 'sc ', 'rc ', 'cf ', 'cd ', 'afc ', 'bfc ']
+        
+        # Remove common prefixes (expanded for German, Spanish, Italian, etc.)
+        prefixes = [
+            '1. ', '1.', 'fc ', 'as ', 'ac ', 'sc ', 'rc ', 'cf ', 'cd ', 
+            'afc ', 'bfc ', 'fsv ', 'sv ', 'vfb ', 'vfl ', 'tsg ', 'ssc ',
+            'us ', 'ss ', 'uc ', 'real ', 'athletic ', 'club ', 'union ',
+            'racing ', 'olympique ', 'sporting ', 'ajax ', 'psv '
+        ]
+        
         for prefix in prefixes:
             if normalized.startswith(prefix):
-                normalized = normalized[len(prefix):]
-        # Remove punctuation
-        normalized = normalized.replace('.', '').replace('-', ' ').strip()
+                normalized = normalized[len(prefix):].strip()
+                break  # Only remove first prefix
+        
+        # Remove common suffixes
+        suffixes = [' fc', ' sc', ' united', ' city', ' town', ' rovers', ' wanderers']
+        for suffix in suffixes:
+            if normalized.endswith(suffix):
+                normalized = normalized[:-len(suffix)].strip()
+                break
+        
+        # Handle accents and special characters
+        accent_map = {
+            'á': 'a', 'à': 'a', 'ä': 'a', 'â': 'a', 'ã': 'a',
+            'é': 'e', 'è': 'e', 'ë': 'e', 'ê': 'e',
+            'í': 'i', 'ì': 'i', 'ï': 'i', 'î': 'i',
+            'ó': 'o', 'ò': 'o', 'ö': 'o', 'ô': 'o', 'õ': 'o', 'ø': 'o',
+            'ú': 'u', 'ù': 'u', 'ü': 'u', 'û': 'u',
+            'ñ': 'n', 'ç': 'c', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe'
+        }
+        
+        for accented, plain in accent_map.items():
+            normalized = normalized.replace(accented, plain)
+        
+        # Remove punctuation and extra spaces
+        normalized = normalized.replace('.', '').replace('-', ' ').replace("'", '')
+        normalized = ' '.join(normalized.split())  # Normalize whitespace
+        
         return normalized
     
     def calculate_confidence(self, home_similarity: float, away_similarity: float, 
@@ -92,9 +177,41 @@ class FixtureIDResolver:
         return min(confidence, 100.0), ",".join(reasons)
     
     def similarity_score(self, str1: str, str2: str) -> float:
-        """Calculate similarity between two strings using SequenceMatcher"""
+        """
+        Enhanced similarity scoring with multi-pass matching:
+        1. Check manual overrides (100% confidence)
+        2. Exact match after normalization (100% confidence)
+        3. Fuzzy match with SequenceMatcher
+        """
+        # Check manual overrides first
+        override1 = self.check_manual_override(str1)
+        override2 = self.check_manual_override(str2)
+        
+        if override1 and override2:
+            # Both have overrides - compare overrides
+            return 1.0 if override1.lower() == override2.lower() else 0.0
+        elif override1:
+            # str1 has override - compare with normalized str2
+            norm2 = self.normalize_team_name(str2)
+            return 1.0 if override1.lower() == norm2 else 0.8  # Partial credit
+        elif override2:
+            # str2 has override - compare with normalized str1
+            norm1 = self.normalize_team_name(str1)
+            return 1.0 if norm1 == override2.lower() else 0.8  # Partial credit
+        
+        # No overrides - use enhanced normalization + fuzzy match
         norm1 = self.normalize_team_name(str1)
         norm2 = self.normalize_team_name(str2)
+        
+        # Exact match after normalization
+        if norm1 == norm2:
+            return 1.0
+        
+        # Check if one is substring of the other (common for abbreviated names)
+        if norm1 in norm2 or norm2 in norm1:
+            return 0.95
+        
+        # Fuzzy match with SequenceMatcher
         return SequenceMatcher(None, norm1, norm2).ratio()
     
     def pass1_table_join(self) -> int:
@@ -428,6 +545,38 @@ class FixtureIDResolver:
         
         return results
     
+    def add_manual_override(self, our_team_name: str, api_football_team_name: str, notes: str = "") -> bool:
+        """
+        Add a manual team name override
+        Returns: True if added successfully, False if already exists
+        """
+        try:
+            with psycopg2.connect(self.db_url) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO fixture_id_manual_overrides 
+                    (our_team_name, api_football_team_name, notes)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (our_team_name) DO UPDATE
+                    SET api_football_team_name = EXCLUDED.api_football_team_name,
+                        notes = EXCLUDED.notes
+                    RETURNING override_id
+                """, (our_team_name, api_football_team_name, notes))
+                
+                result = cursor.fetchone()
+                conn.commit()
+                
+                # Reload overrides
+                self.manual_overrides = self._load_manual_overrides()
+                
+                logger.info(f"✅ Added manual override: {our_team_name} → {api_football_team_name}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to add manual override: {e}")
+            return False
+    
     def get_queue_stats(self) -> Dict:
         """Get statistics on manual review queue"""
         with psycopg2.connect(self.db_url) as conn:
@@ -451,6 +600,29 @@ class FixtureIDResolver:
                 "rejected": row[2] or 0,
                 "total": row[3] or 0,
                 "avg_confidence_pending": round(row[4], 2) if row[4] else 0
+            }
+    
+    def get_override_stats(self) -> Dict:
+        """Get statistics on manual overrides"""
+        with psycopg2.connect(self.db_url) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_overrides,
+                    COUNT(*) FILTER (WHERE use_count > 0) as used_overrides,
+                    SUM(use_count) as total_uses,
+                    MAX(last_used_at) as last_used
+                FROM fixture_id_manual_overrides
+            """)
+            
+            row = cursor.fetchone()
+            
+            return {
+                "total_overrides": row[0] or 0,
+                "used_overrides": row[1] or 0,
+                "total_uses": row[2] or 0,
+                "last_used": row[3]
             }
 
 
