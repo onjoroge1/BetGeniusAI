@@ -331,6 +331,7 @@ class FixtureIDResolver:
             cursor = conn.cursor()
             
             # Get fixtures that aren't yet in matches table (unresolved)
+            # Prioritize: 1) Live/recent matches, 2) Real teams (not TBD), 3) Upcoming matches
             cursor.execute("""
                 SELECT f.match_id, f.home_team, f.away_team, f.league_id, f.kickoff_at
                 FROM fixtures f
@@ -338,7 +339,11 @@ class FixtureIDResolver:
                 WHERE m.match_id IS NULL  -- Not yet in matches table
                   AND f.kickoff_at BETWEEN NOW() - INTERVAL '3 days' AND NOW() + INTERVAL '7 days'
                   AND f.status = 'scheduled'
-                ORDER BY f.kickoff_at ASC
+                  AND f.home_team != 'TBD'  -- Skip TBD placeholders
+                  AND f.away_team != 'TBD'
+                ORDER BY 
+                    ABS(EXTRACT(EPOCH FROM (f.kickoff_at - NOW()))) ASC,  -- Closest to current time first
+                    f.kickoff_at ASC
                 LIMIT %s
             """, (limit,))
             
@@ -361,6 +366,8 @@ class FixtureIDResolver:
                     # We'll rely on team name + date matching
                     api_league_id = None
                     
+                    logger.info(f"🔍 [{match_id}] Searching API-Football: {home_team} vs {away_team} on {search_date}")
+                    
                     # Build API query
                     params = {"date": search_date}
                     if api_league_id:
@@ -375,20 +382,24 @@ class FixtureIDResolver:
                     )
                     
                     if response.status_code != 200:
-                        logger.warning(f"❌ API request failed for {match_id}: {response.status_code}")
+                        logger.warning(f"❌ [{match_id}] API request failed: {response.status_code}")
                         continue
                     
                     data = response.json()
                     fixtures = data.get("response", [])
                     
                     if not fixtures:
-                        logger.debug(f"No API-Football fixtures found for {home_team} vs {away_team}")
+                        logger.warning(f"⚠️ [{match_id}] No API-Football fixtures found for {home_team} vs {away_team} on {search_date}")
                         continue
+                    
+                    logger.info(f"📊 [{match_id}] Found {len(fixtures)} API fixtures to match against")
                     
                     # Find best match using fuzzy matching
                     best_match = None
                     best_confidence = 0
                     best_reason = ""
+                    best_api_home = ""
+                    best_api_away = ""
                     
                     for fixture in fixtures:
                         api_home = fixture["teams"]["home"]["name"]
@@ -411,8 +422,17 @@ class FixtureIDResolver:
                             best_confidence = confidence
                             best_match = fixture["fixture"]["id"]
                             best_reason = reason
+                            best_api_home = api_home
+                            best_api_away = api_away
                     
                     if best_match and best_confidence >= 70:  # Minimum 70% confidence
+                        logger.info(f"✅ [{match_id}] Matched with confidence {best_confidence:.1f}%: "
+                                  f"{home_team}→{best_api_home}, {away_team}→{best_api_away}")
+                    else:
+                        logger.warning(f"❌ [{match_id}] No match found (best confidence: {best_confidence:.1f}% < 70%)")
+                        continue
+                    
+                    if best_match and best_confidence >= 70:  # Proceed with insertion
                         # Get team IDs for the fixture
                         cursor.execute("""
                             SELECT home_team_id, away_team_id
