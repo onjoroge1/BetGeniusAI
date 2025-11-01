@@ -52,6 +52,8 @@ class BackgroundScheduler:
         self.last_live_data_run: Optional[datetime] = None
         # AI analysis triggers (runs every 60 seconds, checks if analysis needed)
         self.last_ai_analysis_run: Optional[datetime] = None
+        # Fixture ID resolver (runs every 60 seconds to link fixtures with API-Football IDs)
+        self.last_fixture_resolver_run: Optional[datetime] = None
         # Scheduled collection state tracking (prevents duplicate runs)
         self.last_scheduled_collection_run: Optional[datetime] = None
         self.last_scheduled_collection_hour: Optional[int] = None
@@ -76,6 +78,7 @@ class BackgroundScheduler:
         logger.info("Automated metrics calculation enabled - runs every 6 hours at 03:00, 09:00, 15:00, 21:00 UTC")
         logger.info("🎯 Phase B: Fresh odds collection enabled - HIGH PRIORITY every 60 seconds")
         logger.info("⚽ API-Football Phase B: Continuous collection enabled - every 60 seconds (75k/day limit)")
+        logger.info("🔗 Fixture ID Resolver enabled - runs every 60 seconds to link API-Football IDs")
         logger.info("CLV Club alert producer enabled - runs every 60 seconds")
         logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
         logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
@@ -292,6 +295,10 @@ class BackgroundScheduler:
                     if last_run_date != today_date:
                         await self._spawn("daily_brief", self._run_daily_brief, timeout=120)
                         self.last_daily_brief_run = now
+                
+                # 🔗 PHASE 2: Fixture ID Resolver - runs every 60 seconds to link fixtures with API-Football IDs
+                if "fixture_resolver" not in self.last_run or (now - self.last_run["fixture_resolver"]).total_seconds() >= 60:
+                    await self._spawn("fixture_resolver", self._run_fixture_id_resolver, timeout=90)
                 
                 # 🔴 PHASE 1: Live data collection - runs every 60 seconds for live matches
                 if "live_data" not in self.last_run or (now - self.last_run["live_data"]).total_seconds() >= 60:
@@ -555,6 +562,31 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"⚽ API-Football Phase B error: {e}")
+    
+    async def _run_fixture_id_resolver(self):
+        """
+        🔗 PHASE 2: Fixture ID Resolver
+        Automatically resolves and links fixtures to API-Football IDs using 3-pass approach:
+        1. Sync from cache (for known matches)
+        2. Sync recent fixtures from cache
+        3. API search for unresolved fixtures (limit 10 per cycle to avoid rate limits)
+        Runs every 60 seconds
+        """
+        try:
+            from models.fixture_id_resolver import FixtureIDResolver
+            
+            logger.debug("🔗 Fixture ID Resolver: Starting...")
+            resolver = FixtureIDResolver()
+            results = resolver.resolve_all(api_search_limit=10)  # Limit to 10 API calls per cycle
+            
+            if results["total_resolved"] > 0:
+                logger.info(f"🔗 Fixture ID Resolver: Resolved {results['total_resolved']} fixtures "
+                          f"(Pass1: {results['pass1_table_join']}, "
+                          f"Pass2: {results['pass2_cache_lookup']}, "
+                          f"Pass3: {results['pass3_api_search']})")
+            
+        except Exception as e:
+            logger.error(f"🔗 Fixture ID Resolver error: {e}")
     
     async def _run_live_data_collection(self):
         """
