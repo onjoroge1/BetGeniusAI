@@ -1588,6 +1588,109 @@ async def demo_page():
                 <p style="font-size: 12px; margin: 5px 0;">Use after collecting training data to replace sample data with authentic match results</p>
             </div>
             
+            <h3>🔴 Phase 2: Live Betting Intelligence (NEW):</h3>
+            <div style="background: #e74c3c; color: white; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                <h4 style="margin-top: 0;">Real-Time Match Intelligence Features</h4>
+                ⚡ Live momentum scoring (0-100 for each team)<br>
+                🎯 In-play market predictions (Win/Draw/Win, Over/Under, Next Goal)<br>
+                📊 Real-time match stats & events streaming<br>
+                🤖 AI-powered live match analysis<br>
+                🔌 WebSocket support for instant updates
+            </div>
+            
+            <div class="endpoint">
+                <strong>GET /market?status=live</strong> - Live match predictions with momentum
+                <button onclick="testEndpoint('/market?status=live&limit=5', true)">Get Live Matches</button>
+                <p style="font-size: 12px; margin: 5px 0;">Returns live matches with:</p>
+                <ul style="font-size: 12px; margin: 5px 0 5px 20px;">
+                    <li>Momentum scores showing which team has the advantage</li>
+                    <li>Live model markets (Win/Draw/Win, Over/Under 2.5, Next Goal probabilities)</li>
+                    <li>Real-time match statistics and events</li>
+                    <li>Current score and match minute</li>
+                </ul>
+                <details style="margin-top: 5px;">
+                    <summary>Example Response</summary>
+                    <pre style="background: #f8f9fa; padding: 10px; font-size: 11px;">
+{
+  "matches": [{
+    "match_id": 1374266,
+    "status": "LIVE",
+    "home": {"name": "Independiente", "logo_url": "..."},
+    "away": {"name": "Atletico Tucuman", "logo_url": "..."},
+    "momentum": {
+      "home": 51.0,
+      "away": 49.0,
+      "driver_summary": {
+        "shots_on_target": "home",
+        "possession": "home"
+      },
+      "minute": 15
+    },
+    "model_markets": {
+      "win_draw_win": {
+        "home": 0.49,
+        "draw": 0.28,
+        "away": 0.23
+      },
+      "over_under": {
+        "line": 2.5,
+        "over": 0.69,
+        "under": 0.31
+      },
+      "next_goal": {
+        "home": 0.53,
+        "away": 0.31,
+        "none": 0.16
+      }
+    }
+  }]
+}</pre>
+                </details>
+            </div>
+            
+            <div class="endpoint">
+                <strong>GET /admin/stats/live-betting</strong> - Phase 2 system health metrics
+                <button onclick="testEndpoint('/admin/stats/live-betting', true)">Check Live Systems</button>
+                <p style="font-size: 12px; margin: 5px 0;">24-hour statistics for:</p>
+                <ul style="font-size: 12px; margin: 5px 0 5px 20px;">
+                    <li>Momentum engine performance</li>
+                    <li>Live market generation rates</li>
+                    <li>Stats & events collection coverage</li>
+                    <li>AI analysis generation counts</li>
+                </ul>
+            </div>
+            
+            <div class="endpoint">
+                <strong>GET /admin/stats/resolver</strong> - Fixture resolution health
+                <button onclick="testEndpoint('/admin/stats/resolver', true)">Check Resolver</button>
+                <p style="font-size: 12px; margin: 5px 0;">Tracks API-Football linkage success rates and league coverage</p>
+            </div>
+            
+            <div class="endpoint">
+                <strong>WebSocket: /ws/live/{match_id}</strong> - Real-time match updates
+                <p style="font-size: 12px; margin: 5px 0;">Connect via WebSocket for streaming updates every 60 seconds:</p>
+                <ul style="font-size: 12px; margin: 5px 0 5px 20px;">
+                    <li>Live score & minute updates</li>
+                    <li>Momentum score changes</li>
+                    <li>Updated market probabilities</li>
+                    <li>Recent events (goals, cards, subs)</li>
+                </ul>
+                <details style="margin-top: 5px;">
+                    <summary>JavaScript Example</summary>
+                    <pre style="background: #f8f9fa; padding: 10px; font-size: 11px;">
+const ws = new WebSocket('wss://your-domain/ws/live/1374266');
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Match update:', data);
+  // data includes: score, momentum, markets, events
+};
+
+ws.onopen = () => console.log('Connected to live match feed');
+ws.onerror = (error) => console.error('WebSocket error:', error);</pre>
+                </details>
+            </div>
+            
             <div id="result" class="result" style="display:none;">
                 <h4>Response:</h4>
                 <pre id="response-content"></pre>
