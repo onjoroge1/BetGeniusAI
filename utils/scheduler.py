@@ -54,6 +54,10 @@ class BackgroundScheduler:
         self.last_ai_analysis_run: Optional[datetime] = None
         # Fixture ID resolver (runs every 60 seconds to link fixtures with API-Football IDs)
         self.last_fixture_resolver_run: Optional[datetime] = None
+        # Momentum calculator (Phase 2 - runs every 60 seconds for live matches)
+        self.last_momentum_calc_run: Optional[datetime] = None
+        # Live market engine (Phase 2 - runs every 60 seconds for in-play predictions)
+        self.last_live_markets_run: Optional[datetime] = None
         # Scheduled collection state tracking (prevents duplicate runs)
         self.last_scheduled_collection_run: Optional[datetime] = None
         self.last_scheduled_collection_hour: Optional[int] = None
@@ -82,6 +86,8 @@ class BackgroundScheduler:
         logger.info("CLV Club alert producer enabled - runs every 60 seconds")
         logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
         logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
+        logger.info("📊 Phase 2 Momentum Engine enabled - runs every 60 seconds for live matches")
+        logger.info("🎲 Phase 2 Live Market Engine enabled - runs every 60 seconds for in-play predictions")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -307,6 +313,14 @@ class BackgroundScheduler:
                 # 🤖 PHASE 1: AI analysis triggers - runs every 60 seconds, checks if analysis needed
                 if "ai_analysis" not in self.last_run or (now - self.last_run["ai_analysis"]).total_seconds() >= 60:
                     await self._spawn("ai_analysis", self._run_live_ai_analysis, timeout=90)
+                
+                # 📊 PHASE 2: Momentum calculator - runs every 60 seconds for live matches
+                if "momentum_calc" not in self.last_run or (now - self.last_run["momentum_calc"]).total_seconds() >= 60:
+                    await self._spawn("momentum_calc", self._run_momentum_calculator, timeout=30)
+                
+                # 🎲 PHASE 2: Live market engine - runs every 60 seconds for in-play predictions
+                if "live_markets" not in self.last_run or (now - self.last_run["live_markets"]).total_seconds() >= 60:
+                    await self._spawn("live_markets", self._run_live_market_engine, timeout=30)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -620,6 +634,47 @@ class BackgroundScheduler:
             
         except Exception as e:
             logger.error(f"🤖 AI analysis error: {e}")
+    
+    async def _run_momentum_calculator(self):
+        """
+        📊 PHASE 2: Momentum calculator
+        Calculates 0-100 momentum scores for live matches based on:
+        - Shots on target (35% weight)
+        - Dangerous attacks (20% weight)
+        - Possession differential (10% weight)
+        - xG differential (20% weight)
+        - Odds velocity (15% weight)
+        - Discipline modifiers (red cards)
+        Uses exponential decay to emphasize recent events
+        Runs every 60 seconds
+        """
+        try:
+            from models.momentum_calculator import calculate_momentum
+            
+            logger.debug("📊 Momentum: Calculating...")
+            calculate_momentum()  # Synchronous function
+            
+        except Exception as e:
+            logger.error(f"📊 Momentum calculator error: {e}")
+    
+    async def _run_live_market_engine(self):
+        """
+        🎲 PHASE 2: Live market engine
+        Generates in-play predictions for:
+        - Win/Draw/Win (1X2 live)
+        - Over/Under 2.5 (live line)
+        - Next Goal (home/none/away)
+        Uses time-aware blending of market + pre-match model + momentum
+        Runs every 60 seconds
+        """
+        try:
+            from models.live_market_engine import compute_live_markets
+            
+            logger.debug("🎲 Live markets: Computing...")
+            compute_live_markets()  # Synchronous function
+            
+        except Exception as e:
+            logger.error(f"🎲 Live market engine error: {e}")
     
     async def _run_clv_ttl_cleanup(self):
         """Archive expired CLV alerts to history table"""

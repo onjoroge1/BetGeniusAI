@@ -127,8 +127,8 @@ def normalize_hda(h: float, d: float, a: float) -> tuple[float, float, float]:
 # Initialize FastAPI app
 app = FastAPI(
     title="BetGenius AI Backend",
-    description="AI-powered sports prediction API with transparent explanations",
-    version="1.0.0",
+    description="AI-powered sports prediction API with live betting intelligence (Phase 2)",
+    version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -136,6 +136,10 @@ app = FastAPI(
 # Phase 2: Add rate limiting state and handler
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Phase 2: Register WebSocket router for real-time streaming
+from routes.realtime import router as realtime_router
+app.include_router(realtime_router, tags=["Phase 2 - Real-time"])
 
 # Add CORS middleware
 app.add_middleware(
@@ -6078,6 +6082,50 @@ async def get_market_data(
                 
                 if odds_velocity_data:
                     match_obj["odds"]["velocity"] = odds_velocity_data
+                
+                # PHASE 2: Add momentum scores if available
+                if status == "live":
+                    cursor.execute("""
+                        SELECT momentum_home, momentum_away, driver_summary, minute
+                        FROM live_momentum
+                        WHERE match_id = %s
+                          AND updated_at > NOW() - INTERVAL '5 minutes'
+                        ORDER BY updated_at DESC
+                        LIMIT 1
+                    """, (match_id,))
+                    
+                    momentum_row = cursor.fetchone()
+                    
+                    if momentum_row:
+                        import json
+                        match_obj["momentum"] = {
+                            "home": momentum_row[0],
+                            "away": momentum_row[1],
+                            "driver_summary": json.loads(momentum_row[2]) if momentum_row[2] else {},
+                            "minute": momentum_row[3]
+                        }
+                
+                # PHASE 2: Add model markets (in-play predictions) if available
+                if status == "live":
+                    cursor.execute("""
+                        SELECT wdw, ou, next_goal, updated_at
+                        FROM live_model_markets
+                        WHERE match_id = %s
+                          AND updated_at > NOW() - INTERVAL '5 minutes'
+                        ORDER BY updated_at DESC
+                        LIMIT 1
+                    """, (match_id,))
+                    
+                    markets_row = cursor.fetchone()
+                    
+                    if markets_row:
+                        import json
+                        match_obj["model_markets"] = {
+                            "updated_at": markets_row[3].isoformat() if markets_row[3] else None,
+                            "win_draw_win": json.loads(markets_row[0]) if markets_row[0] else None,
+                            "over_under": json.loads(markets_row[1]) if markets_row[1] else None,
+                            "next_goal": json.loads(markets_row[2]) if markets_row[2] else None
+                        }
                 
                 matches.append(match_obj)
         
