@@ -5,6 +5,8 @@ BetGenius AI is a sports prediction platform that provides intelligent football 
 
 **Phase 2 Complete (Oct 2025):** Full observability stack deployed with Prometheus metrics, Grafana dashboards, closing odds capture, hardened TBD enrichment, admin rate limiting, and comprehensive operations runbook. **TBD Auto-Enrichment Phase 2 (Oct 2025):** Automated team linkage system achieving 100% success rate - all TBD fixtures automatically enriched and linked with team_ids. Enhanced /market API with team_id fields for logo display. Comprehensive QA: 90.5% pass rate, 0 failures, validating all core functionality.
 
+**Phase 1 Live Betting (Nov 2025):** ✅ COMPLETE - Real-time betting intelligence system operational. Features: live match statistics (scores, possession, shots, corners, cards), chronological events timeline (goals, cards, subs), odds velocity calculator tracking market sentiment, intelligent AI analysis triggers (time-based every 4min + >5% odds changes + significant events), enhanced /market endpoint with automatic live data enrichment, automated scheduler jobs (60s polling). Full documentation: `docs/PHASE1_LIVE_BETTING.md`
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 Production Model Decision: Use simple weighted consensus based on performance comparison showing 0.031549 LogLoss improvement over complex model.

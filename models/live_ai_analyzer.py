@@ -9,7 +9,7 @@ Intelligently triggers OpenAI analysis for live matches based on:
 import os
 import psycopg2
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import logging
 import json
 from openai import OpenAI
