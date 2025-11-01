@@ -156,18 +156,35 @@ class MomentumCalculator:
         with psycopg2.connect(self.db_url) as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
+            # Query individual event rows
             cursor.execute("""
-                SELECT events
+                SELECT 
+                    event_type,
+                    team,
+                    detail,
+                    minute,
+                    player_name
                 FROM match_events
                 WHERE match_id = %s
-                ORDER BY timestamp DESC
-                LIMIT 1
+                ORDER BY minute DESC
             """, (match_id,))
             
-            row = cursor.fetchone()
-            if row and row['events']:
-                return row['events']
-            return {}
+            rows = cursor.fetchall()
+            if not rows:
+                return {'events': []}
+            
+            # Convert to events structure
+            events = []
+            for row in rows:
+                events.append({
+                    'type': row['event_type'],
+                    'team': row['team'],
+                    'detail': row['detail'],
+                    'minute': row['minute'],
+                    'player': row['player_name']
+                })
+            
+            return {'events': events}
     
     def compute_momentum(self, match_id: int) -> Optional[Tuple[int, int, Dict]]:
         """

@@ -64,12 +64,13 @@ class LiveMarketEngine:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
             # Get latest odds for H/D/A outcomes (table is in long format)
+            # Use 7-day window to capture pre-match odds for live matches
             cursor.execute("""
                 WITH latest_snapshot AS (
                     SELECT MAX(ts_snapshot) as max_ts
                     FROM odds_snapshots
                     WHERE match_id = %s
-                      AND ts_snapshot > NOW() - INTERVAL '10 minutes'
+                      AND ts_snapshot > NOW() - INTERVAL '7 days'
                 )
                 SELECT 
                     outcome,
@@ -391,7 +392,8 @@ class LiveMarketEngine:
             
             for match in live_matches:
                 match_id = match['match_id']
-                minutes_elapsed = match['minutes_elapsed'] or 0
+                # Convert Decimal to float
+                minutes_elapsed = float(match['minutes_elapsed']) if match['minutes_elapsed'] is not None else 0.0
                 match_start = time.time()
                 status = "unknown"
                 
