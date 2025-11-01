@@ -1,0 +1,60 @@
+{
+  "passed": [
+    {
+      "test": "Health Check",
+      "status": "PASS",
+      "message": "API is responding",
+      "timestamp": "2025-11-01T21:01:41.608770"
+    },
+    {
+      "test": "Prometheus Metrics",
+      "status": "PASS",
+      "message": "All 6 Phase 2 metrics found",
+      "timestamp": "2025-11-01T21:02:10.504400",
+      "data": {
+        "metrics": [
+          "momentum_calculations_total",
+          "momentum_calculation_duration_seconds",
+          "live_market_generations_total",
+          "live_market_generation_duration_seconds",
+          "websocket_connections_active",
+          "fixture_resolution_attempts_total"
+        ]
+      }
+    }
+  ],
+  "failed": [
+    {
+      "test": "Market API (live)",
+      "status": "FAIL",
+      "message": "Error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=10)",
+      "timestamp": "2025-11-01T21:01:51.622449"
+    },
+    {
+      "test": "Market API (upcoming)",
+      "status": "FAIL",
+      "message": "Error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=10)",
+      "timestamp": "2025-11-01T21:02:01.634354"
+    },
+    {
+      "test": "WebSocket Test",
+      "status": "FAIL",
+      "message": "Setup error: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=5)",
+      "timestamp": "2025-11-01T21:02:15.521140"
+    }
+  ],
+  "warnings": [
+    {
+      "test": "Database (live_momentum)",
+      "status": "WARN",
+      "message": "Could not verify: HTTPConnectionPool(host='localhost', port=8000): Read timed out. (read timeout=5)",
+      "timestamp": "2025-11-01T21:02:06.643359"
+    },
+    {
+      "test": "Fixture ID Resolver",
+      "status": "WARN",
+      "message": "Stats endpoint not available",
+      "timestamp": "2025-11-01T21:02:10.508993"
+    }
+  ]
+}

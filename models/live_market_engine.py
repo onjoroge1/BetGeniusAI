@@ -62,26 +62,38 @@ class LiveMarketEngine:
         with psycopg2.connect(self.db_url) as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
+            # Get latest odds for H/D/A outcomes (table is in long format)
             cursor.execute("""
+                WITH latest_snapshot AS (
+                    SELECT MAX(ts_snapshot) as max_ts
+                    FROM odds_snapshots
+                    WHERE match_id = %s
+                      AND ts_snapshot > NOW() - INTERVAL '10 minutes'
+                )
                 SELECT 
-                    home_win_odds,
-                    draw_odds,
-                    away_win_odds
+                    outcome,
+                    AVG(odds_decimal) as avg_odds
                 FROM odds_snapshots
                 WHERE match_id = %s
-                  AND timestamp > NOW() - INTERVAL '10 minutes'
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """, (match_id,))
+                  AND ts_snapshot = (SELECT max_ts FROM latest_snapshot)
+                  AND market = 'h2h'
+                  AND outcome IN ('H', 'D', 'A')
+                GROUP BY outcome
+            """, (match_id, match_id))
             
-            row = cursor.fetchone()
-            if not row:
+            rows = cursor.fetchall()
+            if not rows:
                 return None
             
+            # Build odds dict
+            odds = {}
+            for row in rows:
+                odds[row['outcome']] = row['avg_odds']
+            
             # Convert odds to implied probabilities (remove vig)
-            home_prob = 1.0 / row['home_win_odds'] if row['home_win_odds'] else 0.33
-            draw_prob = 1.0 / row['draw_odds'] if row['draw_odds'] else 0.27
-            away_prob = 1.0 / row['away_win_odds'] if row['away_win_odds'] else 0.40
+            home_prob = 1.0 / odds.get('H', 3.0)
+            draw_prob = 1.0 / odds.get('D', 3.5)
+            away_prob = 1.0 / odds.get('A', 3.0)
             
             # Normalize to remove vig
             return self.normalize_probs({

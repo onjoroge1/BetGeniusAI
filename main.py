@@ -6016,13 +6016,12 @@ async def get_market_data(
                     ai_row = cursor.fetchone()
                     
                     if ai_row:
-                        import json
                         ai_analysis = {
                             "minute": ai_row[0],
                             "trigger": ai_row[1],
                             "momentum": ai_row[2],
-                            "observations": json.loads(ai_row[3]) if ai_row[3] else [],
-                            "betting_angles": json.loads(ai_row[4]) if ai_row[4] else [],
+                            "observations": ai_row[3] if ai_row[3] else [],
+                            "betting_angles": ai_row[4] if ai_row[4] else [],
                             "generated_at": ai_row[5].isoformat() if ai_row[5] else None
                         }
                     
