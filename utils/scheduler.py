@@ -48,6 +48,10 @@ class BackgroundScheduler:
         self.last_daily_brief_run: Optional[datetime] = None
         # Phase B: Fresh odds collection (HIGH PRIORITY - runs every 60 seconds)
         self.last_phase_b_run: Optional[datetime] = None
+        # Live data collection (runs every 60 seconds for live matches)
+        self.last_live_data_run: Optional[datetime] = None
+        # AI analysis triggers (runs every 60 seconds, checks if analysis needed)
+        self.last_ai_analysis_run: Optional[datetime] = None
         # Scheduled collection state tracking (prevents duplicate runs)
         self.last_scheduled_collection_run: Optional[datetime] = None
         self.last_scheduled_collection_hour: Optional[int] = None
@@ -288,6 +292,14 @@ class BackgroundScheduler:
                     if last_run_date != today_date:
                         await self._spawn("daily_brief", self._run_daily_brief, timeout=120)
                         self.last_daily_brief_run = now
+                
+                # 🔴 PHASE 1: Live data collection - runs every 60 seconds for live matches
+                if "live_data" not in self.last_run or (now - self.last_run["live_data"]).total_seconds() >= 60:
+                    await self._spawn("live_data", self._run_live_data_collection, timeout=60)
+                
+                # 🤖 PHASE 1: AI analysis triggers - runs every 60 seconds, checks if analysis needed
+                if "ai_analysis" not in self.last_run or (now - self.last_run["ai_analysis"]).total_seconds() >= 60:
+                    await self._spawn("ai_analysis", self._run_live_ai_analysis, timeout=90)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -543,6 +555,39 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"⚽ API-Football Phase B error: {e}")
+    
+    async def _run_live_data_collection(self):
+        """
+        🔴 PHASE 1: Live match data collection
+        Collects real-time scores, statistics, and events from API-Football
+        Runs every 60 seconds for live matches
+        """
+        try:
+            from models.live_data_collector import collect_live_data
+            
+            logger.debug("🔴 Live data collection: Starting...")
+            collect_live_data()  # Synchronous function
+            
+        except Exception as e:
+            logger.error(f"🔴 Live data collection error: {e}")
+    
+    async def _run_live_ai_analysis(self):
+        """
+        🤖 PHASE 1: AI analysis triggers
+        Checks all live matches and triggers OpenAI analysis when:
+        - Time interval reached (every 4 minutes)
+        - Significant odds movement (>5% change)
+        - Key events (goals, red cards)
+        Runs every 60 seconds
+        """
+        try:
+            from models.live_ai_analyzer import analyze_live_matches
+            
+            logger.debug("🤖 AI analysis: Checking live matches...")
+            analyze_live_matches()  # Synchronous function
+            
+        except Exception as e:
+            logger.error(f"🤖 AI analysis error: {e}")
     
     async def _run_clv_ttl_cleanup(self):
         """Archive expired CLV alerts to history table"""

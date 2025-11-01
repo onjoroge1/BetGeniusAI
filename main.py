@@ -5933,6 +5933,108 @@ async def get_market_data(
                     analysis = None
                     ui_hints = {"primary_model": "v1_consensus" if v1_data else None}
                 
+                # PHASE 1 ENHANCEMENT: Add live data for live matches
+                live_data = None
+                live_events = None
+                ai_analysis = None
+                odds_velocity_data = None
+                
+                if status == "live":
+                    # Get latest live statistics
+                    cursor.execute("""
+                        SELECT minute, period,
+                               home_score, away_score,
+                               home_possession, away_possession,
+                               home_shots_total, away_shots_total,
+                               home_shots_on_target, away_shots_on_target,
+                               home_corners, away_corners,
+                               home_yellow_cards, away_yellow_cards,
+                               home_red_cards, away_red_cards
+                        FROM live_match_stats
+                        WHERE match_id = %s
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    """, (match_id,))
+                    
+                    live_stats_row = cursor.fetchone()
+                    
+                    if live_stats_row:
+                        live_data = {
+                            "current_score": {
+                                "home": live_stats_row[2],
+                                "away": live_stats_row[3]
+                            },
+                            "minute": live_stats_row[0],
+                            "period": live_stats_row[1],
+                            "statistics": {
+                                "possession": {"home": live_stats_row[4], "away": live_stats_row[5]},
+                                "shots_total": {"home": live_stats_row[6], "away": live_stats_row[7]},
+                                "shots_on_target": {"home": live_stats_row[8], "away": live_stats_row[9]},
+                                "corners": {"home": live_stats_row[10], "away": live_stats_row[11]},
+                                "yellow_cards": {"home": live_stats_row[12], "away": live_stats_row[13]},
+                                "red_cards": {"home": live_stats_row[14], "away": live_stats_row[15]}
+                            }
+                        }
+                    
+                    # Get recent match events
+                    cursor.execute("""
+                        SELECT minute, event_type, team, player_name, detail
+                        FROM match_events
+                        WHERE match_id = %s
+                        ORDER BY minute DESC, timestamp DESC
+                        LIMIT 15
+                    """, (match_id,))
+                    
+                    events_rows = cursor.fetchall()
+                    
+                    if events_rows:
+                        live_events = [
+                            {
+                                "minute": row[0],
+                                "type": row[1],
+                                "team": row[2],
+                                "player": row[3],
+                                "detail": row[4]
+                            }
+                            for row in events_rows
+                        ]
+                    
+                    # Get latest AI analysis
+                    cursor.execute("""
+                        SELECT minute, trigger_reason, momentum_assessment,
+                               key_observations, betting_angles, generated_at
+                        FROM live_ai_analysis
+                        WHERE match_id = %s
+                        ORDER BY generated_at DESC
+                        LIMIT 1
+                    """, (match_id,))
+                    
+                    ai_row = cursor.fetchone()
+                    
+                    if ai_row:
+                        import json
+                        ai_analysis = {
+                            "minute": ai_row[0],
+                            "trigger": ai_row[1],
+                            "momentum": ai_row[2],
+                            "observations": json.loads(ai_row[3]) if ai_row[3] else [],
+                            "betting_angles": json.loads(ai_row[4]) if ai_row[4] else [],
+                            "generated_at": ai_row[5].isoformat() if ai_row[5] else None
+                        }
+                    
+                    # Calculate odds velocity (from existing snapshots)
+                    from models.odds_velocity import OddsVelocityCalculator
+                    velocity_calc = OddsVelocityCalculator(os.environ.get('DATABASE_URL'))
+                    velocity_result = velocity_calc.get_odds_velocity(match_id, lookback_minutes=15)
+                    
+                    if velocity_result and velocity_result.get('bookmaker'):
+                        odds_velocity_data = {
+                            "market_sentiment": velocity_result.get('market_sentiment'),
+                            "significant_movement": velocity_result.get('has_significant_movement'),
+                            "velocities": velocity_result.get('velocities', {}),
+                            "lookback_minutes": velocity_result.get('lookback_minutes')
+                        }
+                
                 # Build match object
                 match_obj = {
                     "match_id": match_id,
@@ -5963,6 +6065,19 @@ async def get_market_data(
                     "analysis": analysis,
                     "ui_hints": ui_hints
                 }
+                
+                # Add live data fields if available
+                if live_data:
+                    match_obj["live_data"] = live_data
+                
+                if live_events:
+                    match_obj["live_events"] = live_events
+                
+                if ai_analysis:
+                    match_obj["ai_analysis"] = ai_analysis
+                
+                if odds_velocity_data:
+                    match_obj["odds"]["velocity"] = odds_velocity_data
                 
                 matches.append(match_obj)
         
