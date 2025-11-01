@@ -38,9 +38,10 @@ class LiveDataCollector:
             # Get matches that kicked off in last 2 hours and aren't finished
             # Join with matches table to get API-Football fixture IDs
             cursor.execute("""
-                SELECT DISTINCT 
+                SELECT 
                     f.match_id,
-                    m.api_football_fixture_id
+                    m.api_football_fixture_id,
+                    f.kickoff_at
                 FROM fixtures f
                 LEFT JOIN matches m ON f.match_id = m.match_id
                 WHERE f.kickoff_at <= NOW()
