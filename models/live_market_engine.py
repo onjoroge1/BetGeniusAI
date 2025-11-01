@@ -85,10 +85,10 @@ class LiveMarketEngine:
             if not rows:
                 return None
             
-            # Build odds dict
+            # Build odds dict (convert Decimal to float)
             odds = {}
             for row in rows:
-                odds[row['outcome']] = row['avg_odds']
+                odds[row['outcome']] = float(row['avg_odds'])
             
             # Convert odds to implied probabilities (remove vig)
             home_prob = 1.0 / odds.get('H', 3.0)
@@ -122,10 +122,11 @@ class LiveMarketEngine:
                 # Fallback to market if no pre-match model
                 return self.get_current_market_probs(match_id)
             
+            # Convert Decimal to float
             return {
-                'home': row['consensus_h'] or 0.33,
-                'draw': row['consensus_d'] or 0.27,
-                'away': row['consensus_a'] or 0.40
+                'home': float(row['consensus_h']) if row['consensus_h'] is not None else 0.33,
+                'draw': float(row['consensus_d']) if row['consensus_d'] is not None else 0.27,
+                'away': float(row['consensus_a']) if row['consensus_a'] is not None else 0.40
             }
     
     def get_momentum_adjustment(self, match_id: int) -> Tuple[float, float]:

@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from math import exp
 import json
 import time
+from models.odds_velocity import OddsVelocityCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class MomentumCalculator:
     def __init__(self):
         self.db_url = os.getenv("DATABASE_URL")
         self.previous_live_matches = set()
+        self.odds_velocity_calculator = OddsVelocityCalculator(self.db_url)
         
         # Momentum weights (must sum to 1.0)
         self.w_shots = 0.35
@@ -119,25 +121,26 @@ class MomentumCalculator:
             return cursor.fetchall()
     
     def get_odds_velocity_window(self, match_id: int, window_minutes: int = 12) -> List[Dict]:
-        """Get odds velocity snapshots from the last N minutes"""
-        with psycopg2.connect(self.db_url) as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            cursor.execute("""
-                SELECT 
-                    match_id,
-                    timestamp,
-                    velocity_home_win,
-                    velocity_draw,
-                    velocity_away_win,
-                    EXTRACT(EPOCH FROM (NOW() - timestamp)) / 60 AS minutes_ago
-                FROM odds_velocity
-                WHERE match_id = %s
-                  AND timestamp > NOW() - INTERVAL '%s minutes'
-                ORDER BY timestamp ASC
-            """, (match_id, window_minutes))
-            
-            return cursor.fetchall()
+        """Get odds velocity data using the OddsVelocityCalculator"""
+        velocity_data = self.odds_velocity_calculator.get_odds_velocity(
+            match_id=match_id,
+            lookback_minutes=window_minutes
+        )
+        
+        if not velocity_data or velocity_data.get('market_sentiment') == 'no_data':
+            return []
+        
+        velocities = velocity_data.get('velocities', {})
+        result = [{
+            'match_id': match_id,
+            'timestamp': datetime.now(),
+            'velocity_home_win': velocities.get('home', {}).get('velocity_per_min', 0.0),
+            'velocity_draw': velocities.get('draw', {}).get('velocity_per_min', 0.0),
+            'velocity_away_win': velocities.get('away', {}).get('velocity_per_min', 0.0),
+            'minutes_ago': 0
+        }]
+        
+        return result
     
     def get_match_events(self, match_id: int) -> Dict:
         """Get match events (red cards, etc.)"""
