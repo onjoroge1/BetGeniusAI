@@ -55,7 +55,8 @@ class LiveMarketEngine:
         total = sum(probs.values())
         if total == 0:
             return probs
-        return {k: v / total for k, v in probs.items()}
+        # Ensure all values are float, not Decimal
+        return {k: float(v / total) for k, v in probs.items()}
     
     def get_current_market_probs(self, match_id: int) -> Optional[Dict[str, float]]:
         """Get current no-vig market probabilities from latest odds snapshot"""
@@ -151,9 +152,9 @@ class LiveMarketEngine:
             if not row:
                 return 0.0, 0.0
             
-            # Convert 0-100 momentum to -50 to +50 differential
-            mom_home = (row['momentum_home'] or 50) - 50
-            mom_away = (row['momentum_away'] or 50) - 50
+            # Convert 0-100 momentum to -50 to +50 differential (convert Decimal to float)
+            mom_home = (float(row['momentum_home']) if row['momentum_home'] is not None else 50) - 50
+            mom_away = (float(row['momentum_away']) if row['momentum_away'] is not None else 50) - 50
             
             # Scale to percentage points (±5 max)
             # Differential of +30 momentum → +3 p.p. boost
@@ -231,7 +232,10 @@ class LiveMarketEngine:
                 # Default: 50/50
                 return {'line': 2.5, 'over': 0.50, 'under': 0.50}
             
-            current_total = (row['home_score'] or 0) + (row['away_score'] or 0)
+            # Convert Decimal to float
+            home_score = float(row['home_score']) if row['home_score'] is not None else 0
+            away_score = float(row['away_score']) if row['away_score'] is not None else 0
+            current_total = home_score + away_score
             minutes_remaining = max(0, 90 - minutes_elapsed)
             
             # If already over 2.5, probability is 100%

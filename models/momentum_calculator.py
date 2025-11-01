@@ -118,7 +118,16 @@ class MomentumCalculator:
                 ORDER BY timestamp ASC
             """, (match_id, window_minutes))
             
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            
+            # Convert Decimal to float for all numeric fields
+            for row in rows:
+                for key in ['home_score', 'away_score', 'home_shots_on_target', 'away_shots_on_target', 
+                           'home_possession', 'away_possession', 'minutes_ago']:
+                    if row.get(key) is not None:
+                        row[key] = float(row[key])
+            
+            return rows
     
     def get_odds_velocity_window(self, match_id: int, window_minutes: int = 12) -> List[Dict]:
         """Get odds velocity data using the OddsVelocityCalculator"""
@@ -149,7 +158,7 @@ class MomentumCalculator:
             
             cursor.execute("""
                 SELECT events
-                FROM live_match_events
+                FROM match_events
                 WHERE match_id = %s
                 ORDER BY timestamp DESC
                 LIMIT 1
