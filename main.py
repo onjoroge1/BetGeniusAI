@@ -6096,12 +6096,11 @@ async def get_market_data(
                     momentum_row = cursor.fetchone()
                     
                     if momentum_row:
-                        import json
                         match_obj["momentum"] = {
-                            "home": momentum_row[0],
-                            "away": momentum_row[1],
-                            "driver_summary": json.loads(momentum_row[2]) if momentum_row[2] else {},
-                            "minute": momentum_row[3]
+                            "home": float(momentum_row[0]) if momentum_row[0] else None,
+                            "away": float(momentum_row[1]) if momentum_row[1] else None,
+                            "driver_summary": momentum_row[2] if momentum_row[2] else {},  # Already dict from JSONB
+                            "minute": int(momentum_row[3]) if momentum_row[3] else None
                         }
                 
                 # PHASE 2: Add model markets (in-play predictions) if available
@@ -6118,12 +6117,11 @@ async def get_market_data(
                     markets_row = cursor.fetchone()
                     
                     if markets_row:
-                        import json
                         match_obj["model_markets"] = {
                             "updated_at": markets_row[3].isoformat() if markets_row[3] else None,
-                            "win_draw_win": json.loads(markets_row[0]) if markets_row[0] else None,
-                            "over_under": json.loads(markets_row[1]) if markets_row[1] else None,
-                            "next_goal": json.loads(markets_row[2]) if markets_row[2] else None
+                            "win_draw_win": markets_row[0] if markets_row[0] else None,  # Already dict from JSONB
+                            "over_under": markets_row[1] if markets_row[1] else None,     # Already dict from JSONB
+                            "next_goal": markets_row[2] if markets_row[2] else None       # Already dict from JSONB
                         }
                 
                 matches.append(match_obj)
