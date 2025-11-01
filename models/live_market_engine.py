@@ -5,6 +5,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +356,13 @@ class LiveMarketEngine:
     
     def run(self):
         """Main job: compute live markets for all live matches"""
+        from models.metrics import (
+            live_market_generations_total,
+            live_market_generation_duration
+        )
+        
+        start_time = time.time()
+        
         try:
             live_matches = self.get_live_matches()
             
@@ -367,12 +375,16 @@ class LiveMarketEngine:
             for match in live_matches:
                 match_id = match['match_id']
                 minutes_elapsed = match['minutes_elapsed'] or 0
+                match_start = time.time()
+                status = "unknown"
                 
                 try:
                     markets = self.compute_live_markets(match_id, minutes_elapsed)
                     
                     if markets:
                         self.save_live_markets(match_id, markets)
+                        
+                        status = "success"
                         
                         logger.info(
                             f"✅ {match['home_team']} vs {match['away_team']}: "
@@ -381,12 +393,21 @@ class LiveMarketEngine:
                             f"{markets['win_draw_win']['away']:.2f}, "
                             f"O/U 2.5: {markets['over_under']['over']:.2f}"
                         )
+                    else:
+                        status = "no_data"
                 
                 except Exception as e:
+                    status = "error"
                     logger.error(f"❌ Error computing markets for {match_id}: {e}")
-                    continue
+                
+                finally:
+                    live_market_generations_total.labels(status=status).inc()
+                    live_market_generation_duration.observe(time.time() - match_start)
+            
+            logger.info(f"Live market generation cycle completed in {time.time() - start_time:.2f}s")
         
         except Exception as e:
+            live_market_generations_total.labels(status="fatal_error").inc()
             logger.error(f"❌ Live market engine error: {e}")
 
 

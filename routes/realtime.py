@@ -8,6 +8,7 @@ from typing import Dict, Set
 import logging
 import json
 import asyncio
+from models.metrics import websocket_connections, websocket_messages_sent
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,8 @@ async def live_feed(websocket: WebSocket, match_id: int):
         active_connections[match_id] = set()
     active_connections[match_id].add(websocket)
     
+    websocket_connections.inc()
+    
     logger.info(f"WebSocket client connected for match {match_id} "
                 f"({len(active_connections[match_id])} total)")
     
@@ -76,12 +79,14 @@ async def live_feed(websocket: WebSocket, match_id: int):
             if not active_connections[match_id]:
                 del active_connections[match_id]
         
+        websocket_connections.dec()
         logger.info(f"WebSocket client disconnected from match {match_id}")
     
     except Exception as e:
         logger.error(f"WebSocket error for match {match_id}: {e}")
         if match_id in active_connections:
             active_connections[match_id].discard(websocket)
+            websocket_connections.dec()
 
 
 async def push_update(match_id: int, payload: Dict):
@@ -102,17 +107,27 @@ async def push_update(match_id: int, payload: Dict):
         return
     
     disconnected = set()
+    message_type = payload.get('t', 'update')
+    sent_count = 0
     
     for websocket in list(active_connections[match_id]):
         try:
             await websocket.send_json(payload)
+            sent_count += 1
         except Exception as e:
             logger.warning(f"Failed to send to WebSocket client: {e}")
             disconnected.add(websocket)
     
+    if sent_count > 0:
+        websocket_messages_sent.labels(
+            match_id=str(match_id),
+            message_type=message_type
+        ).inc(sent_count)
+    
     # Clean up disconnected clients
     for ws in disconnected:
         active_connections[match_id].discard(ws)
+        websocket_connections.dec()
     
     if not active_connections[match_id]:
         del active_connections[match_id]

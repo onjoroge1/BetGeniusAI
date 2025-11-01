@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from math import exp
 import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class MomentumCalculator:
     
     def __init__(self):
         self.db_url = os.getenv("DATABASE_URL")
+        self.previous_live_matches = set()
         
         # Momentum weights (must sum to 1.0)
         self.w_shots = 0.35
@@ -336,8 +338,29 @@ class MomentumCalculator:
     
     def run(self):
         """Main job: calculate momentum for all live matches"""
+        from models.metrics import (
+            momentum_calculations_total,
+            momentum_calculation_duration,
+            momentum_differential
+        )
+        
+        start_time = time.time()
+        
         try:
             live_matches = self.get_live_matches()
+            
+            current_live_matches = {match['match_id'] for match in live_matches} if live_matches else set()
+            
+            finished_matches = self.previous_live_matches - current_live_matches
+            if finished_matches:
+                for match_id in finished_matches:
+                    try:
+                        momentum_differential.labels(match_id=str(match_id)).set(0)
+                        logger.info(f"🏁 Cleared momentum gauge for finished match {match_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to clear gauge for {match_id}: {e}")
+            
+            self.previous_live_matches = current_live_matches
             
             if not live_matches:
                 logger.info("No live matches for momentum calculation")
@@ -347,6 +370,8 @@ class MomentumCalculator:
             
             for match in live_matches:
                 match_id = match['match_id']
+                match_start = time.time()
+                status = "unknown"
                 
                 try:
                     result = self.compute_momentum(match_id)
@@ -371,17 +396,29 @@ class MomentumCalculator:
                             momentum_home, momentum_away, drivers
                         )
                         
+                        status = "success"
+                        momentum_differential.labels(match_id=str(match_id)).set(momentum_home - momentum_away)
+                        
                         logger.info(
                             f"✅ {match['home_team']} vs {match['away_team']}: "
                             f"Momentum {momentum_home}-{momentum_away} "
                             f"(drivers: {drivers})"
                         )
+                    else:
+                        status = "no_data"
                     
                 except Exception as e:
+                    status = "error"
                     logger.error(f"❌ Error calculating momentum for {match_id}: {e}")
-                    continue
+                
+                finally:
+                    momentum_calculations_total.labels(status=status).inc()
+                    momentum_calculation_duration.observe(time.time() - match_start)
+            
+            logger.info(f"Momentum calculation cycle completed in {time.time() - start_time:.2f}s")
         
         except Exception as e:
+            momentum_calculations_total.labels(status="fatal_error").inc()
             logger.error(f"❌ Momentum calculator error: {e}")
 
 

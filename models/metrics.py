@@ -1,6 +1,6 @@
 """
-CLV System Metrics
-Minimal Prometheus metrics for Phase 2 observability
+Phase 1 & Phase 2 System Metrics
+Prometheus metrics for CLV monitoring and live betting intelligence
 """
 
 from prometheus_client import Counter, Gauge, Histogram
@@ -43,4 +43,61 @@ clv_producer_duration = Histogram(
     "clv_producer_duration_seconds",
     "Duration of CLV producer cycle",
     buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0]
+)
+
+# ==== PHASE 2: LIVE BETTING INTELLIGENCE METRICS ====
+
+# Momentum calculation runs
+momentum_calculations_total = Counter(
+    "momentum_calculations_total",
+    "Total momentum calculations attempted",
+    ["status"]
+)
+
+# Momentum calculation processing time
+momentum_calculation_duration = Histogram(
+    "momentum_calculation_duration_seconds",
+    "Duration of momentum calculation",
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.0, 5.0]
+)
+
+# Current momentum differential (home - away)
+momentum_differential = Gauge(
+    "momentum_differential",
+    "Current momentum differential by match",
+    ["match_id"]
+)
+
+# Live market generation runs
+live_market_generations_total = Counter(
+    "live_market_generations_total",
+    "Total live market generation attempts",
+    ["status"]
+)
+
+# Live market generation processing time
+live_market_generation_duration = Histogram(
+    "live_market_generation_duration_seconds",
+    "Duration of live market generation",
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.0, 5.0]
+)
+
+# WebSocket active connections
+websocket_connections = Gauge(
+    "websocket_connections_active",
+    "Number of active WebSocket connections"
+)
+
+# WebSocket messages sent
+websocket_messages_sent = Counter(
+    "websocket_messages_sent_total",
+    "Total WebSocket messages broadcast",
+    ["match_id", "message_type"]
+)
+
+# Fixture ID resolution success rate
+fixture_resolution_attempts = Counter(
+    "fixture_resolution_attempts_total",
+    "Fixture ID resolution attempts",
+    ["status", "method"]
 )
