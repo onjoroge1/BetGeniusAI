@@ -109,9 +109,9 @@ class LiveMarketEngine:
             
             cursor.execute("""
                 SELECT 
-                    home_win_prob,
-                    draw_prob,
-                    away_win_prob
+                    consensus_h,
+                    consensus_d,
+                    consensus_a
                 FROM consensus_predictions
                 WHERE match_id = %s
                 LIMIT 1
@@ -123,9 +123,9 @@ class LiveMarketEngine:
                 return self.get_current_market_probs(match_id)
             
             return {
-                'home': row['home_win_prob'] or 0.33,
-                'draw': row['draw_prob'] or 0.27,
-                'away': row['away_win_prob'] or 0.40
+                'home': row['consensus_h'] or 0.33,
+                'draw': row['consensus_d'] or 0.27,
+                'away': row['consensus_a'] or 0.40
             }
     
     def get_momentum_adjustment(self, match_id: int) -> Tuple[float, float]:
