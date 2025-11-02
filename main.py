@@ -6083,7 +6083,7 @@ async def get_market_data(
                     cursor.execute(query, (limit,))
             
             elif status == "live":
-                # Get live/in-progress matches (recently kicked off, not finished) + team logos
+                # Get live/in-progress matches with FRESH data (updated in last 10 min)
                 if league_id:
                     query = """
                         SELECT DISTINCT
@@ -6102,9 +6102,14 @@ async def get_market_data(
                         LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at <= NOW()
-                            AND f.kickoff_at > NOW() - INTERVAL '2 hours'
+                            AND f.kickoff_at > NOW() - INTERVAL '4 hours'
                             AND f.status = 'scheduled'
                             AND f.league_id = %s
+                            AND EXISTS (
+                                SELECT 1 FROM live_match_stats lms
+                                WHERE lms.match_id = f.match_id
+                                AND lms.timestamp > NOW() - INTERVAL '10 minutes'
+                            )
                         ORDER BY f.kickoff_at DESC
                         LIMIT %s
                     """
@@ -6127,8 +6132,13 @@ async def get_market_data(
                         LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at <= NOW()
-                            AND f.kickoff_at > NOW() - INTERVAL '2 hours'
+                            AND f.kickoff_at > NOW() - INTERVAL '4 hours'
                             AND f.status = 'scheduled'
+                            AND EXISTS (
+                                SELECT 1 FROM live_match_stats lms
+                                WHERE lms.match_id = f.match_id
+                                AND lms.timestamp > NOW() - INTERVAL '10 minutes'
+                            )
                         ORDER BY f.kickoff_at DESC
                         LIMIT %s
                     """

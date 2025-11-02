@@ -58,6 +58,8 @@ class BackgroundScheduler:
         self.last_momentum_calc_run: Optional[datetime] = None
         # Live market engine (Phase 2 - runs every 60 seconds for in-play predictions)
         self.last_live_markets_run: Optional[datetime] = None
+        # Stale data cleanup (Phase 2 - runs every 30 minutes to remove old live data)
+        self.last_stale_cleanup_run: Optional[datetime] = None
         # Scheduled collection state tracking (prevents duplicate runs)
         self.last_scheduled_collection_run: Optional[datetime] = None
         self.last_scheduled_collection_hour: Optional[int] = None
@@ -88,6 +90,7 @@ class BackgroundScheduler:
         logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
         logger.info("📊 Phase 2 Momentum Engine enabled - runs every 60 seconds for live matches")
         logger.info("🎲 Phase 2 Live Market Engine enabled - runs every 60 seconds for in-play predictions")
+        logger.info("🗑️  Phase 2 Stale Data Cleanup enabled - runs every 30 minutes to remove old live data")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -321,6 +324,10 @@ class BackgroundScheduler:
                 # 🎲 PHASE 2: Live market engine - runs every 60 seconds for in-play predictions
                 if "live_markets" not in self.last_run or (now - self.last_run["live_markets"]).total_seconds() >= 60:
                     await self._spawn("live_markets", self._run_live_market_engine, timeout=30)
+                
+                # 🗑️ PHASE 2: Stale data cleanup - runs every 30 minutes to remove old live data
+                if "stale_cleanup" not in self.last_run or (now - self.last_run["stale_cleanup"]).total_seconds() >= 1800:
+                    await self._spawn("stale_cleanup", self._cleanup_stale_live_data, timeout=30)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -675,6 +682,68 @@ class BackgroundScheduler:
             
         except Exception as e:
             logger.error(f"🎲 Live market engine error: {e}")
+    
+    async def _cleanup_stale_live_data(self):
+        """
+        🗑️ PHASE 2: Stale data cleanup
+        Removes live match data that's older than 4 hours to prevent stale data issues
+        Also updates fixture status to 'finished' for completed matches
+        """
+        try:
+            database_url = os.environ.get('DATABASE_URL')
+            if not database_url:
+                logger.error("🗑️ Cleanup: DATABASE_URL not found")
+                return
+            
+            with psycopg2.connect(database_url) as conn:
+                with conn.cursor() as cursor:
+                    # Delete stale live match stats (>4 hours old)
+                    cursor.execute("""
+                        DELETE FROM live_match_stats
+                        WHERE timestamp < NOW() - INTERVAL '4 hours'
+                    """)
+                    deleted_stats = cursor.rowcount
+                    
+                    # Delete stale live momentum data (>4 hours old)
+                    cursor.execute("""
+                        DELETE FROM live_momentum
+                        WHERE calculated_at < NOW() - INTERVAL '4 hours'
+                    """)
+                    deleted_momentum = cursor.rowcount
+                    
+                    # Delete stale live markets (>4 hours old)
+                    cursor.execute("""
+                        DELETE FROM live_markets
+                        WHERE generated_at < NOW() - INTERVAL '4 hours'
+                    """)
+                    deleted_markets = cursor.rowcount
+                    
+                    # Update fixture status for matches that are clearly finished
+                    # (kicked off >4 hours ago and have no recent live data)
+                    cursor.execute("""
+                        UPDATE fixtures
+                        SET status = 'finished'
+                        WHERE status = 'scheduled'
+                          AND kickoff_at <= NOW()
+                          AND kickoff_at < NOW() - INTERVAL '4 hours'
+                          AND NOT EXISTS (
+                              SELECT 1 FROM live_match_stats lms
+                              WHERE lms.match_id = fixtures.match_id
+                              AND lms.timestamp > NOW() - INTERVAL '10 minutes'
+                          )
+                    """)
+                    updated_fixtures = cursor.rowcount
+                    
+                    conn.commit()
+                    
+                    if deleted_stats > 0 or deleted_momentum > 0 or deleted_markets > 0 or updated_fixtures > 0:
+                        logger.info(f"🗑️ Cleanup complete: {deleted_stats} stats, {deleted_momentum} momentum, {deleted_markets} markets deleted, {updated_fixtures} fixtures marked finished")
+            
+            self.last_run["stale_cleanup"] = datetime.utcnow()
+            
+        except Exception as e:
+            logger.error(f"🗑️ Stale data cleanup error: {e}")
+            self.last_run["stale_cleanup"] = datetime.utcnow()
     
     async def _run_clv_ttl_cleanup(self):
         """Archive expired CLV alerts to history table"""
