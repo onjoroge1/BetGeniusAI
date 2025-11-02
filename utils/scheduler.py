@@ -707,16 +707,16 @@ class BackgroundScheduler:
                     # Delete stale live momentum data (>4 hours old)
                     cursor.execute("""
                         DELETE FROM live_momentum
-                        WHERE calculated_at < NOW() - INTERVAL '4 hours'
+                        WHERE updated_at < NOW() - INTERVAL '4 hours'
                     """)
                     deleted_momentum = cursor.rowcount
                     
-                    # Delete stale live markets (>4 hours old)
+                    # Delete stale match events (>4 hours old)
                     cursor.execute("""
-                        DELETE FROM live_markets
-                        WHERE generated_at < NOW() - INTERVAL '4 hours'
+                        DELETE FROM match_events
+                        WHERE timestamp < NOW() - INTERVAL '4 hours'
                     """)
-                    deleted_markets = cursor.rowcount
+                    deleted_events = cursor.rowcount
                     
                     # Update fixture status for matches that are clearly finished
                     # (kicked off >4 hours ago and have no recent live data)
@@ -736,8 +736,8 @@ class BackgroundScheduler:
                     
                     conn.commit()
                     
-                    if deleted_stats > 0 or deleted_momentum > 0 or deleted_markets > 0 or updated_fixtures > 0:
-                        logger.info(f"🗑️ Cleanup complete: {deleted_stats} stats, {deleted_momentum} momentum, {deleted_markets} markets deleted, {updated_fixtures} fixtures marked finished")
+                    if deleted_stats > 0 or deleted_momentum > 0 or deleted_events > 0 or updated_fixtures > 0:
+                        logger.info(f"🗑️ Cleanup complete: {deleted_stats} stats, {deleted_momentum} momentum, {deleted_events} events deleted, {updated_fixtures} fixtures marked finished")
             
             self.last_run["stale_cleanup"] = datetime.utcnow()
             

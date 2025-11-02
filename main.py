@@ -6005,26 +6005,59 @@ async def get_market_data(
             
             # OPTIMIZATION 2: Single-match fast path
             if match_id:
-                # Fast path: Get specific match by ID
-                query = """
-                    SELECT DISTINCT
-                        f.match_id,
-                        f.home_team,
-                        f.away_team,
-                        f.league_id,
-                        f.league_name,
-                        f.kickoff_at,
-                        f.home_team_id,
-                        f.away_team_id,
-                        ht.logo_url as home_logo,
-                        at.logo_url as away_logo
-                    FROM fixtures f
-                    JOIN odds_snapshots os ON f.match_id = os.match_id
-                    LEFT JOIN teams ht ON f.home_team_id = ht.team_id
-                    LEFT JOIN teams at ON f.away_team_id = at.team_id
-                    WHERE f.match_id = %s
-                    LIMIT 1
-                """
+                # Fast path: Get specific match by ID (with status-based filtering)
+                if status == "live":
+                    # For live matches: check data freshness
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
+                        FROM fixtures f
+                        JOIN odds_snapshots os ON f.match_id = os.match_id
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
+                        WHERE f.match_id = %s
+                          AND f.kickoff_at <= NOW()
+                          AND f.kickoff_at > NOW() - INTERVAL '4 hours'
+                          AND f.status = 'scheduled'
+                          AND EXISTS (
+                              SELECT 1 FROM live_match_stats lms
+                              WHERE lms.match_id = f.match_id
+                              AND lms.timestamp > NOW() - INTERVAL '10 minutes'
+                          )
+                        LIMIT 1
+                    """
+                else:
+                    # For upcoming matches: just check scheduled status
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
+                        FROM fixtures f
+                        JOIN odds_snapshots os ON f.match_id = os.match_id
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
+                        WHERE f.match_id = %s
+                          AND f.kickoff_at > NOW()
+                          AND f.status = 'scheduled'
+                        LIMIT 1
+                    """
                 cursor.execute(query, (match_id,))
             
             # Step 1: Get fixtures based on status
@@ -6309,7 +6342,7 @@ async def get_market_data(
                 odds_velocity_data = None
                 
                 if status == "live":
-                    # Get latest live statistics
+                    # Get latest live statistics (only if fresh - updated in last 10 minutes)
                     cursor.execute("""
                         SELECT minute, period,
                                home_score, away_score,
@@ -6321,6 +6354,7 @@ async def get_market_data(
                                home_red_cards, away_red_cards
                         FROM live_match_stats
                         WHERE match_id = %s
+                          AND timestamp > NOW() - INTERVAL '10 minutes'
                         ORDER BY timestamp DESC
                         LIMIT 1
                     """, (match_id,))
