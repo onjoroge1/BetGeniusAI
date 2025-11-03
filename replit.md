@@ -59,7 +59,10 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Prediction API**:
     - `/predict`: V1 consensus predictions with optional AI analysis.
     - `/predict-v2`: Premium V2 SELECT endpoint (high-confidence only).
-    - `/market`: Market board showing both V1 and V2 predictions side-by-side (free tier). Includes team logos and upcoming matches filtered by time.
+    - `/market`: Market board showing both V1 and V2 predictions side-by-side (free tier). Includes team logos and supports three status filters:
+        - `status=upcoming`: Future scheduled matches
+        - `status=live`: In-progress matches with fresh data (updated within 10 minutes)
+        - `status=finished`: Completed matches with final scores and results
     - `/teams`: Frontend-friendly API for fetching teams with logos, supporting filtering and search.
 - **WebSocket Streaming**: `/ws/live/{match_id}` for real-time match event and prediction updates.
 - **Admin Endpoints**: For data management, match discovery, and training statistics.

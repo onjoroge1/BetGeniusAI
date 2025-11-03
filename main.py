@@ -6035,6 +6035,27 @@ async def get_market_data(
                           )
                         LIMIT 1
                     """
+                elif status == "finished":
+                    # For finished matches: just check finished status
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
+                        FROM fixtures f
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
+                        WHERE f.match_id = %s
+                          AND f.status = 'finished'
+                        LIMIT 1
+                    """
                 else:
                     # For upcoming matches: just check scheduled status
                     query = """
@@ -6177,8 +6198,54 @@ async def get_market_data(
                     """
                     cursor.execute(query, (limit,))
             
+            elif status == "finished":
+                # Get completed matches with results
+                if league_id:
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
+                        FROM fixtures f
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
+                        WHERE f.status = 'finished'
+                            AND f.league_id = %s
+                        ORDER BY f.kickoff_at DESC
+                        LIMIT %s
+                    """
+                    cursor.execute(query, (league_id, limit))
+                else:
+                    query = """
+                        SELECT DISTINCT
+                            f.match_id,
+                            f.home_team,
+                            f.away_team,
+                            f.league_id,
+                            f.league_name,
+                            f.kickoff_at,
+                            f.home_team_id,
+                            f.away_team_id,
+                            ht.logo_url as home_logo,
+                            at.logo_url as away_logo
+                        FROM fixtures f
+                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                        LEFT JOIN teams at ON f.away_team_id = at.team_id
+                        WHERE f.status = 'finished'
+                        ORDER BY f.kickoff_at DESC
+                        LIMIT %s
+                    """
+                    cursor.execute(query, (limit,))
+            
             else:
-                raise HTTPException(400, "Status must be 'upcoming' or 'live'")
+                raise HTTPException(400, "Status must be 'upcoming', 'live', or 'finished'")
             
             fixtures = cursor.fetchall()
             
@@ -6480,6 +6547,31 @@ async def get_market_data(
                 
                 if odds_velocity_data:
                     match_obj["odds"]["velocity"] = odds_velocity_data
+                
+                # Add final result for finished matches
+                if status == "finished":
+                    cursor.execute("""
+                        SELECT home_goals, away_goals, outcome
+                        FROM match_results
+                        WHERE match_id = %s
+                        LIMIT 1
+                    """, (match_id,))
+                    
+                    result_row = cursor.fetchone()
+                    
+                    if result_row:
+                        match_obj["final_result"] = {
+                            "score": {
+                                "home": result_row[0],
+                                "away": result_row[1]
+                            },
+                            "outcome": result_row[2],  # H/D/A
+                            "outcome_text": {
+                                "H": "Home Win",
+                                "D": "Draw",
+                                "A": "Away Win"
+                            }.get(result_row[2], "Unknown")
+                        }
                 
                 # PHASE 2: Add momentum scores if available
                 if status == "live":
