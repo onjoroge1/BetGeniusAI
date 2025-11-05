@@ -28,6 +28,7 @@ from models.response_schemas import (
     AvailabilityRequest, AvailabilityResponse, MatchAvailability, AvailabilityMeta
 )
 from utils.on_demand_consensus import build_on_demand_consensus
+from utils.betting_edge import compute_betting_intelligence, compute_live_intelligence
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -6548,6 +6549,80 @@ async def get_market_data(
                 if odds_velocity_data:
                     match_obj["odds"]["velocity"] = odds_velocity_data
                 
+                # BETTING INTELLIGENCE: Add CLV, edge, and Kelly sizing
+                betting_intel = None
+                
+                if status == "upcoming" and (v1_data or v2_data):
+                    # Use best available model (V2 if available and qualified, else V1)
+                    model_to_use = v2_data if (v2_data and analysis and analysis.get('premium_available', {}).get('v2_select_qualified')) else v1_data
+                    
+                    if model_to_use and books:
+                        try:
+                            # Extract decimal odds from best available bookmaker
+                            decimal_odds = None
+                            for book in books:
+                                if all(k in book['prices'] for k in ['home', 'draw', 'away']):
+                                    decimal_odds = book['prices']
+                                    break
+                            
+                            if decimal_odds:
+                                # Get bankroll from query params if provided (for Kelly sizing)
+                                # This is extracted from request if available via FastAPI dependency injection
+                                bankroll = None  # Frontend can pass this via query param
+                                
+                                betting_intel = compute_betting_intelligence(
+                                    model_probs=model_to_use['probs'],
+                                    decimal_odds=decimal_odds,
+                                    market_probs=novig_current,
+                                    bankroll=bankroll,
+                                    kelly_frac=0.5,  # Half Kelly (conservative)
+                                    max_kelly=0.05   # 5% max bet
+                                )
+                        except Exception as e:
+                            logger.warning(f"Betting intelligence calc failed for match {match_id}: {e}")
+                
+                elif status == "live" and live_data:
+                    # For live matches, use in-play predictions if available
+                    try:
+                        # Get live model probabilities directly from database
+                        cursor.execute("""
+                            SELECT wdw
+                            FROM live_model_markets
+                            WHERE match_id = %s
+                              AND updated_at > NOW() - INTERVAL '5 minutes'
+                            ORDER BY updated_at DESC
+                            LIMIT 1
+                        """, (match_id,))
+                        
+                        markets_row = cursor.fetchone()
+                        
+                        if markets_row and markets_row[0] and novig_current:
+                            wdw = markets_row[0]  # JSONB dict
+                            model_probs_live = {
+                                'home': wdw.get('prob_home', 0),
+                                'draw': wdw.get('prob_draw', 0),
+                                'away': wdw.get('prob_away', 0)
+                            }
+                            
+                            # Get live decimal odds
+                            decimal_odds_live = None
+                            for book in books:
+                                if all(k in book['prices'] for k in ['home', 'draw', 'away']):
+                                    decimal_odds_live = book['prices']
+                                    break
+                            
+                            if decimal_odds_live and sum(model_probs_live.values()) > 0.9:  # Validate probs
+                                betting_intel = compute_live_intelligence(
+                                    model_probs_live=model_probs_live,
+                                    market_probs_live=novig_current,
+                                    market_probs_closing=None,  # TODO: Get from closing odds table
+                                    decimal_odds_live=decimal_odds_live,
+                                    bankroll=None,
+                                    kelly_frac=0.5
+                                )
+                    except Exception as e:
+                        logger.warning(f"Live betting intelligence calc failed for match {match_id}: {e}")
+                
                 # Add final result for finished matches
                 if status == "finished":
                     cursor.execute("""
@@ -6572,6 +6647,10 @@ async def get_market_data(
                                 "A": "Away Win"
                             }.get(result_row[2], "Unknown")
                         }
+                
+                # Add betting intelligence if calculated
+                if betting_intel:
+                    match_obj["betting_intelligence"] = betting_intel
                 
                 # PHASE 2: Add momentum scores if available
                 if status == "live":

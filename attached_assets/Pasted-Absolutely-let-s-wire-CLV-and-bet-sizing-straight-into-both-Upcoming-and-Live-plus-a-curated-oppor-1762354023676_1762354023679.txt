@@ -1,0 +1,252 @@
+Absolutely—let’s wire CLV and bet-sizing straight into both Upcoming and Live, plus a curated “opportunities” feed. Below is a drop-in plan with payloads, formulas, and ready-to-paste FastAPI snippets.
+
+---
+
+# What we’ll add (quick view)
+
+1. **Augment `/market?status=upcoming`**
+
+   * Compute CLV/edge for each outcome from your model vs market probs.
+   * Include optional Kelly bet sizing (fractional).
+
+2. **Augment `/market?status=live`**
+
+   * Live in-play edge (model_inplay vs live odds).
+   * **CLV vs closing**: show how far the current line has moved since close (your realized CLV tracker).
+
+3. **New `/betting-intelligence` (curated list)**
+
+   * Filter/sort by min_edge, confidence, kickoff window, league.
+   * Optional bankroll → returns **stake suggestions** using fractional Kelly.
+
+4. **(Optional)** `/betting-intelligence/stream` (SSE)
+
+   * Push new/updated edges in real-time (e.g., every 30–60s).
+
+---
+
+# Payloads
+
+## 1) `/market?status=upcoming`
+
+Minimal add—you proposed exactly the right shape. We’ll compute `edge = model_prob - market_prob` per outcome, then choose `best_bet`.
+
+```json
+{
+  "match_id": 1234567,
+  "home": { "name": "Liverpool" },
+  "away": { "name": "Arsenal" },
+  "kickoff_at": "2025-11-05T20:00:00Z",
+  "models": {
+    "v1_consensus": { "pick": "home", "confidence": 0.54 },
+    "v2_selective": { "pick": "home", "confidence": 0.58, "selected": true }
+  },
+  "odds": {
+    "novig_current": { "home": 0.45, "draw": 0.28, "away": 0.27 }
+  },
+  "betting_intelligence": {
+    "clv": { "home": 0.13, "draw": 0.00, "away": -0.13 },
+    "best_bet": {
+      "pick": "home",
+      "edge": 0.13,
+      "confidence": "high",
+      "recommendation": "STRONG BET",
+      "implied_value": "Market underpricing by 13%"
+    },
+    "kelly_sizing": {
+      "fractional_kelly": 0.065,  // e.g., 1/2 Kelly of raw
+      "bankroll_stake": 65.00,    // if ?bankroll=1000&kelly=0.5
+      "confidence_level": "high"
+    }
+  }
+}
+```
+
+> If your market feed already provides **normalized probabilities** (`novig_current`), we use them directly. If you only have **decimal odds**, we normalize first (see formulas below).
+
+## 2) `/market?status=live`
+
+Add **in-play edge** + **CLV vs Closing** (great for explaining “we beat the close” in real time).
+
+```json
+{
+  "match_id": 1234567,
+  "status": "LIVE",
+  "clock": { "minute": 63, "stoppage": 1 },
+  "score": { "home": 1, "away": 0 },
+  "models_inplay": { "home": 0.62, "draw": 0.25, "away": 0.13 },
+  "odds": {
+    "novig_live": { "home": 0.56, "draw": 0.27, "away": 0.17 },
+    "novig_closing": { "home": 0.49, "draw": 0.28, "away": 0.23 }
+  },
+  "betting_intelligence": {
+    "edge_live": { "home": 0.06, "draw": -0.02, "away": -0.04 },
+    "clv_vs_closing": {
+      "home": +0.07,  // live vs closing (0.56 - 0.49)
+      "draw": -0.01,
+      "away": -0.06
+    },
+    "best_bet_live": {
+      "pick": "home",
+      "edge": 0.06,
+      "recommendation": "LEAN",
+      "note": "Edge exists but smaller than pre-match"
+    }
+  }
+}
+```
+
+## 3) `/betting-intelligence` (curated list)
+
+Query params:
+
+* `status=upcoming|live`
+* `min_edge=0.05` (default 0.05)
+* `model=v2_selective|v1_consensus`
+* `window_from=2025-11-05T00:00:00Z&window_to=...`
+* `leagues=39,140,...`
+* `sort_by=edge|kickoff_at`
+* `limit=50`
+* `bankroll=1000&kelly=0.5` (optional)
+
+Response: top N edges with bet plan (stake only if bankroll/kelly provided).
+
+---
+
+# Formulas (exact & safe)
+
+* If you already have **normalized market probs**:
+  `p_mkt(outcome) = novig_current[outcome]`
+
+* If you have **decimal odds** `o_home, o_draw, o_away`:
+
+  * Raw implied: `r_i = 1/o_i`
+  * Normalize: `p_mkt(i) = r_i / (r_home + r_draw + r_away)`
+
+* **Model prob**: `p_model(i)` from your chosen model (e.g., v2_selective if available, else v1).
+
+* **Edge (CLV proxy pre-bet)**: `edge(i) = p_model(i) - p_mkt(i)`
+
+* **Expected Value (EV) with decimal odds `o`**:
+
+  ```
+  EV = p_model * (o - 1) - (1 - p_model)
+  ```
+
+  > Positive EV and positive edge should generally agree; EV uses price explicitly.
+
+* **Kelly fraction** (per outcome with decimal odds `o`):
+
+  ```
+  b = o - 1
+  p = p_model
+  q = 1 - p
+  f* = (b*p - q) / b
+  ```
+
+  Clamp negatives to 0, and apply your fraction (e.g., 1/2 Kelly): `f = max(0, f*) * kelly_fraction`.
+
+---
+
+# FastAPI: drop-in compute (server side)
+
+```python
+# utils/edge.py
+from typing import Dict, Optional
+
+def normalize_from_decimal_odds(o: Dict[str, float]) -> Dict[str, float]:
+    # o = {"home": 1.90, "draw": 3.60, "away": 5.10}
+    raw = {k: 1.0/v for k, v in o.items()}
+    s = sum(raw.values())
+    return {k: v/s for k, v in raw.items()}
+
+def kelly_fraction(p: float, o: float, frac: float = 0.5) -> float:
+    b = o - 1.0
+    q = 1.0 - p
+    f_star = (b*p - q) / max(b, 1e-9)
+    return max(0.0, f_star) * frac
+
+def compute_betting_intel(
+    model_probs: Dict[str, float],
+    market_probs: Optional[Dict[str, float]] = None,
+    decimal_odds: Optional[Dict[str, float]] = None,
+    bankroll: Optional[float] = None,
+    kelly_frac: float = 0.5,
+):
+    if market_probs is None and decimal_odds is None:
+        raise ValueError("Provide market_probs or decimal_odds")
+    if market_probs is None:
+        market_probs = normalize_from_decimal_odds(decimal_odds)
+
+    outcomes = ["home", "draw", "away"]
+    clv = {k: round(model_probs[k] - market_probs[k], 4) for k in outcomes}
+    best_pick = max(outcomes, key=lambda k: clv[k])
+    edge = clv[best_pick]
+
+    kelly = None
+    if decimal_odds and bankroll:
+        stake_frac = kelly_fraction(model_probs[best_pick], decimal_odds[best_pick], kelly_frac)
+        kelly = {
+            "fractional_kelly": round(stake_frac, 4),
+            "bankroll_stake": round(bankroll * stake_frac, 2),
+            "confidence_level": "high" if edge >= 0.10 else "medium" if edge >= 0.05 else "low"
+        }
+
+    return {
+        "clv": clv,
+        "best_bet": {
+            "pick": best_pick,
+            "edge": round(edge, 4),
+            "confidence": "high" if edge >= 0.10 else "medium" if edge >= 0.05 else "low",
+            "recommendation": "STRONG BET" if edge >= 0.10 else "LEAN" if edge >= 0.03 else "PASS",
+            "implied_value": f"Market underpricing by {int(edge*100)}%"
+        },
+        "kelly_sizing": kelly
+    }
+```
+
+Then inside your `/market` assembly (for **upcoming** or **live**), after you’ve pulled `model_probs` and either `novig_*` or `decimal_odds`, call `compute_betting_intel(...)` and attach the returned block under `betting_intelligence`.
+
+---
+
+# DB & jobs (lightweight)
+
+* **No new tables required** for basic compute—do it on the fly.
+* For analytics/history, add a lightweight store:
+
+  * `edges_snapshots(match_id, ts, status, model, source, edge_home, edge_draw, edge_away, best_pick, best_edge, price_source)`
+* Your existing CLV monitor can also upsert the latest best edge per match to a `edges_latest` materialized view for very fast `/betting-intelligence`.
+
+---
+
+# Frontend UX (clear and scannable)
+
+* Sortable **“Edge %”** column; green badge when `edge ≥ 5%`, dark green for `≥ 10%`.
+* Small **sparkline** for “market prob vs time” (vs closing for live).
+* **Stake pill** if `bankroll` is provided (e.g., “Stake: 1.8% (Half-Kelly)”).
+* Filters: min edge slider, league multi-select, kickoff window, model (v1/v2).
+* Live page: show **CLV vs Closing** with a mini bar (+7%, −3%, …).
+
+---
+
+# Ops & safety
+
+* Cache edges for 30s (upcoming) and 10–15s (live) to keep responses snappy.
+* Clamp Kelly to a max (e.g., 5% of bankroll) with a server-side cap.
+* Unit tests for:
+
+  * Odds normalization (with extreme overrounds)
+  * Kelly edge cases (negative → 0)
+  * Tie-breakers when multiple outcomes have similar edges
+
+---
+
+# Ready to implement?
+
+I can ship all three in one pass:
+
+* ✅ Add CLV data to `/market?status=upcoming`
+* ✅ Add live in-play edge + CLV vs closing to `/market?status=live`
+* ✅ Create `/betting-intelligence` (with filters + optional bankroll/kelly)
+
+If you want, I’ll assume `v2_selective` as default model for edge (fallback to `v1_consensus`) and 0.5-Kelly with a 5% hard cap for stake sizing.
