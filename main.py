@@ -6553,49 +6553,30 @@ async def get_market_data(
                 betting_intel = None
                 
                 if status == "upcoming" and (v1_data or v2_data):
+                    from utils.odds_extract import extract_odds_and_probs
+                    
                     # Use best available model (V2 if available and qualified, else V1)
                     model_to_use = v2_data if (v2_data and analysis and analysis.get('premium_available', {}).get('v2_select_qualified')) else v1_data
                     
                     if model_to_use and books:
                         try:
-                            # Extract decimal odds from best available bookmaker
-                            decimal_odds = None
-                            for book in books:
-                                # Handle both dict and nested dict structures
-                                if isinstance(book, str):
-                                    logger.warning(f"Book is a string: {book}")
-                                    continue
-                                    
-                                prices = book.get('prices', {}) if isinstance(book, dict) else {}
-                                if isinstance(prices, dict) and all(k in prices for k in ['home', 'draw', 'away']):
-                                    try:
-                                        decimal_odds = {
-                                            'home': float(prices['home']),
-                                            'draw': float(prices['draw']),
-                                            'away': float(prices['away'])
-                                        }
-                                        break
-                                    except (ValueError, TypeError) as e:
-                                        logger.warning(f"Failed to convert odds to float: {e}")
-                                        continue
+                            decimal_odds, market_probs, used_book = extract_odds_and_probs(books)
                             
-                            if decimal_odds:
-                                # Get bankroll from query params if provided (for Kelly sizing)
-                                # This is extracted from request if available via FastAPI dependency injection
-                                bankroll = None  # Frontend can pass this via query param
-                                
+                            if decimal_odds or market_probs:
                                 betting_intel = compute_betting_intelligence(
                                     model_probs=model_to_use['probs'],
                                     decimal_odds=decimal_odds,
-                                    market_probs=novig_current,
-                                    bankroll=bankroll,
-                                    kelly_frac=0.5,  # Half Kelly (conservative)
-                                    max_kelly=0.05   # 5% max bet
+                                    market_probs=market_probs or novig_current,
+                                    bankroll=None,
+                                    kelly_frac=0.5,
+                                    max_kelly=0.05
                                 )
                         except Exception as e:
                             logger.warning(f"Betting intelligence calc failed for match {match_id}: {e}")
                 
                 elif status == "live" and live_data:
+                    from utils.odds_extract import extract_odds_and_probs
+                    
                     # For live matches, use in-play predictions if available
                     try:
                         # Get live model probabilities directly from database
@@ -6610,7 +6591,7 @@ async def get_market_data(
                         
                         markets_row = cursor.fetchone()
                         
-                        if markets_row and markets_row[0] and novig_current:
+                        if markets_row and markets_row[0]:
                             wdw = markets_row[0]  # JSONB dict
                             model_probs_live = {
                                 'home': wdw.get('prob_home', 0),
@@ -6618,19 +6599,10 @@ async def get_market_data(
                                 'away': wdw.get('prob_away', 0)
                             }
                             
-                            # Get live decimal odds
-                            decimal_odds_live = None
-                            for book in books:
-                                prices = book.get('prices', {})
-                                if isinstance(prices, dict) and all(k in prices for k in ['home', 'draw', 'away']):
-                                    decimal_odds_live = {
-                                        'home': float(prices['home']),
-                                        'draw': float(prices['draw']),
-                                        'away': float(prices['away'])
-                                    }
-                                    break
+                            # Extract odds using robust parser
+                            decimal_odds_live, market_probs_live, used_book = extract_odds_and_probs(books)
                             
-                            if decimal_odds_live and sum(model_probs_live.values()) > 0.9:  # Validate probs
+                            if (decimal_odds_live or market_probs_live) and sum(model_probs_live.values()) > 0.9:
                                 betting_intel = compute_live_intelligence(
                                     model_probs_live=model_probs_live,
                                     market_probs_live=novig_current,
@@ -7000,6 +6972,192 @@ async def get_betting_opportunities(
         raise
     except Exception as e:
         logger.error(f"Betting intelligence error: {e}", exc_info=True)
+        raise HTTPException(500, f"Betting intelligence unavailable: {str(e)}")
+
+
+@app.get("/betting-intelligence/{match_id}")
+async def get_match_betting_intelligence(
+    match_id: int,
+    model: str = "best",
+    bankroll: Optional[float] = None,
+    kelly_frac: float = 0.5,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get betting intelligence for a specific match
+    
+    Returns detailed betting intelligence including CLV, edge, and Kelly sizing
+    for a single match.
+    
+    Path Parameters:
+    - match_id: The unique match identifier
+    
+    Query Parameters:
+    - model: Which model to use - "v1", "v2", or "best" (default: best)
+    - bankroll: Your bankroll for Kelly sizing (optional)
+    - kelly_frac: Kelly fraction, 0.0-1.0 (default: 0.5 for half-Kelly)
+    """
+    import psycopg2
+    from models.v2_lgbm_predictor import get_v2_lgbm_predictor
+    from utils.odds_extract import extract_odds_and_probs
+    
+    try:
+        logger.info(f"🎯 MATCH BETTING INTEL | match_id={match_id}, model={model}")
+        
+        with psycopg2.connect(os.environ.get('DATABASE_URL')) as conn:
+            cursor = conn.cursor()
+            
+            # Get match details
+            cursor.execute("""
+                SELECT 
+                    f.match_id,
+                    f.home_team,
+                    f.away_team,
+                    f.league_id,
+                    f.league_name,
+                    f.kickoff_at,
+                    f.home_team_id,
+                    f.away_team_id,
+                    f.status
+                FROM fixtures f
+                WHERE f.match_id = %s
+                LIMIT 1
+            """, (match_id,))
+            
+            match_row = cursor.fetchone()
+            if not match_row:
+                raise HTTPException(404, f"Match {match_id} not found")
+            
+            (match_id, home_team, away_team, league_id, league_name, 
+             kickoff_at, home_team_id, away_team_id, match_status) = match_row
+            
+            # Get latest odds per bookmaker from odds_snapshots
+            cursor.execute("""
+                WITH latest AS (
+                    SELECT DISTINCT ON (book_id, outcome)
+                        book_id,
+                        outcome,
+                        odds_decimal,
+                        ts_snapshot
+                    FROM odds_snapshots
+                    WHERE match_id = %s AND market = 'h2h'
+                    ORDER BY book_id, outcome, ts_snapshot DESC
+                )
+                SELECT book_id,
+                       MAX(CASE WHEN outcome='H' THEN odds_decimal END) AS home,
+                       MAX(CASE WHEN outcome='D' THEN odds_decimal END) AS draw,
+                       MAX(CASE WHEN outcome='A' THEN odds_decimal END) AS away
+                FROM latest
+                GROUP BY book_id
+            """, (match_id,))
+            
+            odds_rows = cursor.fetchall()
+            if not odds_rows:
+                raise HTTPException(404, f"No odds data for match {match_id}")
+            
+            # Build bookmaker odds list
+            books = []
+            for book_id, h_odds, d_odds, a_odds in odds_rows:
+                if h_odds and d_odds and a_odds:
+                    books.append({
+                        "bookmaker": book_id,
+                        "prices": {
+                            "home": float(h_odds),
+                            "draw": float(d_odds),
+                            "away": float(a_odds)
+                        }
+                    })
+            
+            if not books:
+                raise HTTPException(404, f"No complete odds available for match {match_id}")
+            
+            # Extract odds using robust parser
+            decimal_odds, market_probs, used_book = extract_odds_and_probs(books)
+            if not (decimal_odds or market_probs):
+                raise HTTPException(404, f"Could not parse odds data for match {match_id}")
+            
+            # Get model predictions  
+            model_probs = None
+            model_used = None
+            
+            # Get V1 consensus from consensus_predictions table
+            cursor.execute("""
+                SELECT consensus_h, consensus_d, consensus_a
+                FROM consensus_predictions
+                WHERE match_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (match_id,))
+            
+            v1_row = cursor.fetchone()
+            v1_probs = None
+            if v1_row:
+                v1_probs = {
+                    'home': float(v1_row[0]),
+                    'draw': float(v1_row[1]),
+                    'away': float(v1_row[2])
+                }
+            
+            # Try V2 if requested (generate on-the-fly)
+            v2_probs = None
+            if model in ["v2", "best"] and market_probs:
+                try:
+                    v2_predictor = get_v2_lgbm_predictor()
+                    v2_result = v2_predictor.predict(market_probs)
+                    if v2_result and v2_result.get('probabilities'):
+                        v2_probs = v2_result['probabilities']
+                except Exception as e:
+                    logger.warning(f"V2 prediction failed for match {match_id}: {e}")
+            
+            # Choose model based on preference
+            if model == "v2" and v2_probs:
+                model_probs = v2_probs
+                model_used = "v2"
+            elif model == "v1" and v1_probs:
+                model_probs = v1_probs
+                model_used = "v1"
+            elif model == "best":
+                # Prefer V2 if available, else V1
+                if v2_probs:
+                    model_probs = v2_probs
+                    model_used = "v2"
+                elif v1_probs:
+                    model_probs = v1_probs
+                    model_used = "v1"
+            
+            if not model_probs:
+                raise HTTPException(404, f"No predictions available for match {match_id} (model={model})")
+            
+            # Calculate betting intelligence
+            betting_intel = compute_betting_intelligence(
+                model_probs=model_probs,
+                decimal_odds=decimal_odds,
+                market_probs=market_probs or novig_current,
+                bankroll=bankroll,
+                kelly_frac=kelly_frac,
+                max_kelly=0.05
+            )
+            
+            return {
+                "match_id": match_id,
+                "home": {"name": home_team, "team_id": home_team_id},
+                "away": {"name": away_team, "team_id": away_team_id},
+                "league": {"id": league_id, "name": league_name},
+                "kickoff_time": kickoff_at.isoformat() if kickoff_at else None,
+                "status": match_status,
+                "model_used": model_used,
+                "betting_intelligence": betting_intel,
+                "best_odds": {
+                    "bookmaker": used_book.get("bookmaker") if used_book else None,
+                    "prices": decimal_odds
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Match betting intelligence error: {e}", exc_info=True)
         raise HTTPException(500, f"Betting intelligence unavailable: {str(e)}")
 
 

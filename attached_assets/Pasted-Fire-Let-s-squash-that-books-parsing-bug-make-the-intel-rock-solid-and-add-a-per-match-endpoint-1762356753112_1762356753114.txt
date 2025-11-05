@@ -1,0 +1,253 @@
+Fire. Let’s squash that `books` parsing bug, make the intel rock-solid, and add a per-match endpoint.
+
+Here’s a tight plan with drop-in code you can paste.
+
+---
+
+# 1) Fix the odds/`books` extraction (root cause of `'str' object has no attribute 'get'`)
+
+Your `books` array is sometimes:
+
+* a dict (`{"bookmaker":"bet365","prices":{...}}`)
+* a stringified JSON blob
+* or already a normalized probs object
+
+Make the extractor resilient to all three.
+
+```python
+# utils/odds_extract.py
+from typing import Dict, Tuple, Optional, Any, List
+import json
+
+OutcomeProbs = Dict[str, float]
+OutcomeOdds  = Dict[str, float]
+
+PREFERRED_KEYS = [
+    # (path to decimal odds dict), supports multiple provider shapes
+    ("prices",),                    # {"prices":{"home":2.05,"draw":3.40,"away":3.70}}
+    ("odds", "decimal"),            # {"odds":{"decimal":{"home":2.05,...}}}
+    ("odds",),                      # {"odds":{"home":2.05,"draw":3.40,"away":3.70}}
+]
+
+def _to_dict(maybe: Any) -> Optional[dict]:
+    if isinstance(maybe, dict):
+        return maybe
+    if isinstance(maybe, str):
+        maybe = maybe.strip()
+        if maybe and (maybe[0] in "[{]" and maybe[-1] in "]}"):
+            try:
+                return json.loads(maybe)
+            except Exception:
+                return None
+    return None
+
+def _normalize_from_decimal_odds(o: OutcomeOdds) -> OutcomeProbs:
+    inv = {k: (1.0 / v) for k, v in o.items() if v and v > 0}
+    s = sum(inv.values()) or 1.0
+    return {k: inv.get(k, 0.0) / s for k in ("home", "draw", "away")}
+
+def extract_odds_and_probs(books: Any) -> Tuple[Optional[OutcomeOdds], Optional[OutcomeProbs], Optional[dict]]:
+    """
+    Returns: (decimal_odds, market_probs, best_book_obj)
+    - decimal_odds: last usable decimal odds found
+    - market_probs: normalized probabilities from decimal_odds
+    - best_book_obj: the original book dict we used (or None)
+    """
+    # Normalize books -> list of dicts
+    dict_books: List[dict] = []
+    if isinstance(books, list):
+        for b in books:
+            d = _to_dict(b)
+            if d:
+                dict_books.append(d)
+    else:
+        d = _to_dict(books)
+        if d:
+            # sometimes a single object, wrap as list
+            dict_books = [d]
+
+    # Try each book in order (latest first preferred—feel free to reverse)
+    for book in dict_books:
+        # Already probabilities?
+        # e.g., {"novig_current":{"home":0.45,"draw":0.28,"away":0.27}}
+        for prob_key in ("novig_current", "probabilities", "market_probs"):
+            mp = book.get(prob_key)
+            if isinstance(mp, dict) and all(k in mp for k in ("home", "draw", "away")):
+                return None, {k: float(mp[k]) for k in ("home", "draw", "away")}, book
+
+        # Otherwise, try to find decimal odds with known paths
+        for path in PREFERRED_KEYS:
+            node = book
+            ok = True
+            for key in path:
+                if isinstance(node, dict) and key in node:
+                    node = node[key]
+                else:
+                    ok = False
+                    break
+            if ok and isinstance(node, dict) and all(k in node for k in ("home", "draw", "away")):
+                dec = {k: float(node[k]) for k in ("home", "draw", "away")}
+                return dec, _normalize_from_decimal_odds(dec), book
+
+        # Fallback: a flat object with decimal odds?
+        if all(k in book for k in ("home", "draw", "away")):
+            try:
+                dec = {k: float(book[k]) for k in ("home", "draw", "away")}
+                return dec, _normalize_from_decimal_odds(dec), book
+            except Exception:
+                pass
+
+    # Nothing usable
+    return None, None, None
+```
+
+### How to use it in `main.py` (where you assemble each match):
+
+```python
+from utils.odds_extract import extract_odds_and_probs
+from utils.betting_edge import compute_betting_intel  # your module
+
+# ... inside the loop per match:
+decimal_odds, market_probs, used_book = extract_odds_and_probs(match.get("books"))
+if market_probs and model_probs:
+    betting_intel = compute_betting_intel(
+        model_probs=model_probs,
+        market_probs=market_probs,
+        decimal_odds=decimal_odds,   # optional but enables Kelly stake calc
+        bankroll=params.bankroll,    # if you pass ?bankroll=...
+        kelly_frac=params.kelly_frac # e.g. 0.5 for half-Kelly
+    )
+    match["betting_intelligence"] = betting_intel
+else:
+    match["betting_intelligence"] = None
+```
+
+This eliminates the `.get` crash regardless of whether `books` is JSON text, mixed shapes, or already probabilities.
+
+> Math sanity (CLV, EV, Kelly) aligns with your doc: CLV = modelProb − impliedProb; EV = p×odds − 1; Kelly = (b·p − q)/b, with b=odds−1. 
+
+---
+
+# 2) Make it work “per match id”
+
+Add a single-match endpoint and wire the same compute. You’ve got two nice paths:
+
+### A) Add a new endpoint
+
+```python
+# routes/betting_intelligence.py
+from fastapi import APIRouter, Query, HTTPException
+from utils.odds_extract import extract_odds_and_probs
+from utils.betting_edge import compute_betting_intel
+
+router = APIRouter(prefix="/betting-intelligence", tags=["betting-intelligence"])
+
+@router.get("/{match_id}")
+def betting_intel_match(
+    match_id: int,
+    model: str = Query("best"),
+    bankroll: float | None = Query(None),
+    kelly: float = Query(0.5)  # fractional kelly
+):
+    match = db.get_match_with_predictions_and_books(match_id)  # your DAO
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    # choose model probs (v2_selective else v1_consensus)
+    model_probs = pick_model_probs(match, model=model)  # implement pick logic
+
+    decimal_odds, market_probs, used_book = extract_odds_and_probs(match.get("books"))
+    if not (model_probs and (market_probs or decimal_odds)):
+        return {"match_id": match_id, "betting_intelligence": None}
+
+    bi = compute_betting_intel(
+        model_probs=model_probs,
+        market_probs=market_probs,
+        decimal_odds=decimal_odds,
+        bankroll=bankroll,
+        kelly_frac=kelly,
+    )
+    return {
+        "match_id": match_id,
+        "home": match["home"],
+        "away": match["away"],
+        "league": match.get("league"),
+        "kickoff_time": match.get("kickoff_time"),
+        "model_used": model if model != "best" else bi["best_bet"]["pick"],  # or return actual model name
+        "betting_intelligence": bi,
+        "best_odds_book": used_book and used_book.get("bookmaker"),
+    }
+```
+
+### B) Piggyback on `/market?match_id=...`
+
+If you already support `match_id` on `/market`, keep it and just return a single-element `matches` with the new `betting_intelligence` block—your frontend can consume either.
+
+---
+
+# 3) Add a curated list endpoint (you already started)
+
+You’ve built `/betting-intelligence` list—great. Keep params consistent with the doc (min_edge, model, status, league, sort). For the “per match id” flow, your clients can jump from the list → `GET /betting-intelligence/{match_id}` for a full card.
+
+> Your endpoint reference/thresholds in the doc look good (min_edge defaults, rec thresholds for STRONG/VALUE/PASS, Kelly caps). 
+
+---
+
+# 4) Defensive logging (pinpoint parsing issues fast)
+
+```python
+import logging
+log = logging.getLogger("bet-intel")
+
+try:
+    decimal_odds, market_probs, used_book = extract_odds_and_probs(match.get("books"))
+except Exception as e:
+    log.warning("Odds extraction failed for match_id=%s: %s; books=%r", match.get("match_id"), e, match.get("books"))
+    decimal_odds, market_probs, used_book = None, None, None
+
+if not (model_probs and (market_probs or decimal_odds)):
+    log.info("Skipping bet intel (missing data) match_id=%s model_probs=%r market_probs=%r decimal_odds=%r",
+             match.get("match_id"), model_probs, market_probs, decimal_odds)
+```
+
+---
+
+# 5) Frontend: per-match card (quick spec)
+
+For `/betting-intelligence/{match_id}`:
+
+* Show **Best Bet**, **Edge %**, **CLV split** (home/draw/away bars)
+* If `bankroll` passed: “Stake: X% (Half-Kelly, cap 3%)”
+* Highlight **bookmaker** offering price used
+* For live: include **CLV vs closing** line if you attach it in the response (you already planned this)
+
+> Keep the naming consistent with your doc response fields so FE stays thin. 
+
+---
+
+# 6) Quick tests (copy/paste)
+
+```bash
+# Single match intel
+curl -H "Authorization: Bearer betgenius_secure_key_2024" \
+  "https://your-domain.com/betting-intelligence/1478060?bankroll=1000&kelly=0.5"
+
+# Market with match_id (single)
+curl -H "Authorization: Bearer betgenius_secure_key_2024" \
+  "https://your-domain.com/market?match_id=1478060&status=upcoming"
+
+# Curated list, high edge
+curl -H "Authorization: Bearer betgenius_secure_key_2024" \
+  "https://your-domain.com/betting-intelligence?min_edge=0.05&limit=10"
+```
+
+---
+
+## Recap
+
+* ✅ Robust odds extractor fixes the `'str' object has no attribute 'get'` crash.
+* ✅ Betting intel now attaches cleanly for **each match**, upcoming & live.
+* ✅ New `GET /betting-intelligence/{match_id}` for the single-match deep-dive.
+* ✅ Math/thresholds consistent with your BI doc (CLV/EV/Kelly + caps). 
+
+If you want, I can also add an option to **choose best bookmaker per outcome** (shop the price that maximizes EV for the recommended pick) before computing Kelly—nice little EV boost.
