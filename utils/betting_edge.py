@@ -168,6 +168,17 @@ def compute_betting_intelligence(
     
     # Add Kelly sizing if bankroll provided
     if decimal_odds and bankroll and edge > 0:
+        # Calculate full Kelly first
+        b = decimal_odds[best_pick] - 1.0
+        q = 1.0 - model_probs[best_pick]
+        
+        if b > 0:
+            full_kelly_value = (b * model_probs[best_pick] - q) / b
+            full_kelly_value = max(0, full_kelly_value)  # Only positive
+        else:
+            full_kelly_value = 0
+        
+        # Calculate fractional Kelly with caps
         stake_fraction = kelly_fraction(
             model_probs[best_pick],
             decimal_odds[best_pick],
@@ -175,12 +186,19 @@ def compute_betting_intelligence(
             max_kelly
         )
         
+        # Convert to percentage (multiply by 100)
+        full_kelly_pct = full_kelly_value * 100
+        fractional_kelly_pct = stake_fraction * 100
+        max_stake_pct = max_kelly * 100  # 5% → 5.0
+        
+        # Cap at 3% for recommended (more conservative than max_kelly)
+        recommended_stake_pct = min(fractional_kelly_pct, 3.0)
+        
         result["kelly_sizing"] = {
-            "fractional_kelly": round(stake_fraction, 4),
-            "bankroll_stake": round(bankroll * stake_fraction, 2),
-            "confidence_level": confidence,
-            "kelly_fraction_used": kelly_frac,
-            "max_cap": max_kelly
+            "full_kelly": round(full_kelly_value, 4),  # As decimal (0.08 = 8%)
+            "fractional_kelly": round(stake_fraction, 4),  # As decimal (0.04 = 4%)
+            "recommended_stake_pct": round(recommended_stake_pct, 2),  # As percentage (2.5)
+            "max_stake_pct": round(max_stake_pct, 2)  # As percentage (5.0)
         }
         
         # Add EV calculation
