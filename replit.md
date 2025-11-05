@@ -60,10 +60,13 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
     - `/predict`: V1 consensus predictions with optional AI analysis.
     - `/predict-v2`: Premium V2 SELECT endpoint (high-confidence only).
     - `/market`: Market board showing both V1 and V2 predictions side-by-side (free tier). Includes team logos and supports three status filters:
-        - `status=upcoming`: Future scheduled matches
-        - `status=live`: In-progress matches with fresh data (updated within 10 minutes)
+        - `status=upcoming`: Future scheduled matches with embedded betting intelligence (CLV, edge, Kelly sizing)
+        - `status=live`: In-progress matches with fresh data (updated within 10 minutes) and in-play betting intelligence
         - `status=finished`: Completed matches with final scores and results
     - `/teams`: Frontend-friendly API for fetching teams with logos, supporting filtering and search.
+- **Betting Intelligence API**:
+    - `/betting-intelligence`: Curated betting opportunities combining model predictions with CLV calculations and Kelly Criterion bet sizing. Filters by edge threshold, model preference, league, and status.
+    - **Features**: Edge calculation, Closing Line Value (CLV) analysis, Kelly Criterion optimal stake sizing, fractional Kelly recommendations, risk-adjusted bet sizing with 3% bankroll cap.
 - **WebSocket Streaming**: `/ws/live/{match_id}` for real-time match event and prediction updates.
 - **Admin Endpoints**: For data management, match discovery, and training statistics.
 - **Monitoring Endpoints**: For CLV health, shadow system metrics, and model evaluation.
