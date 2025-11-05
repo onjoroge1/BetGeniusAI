@@ -9,6 +9,12 @@ Production Model Decision: Use simple weighted consensus based on performance co
 Model Performance Analysis: Model rating 6.3/10 (B Grade) with 54.3% 3-way accuracy and 62.4% 2-way accuracy. Rating corrected after fixing Brier score normalization issue (0.191 vs incorrectly reported 0.573).
 Improvement Priority: Focus on enhanced feature engineering and gradient boosting ensemble methods for immediate gains, with deep learning and reinforcement learning as longer-term research directions.
 
+## Recent Work (Nov 2025)
+- **Betting Intelligence System**: Complete implementation with per-match and curated endpoints.
+- **Robust Odds Parser**: Fixed odds extraction bugs handling stringified JSON and nested structures.
+- **Comprehensive Documentation**: Created CURL_TEST_STATEMENTS.md, FRONTEND_IMPLEMENTATION_GUIDE.md, and BETTING_INTELLIGENCE_API.md.
+- **Per-Match Endpoint**: Fully operational at `/betting-intelligence/{match_id}` with V1/V2 model support, CLV calculation, and Kelly sizing.
+
 ## System Architecture
 
 ### Backend Framework
@@ -65,8 +71,10 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
         - `status=finished`: Completed matches with final scores and results
     - `/teams`: Frontend-friendly API for fetching teams with logos, supporting filtering and search.
 - **Betting Intelligence API**:
+    - `/betting-intelligence/{match_id}`: Per-match betting intelligence with CLV, edge, Kelly sizing. Supports model selection (v1/v2/best), custom bankroll, and Kelly fraction parameters.
     - `/betting-intelligence`: Curated betting opportunities combining model predictions with CLV calculations and Kelly Criterion bet sizing. Filters by edge threshold, model preference, league, and status.
     - **Features**: Edge calculation, Closing Line Value (CLV) analysis, Kelly Criterion optimal stake sizing, fractional Kelly recommendations, risk-adjusted bet sizing with 3% bankroll cap.
+    - **Robust Odds Parser**: `utils/odds_extract.py` handles stringified JSON, nested objects, and multiple bookmaker data formats.
 - **WebSocket Streaming**: `/ws/live/{match_id}` for real-time match event and prediction updates.
 - **Admin Endpoints**: For data management, match discovery, and training statistics.
 - **Monitoring Endpoints**: For CLV health, shadow system metrics, and model evaluation.
