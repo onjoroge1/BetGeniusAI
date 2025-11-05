@@ -1,0 +1,208 @@
+Gotchu—“TBD” is a data-join/enrichment miss, not a math bug. Here’s how to kill it cleanly and make sure names/league/kickoff always show up for both upcoming + live + the per-match endpoint.
+
+# Why you’re seeing “TBD”
+
+One of these is happening:
+
+1. The per-match endpoint is pulling from `odds_snapshots` / `odds_consensus` (price tables) that don’t carry team names.
+2. The fixture join to your canonical match table is missing/incorrect.
+3. The provider→canonical ID map isn’t applied, so the join returns nulls → you render “TBD”.
+
+# The fix (3 layers)
+
+## Layer A — Always hydrate from the canonical fixture
+
+Create a single DAO that all endpoints use to fetch match context (names, league, kickoff, status), then merge odds/model on top.
+
+**SQL (Postgres)**
+
+```sql
+-- dao/get_match_context.sql
+SELECT
+  f.match_id,
+  f.kickoff_at,
+  f.status,
+  l.id        AS league_id,
+  l.name      AS league_name,
+  th.id       AS home_team_id,
+  th.name     AS home_team_name,
+  ta.id       AS away_team_id,
+  ta.name     AS away_team_name
+FROM fixtures f
+JOIN leagues l          ON l.id = f.league_id
+JOIN teams th           ON th.id = f.home_team_id
+JOIN teams ta           ON ta.id = f.away_team_id
+WHERE f.match_id = $1
+LIMIT 1;
+```
+
+**Python (DAO helper)**
+
+```python
+# dao/matches.py
+def get_match_context(db, match_id: int) -> dict | None:
+    row = db.fetch_one("dao/get_match_context.sql", (match_id,))
+    if not row:
+        return None
+    return {
+        "match_id": row["match_id"],
+        "kickoff_at": row["kickoff_at"],
+        "status": row["status"],
+        "league": {"id": row["league_id"], "name": row["league_name"]},
+        "home": {"id": row["home_team_id"], "name": row["home_team_name"]},
+        "away": {"id": row["away_team_id"], "name": row["away_team_name"]},
+    }
+```
+
+Then in **all** responses (including `/betting-intelligence/{match_id}` and `/market`), build from this context first. No context → no response (or explicit 404), never “TBD”.
+
+## Layer B — Provider→canonical ID map (avoid null joins)
+
+If you aggregate data from multiple providers, enforce a single source of truth:
+
+**Table**
+
+```sql
+-- provider_map
+-- Ensures every external id resolves to our fixtures.match_id
+CREATE TABLE IF NOT EXISTS provider_map (
+  provider       TEXT NOT NULL,
+  provider_match_id TEXT NOT NULL,
+  match_id       BIGINT NOT NULL REFERENCES fixtures(match_id),
+  PRIMARY KEY (provider, provider_match_id)
+);
+```
+
+**Usage**
+
+* When ingesting odds or predictions, resolve `match_id` via `provider_map`.
+* Only store canonical `match_id` downstream. This guarantees joins hit `fixtures`.
+
+## Layer C — Last-mile render guard (no “TBD” ever)
+
+Add a tiny guard in the serializer. If names are missing, we **return a 424** (Failed Dependency) or 503 with a clear error—not “TBD”.
+
+```python
+def assert_match_context(ctx: dict, match_id: int):
+    missing = []
+    if not ctx or not ctx.get("home", {}).get("name"): missing.append("home.name")
+    if not ctx or not ctx.get("away", {}).get("name"): missing.append("away.name")
+    if missing:
+        raise HTTPException(
+            status_code=424,
+            detail=f"Missing match context fields {missing} for match_id={match_id}. Run hydrate job."
+        )
+```
+
+Call this in both `/market` and `/betting-intelligence/{match_id}` before adding odds/model intel.
+
+---
+
+# Per-match endpoint (patched to never show TBD)
+
+```python
+# routes/betting_intelligence.py
+from fastapi import APIRouter, Query, HTTPException
+from dao.matches import get_match_context
+from utils.odds_extract import extract_odds_and_probs
+from utils.betting_edge import compute_betting_intel
+
+router = APIRouter(prefix="/betting-intelligence", tags=["betting-intelligence"])
+
+@router.get("/{match_id}")
+def betting_intel_match(
+    match_id: int,
+    model: str = Query("best"),
+    bankroll: float | None = Query(None),
+    kelly_frac: float = Query(0.5),
+):
+    ctx = get_match_context(db, match_id)
+    if not ctx:
+        raise HTTPException(404, "Match not found")
+
+    # hard guard: no “TBD”
+    if not ctx["home"]["name"] or not ctx["away"]["name"]:
+        raise HTTPException(424, "Match context incomplete; names not hydrated")
+
+    model_probs = pick_model_probs(match_id, model=model)     # your existing logic
+    books = get_books_for_match(match_id)                     # odds_snapshots/consensus
+    dec_odds, mkt_probs, used_book = extract_odds_and_probs(books)
+
+    if not model_probs or not (mkt_probs or dec_odds):
+        return { "match_id": match_id, "context": ctx, "betting_intelligence": None }
+
+    intel = compute_betting_intel(
+        model_probs=model_probs,
+        market_probs=mkt_probs,
+        decimal_odds=dec_odds,
+        bankroll=bankroll,
+        kelly_frac=kelly_frac,
+    )
+
+    return {
+        "match_id": match_id,
+        "context": ctx,   # contains names/league/kickoff, so FE never shows TBD
+        "betting_intelligence": intel,
+        "bookmaker_used": used_book and used_book.get("bookmaker"),
+    }
+```
+
+---
+
+# Backfill + guardrails (one-time + ongoing)
+
+**Backfill script** (for any existing fixtures missing names):
+
+```sql
+-- Example: hydrate fixtures from a reliable provider table (api_football_fixtures)
+UPDATE fixtures f
+SET home_team_id = p.home_team_id,
+    away_team_id = p.away_team_id
+FROM api_football_fixtures p
+WHERE f.match_id = p.match_id
+  AND (f.home_team_id IS NULL OR f.away_team_id IS NULL);
+
+-- Ensure teams table has names
+INSERT INTO teams (id, name)
+SELECT t.id, t.name
+FROM (
+    SELECT home_team_id AS id, home_team_name AS name FROM api_football_fixtures
+    UNION
+    SELECT away_team_id, away_team_name FROM api_football_fixtures
+) t
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+```
+
+**Ingestion rule:** any new record into `fixtures` must have `home_team_id`, `away_team_id` non-null. Reject otherwise.
+
+**Observability:** add a metric and log if any endpoint would have returned incomplete context.
+
+* Counter: `betintel_context_missing_total`
+* Log: `WARNING Missing match context: match_id=... fields=[...]`
+
+---
+
+# Quick validation checklist
+
+* `/betting-intelligence/{id}` returns:
+
+  * `context.home.name != None`
+  * `context.away.name != None`
+  * `league.name` present
+  * `kickoff_at` present (ISO UTC)
+* `/market?status=upcoming|live`:
+
+  * Each `match.context` populated (apply same DAO)
+* No more rendered “TBD” strings anywhere (search repo for `"TBD"` and delete fallbacks).
+
+---
+
+# Bonus (small but clutch)
+
+* **Price shopping per outcome**: choose the best available bookmaker price for the recommended pick before Kelly → bumps EV/stake slightly.
+* **Timezone**: render a `kickoff_local` alongside UTC using `America/New_York` for UX.
+* **FE**: read from `context.home.name`/`context.away.name` only; never from odds blobs.
+
+---
+
+If you plug in the DAO + guard + provider_map, the “TBD” disappears for good. Want me to draft the `pick_model_probs()` helper and `get_books_for_match()` to match your current table names so it’s fully plug-and-play?
