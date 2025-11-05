@@ -6561,9 +6561,23 @@ async def get_market_data(
                             # Extract decimal odds from best available bookmaker
                             decimal_odds = None
                             for book in books:
-                                if all(k in book['prices'] for k in ['home', 'draw', 'away']):
-                                    decimal_odds = book['prices']
-                                    break
+                                # Handle both dict and nested dict structures
+                                if isinstance(book, str):
+                                    logger.warning(f"Book is a string: {book}")
+                                    continue
+                                    
+                                prices = book.get('prices', {}) if isinstance(book, dict) else {}
+                                if isinstance(prices, dict) and all(k in prices for k in ['home', 'draw', 'away']):
+                                    try:
+                                        decimal_odds = {
+                                            'home': float(prices['home']),
+                                            'draw': float(prices['draw']),
+                                            'away': float(prices['away'])
+                                        }
+                                        break
+                                    except (ValueError, TypeError) as e:
+                                        logger.warning(f"Failed to convert odds to float: {e}")
+                                        continue
                             
                             if decimal_odds:
                                 # Get bankroll from query params if provided (for Kelly sizing)
@@ -6607,8 +6621,13 @@ async def get_market_data(
                             # Get live decimal odds
                             decimal_odds_live = None
                             for book in books:
-                                if all(k in book['prices'] for k in ['home', 'draw', 'away']):
-                                    decimal_odds_live = book['prices']
+                                prices = book.get('prices', {})
+                                if isinstance(prices, dict) and all(k in prices for k in ['home', 'draw', 'away']):
+                                    decimal_odds_live = {
+                                        'home': float(prices['home']),
+                                        'draw': float(prices['draw']),
+                                        'away': float(prices['away'])
+                                    }
                                     break
                             
                             if decimal_odds_live and sum(model_probs_live.values()) > 0.9:  # Validate probs
@@ -6709,6 +6728,279 @@ async def get_market_data(
     except Exception as e:
         logger.error(f"Market error: {e}", exc_info=True)
         raise HTTPException(500, f"Market data unavailable: {str(e)}")
+
+
+@app.get("/betting-intelligence")
+async def get_betting_opportunities(
+    status: str = "upcoming",
+    min_edge: float = 0.05,
+    model: str = "best",  # "v1", "v2", or "best" (auto-select)
+    league_ids: Optional[str] = None,  # Comma-separated league IDs
+    sort_by: str = "edge",  # "edge", "kickoff_at", "confidence"
+    limit: int = 50,
+    bankroll: Optional[float] = None,  # For Kelly sizing
+    kelly_frac: float = 0.5,  # Half Kelly by default
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Curated betting opportunities with positive expected value
+    
+    Returns matches with significant edge (CLV > threshold) sorted by opportunity quality.
+    Perfect for identifying value bets and building a betting portfolio.
+    
+    Query Parameters:
+    - status: "upcoming" or "live" (default: upcoming)
+    - min_edge: Minimum edge/CLV threshold, 0.0-1.0 (default: 0.05 = 5%)
+    - model: Which model to use - "v1", "v2", or "best" (default: best)
+    - league_ids: Filter by league IDs (comma-separated, e.g., "39,140,61")
+    - sort_by: Sort criterion - "edge", "kickoff_at", "confidence" (default: edge)
+    - limit: Max number of opportunities to return (default: 50)
+    - bankroll: Your bankroll for Kelly sizing (optional)
+    - kelly_frac: Kelly fraction to use, 0.0-1.0 (default: 0.5 for half-Kelly)
+    
+    Response includes:
+    - CLV/edge for each outcome
+    - Best bet recommendation
+    - Optional Kelly bet sizing (if bankroll provided)
+    - Confidence levels and risk metrics
+    """
+    import psycopg2
+    from models.v2_lgbm_predictor import get_v2_lgbm_predictor
+    
+    try:
+        logger.info(f"🎯 BETTING INTEL REQUEST | status={status}, min_edge={min_edge}, model={model}, leagues={league_ids}, sort={sort_by}, limit={limit}")
+        
+        opportunities = []
+        
+        # Parse league filter
+        league_filter = None
+        if league_ids:
+            try:
+                league_filter = [int(lid) for lid in league_ids.split(',')]
+            except ValueError:
+                raise HTTPException(400, "Invalid league_ids format. Use comma-separated integers.")
+        
+        # Validate parameters
+        if min_edge < 0 or min_edge > 1:
+            raise HTTPException(400, "min_edge must be between 0.0 and 1.0")
+        
+        if kelly_frac < 0 or kelly_frac > 1:
+            raise HTTPException(400, "kelly_frac must be between 0.0 and 1.0")
+        
+        if sort_by not in ["edge", "kickoff_at", "confidence"]:
+            raise HTTPException(400, "sort_by must be 'edge', 'kickoff_at', or 'confidence'")
+        
+        with psycopg2.connect(os.environ.get('DATABASE_URL')) as conn:
+            cursor = conn.cursor()
+            
+            # Build query based on status
+            if status == "upcoming":
+                base_query = """
+                    SELECT DISTINCT
+                        f.match_id,
+                        f.home_team,
+                        f.away_team,
+                        f.league_id,
+                        f.league_name,
+                        f.kickoff_at,
+                        f.home_team_id,
+                        f.away_team_id
+                    FROM fixtures f
+                    JOIN odds_snapshots os ON f.match_id = os.match_id
+                    WHERE f.kickoff_at > NOW()
+                        AND f.status = 'scheduled'
+                """
+            elif status == "live":
+                base_query = """
+                    SELECT DISTINCT
+                        f.match_id,
+                        f.home_team,
+                        f.away_team,
+                        f.league_id,
+                        f.league_name,
+                        f.kickoff_at,
+                        f.home_team_id,
+                        f.away_team_id
+                    FROM fixtures f
+                    JOIN odds_snapshots os ON f.match_id = os.match_id
+                    WHERE f.kickoff_at <= NOW()
+                        AND f.kickoff_at > NOW() - INTERVAL '4 hours'
+                        AND f.status = 'scheduled'
+                        AND EXISTS (
+                            SELECT 1 FROM live_match_stats lms
+                            WHERE lms.match_id = f.match_id
+                            AND lms.timestamp > NOW() - INTERVAL '10 minutes'
+                        )
+                """
+            else:
+                raise HTTPException(400, "status must be 'upcoming' or 'live'")
+            
+            # Add league filter if provided
+            if league_filter:
+                base_query += f" AND f.league_id = ANY(%s)"
+                cursor.execute(base_query + " ORDER BY f.kickoff_at ASC", (league_filter,))
+            else:
+                cursor.execute(base_query + " ORDER BY f.kickoff_at ASC")
+            
+            matches = cursor.fetchall()
+            
+            logger.info(f"📊 Found {len(matches)} candidate matches for edge analysis")
+            
+            # Load V2 predictor if needed
+            v2_predictor = None
+            if model in ["v2", "best"]:
+                try:
+                    v2_predictor = get_v2_lgbm_predictor()
+                except Exception as e:
+                    logger.warning(f"V2 predictor unavailable: {e}")
+            
+            # Process each match and calculate edges
+            for row in matches:
+                match_id, home_team, away_team, league_id, league_name, kickoff_at, home_team_id, away_team_id = row
+                
+                try:
+                    # Get odds
+                    cursor.execute("""
+                        WITH latest AS (
+                            SELECT DISTINCT ON (book_id, outcome)
+                                book_id,
+                                outcome,
+                                odds_decimal,
+                                ts_snapshot
+                            FROM odds_snapshots
+                            WHERE match_id = %s AND market = 'h2h'
+                            ORDER BY book_id, outcome, ts_snapshot DESC
+                        )
+                        SELECT book_id, 
+                               json_object_agg(outcome, odds_decimal) as prices
+                        FROM latest
+                        GROUP BY book_id
+                    """, (match_id,))
+                    
+                    odds_rows = cursor.fetchall()
+                    if not odds_rows:
+                        continue
+                    
+                    # Get first bookmaker's odds for calculations
+                    decimal_odds = odds_rows[0][1]
+                    if not all(k in decimal_odds for k in ['home', 'draw', 'away']):
+                        continue
+                    
+                    # Calculate market probabilities
+                    from utils.betting_edge import normalize_from_decimal_odds
+                    market_probs = normalize_from_decimal_odds(decimal_odds)
+                    
+                    # Get model predictions
+                    cursor.execute("""
+                        SELECT home_prob, draw_prob, away_prob
+                        FROM consensus_predictions
+                        WHERE match_id = %s
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                    """, (match_id,))
+                    
+                    v1_row = cursor.fetchone()
+                    model_probs = None
+                    model_used = "v1_consensus"
+                    
+                    if v1_row:
+                        v1_probs = {'home': float(v1_row[0]), 'draw': float(v1_row[1]), 'away': float(v1_row[2])}
+                        model_probs = v1_probs
+                    
+                    # Try V2 if available and requested
+                    if v2_predictor and model in ["v2", "best"]:
+                        try:
+                            v2_result = v2_predictor.predict(market_probs)
+                            if v2_result:
+                                v2_probs = v2_result['probabilities']
+                                v2_conf = v2_result['confidence']
+                                
+                                # Use V2 if it's high confidence or model="v2" explicitly requested
+                                if model == "v2" or (model == "best" and v2_conf >= 0.62):
+                                    model_probs = v2_probs
+                                    model_used = "v2_lightgbm"
+                        except Exception as e:
+                            logger.debug(f"V2 prediction failed for {match_id}: {e}")
+                    
+                    if not model_probs:
+                        continue
+                    
+                    # Calculate betting intelligence
+                    betting_intel = compute_betting_intelligence(
+                        model_probs=model_probs,
+                        decimal_odds=decimal_odds,
+                        market_probs=market_probs,
+                        bankroll=bankroll,
+                        kelly_frac=kelly_frac,
+                        max_kelly=0.05
+                    )
+                    
+                    # Filter by minimum edge
+                    if betting_intel['best_bet']['edge'] < min_edge:
+                        continue
+                    
+                    # Build opportunity object
+                    opportunity = {
+                        "match_id": match_id,
+                        "home_team": home_team,
+                        "away_team": away_team,
+                        "league": {
+                            "id": league_id,
+                            "name": league_name
+                        },
+                        "kickoff_at": kickoff_at.isoformat() if kickoff_at else None,
+                        "model_used": model_used,
+                        "betting_intelligence": betting_intel,
+                        "decimal_odds": decimal_odds,
+                        "market_probs": market_probs,
+                        "model_probs": model_probs
+                    }
+                    
+                    opportunities.append(opportunity)
+                
+                except Exception as e:
+                    logger.warning(f"Failed to process match {match_id}: {e}")
+                    continue
+            
+            # Sort opportunities
+            if sort_by == "edge":
+                opportunities.sort(key=lambda x: x['betting_intelligence']['best_bet']['edge'], reverse=True)
+            elif sort_by == "kickoff_at":
+                opportunities.sort(key=lambda x: x['kickoff_at'])
+            elif sort_by == "confidence":
+                conf_order = {"high": 3, "medium": 2, "low": 1, "none": 0}
+                opportunities.sort(
+                    key=lambda x: conf_order.get(x['betting_intelligence']['best_bet']['confidence'], 0),
+                    reverse=True
+                )
+            
+            # Limit results
+            opportunities = opportunities[:limit]
+            
+            logger.info(f"✅ BETTING INTEL: Returned {len(opportunities)} opportunities (min_edge={min_edge})")
+            
+            return {
+                "opportunities": opportunities,
+                "total_count": len(opportunities),
+                "filters": {
+                    "status": status,
+                    "min_edge": min_edge,
+                    "model": model,
+                    "league_ids": league_filter,
+                    "sort_by": sort_by
+                },
+                "kelly_params": {
+                    "bankroll": bankroll,
+                    "kelly_fraction": kelly_frac
+                } if bankroll else None,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Betting intelligence error: {e}", exc_info=True)
+        raise HTTPException(500, f"Betting intelligence unavailable: {str(e)}")
 
 
 def resolve_bookmaker_name(book_id: str, cursor) -> str:
