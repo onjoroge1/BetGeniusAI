@@ -421,13 +421,17 @@ class V2FeatureBuilder:
         else:
             condition = "away_team_id = :team_id AND outcome = 'A'"
         
+        # Use subquery to properly limit before counting
         query = text(f"""
             SELECT COUNT(*) as wins
-            FROM training_matches
-            WHERE {condition}
-                AND match_date < :cutoff_time
-            ORDER BY match_date DESC
-            LIMIT :n_matches
+            FROM (
+                SELECT 1
+                FROM training_matches
+                WHERE {condition}
+                    AND match_date < :cutoff_time
+                ORDER BY match_date DESC
+                LIMIT :n_matches
+            ) subq
         """)
         
         with self.engine.connect() as conn:
