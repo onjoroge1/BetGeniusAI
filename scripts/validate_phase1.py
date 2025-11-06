@@ -232,15 +232,25 @@ class Phase1Validator:
             logger.error(f"❌ No predictions to evaluate for {name}")
             return
         
+        # Filter out rows with missing data
+        df_eval = df_eval.dropna(subset=['outcome_numeric', 'proba_away', 'proba_draw', 'proba_home',
+                                          'price_away', 'price_draw', 'price_home'])
+        
+        logger.info(f"   Evaluating {len(df_eval)} predictions after dropping NaNs")
+        
+        if len(df_eval) == 0:
+            logger.error(f"❌ No valid predictions after filtering NaNs")
+            return
+        
         # Prepare evaluation DataFrame
         eval_df = pd.DataFrame({
-            'outcome': df_eval['outcome_numeric'],
-            'proba_away': df_eval['proba_away'],
-            'proba_draw': df_eval['proba_draw'],
-            'proba_home': df_eval['proba_home'],
-            'price_away': df_eval['price_away'],
-            'price_draw': df_eval['price_draw'],
-            'price_home': df_eval['price_home']
+            'outcome': df_eval['outcome_numeric'].astype(int),
+            'proba_away': df_eval['proba_away'].astype(float),
+            'proba_draw': df_eval['proba_draw'].astype(float),
+            'proba_home': df_eval['proba_home'].astype(float),
+            'price_away': df_eval['price_away'].astype(float),
+            'price_draw': df_eval['price_draw'].astype(float),
+            'price_home': df_eval['price_home'].astype(float)
         })
         
         # Run evaluation

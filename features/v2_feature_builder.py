@@ -458,13 +458,16 @@ class V2FeatureBuilder:
                 SUM(CASE WHEN outcome = 'H' THEN 1 ELSE 0 END) as home_wins,
                 SUM(CASE WHEN outcome = 'D' THEN 1 ELSE 0 END) as draws,
                 SUM(CASE WHEN outcome = 'A' THEN 1 ELSE 0 END) as away_wins
-            FROM training_matches
-            WHERE ((home_team_id = :home_id AND away_team_id = :away_id)
-                   OR (home_team_id = :away_id AND away_team_id = :home_id))
-                AND match_date < :cutoff_time
-                AND outcome IS NOT NULL
-            ORDER BY match_date DESC
-            LIMIT 5
+            FROM (
+                SELECT outcome
+                FROM training_matches
+                WHERE ((home_team_id = :home_id AND away_team_id = :away_id)
+                       OR (home_team_id = :away_id AND away_team_id = :home_id))
+                    AND match_date < :cutoff_time
+                    AND outcome IS NOT NULL
+                ORDER BY match_date DESC
+                LIMIT 5
+            ) recent_h2h
         """)
         
         with self.engine.connect() as conn:
