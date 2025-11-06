@@ -10,10 +10,11 @@ Model Performance Analysis: Model rating 6.3/10 (B Grade) with 54.3% 3-way accur
 Improvement Priority: Focus on enhanced feature engineering and gradient boosting ensemble methods for immediate gains, with deep learning and reinforcement learning as longer-term research directions.
 
 ## Recent Work (Nov 2025)
+- **Phase 1 Complete (Architect-Approved)**: Restored V2 model from 12/46 to 46/46 features, fixing critical feature pipeline disconnection that caused 10-15% accuracy loss. Created V2FeatureBuilder with time-based cutoffs, LRU caching, and graceful defaults. Implemented feature parity validation guard and dual-path architecture with observability.
+- **Phase 2 Foundation (Architect-Approved)**: Applied schema extensions (5 new tables: players, referees, match_weather, match_context, data_lineage). Updated backfill agent with gap discovery SQL for Phase 2 tables. Created fetcher interfaces (LineupFetcher, RefereeFeature, WeatherFetcher, ContextComputer) with FetchResult contract. Built DatabaseContextComputer calculating rest days and schedule congestion from existing data.
+- **Phase 1 Validation Script**: Comprehensive acceptance testing with betting-centric metrics (LogLoss, Brier Score, ECE, Expected Value, CLV, Kelly ROI, Sharpe Ratio). Tests feature parity, accuracy improvement, calibration, profitability, and latency against acceptance criteria.
 - **Betting Intelligence System**: Complete implementation with per-match and curated endpoints.
 - **Robust Odds Parser**: Fixed odds extraction bugs handling stringified JSON and nested structures.
-- **Comprehensive Documentation**: Created CURL_TEST_STATEMENTS.md, FRONTEND_IMPLEMENTATION_GUIDE.md, and BETTING_INTELLIGENCE_API.md.
-- **Per-Match Endpoint**: Fully operational at `/betting-intelligence/{match_id}` with V1/V2 model support, CLV calculation, and Kelly sizing.
 
 ## System Architecture
 
