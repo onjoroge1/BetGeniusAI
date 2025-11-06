@@ -92,65 +92,31 @@ class GapDiscovery:
     
     def discover_missing_lineups(self, limit: int = 1000) -> List[BackfillTask]:
         """
-        Find matches without player availability data
+        Find matches without player availability data (Phase 2)
         
         Returns list of tasks ordered by priority
         """
-        query = """
-            SELECT 
-                tm.match_id,
-                tm.league_id,
-                tm.season,
-                tm.match_date,
-                tm.home_team,
-                tm.away_team
-            FROM training_matches tm
-            LEFT JOIN player_availability pa ON tm.match_id = pa.match_id
-            WHERE pa.match_id IS NULL
-              AND tm.match_date >= '2020-01-01'  -- Don't backfill ancient history
-              AND tm.outcome IS NOT NULL  -- Only finished matches
-            ORDER BY tm.match_date DESC
-            LIMIT %s
-        """
-        
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(query, (limit,))
-            matches = cur.fetchall()
-        
-        tasks = []
-        for m in matches:
-            tier = self.league_tiers.get(m['league_id'], 3)
-            priority = BackfillTask.calculate_priority(
-                m['league_id'], 
-                m['match_date'],
-                tier
-            )
-            
-            task = BackfillTask(
-                priority=priority,
-                match_id=m['match_id'],
-                league_id=m['league_id'],
-                season=m['season'],
-                match_date=m['match_date'],
-                missing_data={'lineups'}
-            )
-            tasks.append(task)
-        
-        logger.info(f"🔍 Discovered {len(tasks)} matches missing lineups")
-        return tasks
+        # Note: player_availability table created in Phase 2
+        # For now, return empty until we start collecting
+        logger.info("   Lineup discovery: Skipping (table created, collection not started)")
+        return []
     
     def discover_missing_referees(self, limit: int = 1000) -> List[BackfillTask]:
-        """Find matches without referee assignments"""
+        """Find matches without referee assignments (Phase 2)"""
+        # Note: Referees table created, but no ref_id in training_matches yet
+        # Using simple version for now
+        logger.info("   Referee discovery: Checking for gaps...")
+        
+        # For now, return all recent matches as needing referee data
         query = """
             SELECT 
                 tm.match_id,
                 tm.league_id,
                 tm.season,
-                tm.match_date
+                tm.match_date as kickoff_at
             FROM training_matches tm
-            LEFT JOIN match_referees mr ON tm.match_id = mr.match_id
-            WHERE mr.match_id IS NULL
-              AND tm.match_date >= '2020-01-01'
+            WHERE tm.match_date >= '2023-01-01'
+              AND tm.match_date < NOW()
               AND tm.outcome IS NOT NULL
             ORDER BY tm.match_date DESC
             LIMIT %s
@@ -183,17 +149,18 @@ class GapDiscovery:
         return tasks
     
     def discover_missing_weather(self, limit: int = 500) -> List[BackfillTask]:
-        """Find matches without weather data (last 2 years only)"""
+        """Find matches without weather data (last 2 years only) - Phase 2"""
         query = """
             SELECT 
                 tm.match_id,
                 tm.league_id,
                 tm.season,
-                tm.match_date
+                tm.match_date as kickoff_at
             FROM training_matches tm
             LEFT JOIN match_weather mw ON tm.match_id = mw.match_id
             WHERE mw.match_id IS NULL
               AND tm.match_date >= NOW() - INTERVAL '2 years'
+              AND tm.match_date < NOW()
               AND tm.outcome IS NOT NULL
             ORDER BY tm.match_date DESC
             LIMIT %s
@@ -226,17 +193,18 @@ class GapDiscovery:
         return tasks
     
     def discover_missing_context(self, limit: int = 1000) -> List[BackfillTask]:
-        """Find matches without match_context (rest days, schedule, etc.)"""
+        """Find matches without match_context (rest days, schedule, etc.) - Phase 2"""
         query = """
             SELECT 
                 tm.match_id,
                 tm.league_id,
                 tm.season,
-                tm.match_date
+                tm.match_date as kickoff_at
             FROM training_matches tm
             LEFT JOIN match_context mc ON tm.match_id = mc.match_id
             WHERE mc.match_id IS NULL
               AND tm.match_date >= '2020-01-01'
+              AND tm.match_date < NOW()
               AND tm.outcome IS NOT NULL
             ORDER BY tm.match_date DESC
             LIMIT %s

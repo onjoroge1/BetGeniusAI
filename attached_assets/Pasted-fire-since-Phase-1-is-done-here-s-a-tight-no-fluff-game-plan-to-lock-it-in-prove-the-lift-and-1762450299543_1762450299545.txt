@@ -1,0 +1,227 @@
+fire. since Phase 1 is “done,” here’s a tight, no-fluff game plan to lock it in, prove the lift, and prep the Phase-2/3 upgrades without breaking prod.
+
+NOW — lock in the win (prove it, observe it, guard it)
+
+A) Acceptance tests (must pass before we trust v2 in prod)
+	•	Feature parity
+	•	≥99.5% of prod predictions report feature_source='full_pipeline' over last N matches.
+	•	missing_features_count Prometheus gauge = 0 for last 24h.
+	•	Accuracy + money (vs. your 2024 holdout slice)
+	•	logloss_v2_full < logloss_v2_market_only
+	•	ECE_v2_full < 0.05 (or better than prior)
+	•	avg_CLV_delta_v2_full > 0 and %CLV_beats_closing > 50%
+	•	flat_stake_roi_v2_full ≥ flat_stake_roi_market_only
+	•	Latency/SLO
+	•	feature_builder_latency_p95 < 500ms
+	•	predict_latency_p95 < 250ms (excluding feature build)
+
+B) Observability (paste these metric names)
+
+Emit these counters/gauges/timers in the predictor path:
+	•	v2_feature_parity_failures_total{reason}
+	•	v2_feature_source_count{source="full_pipeline|market_only"}
+	•	v2_feature_builder_latency_ms (histogram)
+	•	v2_predict_latency_ms (histogram)
+	•	v2_eval_avg_ev, v2_eval_avg_clv_delta, %clv_beats
+	•	v2_eval_logloss, v2_eval_brier, v2_eval_ece
+	•	v2_pipeline_errors_total{stage}
+
+Alerts (Grafana/Prometheus):
+	•	Parity failures > 0 for 10m.
+	•	%clv_beats drops below baseline by >5pp over 500 bets.
+	•	p95 latency > budget for 30m.
+
+C) Canary + rollback
+	•	Route 10% of traffic to full-pipeline; compare EV/CLV vs. legacy.
+	•	Auto-rollback if: parity failures > 0, or EV/CLV significantly regress, or latency SLO breach.
+
+⸻
+
+NEXT — production validation + data flow
+
+1) Quick validation run (script)
+
+Use your new harness; log to a table for dashboards.
+
+# scripts/validate_v2.py
+df = load_holdout_2024()  # includes outcomes, open/mid/close odds
+pred_full = run_v2_full(df.matches)   # uses 46 features
+pred_mkt  = run_v2_market(df.matches) # legacy 12 features
+
+m_full = evaluate_predictions(join(df, pred_full))  # returns dict
+m_mkt  = evaluate_predictions(join(df, pred_mkt))
+
+persist_metrics("v2_full", m_full)
+persist_metrics("v2_market", m_mkt)
+print(m_full, m_mkt)
+
+Acceptance: m_full["logloss"] < m_mkt["logloss"], m_full["avg_clv_delta"] > 0, ECE improves, ROI ≥.
+
+2) Data quality tripwires
+	•	Odds sanity: margin in [2%,15%], decimal odds ≥ 1.01.
+	•	Time sanity: no features built after kickoff_at for pre-match; freeze T-60/T-15 snapshots.
+	•	NA guard: hard fail prediction if any of the 46 required columns NA after imputation.
+
+⸻
+
+PHASE-2 — enrichment rails (ship schema now, fill it continuously)
+
+A) “Gap discovery” SQL (paste into your backfill agent)
+
+Missing lineups / availability
+
+-- matches with no player_availability
+select m.match_id, m.league_id, m.season, m.kickoff_at
+from matches m
+left join player_availability pa on pa.match_id = m.match_id
+where m.kickoff_at < now()
+group by m.match_id, m.league_id, m.season, m.kickoff_at
+having count(pa.player_id) = 0
+order by m.kickoff_at desc
+limit 2000;
+
+Missing referee
+
+select m.match_id, m.league_id, m.season, m.kickoff_at
+from matches m
+left join referees r on r.ref_id = m.ref_id
+where m.kickoff_at < now() and (m.ref_id is null)
+order by m.kickoff_at desc
+limit 2000;
+
+Missing weather
+
+select m.match_id, m.venue_lat, m.venue_lon, m.kickoff_at
+from matches m
+left join match_weather w on w.match_id = m.match_id
+where m.kickoff_at < now() and w.match_id is null
+order by m.kickoff_at desc
+limit 2000;
+
+Missing schedule context
+
+select m.match_id, m.home_team_id, m.away_team_id, m.kickoff_at
+from matches m
+left join match_context c on c.match_id = m.match_id
+where m.kickoff_at < now() and c.match_id is null
+order by m.kickoff_at desc
+limit 2000;
+
+B) Fetcher interfaces (keep it dumb + testable)
+
+# agents/fetchers/interfaces.py
+class LineupFetcher:
+    def fetch(self, match_id: int) -> dict: ...  # {players:[{id,status,minutes,reason}]}
+
+class RefFetcher:
+    def fetch(self, match_id: int) -> dict: ...  # {ref:{name,card_rate,home_bias_index}}
+
+class WeatherFetcher:
+    def fetch(self, lat: float, lon: float, kickoff_at: str) -> dict: ...  # {temp,wind,precip,...}
+
+class ContextComputer:
+    def compute(self, match_id: int) -> dict: ...  # {rest_days_*, travel_*, congestion_*}
+
+Upsert contract (single transaction + lineage):
+
+def upsert_payload(match_id: int, payload: dict) -> None:
+    with db.tx() as cx:
+        # insert/update players, availability, referee, weather, context
+        write_lineage(cx, entity_type="match", entity_id=str(match_id), source=payload["source"], extra=payload["meta"])
+
+
+⸻
+
+PHASE-2.5 — V2-Team++ & calibration
+
+Feature adds to builder
+	•	ref_card_rate, ref_home_bias_index
+	•	weather_temperature, weather_wind_speed, weather_precipitation
+	•	schedule_congestion_home/away (matches in last 7d)
+	•	travel_distance_home/away (great-circle km since last match)
+	•	book_margin, fav_shading_index (per-book bias you learn)
+
+Segment calibration (league-tier or odds-band)
+	•	Fit isotonic per segment; renormalize rows.
+	•	Store calibration version; emit calibration_version with predictions.
+
+⸻
+
+PHASE-3 — player-aware + ensemble
+
+A) Start collecting now (don’t wait to model)
+	•	Persist Starting XI, bench, minutes, injuries/suspensions.
+	•	Maintain player_map (api ids → internal id); log conflicts.
+
+B) First player model (fast path)
+	•	Tabular + position buckets (GK/FB/CB/DM/CM/AM/W/ST) with rolling per-90 (xG, xA, shots, key passes, tackles/int).
+	•	Unknown XI? Train a lineup predictor; sample K likely XIs; take expected probs across samples.
+
+C) Stacking contract (so UI can explain)
+
+Base outputs (OOF-trained):
+
+{
+  "match_id": 1478060,
+  "models": {
+    "v2_teampp": {"home":0.44,"draw":0.28,"away":0.28},
+    "v2_player": {"home":0.46,"draw":0.26,"away":0.28},
+    "market":    {"home":0.41,"draw":0.30,"away":0.29},
+    "poisson":   {"home":0.43,"draw":0.25,"away":0.32}
+  },
+  "meta": {"league_tier":"T1","lineup_certainty":0.35,"margin":0.06}
+}
+
+Stacker → final:
+
+{
+  "probs": {"home":0.455,"draw":0.266,"away":0.279},
+  "confidence": {
+    "calibrated_max_prob": 0.455,
+    "model_agreement_std": 0.012,
+    "conformal_ou25": [0.18, 0.64]
+  },
+  "ev": {"home": 0.032, "draw": -0.011, "away": -0.006},
+  "rationale": {"weights":{"teampp":0.36,"player":0.31,"market":0.22,"poisson":0.11}}
+}
+
+
+⸻
+
+RISK & ROLLBACK CHECKLIST
+	•	Data leakage: verify all pre-match features are frozen at T-60/T-15; live models gate by minute.
+	•	Silent NA fill: disabled by parity guard; fail hard with error + alert.
+	•	Backfill thrash: rate-limit external APIs; use dead-letter for repeated failures.
+	•	Calibration drift: track ECE weekly per league tier; retrain calibrator if drift > threshold.
+	•	EV illusion: always report CLV alongside ROI; CLV regression triggers block on model promotion.
+
+⸻
+
+CLEAN TASK BOARD (copy into your tracker)
+
+✅ Done
+	•	46-feature builder, parity guard, dual-path predictor
+	•	EV/CLV harness
+	•	Phase-2 schema + backfill agent skeleton
+
+▶️ Doing (priority)
+	•	Run holdout evaluation + persist metrics
+	•	Wire Prometheus metrics + Grafana alerts
+	•	Canary release (10% traffic), watch parity + EV/CLV
+
+🔜 Next
+	•	Implement fetchers (lineups/ref/weather/context)
+	•	Populate Phase-2 tables continuously
+	•	Add Team++ features + segment calibration
+
+🧱 Backlog (Phase-3)
+	•	Player data accumulation + lineup predictor
+	•	v2-player model (position buckets)
+	•	Stacking + dynamic weights + conformal intervals
+
+⸻
+
+if you want, I’ll generate:
+	•	a Grafana JSON dashboard pre-wired to the metric names above,
+	•	the SQL function that computes schedule_congestion_* and travel_distance_*,
+	•	and a /predict-v3 response schema contract (TypeScript types) so frontend can render EV/CLV/confidence + model-weight rationale cleanly.
