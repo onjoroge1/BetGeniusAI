@@ -1,0 +1,343 @@
+facts, fam — this plan is solid. here’s how to turn it into shippable steps fast, fix the 12/46 feature gap, and lay rails for the player-aware ensemble. i’m giving you concrete code stubs, SQL DDL, and ops hooks so you can paste+go.
+
+0) Hotfix: stop the 12/46 feature bleed (today)
+
+Drop this guardrail in v2_lgbm_predictor.py (or wherever you load the booster). It verifies feature parity, orders columns, and fails loud if anything’s missing.
+
+# v2_lgbm_predictor.py (inside predict())
+import numpy as np
+import pandas as pd
+
+REQUIRED = model.booster_.feature_name()  # LightGBM native list
+def ensure_feature_parity(X: pd.DataFrame) -> pd.DataFrame:
+    incoming = list(X.columns)
+    missing = [f for f in REQUIRED if f not in incoming]
+    extra   = [f for f in incoming if f not in REQUIRED]
+    if missing:
+        raise ValueError(f"Missing features for V2: {missing[:10]}... ({len(missing)} total)")
+    if extra:
+        # Keep parity strict but allow pass-through (we’ll drop extras)
+        X = X.drop(columns=extra)
+    # Reorder + fill NA as trained (use your train-time imputers)
+    X = X[REQUIRED].copy()
+    return X
+
+X = ensure_feature_parity(feature_builder.build(match_ids))  # see §1
+pred = model.predict_proba(X)
+
+Add a simple runtime metric that counts how many requests hit parity vs. fail. (You’ll thank me during postmortems.)
+
+⸻
+
+1) Phase-1 “Quick Wins” you can paste in
+
+1A) Feature builder (DB-powered, cacheable)
+
+Put this in features/v2_feature_builder.py. It rebuilds the trained 46 features from DB and memoizes for live use.
+
+# features/v2_feature_builder.py
+from functools import lru_cache
+import pandas as pd
+import sqlalchemy as sa
+
+engine = sa.create_engine("postgresql+psycopg2://...")
+
+@lru_cache(maxsize=2048)
+def _elo_window(team_id: int, kickoff: str, w: int = 10) -> dict:
+    q = """
+    with hist as (
+      select result_points, goals_for, goals_against
+      from training_matches
+      where team_id = :tid and kickoff_at < :ko
+      order by kickoff_at desc
+      limit :w
+    )
+    select
+      avg(result_points)::float as form_pts,
+      avg(goals_for)::float as g_for,
+      avg(goals_against)::float as g_against
+    from hist;
+    """
+    row = engine.execute(sa.text(q), {"tid": team_id, "ko": kickoff, "w": w}).mappings().first()
+    return dict(row or {"form_pts": None, "g_for": None, "g_against": None})
+
+def _rest_days(team_id: int, kickoff: str) -> float:
+    q = """
+      select extract(epoch from (:ko - kickoff_at))/86400.0 as rd
+      from training_matches
+      where team_id = :tid and kickoff_at < :ko
+      order by kickoff_at desc limit 1;
+    """
+    row = engine.execute(sa.text(q), {"tid": team_id, "ko": kickoff}).scalar()
+    return float(row) if row is not None else None
+
+def build(match_rows: list[dict]) -> pd.DataFrame:
+    # match_rows: [{"match_id":..., "home_team_id":..., "away_team_id":..., "kickoff_at":...}]
+    feats = []
+    for m in match_rows:
+      home = _elo_window(m["home_team_id"], m["kickoff_at"], 10)
+      away = _elo_window(m["away_team_id"], m["kickoff_at"], 10)
+      rest_h = _rest_days(m["home_team_id"], m["kickoff_at"])
+      rest_a = _rest_days(m["away_team_id"], m["kickoff_at"])
+
+      # odds features you already have (normalize & strip margin upstream)
+      odds = fetch_odds_features(m["match_id"])  # your existing codepath
+
+      feats.append({
+        "home_form10_pts": home["form_pts"],
+        "away_form10_pts": away["form_pts"],
+        "rest_days_home": rest_h,
+        "rest_days_away": rest_a,
+        # ...
+        **odds
+      })
+    df = pd.DataFrame(feats)
+    # Apply the same imputers/scalers you used at train time
+    return apply_train_time_preprocessing(df)  # TODO: import from training pipeline
+
+Do a one-off unit test that loads a 2024 holdout slice and confirms df.columns exactly match model features.
+
+1B) EV/CLV evaluation harness (drop-in)
+
+Create eval/eval_v2.py to score what matters (logloss, Brier, ECE, profit, CLV).
+
+# eval/eval_v2.py
+import numpy as np
+import pandas as pd
+from sklearn.metrics import log_loss, brier_score_loss
+
+def expected_value(prob: float, price: float) -> float:
+    # price is decimal odds; EV per $1 stake
+    return prob * (price - 1) - (1 - prob) * 1
+
+def ece(y_true_proba, y_pred_proba, bins=10):
+    # multiclass ECE
+    y = np.argmax(y_true_proba, axis=1)
+    p = y_pred_proba
+    conf = p.max(axis=1)
+    pred = p.argmax(axis=1)
+    acc = (pred == y).astype(float)
+    bin_ids = np.floor(conf * bins).clip(0, bins-1).astype(int)
+    ece = 0.0
+    for b in range(bins):
+        m = bin_ids == b
+        if m.any():
+            ece += abs(acc[m].mean() - conf[m].mean()) * (m.mean())
+    return ece
+
+def evaluate(df: pd.DataFrame):
+    # df columns: y_true ∈ {0,1,2}, proba_0/1/2, price_0/1/2, closing_price_0/1/2
+    y = df["y_true"].values
+    Y = np.eye(3)[y]
+    P = df[["proba_0","proba_1","proba_2"]].values
+    ll = log_loss(y, P)
+    bs = np.mean([brier_score_loss((y==k).astype(int), P[:,k]) for k in range(3)])
+    cal = ece(Y, P)
+
+    # naive betting policy: bet outcome with highest EV if EV > 0
+    mx_idx = np.argmax(P * (df[["price_0","price_1","price_2"]].values - 1) - (1 - P), axis=1)
+    evs = []
+    clvs = []
+    for i, k in enumerate(mx_idx):
+        prob = P[i, k]; price = df.iloc[i, [df.columns.get_loc(f"price_{k}")]].item()
+        close = df.iloc[i, [df.columns.get_loc(f"closing_price_{k}")]].item()
+        evs.append(expected_value(prob, price))
+        # CLV (in probability space): 1/close - 1/price OR simple: close - price
+        clvs.append(close - price)
+    return {"logloss": ll, "brier": bs, "ece": cal, "avg_ev": float(np.mean(evs)), "avg_clv_delta": float(np.mean(clvs))}
+
+
+⸻
+
+2) Backfill Agent (Phase-2 foundation)
+
+2A) Minimal schema adds (SQL DDL)
+
+Run in a migration (adapt names to your naming style):
+
+-- players
+create table if not exists players(
+  player_id bigserial primary key,
+  api_football_id bigint unique,
+  name text not null,
+  dob date,
+  nationality text,
+  primary_position text,
+  preferred_foot text
+);
+
+-- player_availability
+create table if not exists player_availability(
+  match_id bigint not null,
+  player_id bigint not null,
+  status text check (status in ('started','bench','out')) not null,
+  reason text,
+  minutes_played int,
+  primary key (match_id, player_id),
+  foreign key (player_id) references players(player_id)
+);
+
+-- referees
+create table if not exists referees(
+  ref_id bigserial primary key,
+  api_football_id bigint unique,
+  name text not null,
+  card_rate real,
+  home_bias_index real
+);
+
+-- weather
+create table if not exists match_weather(
+  match_id bigint primary key,
+  temperature real,
+  humidity real,
+  precipitation real,
+  wind_speed real,
+  conditions text
+);
+
+-- match_context
+create table if not exists match_context(
+  match_id bigint primary key,
+  rest_days_home real,
+  rest_days_away real,
+  travel_distance_home real,
+  travel_distance_away real,
+  schedule_congestion_home int,
+  schedule_congestion_away int,
+  fixture_difficulty_rating real
+);
+
+-- lineage
+create table if not exists data_lineage(
+  entity_type text not null,    -- 'match','players','availability','weather','odds'
+  entity_id text not null,
+  source text not null,
+  fetched_at timestamptz not null default now(),
+  extra jsonb,
+  primary key (entity_type, entity_id, source, fetched_at)
+);
+
+2B) Agent architecture (lean + resilient)
+	•	discovery: LEFT JOIN against expected league×season×round grid → missing match_ids
+	•	priority: tiered queue (Tier-1 leagues first; recency > old)
+	•	fetchers: adapters for (API-Football lineups/events | odds | weather)
+	•	normalization: ID mapping tables (team_map, player_map) with fuzzy resolution fallback
+	•	upsert: write + lineage in one transaction
+	•	retries: exponential backoff; dead-letter table
+	•	schedule: nightly backfill; hourly “recent matches” refresh
+
+Stub (FastAPI + RQ/Celery/Arq—dealer’s choice):
+
+# agents/backfill_agent.py
+from queue import PriorityQueue
+from dataclasses import dataclass
+
+@dataclass(order=True)
+class Task:
+    priority: int
+    match_id: int
+    league_id: int
+    season: int
+
+pq = PriorityQueue()
+
+def discover_gaps():
+    # SELECT expected matches minus present rows
+    # yield Task(priority=calc_priority(...), match_id=..., ...)
+    ...
+
+def worker():
+    while True:
+        t: Task = pq.get()
+        try:
+            payload = fetch_all_sources(t.match_id)  # lineups, events, odds, weather
+            upsert_payload(payload)                  # + lineage
+        except Exception as e:
+            mark_retry(t, e)
+        finally:
+            pq.task_done()
+
+
+⸻
+
+3) V2-Team++ & Calibration (Phase-2)
+
+3A) New features (add to builder)
+	•	ref_card_rate, ref_home_bias_index
+	•	weather_temperature, wind_speed, precipitation
+	•	schedule_congestion_[home|away] (matches in last 7 days)
+	•	travel_distance_[home|away] (great-circle km since last match)
+	•	book_margin, fav_shading_index (per-book bias)
+
+3B) Per-segment calibration
+
+# calibration/calibrate.py
+from sklearn.isotonic import IsotonicRegression
+def segment_calibrate(y_true, proba, segment):
+    models = {}
+    calibrated = np.zeros_like(proba)
+    for s in np.unique(segment):
+        m = segment == s
+        for k in range(proba.shape[1]):
+            iso = IsotonicRegression(out_of_bounds='clip')
+            iso.fit(proba[m, k], (y_true==k).astype(int)[m])
+            calibrated[m, k] = iso.transform(proba[m, k])
+        models[s] = "fitted"
+    # renormalize row-wise
+    calibrated = calibrated / calibrated.sum(axis=1, keepdims=True)
+    return calibrated
+
+
+⸻
+
+4) Player-aware path (Phase-3) — start collecting now, train later
+	•	data: begin storing XI, minutes, injuries immediately (cheap now, priceless later).
+	•	model v1: tabular with position buckets (GK/FB/CB/DM/CM/AM/W/ST) + rolling per-90 stats.
+	•	unknown XI: train a lineup predictor; predict multiple XI samples; expectation over XI for probs.
+	•	lift: biggest in leagues with volatile lineups & fixture congestion; meta-learner will auto-upweight it there.
+
+⸻
+
+5) Ensemble & confidence (clean contracts)
+
+Base model outputs (contract):
+
+{
+  "model_id": "v2-team++|2025-11-06",
+  "match_id": 123,
+  "probs": {"home":0.44,"draw":0.28,"away":0.28},
+  "context": {"league":39,"lineup_certainty":0.3,"market_margin":0.06}
+}
+
+Stacker (OOF trained)
+	•	Inputs: [p_team, p_player, p_market, p_poisson, meta_features]
+	•	Output: calibrated p_final
+	•	Confidence = combine:
+	•	probability concentration (max prob)
+	•	agreement (variance across base models)
+	•	conformal coverage (for totals) → show 90% set
+	•	market gap (p_final – p_consensus) translated to EV
+
+⸻
+
+6) Ops you shouldn’t skip
+	•	Feature store: write as-of snapshots on predict; log dataset hash + model version in every response
+	•	MLflow (or wandb): run_id, code commit, data hash, metrics, calibration plots
+	•	DQ checks: odds margin ∈ [2%, 15%], kickoff in sane window, no NA in required features
+	•	Retrain rhythm: weekly top-5 leagues; monthly tail; promote only if CLV and ECE improve
+
+⸻
+
+TL;DR next moves (sequenced)
+	1.	Ship the feature-parity guard + reconnect the 46 features (instant lift).
+	2.	Add EV/CLV harness and start reporting it in your dashboard.
+	3.	Spin up the Backfill Agent with lineage + retries (even if it only fills refs/weather at first).
+	4.	Expand features (ref, weather, schedule) → V2-Team++ + segment calibration.
+	5.	Start collecting player data now; train v2-player once you’ve got a few months of XI coverage.
+	6.	Stack base models, learn dynamic weights, and surface confidence as math (agreement + calibrated prob + market gap).
+
+if you want, I’ll:
+	•	generate the exact SQL for the “gap discovery” queries,
+	•	wire /predict-v3 to return {probs, confidence, ev, rationale} with model weights,
+	•	and add a Prometheus panel for parity failures + EV/CLV live.
