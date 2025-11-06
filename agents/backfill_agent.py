@@ -131,7 +131,7 @@ class GapDiscovery:
             tier = self.league_tiers.get(m['league_id'], 3)
             priority = BackfillTask.calculate_priority(
                 m['league_id'],
-                m['match_date'],
+                m['kickoff_at'],  # Fixed: query aliases match_date as kickoff_at
                 tier
             )
             
@@ -140,7 +140,7 @@ class GapDiscovery:
                 match_id=m['match_id'],
                 league_id=m['league_id'],
                 season=m['season'],
-                match_date=m['match_date'],
+                match_date=m['kickoff_at'],  # Fixed: query aliases match_date as kickoff_at
                 missing_data={'referee'}
             )
             tasks.append(task)
@@ -175,7 +175,7 @@ class GapDiscovery:
             tier = self.league_tiers.get(m['league_id'], 3)
             priority = BackfillTask.calculate_priority(
                 m['league_id'],
-                m['match_date'],
+                m['kickoff_at'],  # Fixed: query aliases match_date as kickoff_at
                 tier
             )
             
@@ -184,7 +184,7 @@ class GapDiscovery:
                 match_id=m['match_id'],
                 league_id=m['league_id'],
                 season=m['season'],
-                match_date=m['match_date'],
+                match_date=m['kickoff_at'],  # Fixed: query aliases match_date as kickoff_at
                 missing_data={'weather'}
             )
             tasks.append(task)
@@ -219,7 +219,7 @@ class GapDiscovery:
             tier = self.league_tiers.get(m['league_id'], 3)
             priority = BackfillTask.calculate_priority(
                 m['league_id'],
-                m['match_date'],
+                m['kickoff_at'],  # Fixed: query aliases match_date as kickoff_at
                 tier
             )
             
@@ -228,7 +228,7 @@ class GapDiscovery:
                 match_id=m['match_id'],
                 league_id=m['league_id'],
                 season=m['season'],
-                match_date=m['match_date'],
+                match_date=m['kickoff_at'],  # Fixed: query aliases match_date as kickoff_at
                 missing_data={'context'}
             )
             tasks.append(task)
