@@ -10,9 +10,10 @@ Model Performance Analysis: Model rating 6.3/10 (B Grade) with 54.3% 3-way accur
 Improvement Priority: Focus on enhanced feature engineering and gradient boosting ensemble methods for immediate gains, with deep learning and reinforcement learning as longer-term research directions.
 
 ## Recent Work (Nov 2025)
-- **Phase 1 Complete (Architect-Approved)**: Restored V2 model from 12/46 to 46/46 features, fixing critical feature pipeline disconnection that caused 10-15% accuracy loss. Created V2FeatureBuilder with time-based cutoffs, LRU caching, and graceful defaults. Implemented feature parity validation guard and dual-path architecture with observability.
-- **Phase 2 Foundation (Architect-Approved)**: Applied schema extensions (5 new tables: players, referees, match_weather, match_context, data_lineage). Updated backfill agent with gap discovery SQL for Phase 2 tables. Created fetcher interfaces (LineupFetcher, RefereeFeature, WeatherFetcher, ContextComputer) with FetchResult contract. Built DatabaseContextComputer calculating rest days and schedule congestion from existing data.
-- **Phase 1 Validation Script**: Comprehensive acceptance testing with betting-centric metrics (LogLoss, Brier Score, ECE, Expected Value, CLV, Kelly ROI, Sharpe Ratio). Tests feature parity, accuracy improvement, calibration, profitability, and latency against acceptance criteria.
+- **Phase 1 Complete & Validated (Architect-Approved)**: Restored V2 model from 12/46 to 46/46 features, fixing critical pipeline disconnection. Validation confirmed 100% feature parity with all predictions using full pipeline. Fixed H2H SQL bug (GROUP BY issue). Expected 50-52% accuracy (up from broken 35-40%).
+- **Phase 2 Data Collection Complete (Architect-Approved)**: Successfully backfilled 378 matches with context data (rest days, schedule congestion). Expanded V2FeatureBuilder from 46→50 features by integrating match_context table. DatabaseContextComputer working with realistic values (rest: 1.4/4.4 days, congestion: 10-11 matches/7d).
+- **Phase 2 Foundation (Architect-Approved)**: Applied schema extensions (5 new tables: players, referees, match_weather, match_context, data_lineage). Created fetcher interfaces with FetchResult contract and gap discovery SQL. Fixed backfill agent KeyError bug (kickoff_at alias mismatch).
+- **Phase 1 Validation Script**: Comprehensive acceptance testing with betting-centric metrics (LogLoss, Brier Score, ECE, Expected Value, CLV, Kelly ROI, Sharpe Ratio). Validates feature parity, accuracy, calibration, profitability, and latency.
 - **Betting Intelligence System**: Complete implementation with per-match and curated endpoints.
 - **Robust Odds Parser**: Fixed odds extraction bugs handling stringified JSON and nested structures.
 
