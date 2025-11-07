@@ -192,24 +192,28 @@ class TrainingManager:
         except Exception as e:
             logger.warning(f"   Failed to configure LibGOMP: {e}")
         
-        # Execute training
+        # Execute training with real-time output streaming
+        # Timeout: Allow up to 6 hours for full dataset (8809 matches)
+        # - Feature building: ~3-4 hours for full dataset
+        # - Training: ~30-45 minutes
+        logger.info("\n" + "="*70)
+        logger.info("Training started - output will stream below")
+        logger.info("Expected duration: 4-5 hours for full dataset")
+        logger.info("="*70 + "\n")
+        
         result = subprocess.run(
-            ["python", "training/train_v2_no_leakage.py"],
-            capture_output=True,
+            ["python", "-u", "training/train_v2_no_leakage.py"],  # -u for unbuffered
             text=True,
             env=env,
-            timeout=7200  # 2 hour timeout for full training
+            timeout=21600  # 6 hour timeout (full dataset needs ~4-5 hours)
         )
         
         if result.returncode != 0:
             logger.error("❌ Training failed!")
-            logger.error(result.stderr)
-            logger.error("\n Stdout:")
-            logger.error(result.stdout)
             raise RuntimeError(f"Training failed with exit code {result.returncode}")
         
-        # Parse training output for performance metrics
-        output = result.stdout
+        # No output to parse since we streamed it
+        output = ""
         logger.info("\n📊 Training Output:")
         logger.info(output)
         

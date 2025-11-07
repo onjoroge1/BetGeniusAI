@@ -153,8 +153,9 @@ def load_matches_pre_kickoff_only(min_date='2020-01-01', max_date='2025-12-31',
             features['match_date'] = row['match_date']
             features_list.append(features)
             
-            if (idx + 1) % 100 == 0:
-                print(f"   Processed {idx+1}/{len(matches)} matches...")
+            if (idx + 1) % 50 == 0:
+                elapsed = (idx + 1) / len(matches)
+                print(f"   Processed {idx+1}/{len(matches)} matches ({elapsed*100:.1f}%)", flush=True)
                 
         except Exception as e:
             failed += 1

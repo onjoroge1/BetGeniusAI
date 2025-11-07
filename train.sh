@@ -18,7 +18,7 @@ elif [ "$1" == "--check" ]; then
 else
     # Run direct training
     echo "🚀 Running leakage-free training directly..."
-    echo "   Expected duration: 2-3 hours"
+    echo "   Expected duration: 4-5 hours (5000 matches)"
     echo "   Expected accuracy: 52-55% (NOT 90%!)"
     echo ""
     python -u training/train_v2_no_leakage.py

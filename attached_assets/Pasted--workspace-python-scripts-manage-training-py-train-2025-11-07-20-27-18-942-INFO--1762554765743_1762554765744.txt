@@ -1,0 +1,36 @@
+~/workspace$ python scripts/manage_training.py --train
+2025-11-07 20:27:18,942 - INFO - ======================================================================
+2025-11-07 20:27:18,943 - INFO -   STARTING LEAKAGE-FREE MODEL TRAINING
+2025-11-07 20:27:18,943 - INFO - ======================================================================
+2025-11-07 20:27:18,943 - INFO - Anti-leakage measures:
+2025-11-07 20:27:18,943 - INFO -   1. Time-based CV with 7-day embargo
+2025-11-07 20:27:18,943 - INFO -   2. Pre-kickoff odds only (T-1h)
+2025-11-07 20:27:18,943 - INFO -   3. Sanity checks enabled
+2025-11-07 20:27:18,943 - INFO - ======================================================================
+2025-11-07 20:27:19,068 - INFO - 
+📊 Training Dataset:
+2025-11-07 20:27:19,068 - INFO -    Total matches:      8,809
+2025-11-07 20:27:19,068 - INFO -    Phase 2 coverage:   100.0%
+2025-11-07 20:27:19,068 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-06-12 00:02:38.035213
+2025-11-07 20:27:19,068 - INFO - 
+🚀 Launching leakage-free training script...
+2025-11-07 20:27:19,089 - INFO -    LibGOMP configured: /nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib
+2025-11-07 22:27:19,220 - ERROR - ❌ Error: Command '['python', 'training/train_v2_no_leakage.py']' timed out after 7200 seconds
+2025-11-07 22:27:19,220 - ERROR - Command '['python', 'training/train_v2_no_leakage.py']' timed out after 7200 seconds
+Traceback (most recent call last):
+  File "/home/runner/workspace/scripts/manage_training.py", line 371, in main
+    manager.run_training(
+  File "/home/runner/workspace/scripts/manage_training.py", line 196, in run_training
+    result = subprocess.run(
+             ^^^^^^^^^^^^^^^
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/subprocess.py", line 2116, in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/subprocess.py", line 1253, in _check_timeout
+    raise TimeoutExpired(
+subprocess.TimeoutExpired: Command '['python', 'training/train_v2_no_leakage.py']' timed out after 7200 seconds
