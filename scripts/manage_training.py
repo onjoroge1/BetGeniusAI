@@ -143,7 +143,12 @@ class TrainingManager:
     
     def run_training(self, min_matches: int = 3000, cv_folds: int = 5) -> dict:
         """
-        Execute model training
+        Execute model training (LEAKAGE-FREE VERSION)
+        
+        Uses:
+        - Time-based CV with embargo
+        - Pre-kickoff odds enforcement
+        - Sanity checks for leakage detection
         
         Returns:
             Training results and performance metrics
@@ -151,7 +156,12 @@ class TrainingManager:
         import subprocess
         
         logger.info("="*70)
-        logger.info("  STARTING MODEL TRAINING")
+        logger.info("  STARTING LEAKAGE-FREE MODEL TRAINING")
+        logger.info("="*70)
+        logger.info("Anti-leakage measures:")
+        logger.info("  1. Time-based CV with 7-day embargo")
+        logger.info("  2. Pre-kickoff odds only (T-1h)")
+        logger.info("  3. Sanity checks enabled")
         logger.info("="*70)
         
         # Get dataset stats
@@ -161,34 +171,41 @@ class TrainingManager:
         logger.info(f"   Phase 2 coverage:   {stats['phase2_coverage']:.1f}%")
         logger.info(f"   Date range:         {stats['earliest_match']} to {stats['latest_match']}")
         
-        # Run training script
-        logger.info("\n🚀 Launching training script...")
+        # Run leakage-free training script
+        logger.info("\n🚀 Launching leakage-free training script...")
         
         env = os.environ.copy()
-        # Set LibGOMP path
-        gcc_lib_path = subprocess.check_output(
-            ["gcc", "-print-file-name=libgomp.so"], 
-            text=True
-        ).strip()
-        lib_dir = os.path.dirname(gcc_lib_path)
-        
-        if 'LD_LIBRARY_PATH' in env:
-            env['LD_LIBRARY_PATH'] = f"{lib_dir}:{env['LD_LIBRARY_PATH']}"
-        else:
-            env['LD_LIBRARY_PATH'] = lib_dir
+        # Set LibGOMP path (CRITICAL for LightGBM)
+        try:
+            gcc_lib_path = subprocess.check_output(
+                ["gcc", "-print-file-name=libgomp.so"], 
+                text=True
+            ).strip()
+            lib_dir = os.path.dirname(gcc_lib_path)
+            
+            if 'LD_LIBRARY_PATH' in env:
+                env['LD_LIBRARY_PATH'] = f"{lib_dir}:{env['LD_LIBRARY_PATH']}"
+            else:
+                env['LD_LIBRARY_PATH'] = lib_dir
+                
+            logger.info(f"   LibGOMP configured: {lib_dir}")
+        except Exception as e:
+            logger.warning(f"   Failed to configure LibGOMP: {e}")
         
         # Execute training
         result = subprocess.run(
-            ["python", "training/train_v2_team_plus_plus.py"],
+            ["python", "training/train_v2_no_leakage.py"],
             capture_output=True,
             text=True,
             env=env,
-            timeout=3600  # 1 hour timeout
+            timeout=7200  # 2 hour timeout for full training
         )
         
         if result.returncode != 0:
             logger.error("❌ Training failed!")
             logger.error(result.stderr)
+            logger.error("\n Stdout:")
+            logger.error(result.stdout)
             raise RuntimeError(f"Training failed with exit code {result.returncode}")
         
         # Parse training output for performance metrics
