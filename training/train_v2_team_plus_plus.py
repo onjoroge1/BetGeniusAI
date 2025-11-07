@@ -90,7 +90,7 @@ def load_training_data(min_date='2023-07-01', max_date='2025-01-01', limit=None)
     database_url = os.getenv('DATABASE_URL')
     engine = create_engine(database_url)
     
-    # Get finished matches with outcomes
+    # Get finished matches with outcomes - ONLY those with Phase 2 context data
     limit_clause = f"LIMIT {limit}" if limit else ""
     query = text(f"""
         SELECT 
@@ -100,13 +100,13 @@ def load_training_data(min_date='2023-07-01', max_date='2025-01-01', limit=None)
             tm.match_date,
             tm.outcome,
             tm.league_id,
-            CASE WHEN mc.match_id IS NOT NULL THEN TRUE ELSE FALSE END as has_phase2_data
+            TRUE as has_phase2_data
         FROM training_matches tm
-        LEFT JOIN match_context mc ON tm.match_id = mc.match_id
+        INNER JOIN match_context mc ON tm.match_id = mc.match_id
         WHERE tm.match_date >= :min_date
           AND tm.match_date < :max_date
           AND tm.outcome IS NOT NULL
-          AND tm.outcome IN ('H', 'D', 'A')
+          AND tm.outcome IN ('H', 'D', 'A', 'Home', 'Draw', 'Away')
         ORDER BY tm.match_date DESC
         {limit_clause}
     """)
@@ -121,6 +121,10 @@ def load_training_data(min_date='2023-07-01', max_date='2025-01-01', limit=None)
     print(f"      Home: {(matches['outcome']=='H').sum()} ({(matches['outcome']=='H').mean()*100:.1f}%)")
     print(f"      Draw: {(matches['outcome']=='D').sum()} ({(matches['outcome']=='D').mean()*100:.1f}%)")
     print(f"      Away: {(matches['outcome']=='A').sum()} ({(matches['outcome']=='A').mean()*100:.1f}%)")
+    
+    # Normalize outcomes to H/D/A format
+    outcome_map = {'Home': 'H', 'Draw': 'D', 'Away': 'A', 'H': 'H', 'D': 'D', 'A': 'A'}
+    matches['outcome'] = matches['outcome'].map(outcome_map)
     
     # Build features for all matches
     print(f"\n🔨 Building 50 features for {len(matches)} matches...")
@@ -138,7 +142,7 @@ def load_training_data(min_date='2023-07-01', max_date='2025-01-01', limit=None)
             features['match_date'] = row['match_date']
             features_list.append(features)
             
-            if (idx + 1) % 500 == 0:
+            if (idx + 1) % 100 == 0:
                 print(f"   Processed {idx+1}/{len(matches)} matches...")
         except Exception as e:
             failed += 1
@@ -308,11 +312,11 @@ def main():
     print("\n" + "="*70)
     print("  V2-TEAM++ MODEL TRAINING - PHASE 2 DEMONSTRATION")
     print("  50 Features: Phase 1 (46) + Phase 2 (4)")
-    print("  Training on recent matches (2023-2024) for quick validation")
+    print("  Training ONLY on matches with real Phase 2 context data")
     print("="*70)
     
-    # Load data - focus on recent matches for speed
-    df = load_training_data(min_date='2023-07-01', max_date='2025-01-01', limit=3000)
+    # Load data - ONLY matches with Phase 2 context data for fast, accurate validation
+    df = load_training_data(min_date='2020-01-01', max_date='2025-12-31', limit=1000)
     
     # Train model
     results = train_lgbm_cv(df, n_splits=5)
