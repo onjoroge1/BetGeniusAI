@@ -1,0 +1,182 @@
+python scripts/manage_training.py --check
+2025-11-07 18:51:16,438 - INFO - ======================================================================
+2025-11-07 18:51:16,438 - INFO -   TRAINING STATUS CHECK
+2025-11-07 18:51:16,439 - INFO - ======================================================================
+2025-11-07 18:51:16,561 - INFO - 
+📊 Current Dataset:
+2025-11-07 18:51:16,561 - INFO -    Total matches:      8,809
+2025-11-07 18:51:16,562 - INFO -    Phase 2 coverage:   100.0%
+2025-11-07 18:51:16,562 - INFO - 
+🔧 Last Training:
+2025-11-07 18:51:16,562 - INFO -    Never trained
+2025-11-07 18:51:16,627 - INFO - 
+💡 Recommendation:
+2025-11-07 18:51:16,627 - INFO -    ✅ RETRAIN RECOMMENDED
+2025-11-07 18:51:16,627 - INFO -    Reason: No model trained yet
+2025-11-07 18:51:16,627 - INFO - ======================================================================
+~/workspace$ python scripts/manage_training.py --train
+2025-11-07 18:51:36,415 - INFO - ======================================================================
+2025-11-07 18:51:36,415 - INFO -   STARTING MODEL TRAINING
+2025-11-07 18:51:36,415 - INFO - ======================================================================
+2025-11-07 18:51:36,538 - INFO - 
+📊 Training Dataset:
+2025-11-07 18:51:36,538 - INFO -    Total matches:      8,809
+2025-11-07 18:51:36,538 - INFO -    Phase 2 coverage:   100.0%
+2025-11-07 18:51:36,538 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-06-12 00:02:38.035213
+2025-11-07 18:51:36,539 - INFO - 
+🚀 Launching training script...
+2025-11-07 19:27:24,952 - INFO - 
+📊 Training Output:
+2025-11-07 19:27:24,952 - INFO - 
+======================================================================
+  V2-TEAM++ MODEL TRAINING - PHASE 2 DEMONSTRATION
+  50 Features: Phase 1 (46) + Phase 2 (4)
+  Training ONLY on matches with real Phase 2 context data
+======================================================================
+======================================================================
+  V2-TEAM++ DATA LOADING (Phase 2 - OPTIMIZED)
+======================================================================
+Date range: 2020-01-01 to 2025-12-31
+Limit: 1000 matches
+
+✅ Loaded 1000 matches
+   Date range: 2025-06-10 16:36:39.279568 to 2025-06-12 00:02:38.035213
+   Matches with Phase 2 data: 1000 (100.0%)
+   Outcome distribution:
+      Home: 0 (0.0%)
+      Draw: 0 (0.0%)
+      Away: 0 (0.0%)
+
+🔨 Building 50 features for 1000 matches...
+   This may take a few minutes...
+   Processed 100/1000 matches...
+   Processed 200/1000 matches...
+   Processed 300/1000 matches...
+   Processed 400/1000 matches...
+   Processed 500/1000 matches...
+   Processed 600/1000 matches...
+   Processed 700/1000 matches...
+   Processed 800/1000 matches...
+   Processed 900/1000 matches...
+   Processed 1000/1000 matches...
+
+✅ Feature extraction complete
+   Success: 1000 matches
+   Failed: 0 matches
+   Features: 50 columns
+
+======================================================================
+  V2-TEAM++ TRAINING (Phase 2 - 50 Features)
+======================================================================
+Training with 50 features
+Phase 1 features: 46 (odds, ELO, form, H2H, advanced, schedule)
+Phase 2 features: 4 (rest_days_home/away, schedule_congestion_home/away_7d)
+
+First 10 features: ['p_last_home', 'p_last_draw', 'p_last_away', 'p_open_home', 'p_open_draw', 'p_open_away', 'prob_drift_home', 'prob_drift_draw', 'prob_drift_away', 'drift_magnitude']
+
+--- Fold 1/5 ---
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[102]   valid_0's multi_logloss: 0.203124
+  LogLoss: 0.2031
+  Brier:   0.0398
+  Accuracy: 90.0%
+
+--- Fold 2/5 ---
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[105]   valid_0's multi_logloss: 0.196634
+  LogLoss: 0.1966
+  Brier:   0.0370
+  Accuracy: 91.0%
+
+--- Fold 3/5 ---
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[67]    valid_0's multi_logloss: 0.203411
+  LogLoss: 0.2034
+  Brier:   0.0386
+  Accuracy: 90.5%
+
+--- Fold 4/5 ---
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[88]    valid_0's multi_logloss: 0.19325
+  LogLoss: 0.1932
+  Brier:   0.0356
+  Accuracy: 89.5%
+
+--- Fold 5/5 ---
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[95]    valid_0's multi_logloss: 0.192599
+  LogLoss: 0.1926
+  Brier:   0.0363
+  Accuracy: 91.0%
+
+======================================================================
+  CONFUSION MATRIX
+======================================================================
+          Predicted
+         H    D    A
+True H   386    7   33
+     D    20  210   10
+     A    19    7  308
+
+======================================================================
+  V2-TEAM++ OUT-OF-FOLD METRICS (n=1000)
+======================================================================
+  LogLoss:  0.1978
+  Brier:    0.0375
+  Accuracy: 90.4%
+======================================================================
+
+Top 20 Features by Importance:
+  p_last_draw                           3873.3  [Phase 1]
+  p_last_away                           3742.5  [Phase 1]
+  p_last_home                           3304.4  [Phase 1]
+  p_open_away                            996.7  [Phase 1]
+  dispersion_home                        698.6  [Phase 1]
+  p_open_draw                            525.7  [Phase 1]
+  p_open_home                            498.7  [Phase 1]
+  days_since_away_last_match             339.6  [Phase 1]
+  away_form_goals_scored                 267.3  [Phase 1]
+  dispersion_draw                        244.1  [Phase 1]
+  home_form_goals_scored                 211.7  [Phase 1]
+  days_since_home_last_match             182.8  [Phase 1]
+  home_form_goals_conceded               127.7  [Phase 1]
+  schedule_congestion_home_7d            125.6  [Phase 2]
+  away_form_goals_conceded               101.5  [Phase 1]
+  market_entropy                          91.5  [Phase 1]
+  schedule_congestion_away_7d             51.3  [Phase 2]
+  dispersion_away                         25.5  [Phase 1]
+  away_elo                                 4.3  [Phase 1]
+  favorite_margin                          3.2  [Phase 1]
+
+Phase 2 Feature Rankings:
+  schedule_congestion_home_7d         Rank: 14/50  Importance:    125.6
+  schedule_congestion_away_7d         Rank: 17/50  Importance:     51.3
+  rest_days_away                      Rank: 49/50  Importance:      0.0
+  rest_days_home                      Rank: 50/50  Importance:      0.0
+
+💾 Saving model to artifacts/models/v2_team_plus_plus...
+✅ Model saved successfully
+   - lgbm_ensemble.pkl
+   - features.json (50 features)
+   - metadata.json
+   - feature_importance.csv
+
+======================================================================
+  ✅ V2-TEAM++ TRAINING COMPLETE
+======================================================================
+  Final Accuracy: 90.4%
+  Final LogLoss:  0.1978
+  Final Brier:    0.0375
+======================================================================
+
+2025-11-07 19:27:24,953 - INFO - 
+✅ Training complete!
+2025-11-07 19:27:24,953 - INFO -    Model version: v2-team-plus-plus-20251107-192724
+2025-11-07 19:27:24,953 - INFO -    Accuracy: 90.4
+2025-11-07 19:27:24,953 - INFO -    LogLoss: 0.1978
+~/workspace$ 

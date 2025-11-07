@@ -1,0 +1,92 @@
+{
+  "model_name": "V2-Team++",
+  "phase": "Phase 2",
+  "total_features": 50,
+  "phase1_features": 46,
+  "phase2_features": 4,
+  "trained_at": "2025-11-07T19:27:24.627273",
+  "oof_metrics": {
+    "logloss": 0.19780348002296871,
+    "brier": 0.037450980420780454,
+    "accuracy": 0.904
+  },
+  "fold_metrics": [
+    {
+      "logloss": 0.20312370230623464,
+      "brier": 0.039839109212252956,
+      "accuracy": 0.9
+    },
+    {
+      "logloss": 0.19663350219869866,
+      "brier": 0.03696374019931988,
+      "accuracy": 0.91
+    },
+    {
+      "logloss": 0.20341135861352938,
+      "brier": 0.03857554029558855,
+      "accuracy": 0.905
+    },
+    {
+      "logloss": 0.1932496204853802,
+      "brier": 0.03560063119896962,
+      "accuracy": 0.895
+    },
+    {
+      "logloss": 0.19259921651100065,
+      "brier": 0.03627588119777126,
+      "accuracy": 0.91
+    }
+  ],
+  "feature_list": [
+    "p_last_home",
+    "p_last_draw",
+    "p_last_away",
+    "p_open_home",
+    "p_open_draw",
+    "p_open_away",
+    "prob_drift_home",
+    "prob_drift_draw",
+    "prob_drift_away",
+    "drift_magnitude",
+    "dispersion_home",
+    "dispersion_draw",
+    "dispersion_away",
+    "book_dispersion",
+    "volatility_home",
+    "volatility_draw",
+    "volatility_away",
+    "num_books_last",
+    "num_snapshots",
+    "coverage_hours",
+    "market_entropy",
+    "favorite_margin",
+    "home_elo",
+    "away_elo",
+    "elo_diff",
+    "home_form_points",
+    "home_form_goals_scored",
+    "home_form_goals_conceded",
+    "away_form_points",
+    "away_form_goals_scored",
+    "away_form_goals_conceded",
+    "home_last10_home_wins",
+    "away_last10_away_wins",
+    "h2h_home_wins",
+    "h2h_draws",
+    "h2h_away_wins",
+    "adv_home_shots_avg",
+    "adv_home_shots_target_avg",
+    "adv_home_corners_avg",
+    "adv_home_yellows_avg",
+    "adv_away_shots_avg",
+    "adv_away_shots_target_avg",
+    "adv_away_corners_avg",
+    "adv_away_yellows_avg",
+    "days_since_home_last_match",
+    "days_since_away_last_match",
+    "rest_days_home",
+    "rest_days_away",
+    "schedule_congestion_home_7d",
+    "schedule_congestion_away_7d"
+  ]
+}
