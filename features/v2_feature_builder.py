@@ -1,18 +1,22 @@
 """
-V2 Feature Builder - Reconstruct all 46 trained features from database
+V2 Feature Builder - Reconstruct all features from database
 
 This module builds the complete feature set that the V2 LightGBM model
-was trained on, querying from training_matches and odds_consensus tables.
+uses, querying from training_matches, odds_consensus, and match_context tables.
 
-Features (46 total):
-- Odds features (21): probability drifts, dispersion, volatility, coverage
-- ELO ratings (3): home_elo, away_elo, elo_diff
-- Form metrics (6): points, goals scored/conceded for home/away
-- Home advantage (2): home wins in last 10 home games
-- H2H history (3): home wins, draws, away wins
-- Advanced stats (8): shots, shots on target, corners, yellows
-- Rest/schedule (2): days since last match
-- Market metrics (1): market_entropy, favorite_margin
+Features:
+- Phase 1 (46 features):
+  - Odds features (21): probability drifts, dispersion, volatility, coverage
+  - ELO ratings (3): home_elo, away_elo, elo_diff
+  - Form metrics (6): points, goals scored/conceded for home/away
+  - Home advantage (2): home wins in last 10 home games
+  - H2H history (3): home wins, draws, away wins
+  - Advanced stats (8): shots, shots on target, corners, yellows
+  - Rest/schedule (2): days since last match
+  - Market metrics (1): market_entropy, favorite_margin
+
+- Phase 2 (4 additional features - TOTAL 50):
+  - Context features (4): rest_days_home/away, schedule_congestion_home/away_7d
 
 All features computed with strict time-based cutoff to prevent leakage.
 """
@@ -29,7 +33,7 @@ import os
 logger = logging.getLogger(__name__)
 
 class V2FeatureBuilder:
-    """Build all 46 features required by V2 LightGBM model"""
+    """Build all features required by V2 LightGBM model (Phase 1: 46, Phase 2: 50)"""
     
     def __init__(self, database_url: Optional[str] = None):
         """Initialize feature builder with database connection"""
@@ -99,6 +103,9 @@ class V2FeatureBuilder:
                 cutoff_time
             )
             
+            # Phase 2: Context features (rest days, congestion)
+            context_features = self._build_context_features(match_id, cutoff_time)
+            
             # Combine all features
             all_features = {
                 **odds_features,
@@ -106,12 +113,14 @@ class V2FeatureBuilder:
                 **form_features,
                 **h2h_features,
                 **advanced_features,
-                **schedule_features
+                **schedule_features,
+                **context_features  # Phase 2
             }
             
-            # Validate we have all 46 features
-            if len(all_features) != 46:
-                logger.warning(f"Expected 46 features, got {len(all_features)}")
+            # Validate feature count (46 Phase 1 + 4 Phase 2 = 50)
+            expected_count = 50 if context_features else 46
+            if len(all_features) != expected_count:
+                logger.warning(f"Expected {expected_count} features, got {len(all_features)}")
             
             return all_features
             
@@ -559,9 +568,52 @@ class V2FeatureBuilder:
         
         return float(max(0, days_since))
     
+    def _build_context_features(self, match_id: int, cutoff_time: datetime) -> Dict[str, float]:
+        """
+        Build match context features from Phase 2 data (4 features)
+        
+        Features:
+        - rest_days_home: Days since home team's last match (from match_context)
+        - rest_days_away: Days since away team's last match (from match_context)
+        - schedule_congestion_home_7d: Home team matches in last 7 days (from match_context)
+        - schedule_congestion_away_7d: Away team matches in last 7 days (from match_context)
+        """
+        query = text("""
+            SELECT 
+                rest_days_home,
+                rest_days_away,
+                schedule_congestion_home_7d,
+                schedule_congestion_away_7d
+            FROM match_context
+            WHERE match_id = :match_id
+        """)
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(query, {"match_id": match_id}).mappings().first()
+            
+            if result:
+                return {
+                    'rest_days_home': float(result['rest_days_home'] or 7.0),
+                    'rest_days_away': float(result['rest_days_away'] or 7.0),
+                    'schedule_congestion_home_7d': float(result['schedule_congestion_home_7d'] or 0.0),
+                    'schedule_congestion_away_7d': float(result['schedule_congestion_away_7d'] or 0.0)
+                }
+        except Exception as e:
+            logger.debug(f"Context features unavailable for match {match_id}: {e}")
+        
+        # Graceful defaults if no Phase 2 data yet
+        return {
+            'rest_days_home': 7.0,
+            'rest_days_away': 7.0,
+            'schedule_congestion_home_7d': 0.0,
+            'schedule_congestion_away_7d': 0.0
+        }
+    
     def _get_default_features(self) -> Dict[str, float]:
         """Return default feature values when data is missing"""
         return {
+            # Phase 1 features (46)
             'p_last_home': 0.33, 'p_last_draw': 0.33, 'p_last_away': 0.34,
             'p_open_home': 0.33, 'p_open_draw': 0.33, 'p_open_away': 0.34,
             'prob_drift_home': 0.0, 'prob_drift_draw': 0.0, 'prob_drift_away': 0.0,
@@ -580,7 +632,12 @@ class V2FeatureBuilder:
             'adv_home_corners_avg': 5.0, 'adv_home_yellows_avg': 2.0,
             'adv_away_shots_avg': 10.0, 'adv_away_shots_target_avg': 3.8,
             'adv_away_corners_avg': 4.2, 'adv_away_yellows_avg': 2.1,
-            'days_since_home_last_match': 7.0, 'days_since_away_last_match': 7.0
+            'days_since_home_last_match': 7.0, 'days_since_away_last_match': 7.0,
+            # Phase 2 features (4)
+            'rest_days_home': 7.0,
+            'rest_days_away': 7.0,
+            'schedule_congestion_home_7d': 0.0,
+            'schedule_congestion_away_7d': 0.0
         }
 
 
