@@ -1,0 +1,100 @@
+whoa—90.4% 3-way is a 🚨 giant red flag. that ain’t “phase-2 magic,” that’s leakage (or a data bug). here’s the straight talk + a tight fix plan.
+
+# What’s off in your log
+
+* **Outcome distro showed 0/0/0** early, then you got a full confusion matrix. That screams **label mapping / loader bug** (or labels attached after CV split).
+* **Top features** are `p_last_*` and odds dispersion. If those are **closing or post-kickoff snapshots**, you’re training on the answer key.
+* **Date window** for the “1000 matches” is ~**June 10–12, 2025** (2 days!). That’s a **temporal slice** packed with correlated rows and likely the **same teams/leagues** → leakage via random CV.
+* **rest_days_* = 0 importance** while `days_since_*` is strong → your new fields might be **all-NA → imputed zeros** or duplicating the same signal.
+
+# Quick triage (do these now)
+
+1. **Freeze features strictly pre-kickoff**
+   In your feature builder, enforce:
+
+   * `snapshot_ts <= kickoff_at - interval '60 minutes'` (or T-15 if that’s your standard).
+   * Log `snapshot_ts` with every prediction; **hard-fail** if violated.
+
+2. **Time-based CV (no random KFold)**
+   Replace random 5-fold with a **purged time split** (train ≤2024, valid 2025-H1). Add an **embargo** of 7 days between folds to avoid spillover.
+
+   * Python: `TimeSeriesSplit` or custom “PurgedGroupTimeSeriesSplit” keyed by `kickoff_date`.
+
+3. **Leak checks**
+
+   * **Sanity run A (market-only pre-kickoff):** expect ~48–52% accuracy. If it’s 70%+, you’re not using pre-kickoff snapshots.
+   * **Sanity run B (drop p_last_*):** keep `p_open_*` only. If accuracy collapses from 90% → ~50%, the “last” probs were post-kickoff/closing.
+   * **Permutation/MI audit:** any single feature with insane MI vs label → likely leakage.
+
+4. **Label pipeline fix**
+
+   * Map labels **before** splitting; assert `y.nunique()==3` and `y.value_counts().sum()==n_rows`.
+   * Add a unit test that fails if any fold has `y` all one class or empty.
+
+5. **Rest/congestion field fix**
+
+   * Verify `rest_days_home/away` are populated (not all NA). If they mirror `days_since_*`, **drop one** family to avoid collinearity.
+   * Add “missingness flags” (`rest_missing`, `cong_missing`) and re-train.
+
+6. **De-duplicate & group**
+
+   * Ensure **one row per match_id**.
+   * Use **GroupKFold by matchday/week** to prevent near-duplicates across folds (especially if you’re generating multiple snapshots).
+
+# Minimal code tweaks (drop-in)
+
+**Guard “last probs” to be pre-kickoff**
+
+```python
+# inside your odds snapshot query
+WHERE snapshot_ts <= kickoff_at - interval '60 minutes'
+```
+
+**Hard fail if any snapshot leaks**
+
+```python
+if (df['snapshot_ts'] > df['kickoff_at']).any():
+    raise ValueError("Leakage: snapshot_ts after kickoff")
+```
+
+**Purged time split (sketch)**
+
+```python
+def purged_time_splits(df, n_splits=5, embargo_days=7):
+    dates = df['kickoff_at'].sort_values().unique()
+    # create contiguous date blocks; apply embargo between train/valid
+    ...
+    yield train_idx, valid_idx
+```
+
+**Sanity runs**
+
+* `features = ['p_open_home','p_open_draw','p_open_away', ...no last...]`
+* Compare to full set. If gap is massive, your “last” isn’t pre-kickoff.
+
+# Rerun plan (fast)
+
+1. Rerun backfill trainer on a **broad time span** (2023-01-01 → 2025-06-12) using **purged time CV** and **pre-kickoff T-60 snapshots only**.
+2. Log **ECE, logloss, CLV**. Expect accuracy ~**52–55%**, not 90%.
+3. If you still see 60%+, start pulling features off until it drops to ~50% to find the leaker (start with `p_last_*`, then dispersion, then any live-derived fields).
+
+# Extras worth doing this week
+
+* **Leakage unit test**: randomly shuffle labels; model should score ≈33% acc / logloss ≈1.10 (multiclass). If not, leakage.
+* **Drift report**: run adversarial validation (train a classifier to distinguish 2023 vs 2025 rows). If AUC > 0.8, segment calibration per year/league becomes mandatory.
+* **CLV-first gate**: only promote a new model if **CLV delta** improves on a holdout month.
+
+# About that insane confusion matrix
+
+Looks “clean” because your model probably saw the **final market distribution** (or near-closing). Books near closing are very good; with any post-kickoff signal they become **near-oracles**, hence 90%. We need to cut the future off.
+
+---
+
+## TL;DR
+
+* That 90% is leakage.
+* Lock snapshots to **T-60 (or T-15)**, switch to **purged time CV with embargo**, fix the **label mapping order**, and re-train.
+* Expect ~53–55% after fixes with Phase-2 added.
+* Use the sanity runs to pinpoint which feature leaks (it’s almost surely `p_last_*`).
+
+if you want, I can patch your `train_v2_team_plus_plus.py` to (a) enforce T-60 odds, (b) use purged time folds, and (c) auto-run the two sanity baselines and print a **leak report**.

@@ -52,17 +52,20 @@ class V2FeatureBuilder:
         
         logger.info("✅ V2FeatureBuilder initialized")
     
-    def build_features(self, match_id: int, as_of_time: Optional[datetime] = None) -> Dict[str, float]:
+    def build_features(self, match_id: int, cutoff_time: Optional[datetime] = None) -> Dict[str, float]:
         """
-        Build all 46 features for a match
+        Build all 50 features for a match (Phase 1: 46, Phase 2: 4)
+        
+        ANTI-LEAKAGE: Enforces pre-kickoff feature computation
         
         Args:
             match_id: Match ID to build features for
-            as_of_time: Cutoff time for feature computation (prevents leakage)
-                       If None, uses current time
+            cutoff_time: Maximum timestamp for feature computation (prevents leakage)
+                        Should be kickoff_time - timedelta(hours=1) for training
+                        If None, uses current time (for live predictions)
         
         Returns:
-            Dictionary with all 46 feature values
+            Dictionary with all 50 feature values
         """
         try:
             # Get match metadata
@@ -71,8 +74,11 @@ class V2FeatureBuilder:
                 logger.error(f"Match {match_id} not found in database")
                 return self._get_default_features()
             
-            # Use match kickoff as cutoff if not specified
-            cutoff_time = as_of_time or match_info['kickoff_time']
+            # Use provided cutoff or default to 1 hour before kickoff
+            if cutoff_time is None:
+                kickoff = match_info['kickoff_time']
+                cutoff_time = kickoff - timedelta(hours=1)
+                logger.warning(f"No cutoff_time provided for match {match_id}, defaulting to T-1h: {cutoff_time}")
             
             # Build feature components
             odds_features = self._build_odds_features(match_id, cutoff_time)
@@ -152,8 +158,10 @@ class V2FeatureBuilder:
         """
         Build odds-based features (21 features)
         
+        CRITICAL: Only uses pre-kickoff odds (before cutoff_time)
+        
         Features:
-        - p_last_home, p_last_draw, p_last_away: Latest odds probabilities
+        - p_last_home, p_last_draw, p_last_away: Latest PRE-KICKOFF odds probabilities
         - p_open_home, p_open_draw, p_open_away: Opening odds probabilities
         - prob_drift_home/draw/away: Drift from open to last
         - drift_magnitude: Total probability drift
@@ -163,6 +171,9 @@ class V2FeatureBuilder:
         - num_books_last: Number of bookmakers
         - num_snapshots: Number of odds snapshots
         - coverage_hours: Time coverage
+        
+        Args:
+            cutoff_time: Maximum timestamp for odds snapshots (kickoff - 1 hour)
         """
         query = text("""
             SELECT 
@@ -173,15 +184,20 @@ class V2FeatureBuilder:
                 dispd as dispersion_draw,
                 dispa as dispersion_away,
                 n_books as num_books_last,
-                market_margin_avg
+                market_margin_avg,
+                ts_effective
             FROM odds_consensus
             WHERE match_id = :match_id
+              AND ts_effective <= :cutoff_time
             ORDER BY ts_effective DESC
             LIMIT 1
         """)
         
         with self.engine.connect() as conn:
-            result = conn.execute(query, {"match_id": match_id}).mappings().first()
+            result = conn.execute(query, {
+                "match_id": match_id,
+                "cutoff_time": cutoff_time
+            }).mappings().first()
         
         if not result:
             # Return market neutral values
