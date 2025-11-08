@@ -7,6 +7,10 @@ Backfills match_context table with:
 - Derby detection
 
 Uses DatabaseContextComputer (no API calls needed!)
+
+CRITICAL: Only processes matches with REAL pre-kickoff odds from odds_real_consensus.
+The odds_real_consensus view is built from odds_snapshots (authentic data).
+Never use odds_consensus table - it contains fake/backdated data!
 """
 
 import sys
@@ -48,8 +52,9 @@ class MatchContextBackfiller:
         }
     
     def discover_missing_matches(self, limit: int = 10000) -> list:
-        """Find matches missing context data"""
+        """Find matches missing context data (only for matches with REAL odds)"""
         logger.info("🔍 Discovering matches without context data...")
+        logger.info("   ⚠️  ONLY processing matches with REAL pre-kickoff odds from odds_real_consensus")
         
         query = """
             SELECT 
@@ -58,10 +63,12 @@ class MatchContextBackfiller:
                 tm.season,
                 tm.match_date
             FROM training_matches tm
+            -- CRITICAL: Only backfill matches with REAL odds
+            INNER JOIN odds_real_consensus orc ON tm.match_id = orc.match_id
             LEFT JOIN match_context mc ON tm.match_id = mc.match_id
             WHERE mc.match_id IS NULL
               AND tm.match_date >= '2020-01-01'
-              AND tm.match_date < NOW()
+              AND tm.match_date IS NOT NULL
               AND tm.outcome IS NOT NULL
             ORDER BY tm.match_date DESC
             LIMIT %s
@@ -71,7 +78,7 @@ class MatchContextBackfiller:
             cur.execute(query, (limit,))
             matches = cur.fetchall()
         
-        logger.info(f"✅ Found {len(matches)} matches needing context data")
+        logger.info(f"✅ Found {len(matches)} matches needing context data (with real odds)")
         return matches
     
     def upsert_context(self, match_id: int, context_data: dict):
