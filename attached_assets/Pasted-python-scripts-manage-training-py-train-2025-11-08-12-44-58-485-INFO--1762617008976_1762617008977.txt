@@ -1,0 +1,134 @@
+python scripts/manage_training.py --train
+2025-11-08 12:44:58,485 - INFO - ======================================================================
+2025-11-08 12:44:58,485 - INFO -   STARTING LEAKAGE-FREE MODEL TRAINING
+2025-11-08 12:44:58,485 - INFO - ======================================================================
+2025-11-08 12:44:58,485 - INFO - Anti-leakage measures:
+2025-11-08 12:44:58,485 - INFO -   1. Time-based CV with 7-day embargo
+2025-11-08 12:44:58,485 - INFO -   2. Pre-kickoff odds only (T-1h)
+2025-11-08 12:44:58,485 - INFO -   3. Sanity checks enabled
+2025-11-08 12:44:58,485 - INFO - ======================================================================
+2025-11-08 12:44:58,648 - INFO - 
+📊 Training Dataset:
+2025-11-08 12:44:58,648 - INFO -    Total matches:      8,809
+2025-11-08 12:44:58,648 - INFO -    Phase 2 coverage:   100.0%
+2025-11-08 12:44:58,648 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-06-12 00:02:38.035213
+2025-11-08 12:44:58,648 - INFO - 
+🚀 Launching leakage-free training script...
+2025-11-08 12:44:58,725 - INFO -    LibGOMP configured: /nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib
+2025-11-08 12:44:58,726 - INFO - 
+======================================================================
+2025-11-08 12:44:58,726 - INFO - Training started - output will stream below
+2025-11-08 12:44:58,726 - INFO - Expected duration: 4-5 hours for full dataset
+2025-11-08 12:44:58,726 - INFO - ======================================================================
+
+======================================================================
+  V2-TEAM++ LEAKAGE-FREE TRAINING
+  Anti-leakage measures:
+    1. Time-based CV with 7-day embargo
+    2. Pre-kickoff odds only (T-1h)
+    3. Random sampling (not DESC order)
+    4. Sanity checks for leakage detection
+======================================================================
+======================================================================
+  V2-TEAM++ DATA LOADING (LEAKAGE-FREE)
+======================================================================
+Date range: 2020-01-01 to 2025-12-31
+Pre-kickoff cutoff: T-1h minimum
+Limit: 5000 matches
+
+✅ Loaded 5000 matches
+   Date range: 2022-08-06 13:30:00 to 2025-06-12 00:02:38.035213
+   Outcome distribution:
+      Home: 2211 (44.2%)
+      Draw: 1185 (23.7%)
+      Away: 1604 (32.1%)
+
+🔨 Building features (pre-kickoff only, T-1h)...
+   ℹ️  Dropped (no odds): match 1218679
+   ℹ️  Dropped (no odds): match 1362772
+   ℹ️  Dropped (no odds): match 1164291
+   ℹ️  Dropped (no odds): match 871190
+   ℹ️  Dropped (no odds): match 1278042
+   Processed 100/5000 matches (2.0%, 42.0% success)
+   Processed 350/5000 matches (7.0%, 38.9% success)
+   Processed 400/5000 matches (8.0%, 38.2% success)
+   Processed 450/5000 matches (9.0%, 37.6% success)
+   Processed 650/5000 matches (13.0%, 38.2% success)
+   Processed 750/5000 matches (15.0%, 38.7% success)
+   Processed 900/5000 matches (18.0%, 39.1% success)
+   Processed 1250/5000 matches (25.0%, 40.8% success)
+   Processed 1300/5000 matches (26.0%, 40.8% success)
+   Processed 1700/5000 matches (34.0%, 40.9% success)
+   Processed 1750/5000 matches (35.0%, 41.0% success)
+   Processed 2000/5000 matches (40.0%, 40.6% success)
+   Processed 2050/5000 matches (41.0%, 40.5% success)
+   Processed 2100/5000 matches (42.0%, 40.6% success)
+   Processed 2250/5000 matches (45.0%, 41.0% success)
+   Processed 2300/5000 matches (46.0%, 40.7% success)
+
+   Processed 2350/5000 matches (47.0%, 40.8% success)
+   Processed 2400/5000 matches (48.0%, 40.9% success)
+   Processed 2450/5000 matches (49.0%, 41.2% success)
+   Processed 2500/5000 matches (50.0%, 41.1% success)
+   Processed 2600/5000 matches (52.0%, 41.5% success)
+   Processed 2800/5000 matches (56.0%, 41.5% success)
+   Processed 2850/5000 matches (57.0%, 41.4% success)
+   Processed 2950/5000 matches (59.0%, 41.4% success)
+   Processed 3050/5000 matches (61.0%, 41.3% success)
+   Processed 3100/5000 matches (62.0%, 41.4% success)
+   Processed 3150/5000 matches (63.0%, 41.4% success)
+   Processed 3300/5000 matches (66.0%, 41.8% success)
+   Processed 3350/5000 matches (67.0%, 41.8% success)
+   Processed 3400/5000 matches (68.0%, 41.8% success)
+   Processed 3450/5000 matches (69.0%, 41.9% success)
+   Processed 3500/5000 matches (70.0%, 42.0% success)
+   Processed 3650/5000 matches (73.0%, 42.0% success)
+   Processed 3750/5000 matches (75.0%, 42.2% success)
+   Processed 3800/5000 matches (76.0%, 42.2% success)
+   Processed 3900/5000 matches (78.0%, 42.2% success)
+   Processed 3950/5000 matches (79.0%, 42.2% success)
+   Processed 4000/5000 matches (80.0%, 42.2% success)
+   Processed 4350/5000 matches (87.0%, 42.1% success)
+   Processed 4400/5000 matches (88.0%, 42.1% success)
+   Processed 4500/5000 matches (90.0%, 42.2% success)
+   Processed 4650/5000 matches (93.0%, 42.4% success)
+   Processed 4800/5000 matches (96.0%, 42.4% success)
+   Processed 4900/5000 matches (98.0%, 42.4% success)
+   Processed 5000/5000 matches (100.0%, 42.6% success)
+
+✅ Feature extraction complete
+   Success: 2132 matches (42.6%)
+   Dropped (no valid odds): 2868 matches
+   Failed (other errors): 0 matches
+   Total processed: 5000 matches
+
+⚠️  WARNING: Only 42.6% of matches have valid odds!
+   This suggests odds data quality issues.
+
+======================================================================
+  LEAKAGE DETECTION - SANITY CHECKS
+======================================================================
+
+🔍 Sanity Check 1: Random Label Shuffle
+   Expected: ~33% accuracy, LogLoss ~1.10
+   Result: 40.2% accuracy
+   ⚠️  WARNING: 40.2% > 40% suggests leakage!
+
+🔍 Sanity Check 2: Market-Only Baseline
+   Expected: 48-52% accuracy (markets are efficient)
+   Result: 100.0% accuracy
+   ⚠️  WARNING: 100.0% > 60% suggests odds leakage!
+
+======================================================================
+
+⚠️  WARNING: Sanity checks failed - review results before proceeding
+Continue training anyway? (y/n): Training aborted
+2025-11-08 14:14:40,124 - INFO - 
+📊 Training Output:
+2025-11-08 14:14:40,124 - INFO - 
+2025-11-08 14:14:40,125 - INFO - 
+✅ Training complete!
+2025-11-08 14:14:40,125 - INFO -    Model version: v2-team-plus-plus-20251108-141440
+2025-11-08 14:14:40,125 - INFO -    Accuracy: N/A
+2025-11-08 14:14:40,126 - INFO -    LogLoss: N/A
+~/workspace$ 
