@@ -67,72 +67,65 @@ class V2FeatureBuilder:
         Returns:
             Dictionary with all 50 feature values
         """
-        try:
-            # Get match metadata
-            match_info = self._get_match_info(match_id)
-            if not match_info:
-                logger.error(f"Match {match_id} not found in database")
-                return self._get_default_features()
-            
-            # Use provided cutoff or default to 1 hour before kickoff
-            if cutoff_time is None:
-                kickoff = match_info['kickoff_time']
-                cutoff_time = kickoff - timedelta(hours=1)
-                logger.warning(f"No cutoff_time provided for match {match_id}, defaulting to T-1h: {cutoff_time}")
-            
-            # Build feature components
-            odds_features = self._build_odds_features(match_id, cutoff_time)
-            elo_features = self._build_elo_features(
-                match_info['home_team_id'],
-                match_info['away_team_id'],
-                match_info['league_id'],
-                cutoff_time
-            )
-            form_features = self._build_form_features(
-                match_info['home_team_id'],
-                match_info['away_team_id'],
-                cutoff_time
-            )
-            h2h_features = self._build_h2h_features(
-                match_info['home_team_id'],
-                match_info['away_team_id'],
-                cutoff_time
-            )
-            advanced_features = self._build_advanced_stats_features(
-                match_info['home_team_id'],
-                match_info['away_team_id'],
-                cutoff_time
-            )
-            schedule_features = self._build_schedule_features(
-                match_info['home_team_id'],
-                match_info['away_team_id'],
-                cutoff_time
-            )
-            
-            # Phase 2: Context features (rest days, congestion)
-            context_features = self._build_context_features(match_id, cutoff_time)
-            
-            # Combine all features
-            all_features = {
-                **odds_features,
-                **elo_features,
-                **form_features,
-                **h2h_features,
-                **advanced_features,
-                **schedule_features,
-                **context_features  # Phase 2
-            }
-            
-            # Validate feature count (46 Phase 1 + 4 Phase 2 = 50)
-            expected_count = 50 if context_features else 46
-            if len(all_features) != expected_count:
-                logger.warning(f"Expected {expected_count} features, got {len(all_features)}")
-            
-            return all_features
-            
-        except Exception as e:
-            logger.error(f"Failed to build features for match {match_id}: {e}")
-            return self._get_default_features()
+        # Get match metadata
+        match_info = self._get_match_info(match_id)
+        if not match_info:
+            raise ValueError(f"Match {match_id} not found in database")
+        
+        # Use provided cutoff or default to kickoff time (NOT T-1h!)
+        if cutoff_time is None:
+            cutoff_time = match_info['kickoff_time']
+            logger.warning(f"No cutoff_time provided for match {match_id}, using kickoff: {cutoff_time}")
+        
+        # Build feature components (may raise ValueError if no valid odds)
+        odds_features = self._build_odds_features(match_id, cutoff_time)
+        elo_features = self._build_elo_features(
+            match_info['home_team_id'],
+            match_info['away_team_id'],
+            match_info['league_id'],
+            cutoff_time
+        )
+        form_features = self._build_form_features(
+            match_info['home_team_id'],
+            match_info['away_team_id'],
+            cutoff_time
+        )
+        h2h_features = self._build_h2h_features(
+            match_info['home_team_id'],
+            match_info['away_team_id'],
+            cutoff_time
+        )
+        advanced_features = self._build_advanced_stats_features(
+            match_info['home_team_id'],
+            match_info['away_team_id'],
+            cutoff_time
+        )
+        schedule_features = self._build_schedule_features(
+            match_info['home_team_id'],
+            match_info['away_team_id'],
+            cutoff_time
+        )
+        
+        # Phase 2: Context features (rest days, congestion)
+        context_features = self._build_context_features(match_id, cutoff_time)
+        
+        # Combine all features
+        all_features = {
+            **odds_features,
+            **elo_features,
+            **form_features,
+            **h2h_features,
+            **advanced_features,
+            **schedule_features,
+            **context_features  # Phase 2
+        }
+        
+        # Validate feature count (46 Phase 1 + 4 Phase 2 = 50)
+        expected_count = 50 if context_features else 46
+        if len(all_features) != expected_count:
+            logger.warning(f"Expected {expected_count} features, got {len(all_features)}")
+        
+        return all_features
     
     def _get_match_info(self, match_id: int) -> Optional[Dict]:
         """Get basic match information"""

@@ -1,0 +1,54 @@
+~/workspace$ python scripts/manage_training.py --train
+2025-11-08 07:24:43,514 - INFO - ======================================================================
+2025-11-08 07:24:43,514 - INFO -   STARTING LEAKAGE-FREE MODEL TRAINING
+2025-11-08 07:24:43,514 - INFO - ======================================================================
+2025-11-08 07:24:43,514 - INFO - Anti-leakage measures:
+2025-11-08 07:24:43,514 - INFO -   1. Time-based CV with 7-day embargo
+2025-11-08 07:24:43,514 - INFO -   2. Pre-kickoff odds only (T-1h)
+2025-11-08 07:24:43,514 - INFO -   3. Sanity checks enabled
+2025-11-08 07:24:43,514 - INFO - ======================================================================
+2025-11-08 07:24:43,653 - INFO - 
+📊 Training Dataset:
+2025-11-08 07:24:43,653 - INFO -    Total matches:      8,809
+2025-11-08 07:24:43,653 - INFO -    Phase 2 coverage:   100.0%
+2025-11-08 07:24:43,653 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-06-12 00:02:38.035213
+2025-11-08 07:24:43,653 - INFO - 
+🚀 Launching leakage-free training script...
+2025-11-08 07:24:43,671 - INFO -    LibGOMP configured: /nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib
+2025-11-08 07:24:43,671 - INFO - 
+======================================================================
+2025-11-08 07:24:43,671 - INFO - Training started - output will stream below
+2025-11-08 07:24:43,671 - INFO - Expected duration: 4-5 hours for full dataset
+2025-11-08 07:24:43,671 - INFO - ======================================================================
+
+======================================================================
+  V2-TEAM++ LEAKAGE-FREE TRAINING
+  Anti-leakage measures:
+    1. Time-based CV with 7-day embargo
+    2. Pre-kickoff odds only (T-1h)
+    3. Random sampling (not DESC order)
+    4. Sanity checks for leakage detection
+======================================================================
+======================================================================
+  V2-TEAM++ DATA LOADING (LEAKAGE-FREE)
+======================================================================
+Date range: 2020-01-01 to 2025-12-31
+Pre-kickoff cutoff: T-1h minimum
+Limit: 5000 matches
+
+✅ Loaded 5000 matches
+   Date range: 2022-08-05 18:30:00 to 2025-06-12 00:02:38.035179
+   Outcome distribution:
+      Home: 2229 (44.6%)
+      Draw: 1146 (22.9%)
+      Away: 1625 (32.5%)
+
+🔨 Building features (pre-kickoff only, T-1h)...
+Failed to build features for match 1218988: No valid pre-kickoff odds for match 1218988 (cutoff: 2024-11-12 19:00:00, required: ts_effective <= cutoff AND n_books >= 3)
+Failed to build features for match 1218583: No valid pre-kickoff odds for match 1218583 (cutoff: 2024-08-11 15:00:00, required: ts_effective <= cutoff AND n_books >= 3)
+Failed to build features for match 1214864: No valid pre-kickoff odds for match 1214864 (cutoff: 2024-10-05 16:00:00, required: ts_effective <= cutoff AND n_books >= 3)
+Failed to build features for match 1224063: No valid pre-kickoff odds for match 1224063 (cutoff: 2024-11-09 14:30:00, required: ts_effective <= cutoff AND n_books >= 3)
+Failed to build features for match 1299197: No valid pre-kickoff odds for match 1299197 (cutoff: 2024-11-07 20:00:00, required: ts_effective <= cutoff AND n_books >= 3)
+Failed to build features for match 1038150: No valid pre-kickoff odds for match 1038150 (cutoff: 2024-01-13 15:15:00, required: ts_effective <= cutoff AND n_books >= 3)
+Failed to build features for match 1223624: No valid pre-kickoff odds for match 1223624 (cutoff: 2024-08-30 16:30:00, required: ts_effective <= cutoff AND n_books >= 3)
+Failed to build features for match 1232185: No valid pre-kickoff odds for match 1232185 (cutoff: 2024-08-03 14:00:00, required: ts_effective <= cutoff AND n_books >= 3)
