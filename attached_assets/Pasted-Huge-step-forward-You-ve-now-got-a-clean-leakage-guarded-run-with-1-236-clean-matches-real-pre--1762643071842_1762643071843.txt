@@ -1,0 +1,78 @@
+Huge step forward. You’ve now got a clean, leakage-guarded run with:
+
+1,236 clean matches (real pre-KO odds)
+
+100% feature build success
+
+Time-split OOF ≈ 49.5% acc | 1.0125 logloss | 0.2558 Brier
+
+Market-only (time-split) ≈ 45.3%, so your model is learning signal beyond the market
+
+Here’s how I’d tighten things up and push into the low-50s next.
+
+What the results say
+
+Sanity (random-label) 43.1%: that’s too high; something in the random-label test isn’t fully breaking the odds↔label alignment. Fix the shuffle (below).
+
+Feature ranks show form + market dispersion doing work; Phase-2 rest/congestion appear but weak (tiny sample window since Aug—expected).
+
+Immediate fixes (surgical)
+
+Fix the random-label sanity check
+Make sure labels are independently permuted before any split, and that you don’t leak fold boundaries:
+
+# before CV, once:
+y_perm = np.random.permutation(y)   # not within folds, not reusing an index map
+scores = []
+for tr, va in tscv.split(X, y_perm):
+    model = make_baseline_model()
+    model.fit(X.iloc[tr], y_perm[tr])
+    p = model.predict_proba(X.iloc[va])
+    scores.append(accuracy_score(y_perm[va], p.argmax(1)))
+print("Rand-label acc:", np.mean(scores))
+
+
+Also add a second “break linkage” test: permute the odds rows but keep labels. If that still lands >40%, something in the loader is sneaking future info.
+
+row_perm = np.random.permutation(len(X))
+X_perm = X.iloc[row_perm].reset_index(drop=True)
+y_fixed = y.reset_index(drop=True)
+# time-split still on chronological order of the permuted X -> should crush to ~33%
+
+
+Harden the odds views
+Keep both snapshots with consistent guardrails so drift/volatility are valid:
+
+Latest pre-KO: secs_to_kickoff BETWEEN 300 AND 14400 (5 min–4 h)
+
+Opening: earliest snapshot you have (ORDER BY secs_to_kickoff DESC)
+
+Enforce n_books >= 3 (you already do)
+
+Normalize probs in the builder (you added this—great). Consider filtering extreme margins: keep matches with sum(p) ∈ [1.02, 1.12].
+
+Don’t drop rows if only one snapshot exists
+Keep the row; set drift_* = 0 and add a binary has_opening = {0,1}. The model can learn the missingness.
+
+Empty-frame guard
+You added the “empty DF” pre-sanity guard—perfect. Keep it.
+
+Fast wins to reach 52–55%
+
+Class weights / sampling: Mildly up-weight Draw (often underfit) with LightGBM class_weight or sample weights.
+
+Monotonic constraints (light touch): e.g., larger book margin → non-increasing EV.
+
+Per-league calibration: isotonic by league or tier after training; then evaluate EV/CLV buckets.
+
+Meta-features: add league-tier, derby flag (when you have it), and “odds range regime” (fav/coin/long-shot buckets).
+
+Hyperparams: modest reg: num_leaves ~ 31–63, min_data_in_leaf ~ 50–200, feature_fraction ~ 0.8, lambda_l1/l2 ~ 0.0–1.0, early-stop 100.
+
+Data plan (hybrid)
+
+Train now on 1,236 (you just did).
+
+Keep backfilling real snapshots (Odds API / API-Football), targeting 3–5k clean matches; retrain.
+
+Each +1k clean matches should shave logloss a bit and stabilize variance; expect ~52–55% with ~5k balanced, clean, multi-league rows.
