@@ -1,0 +1,98 @@
+Great drop. The numbers tell a clear story:
+	•	OOF accuracy 45.1% (below market baseline)
+	•	Top features are only schedule/form; all market features show 0 importance (p_open_*, p_last_*, drift/vol/dispersion all zero)
+	•	Random-label sanity ≈42% (should be ~33%) → some residual leakage or label/feature misalignment
+	•	Market-only sanity 43.5% (too low) → odds pipeline likely broken (bad snapshot/join or bad normalization)
+
+Net: your training effectively became team-only because market features collapsed to 0/NA. That’s why it underperforms a normal market baseline.
+
+Here’s a tight, surgical fix plan you can run now.
+
+1) Prove odds are present & pre-kickoff (T-1h)
+
+Run these quick diagnostics before retraining:
+
+A. Odds availability (SQL)
+
+-- Count matches that have a valid T-1h snapshot
+select
+  count(*)                                     as total,
+  count(*) filter (where s.snapshot_ts <= m.kickoff_at - interval '1 hour') as has_t1h,
+  count(*) filter (where s.snapshot_ts is null) as missing_snapshot
+from matches m
+left join historical_odds_snapshots s
+  on s.match_id = m.match_id
+  and s.snapshot_ts <= m.kickoff_at - interval '1 hour';
+
+B. “Best pre-kickoff” snapshot (fallback ladder)
+If many miss T-1h, allow a fallback to the nearest snapshot ≤ kickoff (e.g., prefer T-1h, else nearest ≤ T-6h, T-24h, etc.). Ensure you actually find one.
+
+2) Fix probability construction (common failure point)
+
+Make sure you’re converting decimal odds → implied probs → margin-stripped probs:
+
+def probs_from_decimal(o_home, o_draw, o_away):
+    # guard against zeros/None
+    if min(o_home, o_draw, o_away) is None or min(o_home, o_draw, o_away) <= 1.0:
+        return None
+    inv = [1.0/o_home, 1.0/o_draw, 1.0/o_away]
+    overround = sum(inv)
+    p = [x/overround for x in inv]          # **margin-stripped**
+    # sanity: sum≈1, each in (0,1)
+    if not (0.99 <= sum(p) <= 1.01) or min(p) <= 0 or max(p) >= 0.99:
+        return None
+    return p  # [p_home, p_draw, p_away]
+
+Add a row-level validator that drops/flags matches where p_open_* or p_last_* are missing/invalid. Right now you’re likely imputing NAs to 0 → the model sees zeros and ignores the whole family.
+
+3) Use “best available pre-kickoff” instead of strictly T-1h
+
+You set T-1h; great, but many leagues don’t have that timestamp. Implement:
+
+target windows (minutes before KO): [60, 90, 120, 360, 1440]
+pick the nearest snapshot <= KO among these thresholds
+require: num_books >= 3
+
+If none exists, drop that match from training (don’t silently zero-fill).
+
+4) Re-run the two sanity baselines
+	•	Market-only with your fixed p_open_* (or p_best_preKO_*) should land ~48–52% OOF with time-split.
+	•	Random-label shuffle should be ≈33% accuracy / logloss ≈1.10. If higher, you still have leakage (e.g., multiple rows per match, labels joined after split, or a post-KO field sneaking in).
+
+5) Tighten your feature builder guards
+	•	Single row per match_id for training.
+	•	Emit and assert:
+	•	snapshot_ts <= kickoff_at (hard fail otherwise)
+	•	p_open_* present and sum≈1
+	•	feature_family_missing_flags (weather/ref/etc.) — but never replace missing probs with zeros.
+	•	Log % of training rows with valid market features. If <90%, fix joins before training.
+
+6) Quick diffs to isolate the issue
+
+Do three OOF runs (same time-split):
+	1.	Market-only (p_* only) → expect ~50%
+	2.	Team-only (drop all p_*) → typically ~45–49%
+	3.	Hybrid (market + team/context) → should beat both; if not, market features are still broken.
+
+7) Why your feature importance looks odd
+	•	days_since_* rank high because they’re present and have variance.
+	•	p_open_* and friends at 0 importance screams either all zeros, all NA → imputed, or constant vector due to a bad join/window. Fix #2/#3 will make them light up.
+	•	Phase-2 rest_days_* low while days_since_* high → they might be redundant; keep one family after verification to reduce collinearity (I’d keep rest_days_*, drop days_since_* once you trust them).
+
+8) Patch your trainer parsing “N/A”
+
+Your manager printed “Accuracy: N/A”. That’s just a parse bug. Read metrics from the training log or return JSON at the end of training so the manager can print the real numbers.
+
+⸻
+
+Fast action checklist (copy to tracker)
+	•	Add “best pre-KO snapshot” selector with fallback ladder and num_books>=3.
+	•	Enforce no zero-fill for market probs; drop rows that fail probability sanity.
+	•	Recompute p_open_* via margin stripping; assert sum≈1.
+	•	Re-run sanity: market-only ≈ 50%, random-label ≈ 33%.
+	•	Re-train hybrid (50 features) with the same time CV + 7-day embargo.
+	•	Compare OOF: hybrid > market-only and team-only; log ECE, logloss, CLV.
+
+Once market features are truly in, you should climb back to ~52–55% OOF with Phase-2 (and better calibration). From there we can add market-drift time-series and the stacked ensemble.
+
+Want me to draft the “best pre-KO snapshot” SQL and the tiny Python validator you can drop into the feature builder to prevent zero-fill?

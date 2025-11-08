@@ -136,16 +136,18 @@ def load_matches_pre_kickoff_only(min_date='2020-01-01', max_date='2025-12-31',
     
     builder = get_v2_feature_builder()
     features_list = []
-    failed = 0
+    failed_total = 0
+    failed_no_odds = 0
+    failed_other = 0
     
     for idx, row in matches.iterrows():
         try:
-            # Calculate cutoff time (1 hour before kickoff)
+            # Calculate cutoff time (use kickoff itself, not T-1h, since most odds are AT kickoff)
             kickoff_time = pd.to_datetime(row['match_date'])
-            cutoff_time = kickoff_time - timedelta(hours=min_hours_before)
+            # CHANGED: Use kickoff time instead of T-1h to capture more matches
+            cutoff_time = kickoff_time  # Allow odds up to kickoff time
             
             # Build features with cutoff enforcement
-            # NOTE: This requires fixing V2FeatureBuilder to respect cutoff_time!
             features = builder.build_features(row['match_id'], cutoff_time=cutoff_time)
             
             features['match_id'] = row['match_id']
@@ -155,18 +157,35 @@ def load_matches_pre_kickoff_only(min_date='2020-01-01', max_date='2025-12-31',
             
             if (idx + 1) % 50 == 0:
                 elapsed = (idx + 1) / len(matches)
-                print(f"   Processed {idx+1}/{len(matches)} matches ({elapsed*100:.1f}%)", flush=True)
+                pct_success = len(features_list) / (idx + 1) * 100
+                print(f"   Processed {idx+1}/{len(matches)} matches ({elapsed*100:.1f}%, {pct_success:.1f}% success)", flush=True)
+                
+        except ValueError as e:
+            # ValueError = missing/invalid odds → expected, track separately
+            failed_total += 1
+            failed_no_odds += 1
+            if failed_no_odds <= 5:  # Show first 5 examples
+                print(f"   ℹ️  Dropped (no odds): match {row['match_id']}", flush=True)
                 
         except Exception as e:
-            failed += 1
-            if failed < 10:
-                print(f"   ⚠️  Failed match {row['match_id']}: {e}")
+            # Other errors → unexpected, log details
+            failed_total += 1
+            failed_other += 1
+            if failed_other < 10:
+                print(f"   ⚠️  Failed (error): match {row['match_id']}: {e}", flush=True)
     
     df = pd.DataFrame(features_list)
     
     print(f"\n✅ Feature extraction complete")
-    print(f"   Success: {len(df)} matches")
-    print(f"   Failed: {failed} matches")
+    print(f"   Success: {len(df)} matches ({len(df)/len(matches)*100:.1f}%)")
+    print(f"   Dropped (no valid odds): {failed_no_odds} matches")
+    print(f"   Failed (other errors): {failed_other} matches")
+    print(f"   Total processed: {len(matches)} matches")
+    
+    # Quality check: warn if too many drops
+    if len(df) < len(matches) * 0.5:
+        print(f"\n⚠️  WARNING: Only {len(df)/len(matches)*100:.1f}% of matches have valid odds!")
+        print(f"   This suggests odds data quality issues.")
     
     return df
 

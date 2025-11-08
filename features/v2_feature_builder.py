@@ -158,7 +158,13 @@ class V2FeatureBuilder:
         """
         Build odds-based features (21 features)
         
-        CRITICAL: Only uses pre-kickoff odds (before cutoff_time)
+        CRITICAL: Uses "best available pre-kickoff" with strict validation
+        
+        Strategy:
+        1. Find nearest pre-kickoff snapshot (ts_effective <= cutoff_time)
+        2. Require n_books >= 3 for quality
+        3. Validate probabilities sum to ~1 (margin-stripped)
+        4. Raise ValueError if no valid odds (drop match, don't zero-fill!)
         
         Features:
         - p_last_home, p_last_draw, p_last_away: Latest PRE-KICKOFF odds probabilities
@@ -173,8 +179,12 @@ class V2FeatureBuilder:
         - coverage_hours: Time coverage
         
         Args:
-            cutoff_time: Maximum timestamp for odds snapshots (kickoff - 1 hour)
+            cutoff_time: Maximum timestamp for odds snapshots (typically kickoff or kickoff - 1h)
+            
+        Raises:
+            ValueError: If no valid pre-kickoff odds available (match will be dropped)
         """
+        # Query best available pre-kickoff odds with quality filter
         query = text("""
             SELECT 
                 ph_cons as p_last_home,
@@ -189,6 +199,7 @@ class V2FeatureBuilder:
             FROM odds_consensus
             WHERE match_id = :match_id
               AND ts_effective <= :cutoff_time
+              AND n_books >= 3
             ORDER BY ts_effective DESC
             LIMIT 1
         """)
@@ -199,30 +210,44 @@ class V2FeatureBuilder:
                 "cutoff_time": cutoff_time
             }).mappings().first()
         
+        # CRITICAL: Raise exception if no valid odds (drop match, don't zero-fill!)
         if not result:
-            # Return market neutral values
-            return {
-                'p_last_home': 0.33, 'p_last_draw': 0.33, 'p_last_away': 0.34,
-                'p_open_home': 0.33, 'p_open_draw': 0.33, 'p_open_away': 0.34,
-                'prob_drift_home': 0.0, 'prob_drift_draw': 0.0, 'prob_drift_away': 0.0,
-                'drift_magnitude': 0.0,
-                'dispersion_home': 0.01, 'dispersion_draw': 0.01, 'dispersion_away': 0.01,
-                'book_dispersion': 0.01,
-                'volatility_home': 0.0, 'volatility_draw': 0.0, 'volatility_away': 0.0,
-                'num_books_last': 5.0,
-                'num_snapshots': 10.0,
-                'coverage_hours': 24.0,
-                'market_entropy': 1.099,  # -sum(p*log(p)) for uniform
-                'favorite_margin': 0.01
-            }
+            raise ValueError(
+                f"No valid pre-kickoff odds for match {match_id} "
+                f"(cutoff: {cutoff_time}, required: ts_effective <= cutoff AND n_books >= 3)"
+            )
         
         odds = dict(result)
         
-        # Use current odds as both open and last for now
-        # TODO: Enhance with temporal snapshots when available
-        p_last_home = odds.get('p_last_home', 0.33)
-        p_last_draw = odds.get('p_last_draw', 0.33)
-        p_last_away = odds.get('p_last_away', 0.34)
+        # Extract and validate probabilities
+        p_last_home = odds.get('p_last_home')
+        p_last_draw = odds.get('p_last_draw')
+        p_last_away = odds.get('p_last_away')
+        
+        # Validate not None
+        if None in [p_last_home, p_last_draw, p_last_away]:
+            raise ValueError(f"Match {match_id}: Missing probability values in odds_consensus")
+        
+        # Validate margin-stripped probabilities sum to ~1
+        prob_sum = p_last_home + p_last_draw + p_last_away
+        if not (0.98 <= prob_sum <= 1.02):
+            raise ValueError(
+                f"Match {match_id}: Invalid probability sum {prob_sum:.4f} "
+                f"(expected ~1.0, got {p_last_home:.3f}/{p_last_draw:.3f}/{p_last_away:.3f})"
+            )
+        
+        # Validate each probability is reasonable
+        if min(p_last_home, p_last_draw, p_last_away) <= 0.01:
+            raise ValueError(f"Match {match_id}: Extreme low probability (<1%)")
+        if max(p_last_home, p_last_draw, p_last_away) >= 0.98:
+            raise ValueError(f"Match {match_id}: Extreme high probability (>98%)")
+        
+        # Log successful odds retrieval (for debugging)
+        logger.debug(
+            f"Match {match_id}: Using odds from {odds['ts_effective']} "
+            f"({p_last_home:.3f}/{p_last_draw:.3f}/{p_last_away:.3f}, "
+            f"{odds['num_books_last']} books)"
+        )
         
         # For now, assume minimal drift (open ≈ last)
         p_open_home = p_last_home
