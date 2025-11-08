@@ -1,0 +1,221 @@
+You’ve got two separate problems showing up at once:
+
+1. **Odds coverage is low** (only 42.6% of rows found a valid pre-KO snapshot) → the T-1h requirement is too strict and/or the join to snapshots is wrong.
+2. **Odds leakage is real** (market-only sanity = 100% accuracy) → you’re sometimes pulling post-KO/closing (or even result-derived) numbers.
+
+Here’s a tight, drop-in fix that (a) raises coverage, and (b) hard-blocks leakage.
+
+---
+
+# Step 1 — Build a “best pre-KO” odds consensus (no leakage)
+
+### A) Per-book, pick the nearest snapshot **≤ kickoff**
+
+Postgres (materialized view recommended):
+
+```sql
+-- 1) Per-book nearest-preKO snapshot per match
+create materialized view if not exists odds_preko_per_book as
+with snap as (
+  select
+    s.match_id,
+    s.book_id,
+    s.snapshot_ts,
+    m.kickoff_at,
+    (m.kickoff_at - s.snapshot_ts) as delta,
+    s.odds_home_dec, s.odds_draw_dec, s.odds_away_dec
+  from historical_odds_snapshots s
+  join matches m using (match_id)
+  where s.snapshot_ts <= m.kickoff_at      -- hard anti-leak
+)
+select distinct on (match_id, book_id)
+  match_id, book_id, snapshot_ts, kickoff_at,
+  odds_home_dec, odds_draw_dec, odds_away_dec
+from snap
+order by match_id, book_id, delta asc;     -- closest to KO wins
+
+create index if not exists ix_odds_preko_book on odds_preko_per_book(match_id, book_id);
+```
+
+### B) Aggregate across books, margin-strip to probabilities
+
+```sql
+-- 2) Consensus across books (require >= 3 books to trust)
+create materialized view if not exists odds_preko_consensus as
+with base as (
+  select
+    match_id,
+    count(*)                         as n_books,
+    avg(1.0 / odds_home_dec)         as inv_home,
+    avg(1.0 / odds_draw_dec)         as inv_draw,
+    avg(1.0 / odds_away_dec)         as inv_away
+  from odds_preko_per_book
+  where odds_home_dec  > 1.01 and
+        odds_draw_dec  > 1.01 and
+        odds_away_dec  > 1.01
+  group by match_id
+),
+norm as (
+  select
+    match_id, n_books,
+    inv_home, inv_draw, inv_away,
+    (inv_home + inv_draw + inv_away) as overround
+  from base
+)
+select
+  match_id, n_books,
+  (inv_home/overround) as p_preko_home,
+  (inv_draw/overround) as p_preko_draw,
+  (inv_away/overround) as p_preko_away
+from norm
+where n_books >= 3
+  and overround between 1.02 and 1.30;  -- sane margin window
+
+create index if not exists ix_odds_preko_consensus on odds_preko_consensus(match_id);
+```
+
+> Your feature builder should now join to **`odds_preko_consensus`** (not “open/last” tables) for market features.
+
+---
+
+# Step 2 — Add a fallback ladder (raise coverage safely)
+
+Some leagues won’t have true T-1h snapshots. Create a small helper view that tolerates more distant pre-KO snapshots, **still ≤ KO**:
+
+```sql
+-- nearest pre-KO regardless of window (still <= KO)
+create materialized view if not exists odds_preko_nearest as
+with snap as (
+  select
+    s.match_id, s.book_id, s.snapshot_ts, m.kickoff_at,
+    (m.kickoff_at - s.snapshot_ts) as delta,
+    s.odds_home_dec, s.odds_draw_dec, s.odds_away_dec
+  from historical_odds_snapshots s
+  join matches m using (match_id)
+  where s.snapshot_ts <= m.kickoff_at
+)
+select distinct on (match_id, book_id)
+  match_id, book_id, snapshot_ts, kickoff_at,
+  odds_home_dec, odds_draw_dec, odds_away_dec
+from snap
+order by match_id, book_id, delta asc;
+
+-- consensus with nearest (no T-1h constraint), same rules
+-- name it odds_preko_consensus_any and point your builder to it
+```
+
+In code: try `odds_preko_consensus` first; if missing, fall back to `odds_preko_consensus_any`. If still missing, **drop the match from training** (don’t zero-fill).
+
+---
+
+# Step 3 — Put leak tripwires in the feature builder (hard fails)
+
+Add these assertions before returning market features:
+
+```python
+def validate_market_probs(row):
+    # 1) presence
+    for k in ("p_preko_home","p_preko_draw","p_preko_away"):
+        if row.get(k) is None:
+            raise ValueError("Missing market prob: " + k)
+
+    # 2) numeric + sane range
+    p = [row["p_preko_home"], row["p_preko_draw"], row["p_preko_away"]]
+    if not all(0 < x < 1 for x in p):
+        raise ValueError("Bad prob range")
+
+    # 3) normalized (after margin stripping)
+    s = sum(p)
+    if not 0.99 <= s <= 1.01:
+        raise ValueError(f"Prob not normalized: sum={s:.4f}")
+
+    # 4) anti-leak: snapshot <= KO (log and fail if violated)
+    snap_ts = row.get("snapshot_ts")     # include this in your select
+    kickoff = row.get("kickoff_at")
+    if snap_ts is None or kickoff is None or snap_ts > kickoff:
+        raise ValueError("Odds leakage: snapshot after KO")
+
+    # 5) no degenerate certainties
+    if max(p) > 0.98 or min(p) < 0.005:
+        # either drop or downweight; these often reflect bad data or post-KO
+        raise ValueError("Degenerate market probs (likely leakage)")
+```
+
+And DO NOT impute missing market probs with zeros. If market probs fail validation → **exclude that match from training** and count it.
+
+---
+
+# Step 4 — Quick audits to locate the leak ASAP
+
+**A) How many snapshots are actually post-KO?**
+
+```sql
+select
+  count(*) as total,
+  count(*) filter (where s.snapshot_ts > m.kickoff_at) as post_ko,
+  round(100.0 * count(*) filter (where s.snapshot_ts > m.kickoff_at) / count(*), 2) as pct_post_ko
+from historical_odds_snapshots s
+join matches m using (match_id);
+```
+
+If `pct_post_ko > 0`, you have mixed sources (closing odds, live odds) in the same table.
+
+**B) Correlation tell-tale (shouldn’t be ~1):**
+
+```sql
+-- crude: does p track the final result too perfectly?
+with kons as (
+  select c.match_id, c.p_preko_home, c.p_preko_draw, c.p_preko_away, tm.result
+  from odds_preko_consensus c
+  join training_matches tm on tm.match_id=c.match_id
+)
+select
+  corr(case when result='Home' then 1 else 0 end, p_preko_home) as r_home,
+  corr(case when result='Draw' then 1 else 0 end, p_preko_draw) as r_draw,
+  corr(case when result='Away' then 1 else 0 end, p_preko_away) as r_away
+from kons;
+```
+
+If any correlation is suspiciously high (e.g., >0.6), you’re likely still mixing in late/closing or live snapshots.
+
+---
+
+# Step 5 — Re-run the sanity baselines (must pass)
+
+1. **Market-only** (using `odds_preko_consensus(_any)`):
+
+   * Expect **~48–52%** OOF accuracy with time-split.
+
+2. **Random-label shuffle**:
+
+   * Expect **~33%** accuracy, logloss **~1.10**.
+
+If Market-only hits absurd numbers again, you still have post-KO data slipping in. Use the audits to kill the source (e.g., exclude live/closing tables, enforce `snapshot_ts <= kickoff_at` everywhere).
+
+---
+
+# Step 6 — Why coverage was only 42.6%
+
+Common causes:
+
+* Timestamps in snapshots are UTC, but kickoff_at stored in another TZ. Normalize both to UTC.
+* You only had “open” and “last” tables previously; many long-tail leagues don’t have a T-1h snapshot. The **“nearest pre-KO”** ladder solves this.
+* `n_books` threshold too strict. Start with `>=3`, not `>=5`.
+
+---
+
+# Step 7 — Minimal trainer changes
+
+* Replace any “open/last” joins with **`odds_preko_consensus`** (then fallback to `_any`).
+* If market probs missing → **drop match** from training (log a counter).
+* Keep your **time-based CV + 7-day embargo**.
+
+---
+
+## Expected outcome after these patches
+
+* Market-only sanity ≈ **50%**.
+* Hybrid V2-Team++ (50 features) **> market-only**, typically **52–55%** OOF with your Phase-2 context.
+* Random-label ≈ **33%** → confirms leakage is gone.
+
+If you want, I can also draft the tiny Python function to query `odds_preko_consensus` first, then `_any`, with a clean return contract (probs + `snapshot_ts`) and wire it into your feature builder so this is plug-and-play.

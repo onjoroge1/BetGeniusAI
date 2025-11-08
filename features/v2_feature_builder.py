@@ -177,22 +177,23 @@ class V2FeatureBuilder:
         Raises:
             ValueError: If no valid pre-kickoff odds available (match will be dropped)
         """
-        # Query best available pre-kickoff odds with quality filter
+        # Query STRICT pre-kickoff odds (must be BEFORE kickoff, not AT/AFTER)
+        # Uses odds_prekickoff_clean view which filters out all post-KO data
         query = text("""
             SELECT 
-                ph_cons as p_last_home,
-                pd_cons as p_last_draw,
-                pa_cons as p_last_away,
-                disph as dispersion_home,
-                dispd as dispersion_draw,
-                dispa as dispersion_away,
+                p_home as p_last_home,
+                p_draw as p_last_draw,
+                p_away as p_last_away,
+                disp_home as dispersion_home,
+                disp_draw as dispersion_draw,
+                disp_away as dispersion_away,
                 n_books as num_books_last,
                 market_margin_avg,
-                ts_effective
-            FROM odds_consensus
+                ts_effective,
+                hours_before_ko
+            FROM odds_prekickoff_clean
             WHERE match_id = :match_id
               AND ts_effective <= :cutoff_time
-              AND n_books >= 3
             ORDER BY ts_effective DESC
             LIMIT 1
         """)
@@ -207,7 +208,7 @@ class V2FeatureBuilder:
         if not result:
             raise ValueError(
                 f"No valid pre-kickoff odds for match {match_id} "
-                f"(cutoff: {cutoff_time}, required: ts_effective <= cutoff AND n_books >= 3)"
+                f"(cutoff: {cutoff_time}, required: ts_effective < kickoff AND n_books >= 3)"
             )
         
         odds = dict(result)
@@ -235,9 +236,16 @@ class V2FeatureBuilder:
         if max(p_last_home, p_last_draw, p_last_away) >= 0.98:
             raise ValueError(f"Match {match_id}: Extreme high probability (>98%)")
         
+        # ANTI-LEAKAGE VALIDATION: Verify odds are truly pre-kickoff
+        hours_before = odds.get('hours_before_ko')
+        if hours_before is not None and hours_before < 0:
+            raise ValueError(
+                f"Match {match_id}: LEAKAGE DETECTED - odds timestamp is {-hours_before:.2f}h AFTER kickoff!"
+            )
+        
         # Log successful odds retrieval (for debugging)
         logger.debug(
-            f"Match {match_id}: Using odds from {odds['ts_effective']} "
+            f"Match {match_id}: Using odds from {hours_before:.2f}h before KO "
             f"({p_last_home:.3f}/{p_last_draw:.3f}/{p_last_away:.3f}, "
             f"{odds['num_books_last']} books)"
         )

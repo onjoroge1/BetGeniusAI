@@ -231,22 +231,40 @@ def run_sanity_checks(df):
         results['shuffle_check'] = 'PASS'
     
     # Sanity Check 2: Market-only baseline (should be ~48-52%)
+    # CRITICAL: Must use TIME-BASED CV to prevent leakage!
     print("\n🔍 Sanity Check 2: Market-Only Baseline")
     print("   Expected: 48-52% accuracy (markets are efficient)")
+    print("   Using TIME-BASED CV (not random splits)")
     
     market_features = [col for col in X.columns if 'p_open' in col or 'p_last' in col]
     if len(market_features) >= 3:
         X_market = X[market_features[:6]]  # Use only opening odds
         
-        model = lgb.LGBMClassifier(n_estimators=100, max_depth=5, verbose=-1)
-        scores = cross_val_score(model, X_market, y, cv=5, scoring='accuracy')
+        # CRITICAL FIX: Use time-based CV, not random CV!
+        from sklearn.model_selection import TimeSeriesSplit
+        tscv = TimeSeriesSplit(n_splits=5)
         
-        market_acc = scores.mean()
+        model = lgb.LGBMClassifier(n_estimators=100, max_depth=5, verbose=-1)
+        
+        # Manual time-based cross-validation
+        scores_list = []
+        for train_idx, test_idx in tscv.split(X_market):
+            X_train, X_test = X_market.iloc[train_idx], X_market.iloc[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+            
+            model.fit(X_train, y_train)
+            score = model.score(X_test, y_test)
+            scores_list.append(score)
+        
+        market_acc = np.mean(scores_list)
         print(f"   Result: {market_acc*100:.1f}% accuracy")
         
         if market_acc > 0.60:
             print(f"   ⚠️  WARNING: {market_acc*100:.1f}% > 60% suggests odds leakage!")
             results['market_check'] = 'FAIL - Odds may be post-kickoff'
+        elif market_acc < 0.45:
+            print(f"   ⚠️  WARNING: {market_acc*100:.1f}% < 45% suggests broken odds pipeline!")
+            results['market_check'] = 'FAIL - Odds may be missing/broken'
         else:
             print(f"   ✅ PASS: Market efficiency as expected")
             results['market_check'] = 'PASS'
