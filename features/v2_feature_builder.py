@@ -210,27 +210,32 @@ class V2FeatureBuilder:
         odds = dict(result)
         
         # Extract and validate probabilities
-        p_last_home = odds.get('p_last_home')
-        p_last_draw = odds.get('p_last_draw')
-        p_last_away = odds.get('p_last_away')
+        p_last_home_raw = odds.get('p_last_home')
+        p_last_draw_raw = odds.get('p_last_draw')
+        p_last_away_raw = odds.get('p_last_away')
         
         # Validate not None
-        if None in [p_last_home, p_last_draw, p_last_away]:
-            raise ValueError(f"Match {match_id}: Missing probability values in odds_consensus")
+        if None in [p_last_home_raw, p_last_draw_raw, p_last_away_raw]:
+            raise ValueError(f"Match {match_id}: Missing probability values in odds_real_consensus")
         
-        # Validate margin-stripped probabilities sum to ~1
-        prob_sum = p_last_home + p_last_draw + p_last_away
-        if not (0.98 <= prob_sum <= 1.02):
+        # Validate raw probabilities are reasonable (before normalization)
+        prob_sum_raw = p_last_home_raw + p_last_draw_raw + p_last_away_raw
+        if not (0.95 <= prob_sum_raw <= 1.15):  # Allow bookmaker margin (typically 1.03-1.08)
             raise ValueError(
-                f"Match {match_id}: Invalid probability sum {prob_sum:.4f} "
-                f"(expected ~1.0, got {p_last_home:.3f}/{p_last_draw:.3f}/{p_last_away:.3f})"
+                f"Match {match_id}: Invalid raw probability sum {prob_sum_raw:.4f} "
+                f"(expected 0.95-1.15 with margin, got {p_last_home_raw:.3f}/{p_last_draw_raw:.3f}/{p_last_away_raw:.3f})"
             )
         
-        # Validate each probability is reasonable
-        if min(p_last_home, p_last_draw, p_last_away) <= 0.01:
-            raise ValueError(f"Match {match_id}: Extreme low probability (<1%)")
-        if max(p_last_home, p_last_draw, p_last_away) >= 0.98:
-            raise ValueError(f"Match {match_id}: Extreme high probability (>98%)")
+        # NORMALIZE to remove bookmaker margin (sum = 1.0)
+        p_last_home = p_last_home_raw / prob_sum_raw
+        p_last_draw = p_last_draw_raw / prob_sum_raw
+        p_last_away = p_last_away_raw / prob_sum_raw
+        
+        # Validate normalized probabilities
+        if min(p_last_home, p_last_draw, p_last_away) <= 0.005:  # 0.5%
+            raise ValueError(f"Match {match_id}: Extreme low probability (<0.5%)")
+        if max(p_last_home, p_last_draw, p_last_away) >= 0.99:  # 99%
+            raise ValueError(f"Match {match_id}: Extreme high probability (>99%)")
         
         # ANTI-LEAKAGE VALIDATION: Verify odds are truly pre-kickoff
         hours_before = odds.get('hours_before_ko')
