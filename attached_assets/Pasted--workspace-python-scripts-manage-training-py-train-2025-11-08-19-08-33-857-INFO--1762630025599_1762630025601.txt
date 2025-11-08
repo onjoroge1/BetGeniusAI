@@ -1,0 +1,92 @@
+~/workspace$ python scripts/manage_training.py --train
+2025-11-08 19:08:33,857 - INFO - ======================================================================
+2025-11-08 19:08:33,857 - INFO -   STARTING LEAKAGE-FREE MODEL TRAINING
+2025-11-08 19:08:33,857 - INFO - ======================================================================
+2025-11-08 19:08:33,857 - INFO - Anti-leakage measures:
+2025-11-08 19:08:33,857 - INFO -   1. Time-based CV with 7-day embargo
+2025-11-08 19:08:33,857 - INFO -   2. Pre-kickoff odds only (T-1h)
+2025-11-08 19:08:33,857 - INFO -   3. Sanity checks enabled
+2025-11-08 19:08:33,857 - INFO - ======================================================================
+2025-11-08 19:08:33,977 - INFO - 
+📊 Training Dataset:
+2025-11-08 19:08:33,977 - INFO -    Total matches:      10,087
+2025-11-08 19:08:33,977 - INFO -    Phase 2 coverage:   12.3%
+2025-11-08 19:08:33,977 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-11-07 19:45:00
+2025-11-08 19:08:33,977 - INFO - 
+🚀 Launching leakage-free training script...
+2025-11-08 19:08:34,000 - INFO -    LibGOMP configured: /nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib
+2025-11-08 19:08:34,000 - INFO - 
+======================================================================
+2025-11-08 19:08:34,000 - INFO - Training started - output will stream below
+2025-11-08 19:08:34,000 - INFO - Expected duration: 4-5 hours for full dataset
+2025-11-08 19:08:34,000 - INFO - ======================================================================
+
+======================================================================
+  V2-TEAM++ LEAKAGE-FREE TRAINING
+  Anti-leakage measures:
+    1. Time-based CV with 7-day embargo
+    2. Pre-kickoff odds only (T-1h)
+    3. Random sampling (not DESC order)
+    4. Sanity checks for leakage detection
+======================================================================
+======================================================================
+  V2-TEAM++ DATA LOADING (LEAKAGE-FREE)
+======================================================================
+Date range: 2020-01-01 to 2025-12-31
+Pre-kickoff cutoff: T-1h minimum
+Limit: 5000 matches
+
+✅ Loaded 1236 matches
+   Date range: 2025-08-18 18:59:59.832021 to 2025-11-07 19:45:00
+   Outcome distribution:
+      Home: 588 (47.6%)
+      Draw: 285 (23.1%)
+      Away: 363 (29.4%)
+
+🔨 Building features (pre-kickoff only, T-1h)...
+   ℹ️  Dropped (no odds): match 1390087
+   ℹ️  Dropped (no odds): match 1379428
+   ℹ️  Dropped (no odds): match 1342380
+   ℹ️  Dropped (no odds): match 1374239
+   ℹ️  Dropped (no odds): match 1377906
+
+✅ Feature extraction complete
+   Success: 0 matches (0.0%)
+   Dropped (no valid odds): 1236 matches
+   Failed (other errors): 0 matches
+   Total processed: 1236 matches
+
+⚠️  WARNING: Only 0.0% of matches have valid odds!
+   This suggests odds data quality issues.
+
+======================================================================
+  LEAKAGE DETECTION - SANITY CHECKS
+======================================================================
+
+🔍 Sanity Check 1: Random Label Shuffle
+   Expected: ~33% accuracy, LogLoss ~1.10
+Traceback (most recent call last):
+  File "/home/runner/workspace/training/train_v2_no_leakage.py", line 479, in <module>
+    main()
+  File "/home/runner/workspace/training/train_v2_no_leakage.py", line 456, in main
+    sanity_results = run_sanity_checks(df)
+                     ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/training/train_v2_no_leakage.py", line 214, in run_sanity_checks
+    y = df['outcome'].values
+        ~~^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pandas/core/frame.py", line 4107, in __getitem__
+    indexer = self.columns.get_loc(key)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pandas/core/indexes/range.py", line 417, in get_loc
+    raise KeyError(key)
+KeyError: 'outcome'
+2025-11-08 19:16:04,732 - ERROR - ❌ Training failed!
+2025-11-08 19:16:04,733 - ERROR - ❌ Error: Training failed with exit code 1
+2025-11-08 19:16:04,733 - ERROR - Training failed with exit code 1
+Traceback (most recent call last):
+  File "/home/runner/workspace/scripts/manage_training.py", line 375, in main
+    manager.run_training(
+  File "/home/runner/workspace/scripts/manage_training.py", line 213, in run_training
+    raise RuntimeError(f"Training failed with exit code {result.returncode}")
+RuntimeError: Training failed with exit code 1
+~/workspace$ 
