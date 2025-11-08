@@ -1,0 +1,265 @@
+~/workspace$ python scripts/manage_training.py --train
+2025-11-07 22:35:25,334 - INFO - ======================================================================
+2025-11-07 22:35:25,334 - INFO -   STARTING LEAKAGE-FREE MODEL TRAINING
+2025-11-07 22:35:25,334 - INFO - ======================================================================
+2025-11-07 22:35:25,334 - INFO - Anti-leakage measures:
+2025-11-07 22:35:25,334 - INFO -   1. Time-based CV with 7-day embargo
+2025-11-07 22:35:25,334 - INFO -   2. Pre-kickoff odds only (T-1h)
+2025-11-07 22:35:25,334 - INFO -   3. Sanity checks enabled
+2025-11-07 22:35:25,334 - INFO - ======================================================================
+2025-11-07 22:35:25,462 - INFO - 
+📊 Training Dataset:
+2025-11-07 22:35:25,463 - INFO -    Total matches:      8,809
+2025-11-07 22:35:25,463 - INFO -    Phase 2 coverage:   100.0%
+2025-11-07 22:35:25,463 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-06-12 00:02:38.035213
+2025-11-07 22:35:25,463 - INFO - 
+🚀 Launching leakage-free training script...
+2025-11-07 22:35:25,512 - INFO -    LibGOMP configured: /nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib
+2025-11-07 22:35:25,513 - INFO - 
+======================================================================
+2025-11-07 22:35:25,513 - INFO - Training started - output will stream below
+2025-11-07 22:35:25,513 - INFO - Expected duration: 4-5 hours for full dataset
+2025-11-07 22:35:25,513 - INFO - ======================================================================
+
+======================================================================
+  V2-TEAM++ LEAKAGE-FREE TRAINING
+  Anti-leakage measures:
+    1. Time-based CV with 7-day embargo
+    2. Pre-kickoff odds only (T-1h)
+    3. Random sampling (not DESC order)
+    4. Sanity checks for leakage detection
+======================================================================
+======================================================================
+  V2-TEAM++ DATA LOADING (LEAKAGE-FREE)
+======================================================================
+Date range: 2020-01-01 to 2025-12-31
+Pre-kickoff cutoff: T-1h minimum
+Limit: 5000 matches
+
+✅ Loaded 5000 matches
+   Date range: 2022-08-05 18:30:00 to 2025-06-12 00:02:38.035213
+   Outcome distribution:
+      Home: 2177 (43.5%)
+      Draw: 1203 (24.1%)
+      Away: 1620 (32.4%)
+
+🔨 Building features (pre-kickoff only, T-1h)...
+   Processed 50/5000 matches (1.0%)
+   Processed 100/5000 matches (2.0%)
+   Processed 150/5000 matches (3.0%)
+   Processed 200/5000 matches (4.0%)
+   Processed 250/5000 matches (5.0%)
+   Processed 300/5000 matches (6.0%)
+   Processed 350/5000 matches (7.0%)
+   Processed 400/5000 matches (8.0%)
+   Processed 450/5000 matches (9.0%)
+   Processed 500/5000 matches (10.0%)
+   Processed 550/5000 matches (11.0%)
+   Processed 600/5000 matches (12.0%)
+   Processed 650/5000 matches (13.0%)
+   Processed 700/5000 matches (14.0%)
+   Processed 750/5000 matches (15.0%)
+   Processed 800/5000 matches (16.0%)
+   Processed 850/5000 matches (17.0%)
+   Processed 900/5000 matches (18.0%)
+   Processed 950/5000 matches (19.0%)
+   Processed 1000/5000 matches (20.0%)
+   Processed 1050/5000 matches (21.0%)
+   Processed 1100/5000 matches (22.0%)
+   Processed 1150/5000 matches (23.0%)
+   Processed 1200/5000 matches (24.0%)
+   Processed 1250/5000 matches (25.0%)
+   Processed 1300/5000 matches (26.0%)
+   Processed 1350/5000 matches (27.0%)
+   Processed 1400/5000 matches (28.0%)
+   Processed 1450/5000 matches (29.0%)
+   Processed 1500/5000 matches (30.0%)
+   Processed 1550/5000 matches (31.0%)
+   Processed 1600/5000 matches (32.0%)
+   Processed 1650/5000 matches (33.0%)
+   Processed 1700/5000 matches (34.0%)
+   Processed 1750/5000 matches (35.0%)
+   Processed 1800/5000 matches (36.0%)
+   Processed 1850/5000 matches (37.0%)
+   Processed 1900/5000 matches (38.0%)
+   Processed 1950/5000 matches (39.0%)
+   Processed 2000/5000 matches (40.0%)
+   Processed 2050/5000 matches (41.0%)
+   Processed 2100/5000 matches (42.0%)
+   Processed 2150/5000 matches (43.0%)
+   Processed 2200/5000 matches (44.0%)
+   Processed 2250/5000 matches (45.0%)
+   Processed 2300/5000 matches (46.0%)
+   Processed 2350/5000 matches (47.0%)
+   Processed 2400/5000 matches (48.0%)
+   Processed 2450/5000 matches (49.0%)
+   Processed 2500/5000 matches (50.0%)
+   Processed 2550/5000 matches (51.0%)
+   Processed 2600/5000 matches (52.0%)
+   Processed 2650/5000 matches (53.0%)
+   Processed 2700/5000 matches (54.0%)
+   Processed 2750/5000 matches (55.0%)
+   Processed 2800/5000 matches (56.0%)
+   Processed 2850/5000 matches (57.0%)
+   Processed 2900/5000 matches (58.0%)
+   Processed 2950/5000 matches (59.0%)
+   Processed 3000/5000 matches (60.0%)
+   Processed 3050/5000 matches (61.0%)
+   Processed 3100/5000 matches (62.0%)
+   Processed 3150/5000 matches (63.0%)
+   Processed 3200/5000 matches (64.0%)
+   Processed 3250/5000 matches (65.0%)
+   Processed 3300/5000 matches (66.0%)
+   Processed 3350/5000 matches (67.0%)
+   Processed 3400/5000 matches (68.0%)
+   Processed 3450/5000 matches (69.0%)
+   Processed 3500/5000 matches (70.0%)
+   Processed 3550/5000 matches (71.0%)
+   Processed 3600/5000 matches (72.0%)
+   Processed 3650/5000 matches (73.0%)
+   Processed 3700/5000 matches (74.0%)
+   Processed 3750/5000 matches (75.0%)
+   Processed 3800/5000 matches (76.0%)
+   Processed 3850/5000 matches (77.0%)
+   Processed 3900/5000 matches (78.0%)
+   Processed 3950/5000 matches (79.0%)
+   Processed 4000/5000 matches (80.0%)
+   Processed 4050/5000 matches (81.0%)
+   Processed 4100/5000 matches (82.0%)
+   Processed 4150/5000 matches (83.0%)
+   Processed 4200/5000 matches (84.0%)
+   Processed 4250/5000 matches (85.0%)
+   Processed 4300/5000 matches (86.0%)
+   Processed 4350/5000 matches (87.0%)
+   Processed 4400/5000 matches (88.0%)
+   Processed 4450/5000 matches (89.0%)
+   Processed 4500/5000 matches (90.0%)
+   Processed 4550/5000 matches (91.0%)
+   Processed 4600/5000 matches (92.0%)
+   Processed 4650/5000 matches (93.0%)
+   Processed 4700/5000 matches (94.0%)
+   Processed 4750/5000 matches (95.0%)
+   Processed 4800/5000 matches (96.0%)
+   Processed 4850/5000 matches (97.0%)
+   Processed 4900/5000 matches (98.0%)
+   Processed 4950/5000 matches (99.0%)
+   Processed 5000/5000 matches (100.0%)
+
+✅ Feature extraction complete
+   Success: 5000 matches
+   Failed: 0 matches
+
+======================================================================
+  LEAKAGE DETECTION - SANITY CHECKS
+======================================================================
+
+🔍 Sanity Check 1: Random Label Shuffle
+   Expected: ~33% accuracy, LogLoss ~1.10
+   Result: 42.3% accuracy
+   ⚠️  WARNING: 42.3% > 40% suggests leakage!
+
+🔍 Sanity Check 2: Market-Only Baseline
+   Expected: 48-52% accuracy (markets are efficient)
+   Result: 43.5% accuracy
+   ✅ PASS: Market efficiency as expected
+
+======================================================================
+
+⚠️  WARNING: Sanity checks failed - review results before proceeding
+Continue training anyway? (y/n): y
+
+======================================================================
+  V2-TEAM++ TRAINING (Time-Based CV, Leakage-Free)
+======================================================================
+CV Strategy: 5-fold Time Series Split
+Embargo: 7 days between train/valid
+
+Training with 50 features
+Dataset size: 5000 matches
+Date range: 2022-08-05 18:30:00 to 2025-06-12 00:02:38.035213
+
+--- Fold 1/5 ---
+Train: 808 matches (2022-08-05 18:30:00 to 2024-01-27 15:15:00)
+Valid: 833 matches (2024-02-03 17:30:00 to 2024-07-24 18:30:00)
+  LogLoss: 1.0782
+  Brier:   0.2303
+  Accuracy: 42.0%
+
+--- Fold 2/5 ---
+Train: 1634 matches (2022-08-05 18:30:00 to 2024-07-18 15:00:00)
+Valid: 833 matches (2024-07-25 16:00:00 to 2024-09-21 18:45:00)
+  LogLoss: 1.0585
+  Brier:   0.2261
+  Accuracy: 44.9%
+
+--- Fold 3/5 ---
+Train: 2407 matches (2022-08-05 18:30:00 to 2024-09-14 18:45:00)
+Valid: 833 matches (2024-09-22 07:00:00 to 2025-01-04 15:00:00)
+  LogLoss: 1.0570
+  Brier:   0.2308
+  Accuracy: 45.4%
+
+--- Fold 4/5 ---
+Train: 3322 matches (2022-08-05 18:30:00 to 2024-12-22 16:30:00)
+Valid: 833 matches (2025-01-04 15:00:00 to 2025-06-10 16:36:38.466620)
+  LogLoss: 1.0565
+  Brier:   0.2275
+  Accuracy: 45.3%
+
+--- Fold 5/5 ---
+Train: 4073 matches (2022-08-05 18:30:00 to 2025-06-01 16:30:00)
+Valid: 833 matches (2025-06-10 16:36:38.466675 to 2025-06-12 00:02:38.035035)
+  LogLoss: 1.0546
+  Brier:   0.2409
+  Accuracy: 48.1%
+
+======================================================================
+  OUT-OF-FOLD METRICS (Time-Based CV)
+======================================================================
+  LogLoss:  1.0610
+  Brier:    0.2311
+  Accuracy: 45.1%
+======================================================================
+
+⚠️  WARNING: Accuracy < 48% is below market baseline
+   This suggests model may not be learning properly
+
+📊 Top 20 Features by Importance:
+  days_since_away_last_match                   92.0  [Phase 1]
+  days_since_home_last_match                   86.0  [Phase 1]
+  away_form_goals_scored                       60.0  [Phase 1]
+  home_form_goals_conceded                     52.0  [Phase 1]
+  home_form_goals_scored                       46.0  [Phase 1]
+  away_form_goals_conceded                     35.0  [Phase 1]
+  rest_days_home                                9.0  [Phase 2]
+  schedule_congestion_home_7d                   2.0  [Phase 2]
+  rest_days_away                                1.0  [Phase 2]
+  prob_drift_away                               0.0  [Phase 1]
+  p_last_away                                   0.0  [Phase 1]
+  p_open_home                                   0.0  [Phase 1]
+  p_open_draw                                   0.0  [Phase 1]
+  p_open_away                                   0.0  [Phase 1]
+  prob_drift_home                               0.0  [Phase 1]
+  prob_drift_draw                               0.0  [Phase 1]
+  p_last_home                                   0.0  [Phase 1]
+  p_last_draw                                   0.0  [Phase 1]
+  num_books_last                                0.0  [Phase 1]
+  volatility_away                               0.0  [Phase 1]
+
+💾 Saving ensemble model...
+✅ Model saved to artifacts/models/v2_no_leakage
+
+✅ Training complete!
+
+Final metrics:
+  Accuracy: 45.1%
+  LogLoss:  1.0610
+  Brier:    0.2311
+2025-11-08 02:17:37,195 - INFO - 
+📊 Training Output:
+2025-11-08 02:17:37,195 - INFO - 
+2025-11-08 02:17:37,196 - INFO - 
+✅ Training complete!
+2025-11-08 02:17:37,196 - INFO -    Model version: v2-team-plus-plus-20251108-021737
+2025-11-08 02:17:37,196 - INFO -    Accuracy: N/A
+2025-11-08 02:17:37,196 - INFO -    LogLoss: N/A

@@ -1,13 +1,9 @@
 {
-  "last_training_date": "2025-11-07T19:27:24.953313",
+  "last_training_date": "2025-11-08T02:17:37.195641",
   "matches_used": 8809,
   "phase2_coverage": 100.0,
-  "model_version": "v2-team-plus-plus-20251107-192724",
-  "performance": {
-    "logloss": 0.1978,
-    "brier_score": 0.0375,
-    "accuracy": 90.4
-  },
+  "model_version": "v2-team-plus-plus-20251108-021737",
+  "performance": {},
   "cv_folds": 5,
   "min_matches": 3000
 }
