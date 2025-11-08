@@ -1,0 +1,175 @@
+Got you. The error tells us two things, fast:
+
+1. your training loader is pulling 1,236 matches, but the feature builder then drops **all** of them as “no valid odds” ⇒ the loader isn’t restricting to matches that actually have rows in your clean odds view; and/or the builder expects both “latest pre-KO” and “opening” snapshots and can’t find one of them.
+2. once every row is dropped, the DF is empty → sanity checks crash on `KeyError: 'outcome'`.
+
+Here’s the tight fix list that will get you training on the clean set today.
+
+# 1) Load only matches that truly have clean odds
+
+In your leakage-free training script / manager, change the initial dataset query to **inner-join** the clean consensus view so we never even try to build features for matches without odds.
+
+```sql
+-- replace your FROM training_matches ... WHERE ... with:
+FROM training_matches tm
+INNER JOIN odds_real_consensus orc
+  ON orc.match_id = tm.match_id
+WHERE tm.match_date >= '2020-01-01'
+  AND tm.outcome IS NOT NULL
+  -- (keep your date window / sampling here)
+```
+
+Why: your current log shows “Loaded 1236 matches … Success: 0, Dropped: 1236”. That means the loader didn’t join to the clean odds and the builder later discovered there are no usable odds and dropped everything. (Background on the corruption + clean source is in your docs: odds_consensus is fake/backdated; use odds_snapshots-derived views. )
+
+# 2) Provide BOTH “latest pre-KO” and “opening” snapshots
+
+Your 50-feature builder computes drift/volatility/dispersion using both last and opening probabilities. If you only built a single `odds_real_consensus` (“latest near T-1h”), drift features will be NaN and your builder might reject the row.
+
+Create two materialized views from `odds_snapshots`:
+
+```sql
+-- LATEST pre-KO (nearest to 60m before KO, >=5m pre-KO)
+CREATE MATERIALIZED VIEW IF NOT EXISTS odds_real_latest_preko AS
+WITH c AS (
+  SELECT
+    match_id, book_id, outcome,
+    implied_prob,
+    ROW_NUMBER() OVER (
+      PARTITION BY match_id, book_id, outcome
+      ORDER BY ABS(secs_to_kickoff - 3600)
+    ) rn
+  FROM odds_snapshots
+  WHERE market='1X2' AND odds_decimal>1.01 AND secs_to_kickoff>300
+)
+SELECT match_id,
+       COUNT(DISTINCT book_id) AS n_books,
+       AVG(CASE WHEN outcome='home' THEN implied_prob END) AS p_home,
+       AVG(CASE WHEN outcome='draw' THEN implied_prob END) AS p_draw,
+       AVG(CASE WHEN outcome='away' THEN implied_prob END) AS p_away
+FROM c
+WHERE rn=1
+GROUP BY match_id
+HAVING COUNT(DISTINCT book_id) >= 3;
+
+-- OPENING snapshot (earliest we have; you can tighten the window later)
+CREATE MATERIALIZED VIEW IF NOT EXISTS odds_real_opening AS
+WITH c AS (
+  SELECT
+    match_id, book_id, outcome,
+    implied_prob,
+    ROW_NUMBER() OVER (
+      PARTITION BY match_id, book_id, outcome
+      ORDER BY secs_to_kickoff DESC   -- farthest from KO = earliest
+    ) rn
+  FROM odds_snapshots
+  WHERE market='1X2' AND odds_decimal>1.01 AND secs_to_kickoff>300
+)
+SELECT match_id,
+       COUNT(DISTINCT book_id) AS n_books,
+       AVG(CASE WHEN outcome='home' THEN implied_prob END) AS p_home_open,
+       AVG(CASE WHEN outcome='draw' THEN implied_prob END) AS p_draw_open,
+       AVG(CASE WHEN outcome='away' THEN implied_prob END) AS p_away_open
+FROM c
+WHERE rn=1
+GROUP BY match_id
+HAVING COUNT(DISTINCT book_id) >= 3;
+
+-- (Optional convenience view that merges both)
+CREATE MATERIALIZED VIEW IF NOT EXISTS odds_real_consensus AS
+SELECT
+  l.match_id,
+  l.n_books,
+  l.p_home, l.p_draw, l.p_away,
+  o.p_home_open, o.p_draw_open, o.p_away_open
+FROM odds_real_latest_preko l
+LEFT JOIN odds_real_opening o USING (match_id);
+```
+
+Your corruption post-mortem and clean-data plan match this approach (use odds_snapshots; enforce pre-KO and n_books; never touch odds_consensus).  
+
+# 3) Make the feature builder tolerant (don’t drop rows if only one side exists)
+
+In `v2_feature_builder.get_market_features()`:
+
+* If opening probs are missing but latest exist, compute with partials:
+
+  * set `prob_drift_* = p_last_* - p_open_*` when both present; else set drift to `0.0` and mark `drift_available = 0` (and include that binary as a feature so the model learns the missingness pattern rather than you discarding rows).
+* If latest probs exist but `n_books` < threshold, consider lowering to `>=2` for now (only for this clean subset) so we don’t nuke coverage.
+
+This prevents “valid odds” hard-failures when one of the two snapshots is missing.
+
+# 4) Guardrails so training never dies ugly again
+
+* **Empty-frame check**: in `train_v2_no_leakage.py`, after building `df` and before sanity checks:
+
+```python
+if df.empty:
+    raise RuntimeError("No rows after feature build (check odds joins / views).")
+if 'outcome' not in df.columns:
+    raise RuntimeError("Outcome column missing after filtering.")
+```
+
+* **Sanity checks** must use **TimeSeriesSplit**, which you already patched in the prior iteration (good). Keep it. 
+
+# 5) Quick smoke tests you can run now
+
+SQL sanity:
+
+```sql
+-- How many of your 1,236 have latest odds?
+SELECT COUNT(*) 
+FROM training_matches tm 
+JOIN odds_real_latest_preko l USING(match_id);
+
+-- How many also have opening odds?
+SELECT COUNT(*) 
+FROM training_matches tm 
+JOIN odds_real_opening o USING(match_id);
+
+-- How many have both (what your builder wants)?
+SELECT COUNT(*) 
+FROM training_matches tm
+JOIN odds_real_consensus c USING(match_id);
+```
+
+Python sanity (loader):
+
+```python
+# in train_v2_no_leakage.py after loading candidate matches:
+assert len(df_candidates)>0
+assert (df_candidates['match_id'].isin(sql("SELECT match_id FROM odds_real_consensus"))).any()
+```
+
+# 6) Why you got “0.0% valid” today
+
+* The loader didn’t inner-join to the clean odds view, so it handed matches to the builder that don’t have rows in `odds_real_consensus`.
+* The builder then (correctly) dropped every row as “no valid odds”, leaving an empty DF → `KeyError: outcome`.
+
+# 7) After you patch
+
+Run:
+
+```
+-- refresh views
+REFRESH MATERIALIZED VIEW CONCURRENTLY odds_real_opening;
+REFRESH MATERIALIZED VIEW CONCURRENTLY odds_real_latest_preko;
+REFRESH MATERIALIZED VIEW CONCURRENTLY odds_real_consensus;
+
+# train on the clean subset
+python scripts/manage_training.py --train
+```
+
+Expected:
+
+* “Feature extraction complete: Success ≈ number_loaded”
+* Sanity Check 1 (random): ~33%
+* Sanity Check 2 (market-only, time-split): ~48–52%
+* Model OOF accuracy: low-50s on the 1.2–1.5k clean matches
+
+# 8) Keep the pipeline clean
+
+Your `backfill_match_context.py` is already locked to the **real** odds source (good — it won’t re-introduce fake data). 
+
+---
+
+If you want, I can also give you a minimal diff for the training loader (SQL join) and the builder (soft-handling opening/last). But if you do just the three big moves above — inner-join to clean odds, create opening+latest views, and make the builder tolerant — the “Success: 0” wall should disappear and training will proceed leakage-free.

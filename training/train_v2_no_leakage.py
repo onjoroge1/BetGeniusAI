@@ -96,8 +96,9 @@ def load_matches_pre_kickoff_only(min_date='2020-01-01', max_date='2025-12-31',
     database_url = os.getenv('DATABASE_URL')
     engine = create_engine(database_url)
     
-    # Load matches with Phase 2 context
+    # Load matches with Phase 2 context AND REAL PRE-KICKOFF ODDS
     # CRITICAL: Use random sampling across time range, not DESC order!
+    # CRITICAL: Only load matches with real odds from odds_real_consensus!
     limit_clause = f"LIMIT {limit}" if limit else ""
     query = text(f"""
         SELECT 
@@ -109,8 +110,10 @@ def load_matches_pre_kickoff_only(min_date='2020-01-01', max_date='2025-12-31',
             tm.league_id
         FROM training_matches tm
         INNER JOIN match_context mc ON tm.match_id = mc.match_id
+        INNER JOIN odds_real_consensus orc ON tm.match_id = orc.match_id  -- CRITICAL: Filter to real odds only!
         WHERE tm.match_date >= :min_date
           AND tm.match_date < :max_date
+          AND tm.match_date IS NOT NULL
           AND tm.outcome IS NOT NULL
           AND tm.outcome IN ('H', 'D', 'A', 'Home', 'Draw', 'Away')
         ORDER BY RANDOM()  -- CRITICAL: Random sampling, not DESC!
@@ -197,6 +200,23 @@ def run_sanity_checks(df):
     Returns:
         dict with sanity check results
     """
+    # CRITICAL: Check for empty DataFrame before running checks
+    if df.empty:
+        raise RuntimeError(
+            "❌ TRAINING FAILED: No rows after feature extraction!\n"
+            "   This means all matches were dropped due to missing odds.\n"
+            "   Check:\n"
+            "   1. Training loader joins with odds_real_consensus\n"
+            "   2. Feature builder queries odds_real_consensus (not odds_prekickoff_clean)\n"
+            "   3. odds_real_consensus materialized view has data"
+        )
+    
+    if 'outcome' not in df.columns:
+        raise RuntimeError(
+            "❌ TRAINING FAILED: 'outcome' column missing from DataFrame!\n"
+            "   This suggests feature extraction failed to preserve the outcome column."
+        )
+    
     print("\n" + "="*70)
     print("  LEAKAGE DETECTION - SANITY CHECKS")
     print("="*70)

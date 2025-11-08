@@ -178,30 +178,26 @@ class V2FeatureBuilder:
             ValueError: If no valid pre-kickoff odds available (match will be dropped)
         """
         # Query STRICT pre-kickoff odds (must be BEFORE kickoff, not AT/AFTER)
-        # Uses odds_prekickoff_clean view which filters out all post-KO data
+        # CRITICAL: Uses odds_real_consensus (built from odds_snapshots - REAL DATA)
+        # Never use odds_consensus or odds_prekickoff_clean - they contain fake/backdated data!
         query = text("""
             SELECT 
-                p_home as p_last_home,
-                p_draw as p_last_draw,
-                p_away as p_last_away,
-                disp_home as dispersion_home,
-                disp_draw as dispersion_draw,
-                disp_away as dispersion_away,
+                ph_cons as p_last_home,
+                pd_cons as p_last_draw,
+                pa_cons as p_last_away,
+                disph as dispersion_home,
+                dispd as dispersion_draw,
+                dispa as dispersion_away,
                 n_books as num_books_last,
                 market_margin_avg,
-                ts_effective,
-                hours_before_ko
-            FROM odds_prekickoff_clean
+                (avg_secs_before_ko / 3600.0) as hours_before_ko
+            FROM odds_real_consensus
             WHERE match_id = :match_id
-              AND ts_effective <= :cutoff_time
-            ORDER BY ts_effective DESC
-            LIMIT 1
         """)
         
         with self.engine.connect() as conn:
             result = conn.execute(query, {
-                "match_id": match_id,
-                "cutoff_time": cutoff_time
+                "match_id": match_id
             }).mappings().first()
         
         # CRITICAL: Raise exception if no valid odds (drop match, don't zero-fill!)
