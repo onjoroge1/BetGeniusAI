@@ -1,0 +1,219 @@
+~/workspace$ python scripts/backfill_odds_api_football.py   --start-date 2024-06-01   --max-matches 5
+2025-11-09 21:21:27,999 - INFO - 🔧 OddsBackfiller initialized (dry_run=False)
+2025-11-09 21:21:27,999 - INFO - ======================================================================
+2025-11-09 21:21:27,999 - INFO -   ODDS BACKFILL - API-FOOTBALL
+2025-11-09 21:21:27,999 - INFO - ======================================================================
+2025-11-09 21:21:27,999 - INFO - 📅 Date range: 2024-06-01 to 2025-08-18
+2025-11-09 21:21:27,999 - INFO - 📦 Batch size: 100
+2025-11-09 21:21:27,999 - INFO - 🔒 Dry run: False
+2025-11-09 21:21:27,999 - INFO - 
+2025-11-09 21:21:29,066 - INFO - 📊 Found 5 matches needing odds backfill
+2025-11-09 21:21:29,067 - INFO -    Date range: 2025-06-12 00:02:38.035071 to 2025-06-12 00:02:38.035213
+2025-11-09 21:21:29,067 - INFO -    Leagues: 1 unique leagues
+2025-11-09 21:21:29,068 - INFO - 
+📦 Processing batch 1: matches 1-5 of 5
+2025-11-09 21:21:29,068 - INFO -    🎯 Match 1208608 - Real Madrid vs Osasuna
+2025-11-09 21:21:30,418 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:21:30,419 - INFO -       Progress: 20.0% | Requests: 1/500
+2025-11-09 21:21:30,419 - INFO -    🎯 Match 1208609 - Rayo Vallecano vs Las Palmas
+2025-11-09 21:21:31,967 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:21:31,967 - INFO -       Progress: 40.0% | Requests: 2/500
+2025-11-09 21:21:31,968 - INFO -    🎯 Match 1208595 - Celta Vigo vs Getafe
+2025-11-09 21:21:33,284 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:21:33,284 - INFO -       Progress: 60.0% | Requests: 3/500
+2025-11-09 21:21:33,284 - INFO -    🎯 Match 1208593 - Athletic Club vs Real Betis
+2025-11-09 21:21:34,565 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:21:34,565 - INFO -       Progress: 80.0% | Requests: 4/500
+2025-11-09 21:21:34,565 - INFO -    🎯 Match 1208601 - Sevilla vs Real Sociedad
+2025-11-09 21:21:35,838 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:21:35,839 - INFO -       Progress: 100.0% | Requests: 5/500
+2025-11-09 21:21:35,839 - INFO - 
+======================================================================
+2025-11-09 21:21:35,839 - INFO -   BACKFILL SUMMARY
+2025-11-09 21:21:35,839 - INFO - ======================================================================
+2025-11-09 21:21:35,839 - INFO - ✅ Matches with odds found: 0
+2025-11-09 21:21:35,839 - INFO - ⚠️  Matches without odds: 5
+2025-11-09 21:21:35,839 - INFO - 📊 Total snapshots inserted: 0
+2025-11-09 21:21:35,839 - INFO - 🌐 API requests made: 5
+2025-11-09 21:21:35,839 - INFO - 
+2025-11-09 21:21:35,953 - INFO - 📈 Total matches in odds_real_consensus: 1513
+2025-11-09 21:21:35,954 - INFO -    Previous: 1,236
+2025-11-09 21:21:35,954 - INFO -    New: 1513
+2025-11-09 21:21:35,954 - INFO -    Gain: +277
+~/workspace$ python scripts/backfill_odds_api_football.py   --start-date 2024-06-01   --max-matches 50
+2025-11-09 21:22:54,433 - INFO - 🔧 OddsBackfiller initialized (dry_run=False)
+2025-11-09 21:22:54,433 - INFO - ======================================================================
+2025-11-09 21:22:54,433 - INFO -   ODDS BACKFILL - API-FOOTBALL
+2025-11-09 21:22:54,433 - INFO - ======================================================================
+2025-11-09 21:22:54,433 - INFO - 📅 Date range: 2024-06-01 to 2025-08-18
+2025-11-09 21:22:54,433 - INFO - 📦 Batch size: 100
+2025-11-09 21:22:54,433 - INFO - 🔒 Dry run: False
+2025-11-09 21:22:54,433 - INFO - 
+2025-11-09 21:22:55,576 - INFO - 📊 Found 50 matches needing odds backfill
+2025-11-09 21:22:55,577 - INFO -    Date range: 2025-06-12 00:02:38.033622 to 2025-06-12 00:02:38.035213
+2025-11-09 21:22:55,578 - INFO -    Leagues: 1 unique leagues
+2025-11-09 21:22:55,578 - INFO - 
+📦 Processing batch 1: matches 1-50 of 50
+2025-11-09 21:22:55,579 - INFO -    🎯 Match 1208608 - Real Madrid vs Osasuna
+2025-11-09 21:22:56,873 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:22:56,873 - INFO -       Progress: 2.0% | Requests: 1/500
+2025-11-09 21:22:56,874 - INFO -    🎯 Match 1208609 - Rayo Vallecano vs Las Palmas
+2025-11-09 21:22:58,164 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:22:58,165 - INFO -       Progress: 4.0% | Requests: 2/500
+2025-11-09 21:22:58,166 - INFO -    🎯 Match 1208595 - Celta Vigo vs Getafe
+2025-11-09 21:22:59,441 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:22:59,442 - INFO -       Progress: 6.0% | Requests: 3/500
+2025-11-09 21:22:59,443 - INFO -    🎯 Match 1208593 - Athletic Club vs Real Betis
+2025-11-09 21:23:00,736 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:00,736 - INFO -       Progress: 8.0% | Requests: 4/500
+2025-11-09 21:23:00,737 - INFO -    🎯 Match 1208601 - Sevilla vs Real Sociedad
+2025-11-09 21:23:02,018 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:02,018 - INFO -       Progress: 10.0% | Requests: 5/500
+2025-11-09 21:23:02,018 - INFO -    🎯 Match 1212921 - Barcelona vs Espanyol
+2025-11-09 21:23:03,671 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:03,671 - INFO -       Progress: 12.0% | Requests: 6/500
+2025-11-09 21:23:03,671 - INFO -    🎯 Match 1208594 - Atletico Madrid vs Las Palmas
+2025-11-09 21:23:04,995 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:04,995 - INFO -       Progress: 14.0% | Requests: 7/500
+2025-11-09 21:23:04,996 - INFO -    🎯 Match 1208596 - Girona vs Leganes
+2025-11-09 21:23:06,278 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:06,278 - INFO -       Progress: 16.0% | Requests: 8/500
+2025-11-09 21:23:06,279 - INFO -    🎯 Match 1208597 - Osasuna vs Valladolid
+2025-11-09 21:23:07,625 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:07,625 - INFO -       Progress: 18.0% | Requests: 9/500
+2025-11-09 21:23:07,625 - INFO -    🎯 Match 1208598 - Alaves vs Mallorca
+2025-11-09 21:23:08,925 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:08,925 - INFO -       Progress: 20.0% | Requests: 10/500
+2025-11-09 21:23:08,926 - INFO -    🎯 Match 1208585 - Mallorca vs Athletic Club
+2025-11-09 21:23:10,235 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:10,236 - INFO -       Progress: 22.0% | Requests: 11/500
+2025-11-09 21:23:10,236 - INFO -    🎯 Match 1208590 - Real Sociedad vs Osasuna
+2025-11-09 21:23:11,518 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:11,518 - INFO -       Progress: 24.0% | Requests: 12/500
+2025-11-09 21:23:11,518 - INFO -    🎯 Match 1208586 - Real Betis vs Atletico Madrid
+2025-11-09 21:23:12,860 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:12,860 - INFO -       Progress: 26.0% | Requests: 13/500
+2025-11-09 21:23:12,863 - INFO -    🎯 Match 1208584 - Getafe vs Valencia
+2025-11-09 21:23:14,155 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:14,156 - INFO -       Progress: 28.0% | Requests: 14/500
+2025-11-09 21:23:14,156 - INFO -    🎯 Match 1208588 - Leganes vs Celta Vigo
+2025-11-09 21:23:15,450 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:15,450 - INFO -       Progress: 30.0% | Requests: 15/500
+2025-11-09 21:23:15,451 - INFO -    🎯 Match 1208587 - Real Madrid vs Barcelona
+2025-11-09 21:23:16,737 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:16,738 - INFO -       Progress: 32.0% | Requests: 16/500
+2025-11-09 21:23:16,738 - INFO -    🎯 Match 1208589 - Las Palmas vs Girona
+2025-11-09 21:23:18,019 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:18,019 - INFO -       Progress: 34.0% | Requests: 17/500
+2025-11-09 21:23:18,019 - INFO -    🎯 Match 1208592 - Rayo Vallecano vs Alaves
+2025-11-09 21:23:19,300 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:19,300 - INFO -       Progress: 36.0% | Requests: 18/500
+2025-11-09 21:23:19,300 - INFO -    🎯 Match 1208591 - Valladolid vs Villarreal
+2025-11-09 21:23:20,571 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:20,571 - INFO -       Progress: 38.0% | Requests: 19/500
+2025-11-09 21:23:20,572 - INFO -    🎯 Match 1212920 - Espanyol vs Sevilla
+2025-11-09 21:23:21,861 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:21,874 - INFO -       Progress: 40.0% | Requests: 20/500
+2025-11-09 21:23:21,874 - INFO -    🎯 Match 1208583 - Valencia vs Las Palmas
+2025-11-09 21:23:23,215 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:23,216 - INFO -       Progress: 42.0% | Requests: 21/500
+2025-11-09 21:23:23,216 - INFO -    🎯 Match 1208576 - Barcelona vs Sevilla
+2025-11-09 21:23:24,543 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:24,543 - INFO -       Progress: 44.0% | Requests: 22/500
+2025-11-09 21:23:24,544 - INFO -    🎯 Match 1208582 - Villarreal vs Getafe
+2025-11-09 21:23:25,863 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:25,863 - INFO -       Progress: 46.0% | Requests: 23/500
+2025-11-09 21:23:25,863 - INFO -    🎯 Match 1208575 - Atletico Madrid vs Leganes
+2025-11-09 21:23:27,189 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:27,190 - INFO -       Progress: 48.0% | Requests: 24/500
+2025-11-09 21:23:27,190 - INFO -    🎯 Match 1208579 - Mallorca vs Rayo Vallecano
+2025-11-09 21:23:28,481 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:28,481 - INFO -       Progress: 50.0% | Requests: 25/500
+2025-11-09 21:23:28,482 - INFO -    🎯 Match 1208577 - Celta Vigo vs Real Madrid
+2025-11-09 21:23:29,825 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:29,827 - INFO -       Progress: 52.0% | Requests: 26/500
+2025-11-09 21:23:29,827 - INFO -    🎯 Match 1208578 - Girona vs Real Sociedad
+2025-11-09 21:23:31,103 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:31,103 - INFO -       Progress: 54.0% | Requests: 27/500
+2025-11-09 21:23:31,104 - INFO -    🎯 Match 1208581 - Osasuna vs Real Betis
+2025-11-09 21:23:32,415 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:32,415 - INFO -       Progress: 56.0% | Requests: 28/500
+2025-11-09 21:23:32,416 - INFO -    🎯 Match 1212919 - Athletic Club vs Espanyol
+2025-11-09 21:23:33,755 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:33,756 - INFO -       Progress: 58.0% | Requests: 29/500
+2025-11-09 21:23:33,756 - INFO -    🎯 Match 1208580 - Alaves vs Valladolid
+2025-11-09 21:23:35,024 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:35,024 - INFO -       Progress: 60.0% | Requests: 30/500
+2025-11-09 21:23:35,024 - INFO -    🎯 Match 1208571 - Real Sociedad vs Atletico Madrid
+2025-11-09 21:23:36,316 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:36,316 - INFO -       Progress: 62.0% | Requests: 31/500
+2025-11-09 21:23:36,316 - INFO -    🎯 Match 1208572 - Sevilla vs Real Betis
+2025-11-09 21:23:37,643 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:37,644 - INFO -       Progress: 64.0% | Requests: 32/500
+2025-11-09 21:23:37,646 - INFO -    🎯 Match 1208568 - Alaves vs Barcelona
+2025-11-09 21:23:38,928 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:38,930 - INFO -       Progress: 66.0% | Requests: 33/500
+2025-11-09 21:23:38,931 - INFO -    🎯 Match 1208570 - Girona vs Athletic Club
+2025-11-09 21:23:40,293 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:40,293 - INFO -       Progress: 68.0% | Requests: 34/500
+2025-11-09 21:23:40,293 - INFO -    🎯 Match 1208567 - Real Madrid vs Villarreal
+2025-11-09 21:23:41,618 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:41,618 - INFO -       Progress: 70.0% | Requests: 35/500
+2025-11-09 21:23:41,619 - INFO -    🎯 Match 1208574 - Valladolid vs Rayo Vallecano
+2025-11-09 21:23:42,887 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:42,887 - INFO -       Progress: 72.0% | Requests: 36/500
+2025-11-09 21:23:42,887 - INFO -    🎯 Match 1208573 - Las Palmas vs Celta Vigo
+2025-11-09 21:23:44,191 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:44,192 - INFO -       Progress: 74.0% | Requests: 37/500
+2025-11-09 21:23:44,192 - INFO -    🎯 Match 1208566 - Getafe vs Osasuna
+2025-11-09 21:23:45,565 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:45,565 - INFO -       Progress: 76.0% | Requests: 38/500
+2025-11-09 21:23:45,566 - INFO -    🎯 Match 1212918 - Espanyol vs Mallorca
+2025-11-09 21:23:46,951 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:46,951 - INFO -       Progress: 78.0% | Requests: 39/500
+2025-11-09 21:23:46,951 - INFO -    🎯 Match 1208569 - Leganes vs Valencia
+2025-11-09 21:23:48,255 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:48,255 - INFO -       Progress: 80.0% | Requests: 40/500
+2025-11-09 21:23:48,255 - INFO -    🎯 Match 1208563 - Villarreal vs Las Palmas
+2025-11-09 21:23:49,541 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:49,541 - INFO -       Progress: 82.0% | Requests: 41/500
+2025-11-09 21:23:49,542 - INFO -    🎯 Match 1208558 - Atletico Madrid vs Real Madrid
+2025-11-09 21:23:50,908 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:50,908 - INFO -       Progress: 84.0% | Requests: 42/500
+2025-11-09 21:23:50,909 - INFO -    🎯 Match 1212917 - Real Betis vs Espanyol
+2025-11-09 21:23:52,191 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:52,192 - INFO -       Progress: 86.0% | Requests: 43/500
+2025-11-09 21:23:52,192 - INFO -    🎯 Match 1208557 - Athletic Club vs Sevilla
+2025-11-09 21:23:53,479 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:53,479 - INFO -       Progress: 88.0% | Requests: 44/500
+2025-11-09 21:23:53,481 - INFO -    🎯 Match 1208559 - Celta Vigo vs Girona
+2025-11-09 21:23:54,819 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:54,819 - INFO -       Progress: 90.0% | Requests: 45/500
+2025-11-09 21:23:54,820 - INFO -    🎯 Match 1208561 - Osasuna vs Barcelona
+2025-11-09 21:23:56,114 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:56,114 - INFO -       Progress: 92.0% | Requests: 46/500
+2025-11-09 21:23:56,115 - INFO -    🎯 Match 1208560 - Real Sociedad vs Valencia
+2025-11-09 21:23:57,405 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:57,405 - INFO -       Progress: 94.0% | Requests: 47/500
+2025-11-09 21:23:57,407 - INFO -    🎯 Match 1208565 - Rayo Vallecano vs Leganes
+2025-11-09 21:23:58,698 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:58,709 - INFO -       Progress: 96.0% | Requests: 48/500
+2025-11-09 21:23:58,709 - INFO -    🎯 Match 1208564 - Getafe vs Alaves
+2025-11-09 21:23:59,999 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:23:59,999 - INFO -       Progress: 98.0% | Requests: 49/500
+2025-11-09 21:24:00,000 - INFO -    🎯 Match 1208562 - Valladolid vs Mallorca
+2025-11-09 21:24:01,326 - WARNING -       ⚠️  No odds data available
+2025-11-09 21:24:01,326 - INFO -       Progress: 100.0% | Requests: 50/500
+2025-11-09 21:24:01,326 - INFO - 
+======================================================================
+2025-11-09 21:24:01,327 - INFO -   BACKFILL SUMMARY
+2025-11-09 21:24:01,327 - INFO - ======================================================================
+2025-11-09 21:24:01,327 - INFO - ✅ Matches with odds found: 0
+2025-11-09 21:24:01,327 - INFO - ⚠️  Matches without odds: 50
+2025-11-09 21:24:01,327 - INFO - 📊 Total snapshots inserted: 0
+2025-11-09 21:24:01,327 - INFO - 🌐 API requests made: 50
+2025-11-09 21:24:01,327 - INFO - 
+2025-11-09 21:24:01,439 - INFO - 📈 Total matches in odds_real_consensus: 1513
+2025-11-09 21:24:01,439 - INFO -    Previous: 1,236
+2025-11-09 21:24:01,439 - INFO -    New: 1513
+2025-11-09 21:24:01,439 - INFO -    Gain: +277
