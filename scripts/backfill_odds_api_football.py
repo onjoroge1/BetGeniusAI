@@ -74,6 +74,9 @@ class OddsBackfiller:
         """
         Find matches in training_matches that lack odds_snapshots coverage
         
+        FIXED (Nov 9): Changed INNER JOIN to LEFT JOIN on fixtures to avoid filtering out
+        historical matches. Use match_date as fallback for kickoff_at.
+        
         Returns:
             DataFrame with columns: match_id, kickoff_at, league_id, home_team, away_team
         """
@@ -83,13 +86,13 @@ class OddsBackfiller:
         query = text(f"""
             SELECT 
                 tm.match_id,
-                f.kickoff_at,
+                COALESCE(f.kickoff_at, tm.match_date) as kickoff_at,
                 tm.league_id,
                 tm.home_team,
                 tm.away_team,
                 tm.match_date
             FROM training_matches tm
-            JOIN fixtures f ON tm.match_id = f.match_id
+            LEFT JOIN fixtures f ON tm.match_id = f.match_id
             LEFT JOIN odds_snapshots os ON tm.match_id = os.match_id
             WHERE tm.match_date >= :start_date
               AND tm.match_date < :end_date
