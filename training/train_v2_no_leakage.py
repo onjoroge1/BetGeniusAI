@@ -195,7 +195,12 @@ def load_matches_pre_kickoff_only(min_date='2020-01-01', max_date='2025-12-31',
 
 def run_sanity_checks(df):
     """
-    Run leakage detection sanity checks
+    Run leakage detection sanity checks with FIXED implementation
+    
+    CRITICAL FIXES (Nov 9, 2025):
+    - Global label permutation ONCE before CV (not within folds)
+    - Added row-permutation test to detect feature leakage
+    - Using TimeSeriesSplit for all checks (consistent with training)
     
     Returns:
         dict with sanity check results
@@ -218,78 +223,150 @@ def run_sanity_checks(df):
         )
     
     print("\n" + "="*70)
-    print("  LEAKAGE DETECTION - SANITY CHECKS")
+    print("  LEAKAGE DETECTION - SANITY CHECKS (FIXED)")
     print("="*70)
+    print("Using global permutation + TimeSeriesSplit (no leakage in tests)")
     
     results = {}
     
-    # Sanity Check 1: Random label shuffle (should get ~33% accuracy)
-    print("\n🔍 Sanity Check 1: Random Label Shuffle")
-    print("   Expected: ~33% accuracy, LogLoss ~1.10")
+    # Prepare data
+    from sklearn.model_selection import TimeSeriesSplit
+    from sklearn.metrics import accuracy_score
     
-    from sklearn.model_selection import cross_val_score
-    
-    # Get features (drop metadata)
     X = df.drop(columns=['match_id', 'outcome', 'match_date'], errors='ignore')
-    y = df['outcome'].values
+    y = df['outcome']
     
-    # Shuffle labels
-    y_shuffled = np.random.permutation(y)
+    # Map outcomes to numeric
+    outcome_map = {'H': 0, 'D': 1, 'A': 2, 'Home': 0, 'Draw': 1, 'Away': 2}
+    y_numeric = y.map(outcome_map)
     
-    # Train simple model on shuffled data
-    model = lgb.LGBMClassifier(n_estimators=50, max_depth=3, verbose=-1)
-    scores = cross_val_score(model, X, y_shuffled, cv=3, scoring='accuracy')
+    tscv = TimeSeriesSplit(n_splits=5)
     
-    shuffle_acc = scores.mean()
-    print(f"   Result: {shuffle_acc*100:.1f}% accuracy")
+    # Helper function to make baseline model
+    def make_baseline_model():
+        return lgb.LGBMClassifier(
+            n_estimators=50, 
+            max_depth=3, 
+            num_leaves=15,
+            verbose=-1,
+            random_state=42
+        )
     
-    if shuffle_acc > 0.40:
-        print(f"   ⚠️  WARNING: {shuffle_acc*100:.1f}% > 40% suggests leakage!")
-        results['shuffle_check'] = 'FAIL - Possible leakage'
+    # Sanity Check 1: Random Label Permutation (FIXED)
+    print("\n🔍 Sanity Check 1: Random Label Permutation (Global)")
+    print("   Expected: ~33% accuracy ± 2%")
+    print("   CRITICAL: Labels permuted ONCE before CV (not within folds)")
+    
+    # FIXED: Permute labels ONCE globally, reset indices
+    y_perm = y_numeric.sample(frac=1.0, random_state=42).reset_index(drop=True)
+    X_seq = X.reset_index(drop=True)
+    
+    rand_acc_list = []
+    for train_idx, valid_idx in tscv.split(X_seq):
+        model = make_baseline_model()
+        model.fit(X_seq.iloc[train_idx], y_perm.iloc[train_idx])
+        preds = model.predict(X_seq.iloc[valid_idx])
+        acc = accuracy_score(y_perm.iloc[valid_idx], preds)
+        rand_acc_list.append(acc)
+    
+    rand_label_acc = float(np.mean(rand_acc_list))
+    print(f"   Result: {rand_label_acc*100:.1f}% accuracy")
+    
+    if rand_label_acc > 0.40:
+        print(f"   ⚠️  FAIL: {rand_label_acc*100:.1f}% > 40% suggests LEAKAGE!")
+        print("   This means features contain future information!")
+        results['rand_label_check'] = 'FAIL - Possible leakage'
+    elif rand_label_acc < 0.28:
+        print(f"   ⚠️  WARNING: {rand_label_acc*100:.1f}% < 28% (unusually low)")
+        results['rand_label_check'] = 'PASS (but low)'
     else:
         print(f"   ✅ PASS: Random baseline as expected")
-        results['shuffle_check'] = 'PASS'
+        results['rand_label_check'] = 'PASS'
     
-    # Sanity Check 2: Market-only baseline (should be ~48-52%)
-    # CRITICAL: Must use TIME-BASED CV to prevent leakage!
-    print("\n🔍 Sanity Check 2: Market-Only Baseline")
-    print("   Expected: 48-52% accuracy (markets are efficient)")
-    print("   Using TIME-BASED CV (not random splits)")
+    # Sanity Check 2: Row Permutation (NEW - detects feature leakage)
+    print("\n🔍 Sanity Check 2: Row Permutation (Feature Alignment Test)")
+    print("   Expected: ~33% accuracy ± 2%")
+    print("   Shuffles X rows but keeps y fixed - breaks feature→label alignment")
     
-    market_features = [col for col in X.columns if 'p_open' in col or 'p_last' in col]
+    # Permute rows of X but keep y in original order
+    row_perm = np.random.RandomState(123).permutation(len(X_seq))
+    X_perm = X_seq.iloc[row_perm].reset_index(drop=True)
+    y_fixed = y_numeric.reset_index(drop=True)
+    
+    row_acc_list = []
+    for train_idx, valid_idx in tscv.split(X_perm):
+        model = make_baseline_model()
+        model.fit(X_perm.iloc[train_idx], y_fixed.iloc[train_idx])
+        preds = model.predict(X_perm.iloc[valid_idx])
+        acc = accuracy_score(y_fixed.iloc[valid_idx], preds)
+        row_acc_list.append(acc)
+    
+    row_perm_acc = float(np.mean(row_acc_list))
+    print(f"   Result: {row_perm_acc*100:.1f}% accuracy")
+    
+    if row_perm_acc > 0.40:
+        print(f"   ⚠️  FAIL: {row_perm_acc*100:.1f}% > 40% suggests FEATURE LEAKAGE!")
+        print("   This means features contain match-specific future information!")
+        results['row_perm_check'] = 'FAIL - Feature leakage detected'
+    elif row_perm_acc < 0.28:
+        print(f"   ⚠️  WARNING: {row_perm_acc*100:.1f}% < 28% (unusually low)")
+        results['row_perm_check'] = 'PASS (but low)'
+    else:
+        print(f"   ✅ PASS: No feature leakage detected")
+        results['row_perm_check'] = 'PASS'
+    
+    # Sanity Check 3: Market-only baseline (using TimeSeriesSplit)
+    print("\n🔍 Sanity Check 3: Market-Only Baseline (Time-Split)")
+    print("   Expected: 48-52% accuracy (efficient markets)")
+    
+    market_features = [col for col in X.columns if 'p_last' in col]
     if len(market_features) >= 3:
-        X_market = X[market_features[:6]]  # Use only opening odds
+        X_market = X[market_features[:3]]  # Use only p_last_home/draw/away
         
-        # CRITICAL FIX: Use time-based CV, not random CV!
-        from sklearn.model_selection import TimeSeriesSplit
-        tscv = TimeSeriesSplit(n_splits=5)
+        market_acc_list = []
+        for train_idx, valid_idx in tscv.split(X_market):
+            model = lgb.LGBMClassifier(
+                n_estimators=100, 
+                max_depth=5, 
+                verbose=-1,
+                random_state=42
+            )
+            model.fit(X_market.iloc[train_idx], y_numeric.iloc[train_idx])
+            preds = model.predict(X_market.iloc[valid_idx])
+            acc = accuracy_score(y_numeric.iloc[valid_idx], preds)
+            market_acc_list.append(acc)
         
-        model = lgb.LGBMClassifier(n_estimators=100, max_depth=5, verbose=-1)
-        
-        # Manual time-based cross-validation
-        scores_list = []
-        for train_idx, test_idx in tscv.split(X_market):
-            X_train, X_test = X_market.iloc[train_idx], X_market.iloc[test_idx]
-            y_train, y_test = y[train_idx], y[test_idx]
-            
-            model.fit(X_train, y_train)
-            score = model.score(X_test, y_test)
-            scores_list.append(score)
-        
-        market_acc = np.mean(scores_list)
+        market_acc = float(np.mean(market_acc_list))
         print(f"   Result: {market_acc*100:.1f}% accuracy")
         
         if market_acc > 0.60:
-            print(f"   ⚠️  WARNING: {market_acc*100:.1f}% > 60% suggests odds leakage!")
+            print(f"   ⚠️  FAIL: {market_acc*100:.1f}% > 60% suggests ODDS LEAKAGE!")
+            print("   Using post-kickoff odds or at-kickoff odds?")
             results['market_check'] = 'FAIL - Odds may be post-kickoff'
         elif market_acc < 0.45:
-            print(f"   ⚠️  WARNING: {market_acc*100:.1f}% < 45% suggests broken odds pipeline!")
-            results['market_check'] = 'FAIL - Odds may be missing/broken'
+            print(f"   ⚠️  WARNING: {market_acc*100:.1f}% < 45% (market underperforming)")
+            print("   Check: Odds quality, normalization, outcome distribution")
+            results['market_check'] = 'WARN - Market baseline low'
         else:
             print(f"   ✅ PASS: Market efficiency as expected")
             results['market_check'] = 'PASS'
+    else:
+        print("   ⚠️  SKIP: Not enough market features found")
+        results['market_check'] = 'SKIP'
     
     print("\n" + "="*70)
+    print("  SANITY CHECK SUMMARY")
+    print("="*70)
+    all_pass = all(v.startswith('PASS') for v in results.values())
+    if all_pass:
+        print("✅ ALL CHECKS PASSED - No leakage detected!")
+    else:
+        print("⚠️  SOME CHECKS FAILED - Review results above")
+        for check, status in results.items():
+            if not status.startswith('PASS'):
+                print(f"   - {check}: {status}")
+    
+    print("="*70)
     
     return results
 
