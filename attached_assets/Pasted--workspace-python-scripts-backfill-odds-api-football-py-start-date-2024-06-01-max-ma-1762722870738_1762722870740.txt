@@ -1,0 +1,92 @@
+~/workspace$ python scripts/backfill_odds_api_football.py \
+  --start-date 2024-06-01 \
+  --max-matches 500
+
+2025-11-09 21:14:06,691 - INFO - 🔧 OddsBackfiller initialized (dry_run=False)
+2025-11-09 21:14:06,691 - INFO - ======================================================================
+2025-11-09 21:14:06,691 - INFO -   ODDS BACKFILL - API-FOOTBALL
+2025-11-09 21:14:06,692 - INFO - ======================================================================
+2025-11-09 21:14:06,692 - INFO - 📅 Date range: 2024-06-01 to 2025-08-18
+2025-11-09 21:14:06,692 - INFO - 📦 Batch size: 100
+2025-11-09 21:14:06,692 - INFO - 🔒 Dry run: False
+2025-11-09 21:14:06,692 - INFO - 
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column f.api_football_id does not exist
+LINE 4:                 f.api_football_id,
+                        ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/scripts/backfill_odds_api_football.py", line 443, in <module>
+    main()
+  File "/home/runner/workspace/scripts/backfill_odds_api_football.py", line 433, in main
+    backfiller.backfill(
+  File "/home/runner/workspace/scripts/backfill_odds_api_football.py", line 324, in backfill
+    matches = self.find_matches_needing_odds(start_date, end_date, league_id, max_matches)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/scripts/backfill_odds_api_football.py", line 107, in find_matches_needing_odds
+    df = pd.read_sql(
+         ^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pandas/io/sql.py", line 736, in read_sql
+    return pandas_sql.read_query(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pandas/io/sql.py", line 1848, in read_query
+    result = self.execute(sql, params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pandas/io/sql.py", line 1672, in execute
+    return self.con.execute(sql, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+           ^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column f.api_football_id does not exist
+LINE 4:                 f.api_football_id,
+                        ^
+
+[SQL: 
+            SELECT 
+                tm.match_id,
+                f.api_football_id,
+                f.kickoff_at,
+                tm.league_id,
+                tm.home_team,
+                tm.away_team,
+                tm.match_date
+            FROM training_matches tm
+            JOIN fixtures f ON tm.match_id = f.match_id
+            LEFT JOIN odds_snapshots os ON tm.match_id = os.match_id
+            WHERE tm.match_date >= %(start_date)s
+              AND tm.match_date < %(end_date)s
+              AND tm.match_date IS NOT NULL
+              AND tm.outcome IS NOT NULL
+              AND f.api_football_id IS NOT NULL  -- Must have API-Football linkage
+              AND os.match_id IS NULL  -- No odds snapshots yet
+            
+            ORDER BY tm.match_date DESC
+            LIMIT 500
+        ]
+[parameters: {'start_date': '2024-06-01', 'end_date': '2025-08-18'}]
+(Background on this error at: https://sqlalche.me/e/20/f405)

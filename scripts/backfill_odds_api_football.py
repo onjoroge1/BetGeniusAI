@@ -75,7 +75,7 @@ class OddsBackfiller:
         Find matches in training_matches that lack odds_snapshots coverage
         
         Returns:
-            DataFrame with columns: match_id, api_football_id, kickoff_at, league_id
+            DataFrame with columns: match_id, kickoff_at, league_id, home_team, away_team
         """
         league_filter = f"AND tm.league_id = {league_id}" if league_id else ""
         limit_clause = f"LIMIT {limit}" if limit else ""
@@ -83,7 +83,6 @@ class OddsBackfiller:
         query = text(f"""
             SELECT 
                 tm.match_id,
-                f.api_football_id,
                 f.kickoff_at,
                 tm.league_id,
                 tm.home_team,
@@ -96,7 +95,7 @@ class OddsBackfiller:
               AND tm.match_date < :end_date
               AND tm.match_date IS NOT NULL
               AND tm.outcome IS NOT NULL
-              AND f.api_football_id IS NOT NULL  -- Must have API-Football linkage
+              AND tm.match_id IS NOT NULL  -- Must have valid match_id (which IS the API-Football ID)
               AND os.match_id IS NULL  -- No odds snapshots yet
             {league_filter}
             ORDER BY tm.match_date DESC
@@ -117,9 +116,12 @@ class OddsBackfiller:
         
         return df
     
-    def fetch_odds_for_fixture(self, api_football_id: int) -> Optional[List[Dict]]:
+    def fetch_odds_for_fixture(self, fixture_id: int) -> Optional[List[Dict]]:
         """
         Fetch pre-match odds from API-Football for a specific fixture
+        
+        Args:
+            fixture_id: The fixture ID (same as match_id in our database)
         
         Returns:
             List of bookmaker odds or None if unavailable
@@ -130,7 +132,7 @@ class OddsBackfiller:
         
         url = f"{self.base_url}/odds"
         params = {
-            "fixture": api_football_id,
+            "fixture": fixture_id,
             "bet": 1  # 1X2 match winner market
         }
         
@@ -144,18 +146,18 @@ class OddsBackfiller:
                 if data.get('response') and len(data['response']) > 0:
                     return data['response'][0].get('bookmakers', [])
                 else:
-                    logger.debug(f"   No odds data for fixture {api_football_id}")
+                    logger.debug(f"   No odds data for fixture {fixture_id}")
                     return None
             elif response.status_code == 429:
                 logger.warning(f"⚠️  Rate limited by API-Football (429), waiting 60s...")
                 time.sleep(60)
-                return self.fetch_odds_for_fixture(api_football_id)  # Retry once
+                return self.fetch_odds_for_fixture(fixture_id)  # Retry once
             else:
-                logger.warning(f"   API error {response.status_code} for fixture {api_football_id}")
+                logger.warning(f"   API error {response.status_code} for fixture {fixture_id}")
                 return None
         
         except requests.RequestException as e:
-            logger.error(f"   Request failed for fixture {api_football_id}: {e}")
+            logger.error(f"   Request failed for fixture {fixture_id}: {e}")
             return None
     
     def parse_bookmaker_odds(self, bookmakers: List[Dict], match_id: int, 
@@ -218,32 +220,32 @@ class OddsBackfiller:
                 {
                     'match_id': match_id,
                     'book_id': book_name,
-                    'outcome': 'home',
+                    'outcome': 'H',
                     'odds': odds_map['home'],
                     'implied_prob': home_prob,
-                    'ts_effective': ts_effective,
+                    'ts_snapshot': ts_effective,
                     'secs_to_kickoff': secs_to_kickoff,
-                    'market': '1X2'
+                    'market': 'h2h'
                 },
                 {
                     'match_id': match_id,
                     'book_id': book_name,
-                    'outcome': 'draw',
+                    'outcome': 'D',
                     'odds': odds_map['draw'],
                     'implied_prob': draw_prob,
-                    'ts_effective': ts_effective,
+                    'ts_snapshot': ts_effective,
                     'secs_to_kickoff': secs_to_kickoff,
-                    'market': '1X2'
+                    'market': 'h2h'
                 },
                 {
                     'match_id': match_id,
                     'book_id': book_name,
-                    'outcome': 'away',
+                    'outcome': 'A',
                     'odds': odds_map['away'],
                     'implied_prob': away_prob,
-                    'ts_effective': ts_effective,
+                    'ts_snapshot': ts_effective,
                     'secs_to_kickoff': secs_to_kickoff,
-                    'market': '1X2'
+                    'market': 'h2h'
                 }
             ])
         
@@ -342,14 +344,13 @@ class OddsBackfiller:
             
             for idx, row in batch.iterrows():
                 match_id = row['match_id']
-                api_football_id = row['api_football_id']
                 kickoff_at = pd.to_datetime(row['kickoff_at'])
                 
-                logger.info(f"   🎯 Match {match_id} (API: {api_football_id}) - "
+                logger.info(f"   🎯 Match {match_id} - "
                            f"{row['home_team']} vs {row['away_team']}")
                 
-                # Fetch odds from API
-                bookmakers = self.fetch_odds_for_fixture(api_football_id)
+                # Fetch odds from API (match_id IS the API-Football fixture ID)
+                bookmakers = self.fetch_odds_for_fixture(match_id)
                 
                 if bookmakers:
                     # Parse and insert
