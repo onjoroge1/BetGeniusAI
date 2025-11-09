@@ -1,0 +1,154 @@
+Love this write-up, fam. You’re reading the situation right. Here’s a tight, do-right-now plan with plug-in snippets so we close the gap to 53–55% and prep for V3 later.
+
+# 1) Fix the sanity checks (kill the 43% “random”)
+
+Drop-in patch for your sanity function—permute once globally, not per fold, and add the row-permutation test.
+
+```python
+# training/train_v2_no_leakage.py
+def run_sanity_checks(df):
+    import numpy as np
+    from sklearn.model_selection import TimeSeriesSplit
+    from sklearn.metrics import accuracy_score, log_loss
+
+    X = df.drop(columns=["outcome"])
+    y = df["outcome"]
+
+    tscv = TimeSeriesSplit(n_splits=5)
+
+    # A) RANDOM-LABEL (global permutation)
+    y_perm = y.sample(frac=1.0, random_state=42).reset_index(drop=True)
+    X_seq  = X.reset_index(drop=True)
+    rand_acc = []
+    for tr, va in tscv.split(X_seq):
+        model = make_baseline_model()
+        model.fit(X_seq.iloc[tr], y_perm.iloc[tr])
+        p = model.predict_proba(X_seq.iloc[va])
+        rand_acc.append((p.argmax(1) == y_perm.iloc[va].map({"H":0,"D":1,"A":2}).values).mean())
+    rand_label_acc = float(np.mean(rand_acc))
+
+    # B) ROW-PERMUTATION (break feature→label alignment)
+    row_perm = np.random.RandomState(123).permutation(len(X_seq))
+    X_perm = X_seq.iloc[row_perm].reset_index(drop=True)
+    y_fixed = y.reset_index(drop=True)
+    row_acc = []
+    for tr, va in tscv.split(X_perm):
+        model = make_baseline_model()
+        model.fit(X_perm.iloc[tr], y_fixed.iloc[tr])
+        p = model.predict_proba(X_perm.iloc[va])
+        row_acc.append((p.argmax(1) == y_fixed.iloc[va].map({"H":0,"D":1,"A":2}).values).mean())
+    row_perm_acc = float(np.mean(row_acc))
+
+    return {
+        "rand_label_acc": rand_label_acc,   # expect ~0.33
+        "row_perm_acc": row_perm_acc        # expect ~0.33
+    }
+```
+
+# 2) Add true opening vs latest (enable drift/vol)
+
+Create two views (or materialized views) off your **real** snapshots.
+
+```sql
+-- Odds within [5m, 4h] pre-KO as "latest"
+CREATE MATERIALIZED VIEW IF NOT EXISTS odds_real_latest AS
+SELECT s.match_id,
+       (SUM(p_home)/SUM(p_home+p_draw+p_away)) AS p_last_home,
+       (SUM(p_draw)/SUM(p_home+p_draw+p_away)) AS p_last_draw,
+       (SUM(p_away)/SUM(p_home+p_draw+p_away)) AS p_last_away,
+       COUNT(DISTINCT s.bookmaker) AS n_books_last
+FROM odds_snapshots s
+JOIN fixtures f USING (match_id)
+WHERE s.ts_effective <= f.kickoff_at
+  AND s.ts_effective >= f.kickoff_at - INTERVAL '4 hours'
+  AND s.ts_effective >= f.kickoff_at - INTERVAL '5 minutes' * 48 -- keep window flexible if needed
+GROUP BY s.match_id;
+
+-- Earliest pre-KO snapshot as "opening"
+CREATE MATERIALIZED VIEW IF NOT EXISTS odds_real_opening AS
+WITH first_snap AS (
+  SELECT s.*,
+         ROW_NUMBER() OVER (PARTITION BY s.match_id ORDER BY s.ts_effective ASC) AS rn
+  FROM odds_snapshots s
+  JOIN fixtures f USING (match_id)
+  WHERE s.ts_effective < f.kickoff_at
+)
+SELECT match_id,
+       (p_home/(p_home+p_draw+p_away)) AS p_open_home,
+       (p_draw/(p_home+p_draw+p_away)) AS p_open_draw,
+       (p_away/(p_home+p_draw+p_away)) AS p_open_away
+FROM first_snap
+WHERE rn = 1;
+```
+
+Then in your feature builder join both views, normalize (you already added), and compute:
+
+```
+prob_drift_*   = p_last_* - p_open_*
+drift_mag      = sqrt(sum(prob_drift_*^2))
+book_dispersion, market_entropy, volatility_*  (unchanged)
+has_opening    = 1 if opening row exists else 0 (and set drifts=0 when 0)
+```
+
+# 3) Don’t drop rows when opening is missing
+
+In `v2_feature_builder.py`, after left-joining `odds_real_opening`, do:
+
+```python
+if pd.isna(row["p_open_home"]):
+    row["has_opening"] = 0
+    row["p_open_home"] = row["p_last_home"]
+    row["p_open_draw"] = row["p_last_draw"]
+    row["p_open_away"] = row["p_last_away"]
+    row["prob_drift_home"] = 0.0
+    row["prob_drift_draw"] = 0.0
+    row["prob_drift_away"] = 0.0
+else:
+    row["has_opening"] = 1
+```
+
+# 4) Investigate the Fold-4 jump (56.8%)
+
+Run these quick diags and print counts per fold:
+
+* League mix per fold
+* % matches missing opening per fold
+* Average margin and n_books per fold
+* Date window width per fold (maybe an international break split)
+
+If Fold-4 is heavy with a few leagues or high-margin markets, that alone can spike accuracy. If anything looks sus (e.g., oddly high n_books or tiny windows), filter and re-run.
+
+# 5) Validate the market baseline (time-split)
+
+Add a clean market-only run (same TimeSeriesSplit, same folds, using **only** `p_last_*` as probabilities). Log the OOF. If the model isn’t > market across 3+ folds, tune before adding more features.
+
+# 6) Small-data tuning (fast wins)
+
+* **Class balance**: up-weight Draw 1.2–1.5x via sample_weight.
+* **Regularize**: `num_leaves=31–63`, `min_data_in_leaf=100–200`, `feature_fraction=0.8`, `lambda_l2=0.5–1.0`, early-stop=100.
+* **Meta-features**: add `league_tier`, `odds_regime` (fav/coin/longshot via max(p_last_*)), and `has_opening`.
+* **Calibration**: per-league isotonic on OOF → use calibrated probs for EV/CLV checks.
+
+# 7) Data runway (hybrid)
+
+* Keep backfilling real snapshots to **3k–5k**.
+* Retrain every +500 clean matches; track OOF by league + odds-regime.
+* Expect +2–5 pp as coverage climbs and drift features kick in.
+
+# 8) Guardrails to keep on
+
+* Reject rows where normalized sum deviates too far (e.g., raw sum ∉ [1.02, 1.12]); log and skip.
+* Enforce KO window (5m–4h) for “latest”; **do not** allow at-KO or post-KO.
+* Keep the 7-day embargo in TimeSeriesSplit.
+
+# Mini checklist (paste to tasks)
+
+* [ ] Patch sanity checks (global-perm + row-perm).
+* [ ] Create `odds_real_latest` + `odds_real_opening` views; refresh MVs.
+* [ ] Add drift features + `has_opening`; don’t drop rows on missing opening.
+* [ ] Fold-4 audit (league mix, margins, n_books, missingness).
+* [ ] Market-only OOF (time-split) and record baseline.
+* [ ] Tune small-data params + class weights; add league_tier & odds_regime.
+* [ ] Retrain and report OOF by league & regime; run EV/CLV harness.
+
+If you want, I can draft the exact SQL `CREATE MATERIALIZED VIEW ...` and the minimal Python diffs for the builder and sanity module as separate patch blocks you can paste straight in.
