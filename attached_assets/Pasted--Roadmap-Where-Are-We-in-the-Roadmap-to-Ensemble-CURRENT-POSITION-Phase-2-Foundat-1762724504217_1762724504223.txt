@@ -1,0 +1,131 @@
+## Roadmap
+
+**Where Are We in the Roadmap to Ensemble?**
+
+```
+CURRENT POSITION: Phase 2 Foundation (60% Complete)
+═════════════════════════════════════════════════════
+PHASE 1: V1 Consensus Model ✅ COMPLETE
+├─ Endpoint: /predict
+├─ Accuracy: 54.3% (3-way), 62.4% (2-way)
+├─ Status: Production deployed
+└─ Rating: 6.3/10 (B Grade)
+PHASE 2: V2 LightGBM + Context ⚠️ IN PROGRESS (60%)
+├─ Endpoint: /predict-v2
+├─ Target: 53-55% accuracy
+├─ Current: 49.5% accuracy
+├─ Status: Foundation complete, needs data + tuning
+│
+├─ ✅ Completed (Infrastructure - 60%):
+│   ├─ Clean data pipeline (odds_real_consensus)
+│   ├─ Anti-leakage guards (TimeSeriesSplit + embargo)
+│   ├─ 50 feature engineering
+│   ├─ Training on 1,236 clean matches
+│   └─ Model saved & validated
+│
+├─ ⏳ In Progress (Critical Fixes - 20%):
+│   ├─ Fix sanity check leakage (43.1% → 33%)
+│   ├─ Add drift features (opening → latest odds)
+│   ├─ Investigate Fold 4 anomaly (56.8%)
+│   └─ Validate market baseline
+│
+└─ ⏳ Pending (Data + Optimization - 20%):
+    ├─ Backfill to 3,000-5,000 matches
+    ├─ Hyperparameter tuning
+    ├─ Per-league calibration
+    └─ Production deployment
+PHASE 3: V3 Ensemble Stack ❌ NOT STARTED (0%)
+├─ Endpoint: /predict-v3  ← YES, this is V3!
+├─ Target: 57-58% accuracy
+├─ Status: Blocked until Phase 2 hits 53-55%
+│
+├─ Prerequisites (must complete first):
+│   □ Phase 2 accuracy: 53-55% consistently
+│   □ Dataset: >= 5,000 clean matches
+│   □ CLV: Positive across 5+ leagues
+│   └─ V2: Production-validated
+│
+└─ Components to build:
+    ├─ Base Model 1: LightGBM-Home/Away (V2 tuned)
+    ├─ Base Model 2: LightGBM-Draw (class weighted)
+    ├─ Base Model 3: XGBoost (diversity)
+    ├─ Base Model 4: CatBoost (categorical)
+    ├─ Base Model 5: Neural Network (MLP 2-3 layers)
+    ├─ Meta-Learner: Ridge/Logistic stacking
+    ├─ Confidence Weighting: Model agreement
+    └─ Market Blending: Deviation-aware mixing
+
+```
+
+**Timeline:**
+
+- Phase 2 Completion: **6-10 weeks** (backfill + tuning)
+- Phase 3 Development: **+8-12 weeks** (ensemble building)
+- **Total to V3**: ~4-6 months
+
+---
+
+**📋 Roadmap: Completed vs Pending**
+
+✅ **COMPLETED (60%)**
+
+**Infrastructure:**
+
+- [x]  Clean data migration (odds_snapshots, not fake odds_consensus)
+- [x]  Materialized view: `odds_real_consensus` (1,513 matches)
+- [x]  Training loader with INNER JOIN to real odds
+- [x]  Feature builder using real odds views
+- [x]  Probability normalization (bookmaker margin)
+- [x]  TimeSeriesSplit with 7-day embargo
+- [x]  Pre-kickoff enforcement (T-1h minimum)
+
+**Features (50 total):**
+
+- [x]  21 odds features (probabilities, dispersion, entropy)
+- [x]  3 ELO features
+- [x]  5 form features
+- [x]  5 H2H features
+- [x]  10 advanced stats
+- [x]  2 schedule features
+- [x]  4 context features (rest, congestion)
+
+**Training:**
+
+- [x]  1,236 matches with 100% extraction success
+- [x]  5-fold CV with proper time ordering
+- [x]  Model saved (`lgbm_ensemble.pkl`)
+- [x]  Metadata tracking
+
+---
+
+⏳ **PENDING (40%)**
+
+**Critical Fixes (Week 1-2) 🔴**
+
+- [ ]  Fix random-label sanity check (43.1% → 33%)
+- [ ]  Add row-permutation test (detect feature leakage)
+- [ ]  Create `odds_real_opening` materialized view
+- [ ]  Add 6 drift features (open → latest)
+- [ ]  Validate market baseline (measure market-only accuracy)
+- [ ]  Investigate Fold 4 anomaly (56.8% vs 49.5% avg)
+
+**Data Expansion (Week 2-6) 🟡**
+
+- [ ]  Backfill +764 matches (1,236 → 2,000)
+- [ ]  Backfill +1,000 more (2,000 → 3,000)
+- [ ]  Backfill +2,000 more (3,000 → 5,000)
+- [ ]  Retrain every +500 matches
+
+**Model Optimization (Week 4-8) 🟢**
+
+- [ ]  Hyperparameter tuning (num_leaves, regularization)
+- [ ]  Class balancing (up-weight draws)
+- [ ]  Per-league calibration (isotonic regression)
+- [ ]  Meta-features (league tier, derby flags)
+- [ ]  Monotonic constraints
+
+**Production (Week 8+) 🔵**
+
+- [ ]  CLV analysis on OOF predictions
+- [ ]  Deploy `/predict-v2` endpoint
+- [ ]  Monitor in wild (accuracy, Kelly, Sharpe)
