@@ -1,0 +1,130 @@
+Absolutely—let’s ship a **V1↔V2 “assist” ensemble** now, with V2 complementing (not replacing) V1.
+
+Here’s a tight, production-ready plan you can drop in:
+
+# How it works (policy first, math second)
+
+1. **Gate V2 by quality**
+
+* If V2 ran **full_pipeline** with good odds (books ≥5, snapshot 5–2880 min pre-KO, margin sane), we allow it to influence V1.
+* If V2 is **team_context_only** (no/weak odds), we cap its influence to a small nudge or ignore it entirely.
+
+2. **Blend, don’t flip**
+
+* Default to **V1 as the anchor** (fast, stable).
+* Apply a **confidence-weighted blend** where V2 has proven signal (per match).
+
+3. **Always respect market sanity**
+
+* Keep a **market guardrail**: any blend must stay within a small KL divergence of the no-vig consensus unless V2’s confidence is high. (Prevents wild moves off stale/weak signals.)
+
+---
+
+# Minimal implementation (today)
+
+## A. Add an ensemble endpoint
+
+`/predict-ensemble` (internally “v2.5”) returns:
+
+```json
+{
+  "engine":"v2.5-ensemble",
+  "p_v1": {"home":..,"draw":..,"away":..},
+  "p_v2": {"home":..,"draw":..,"away":..},
+  "p_ensemble": {"home":..,"draw":..,"away":..},
+  "weights":{"w1":0.72,"w2":0.28},
+  "feature_source":"full_pipeline|team_context_only",
+  "books_used":12,
+  "snapshot_age_min":37,
+  "model_version_v2":"v2-team-plus-plus-20251108",
+  "warnings":[]
+}
+```
+
+## B. Compute dynamic weights per match
+
+```python
+# Inputs you already compute/return
+books = books_used
+age   = snapshot_age_min
+src   = feature_source            # 'full_pipeline' or 'team_context_only'
+ece_v2= expected_calibration_err  # optional if you track; else set to 0.08 default
+league_tier = tier                # (1=top, 3=lower), optional
+
+# Base weight from odds quality
+q_books = min(1.0, books/20)                 # saturate at ~20 books
+q_recency = max(0.0, 1 - age/720)            # decay after 12h
+q_src = (1.0 if src=='full_pipeline' else 0.25)  # team-only heavily down-weighted
+q_calib = max(0.0, 1 - (ece_v2/0.12))        # if you have ECE per fold/league
+
+base = 0.50 * q_books + 0.30 * q_recency + 0.20 * q_calib
+w2 = base * q_src
+
+# League safety (more weight in Tier 1 where models are trained more)
+if league_tier == 1: w2 *= 1.0
+elif league_tier == 2: w2 *= 0.85
+else: w2 *= 0.70
+
+# Hard caps
+w2 = max(0.0, min(w2, 0.45))                 # V2 can never dominate V1 in v2.5
+w1 = 1.0 - w2
+```
+
+## C. Blend the distributions with a market guardrail
+
+```python
+import numpy as np
+
+def blend(p_v1, p_v2, w1, w2):
+    p = {k: w1*p_v1[k] + w2*p_v2[k] for k in ('home','draw','away')}
+    s = sum(p.values()); p = {k: p[k]/s for k in p}   # renorm
+
+    # Guardrail: keep KL divergence to V1 small unless w2 is high
+    def kl(p,q): 
+        return sum(p[k]*np.log((p[k]+1e-9)/(q[k]+1e-9)) for k in p)
+    max_kl = 0.07 + 0.20*w2                       # allow more deviation if V2 stronger
+    if kl(p, p_v1) > max_kl:
+        alpha = max(0.0, min(1.0, max_kl / (kl(p,p_v1)+1e-9)))
+        p = {k: (alpha*p[k] + (1-alpha)*p_v1[k]) for k in p}
+        s = sum(p.values()); p = {k: p[k]/s for k in p}
+
+    return p
+```
+
+That’s enough to launch a safe ensemble that lets V2 **assist** V1 without destabilizing outputs.
+
+---
+
+# When V2 should be ignored or only nudge
+
+* `feature_source == "team_context_only"` → set `w2 ≤ 0.10` (or 0).
+* `books_used < 3` or `snapshot_age_min > 2880` → `w2 = 0`.
+* If your **market-only CV** for that league/date is <48% (suspicious data), **force `w2=0`**.
+
+---
+
+# Fast path to measurable gains (without waiting for V3)
+
+1. **Ship `/predict-ensemble` now** with the weighting + guardrail above.
+2. **Track CLV vs. V1**: log `p_v1`, `p_ensemble`, realized closing probs to see if ensemble improves CLV.
+3. **Per-league weights**: keep a tiny table `ensemble_weights(league,tier,w2_cap)`—raise/lower caps by league performance weekly.
+4. **Draw handling**: add +5–10% extra weight to V2 on draws (where ML often helps more than consensus).
+
+---
+
+# Later (turn this into true V3 without big refactor)
+
+* Train a **stacked meta-learner** on OOF predictions: inputs `[p_v1, p_v2, books, age, tier]` → output calibrated probs.
+* Add **model-agreement confidence** = 1 − JS-divergence(p_v1, p_v2); scale w2 by agreement.
+* Introduce a **third expert** (XGBoost or CatBoost) for diversity, but keep V1 as anchor until V2 passes 53–55% consistently.
+
+---
+
+# Rollout checklist
+
+* Endpoint: add `/predict-ensemble` (v2.5) behind a feature flag.
+* Response: include `p_v1`, `p_v2`, `weights`, `feature_source`, `books_used`, `snapshot_age_min`, `warnings`.
+* UI: badge “Ensemble (V1+V2)” and show “Assisted by team/context” when `feature_source=team_context_only`.
+* Monitoring: per-league **accuracy, ECE, CLV** for V1 vs Ensemble; weekly caps auto-tune.
+
+This gives you a **safe, incremental lift** today, keeps V1’s stability, and sets the runway for full V3 stacking when V2 matures.
