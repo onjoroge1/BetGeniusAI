@@ -6355,7 +6355,7 @@ async def get_market_data(
                     # Step 4: Generate V2 prediction
                     try:
                         v2_predictor = get_v2_lgbm_predictor()
-                        v2_result = v2_predictor.predict(novig_current)
+                        v2_result = v2_predictor.predict(match_id, novig_current)
                         
                         if v2_result:
                             v2_probs = v2_result['probabilities']
