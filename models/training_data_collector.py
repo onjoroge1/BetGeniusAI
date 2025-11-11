@@ -152,6 +152,16 @@ class TrainingDataCollector:
                     # Map outcome to string for database
                     outcome_map = {0: 'Home', 1: 'Draw', 2: 'Away'}
                     
+                    # Extract match date from API response (CRITICAL: needed for backfill and training)
+                    match_date_str = match.get('fixture', {}).get('date')
+                    match_date = None
+                    if match_date_str:
+                        try:
+                            from dateutil import parser
+                            match_date = parser.parse(match_date_str)
+                        except:
+                            match_date = None
+                    
                     training_sample = {
                         'match_id': match_id,
                         'league_id': match.get('league', {}).get('id', 0),
@@ -160,6 +170,7 @@ class TrainingDataCollector:
                         'away_team': match_data.get('match_info', {}).get('away_team', 'Unknown'),
                         'home_team_id': match.get('teams', {}).get('home', {}).get('id'),
                         'away_team_id': match.get('teams', {}).get('away', {}).get('id'),
+                        'match_date': match_date,  # FIX: Always set match_date for backfill compatibility
                         'venue': match_data.get('match_info', {}).get('venue', ''),
                         'outcome': outcome_map[outcome],
                         'home_goals': home_goals,
