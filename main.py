@@ -5956,7 +5956,7 @@ async def predict_v2_select(
 
 @app.get("/market")
 async def get_market_data(
-    status: str = "upcoming",
+    status: str = "all",
     league_id: Optional[int] = None,
     match_id: Optional[str] = None,
     limit: int = 100,
@@ -5965,6 +5965,12 @@ async def get_market_data(
 ):
     """
     Market endpoint: Real-time odds board with V1 + V2 predictions (Requires API Key)
+    
+    Status options (default: "all"):
+    - "all": Smart composite view (upcoming → live → finished) - best UX
+    - "upcoming": Future scheduled matches with odds (bettable)
+    - "live": In-progress matches with fresh data (<10 min old)
+    - "finished": Completed matches with final results
     
     OPTIMIZATIONS:
     - Single-match filter: ?match_id=X for instant detail page loads (<500ms)
@@ -6254,10 +6260,148 @@ async def get_market_data(
                     """
                     cursor.execute(query, (limit,))
             
-            else:
-                raise HTTPException(400, "Status must be 'upcoming', 'live', or 'finished'")
+            elif status == "all":
+                # Composite view: Sequential fallback (upcoming → live → finished)
+                # Betting priority: future bets first, then in-play, then results
+                fixtures = []
+                remaining_limit = limit
+                
+                # Step 1: Try upcoming matches (non-TBD)
+                if remaining_limit > 0:
+                    if league_id:
+                        cursor.execute("""
+                            SELECT DISTINCT
+                                f.match_id, f.home_team, f.away_team,
+                                f.league_id, f.league_name, f.kickoff_at,
+                                f.home_team_id, f.away_team_id,
+                                ht.logo_url as home_logo, at.logo_url as away_logo
+                            FROM fixtures f
+                            JOIN odds_snapshots os ON f.match_id = os.match_id
+                            LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                            LEFT JOIN teams at ON f.away_team_id = at.team_id
+                            WHERE f.kickoff_at > NOW()
+                                AND f.status = 'scheduled'
+                                AND f.league_id = %s
+                                AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                            ORDER BY f.kickoff_at ASC
+                            LIMIT %s
+                        """, (league_id, remaining_limit))
+                    else:
+                        cursor.execute("""
+                            SELECT DISTINCT
+                                f.match_id, f.home_team, f.away_team,
+                                f.league_id, f.league_name, f.kickoff_at,
+                                f.home_team_id, f.away_team_id,
+                                ht.logo_url as home_logo, at.logo_url as away_logo
+                            FROM fixtures f
+                            JOIN odds_snapshots os ON f.match_id = os.match_id
+                            LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                            LEFT JOIN teams at ON f.away_team_id = at.team_id
+                            WHERE f.kickoff_at > NOW()
+                                AND f.status = 'scheduled'
+                                AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                            ORDER BY f.kickoff_at ASC
+                            LIMIT %s
+                        """, (remaining_limit,))
+                    upcoming = cursor.fetchall()
+                    fixtures.extend(upcoming)
+                    remaining_limit -= len(upcoming)
+                
+                # Step 2: Try live matches (if still need more)
+                if remaining_limit > 0:
+                    if league_id:
+                        cursor.execute("""
+                            SELECT DISTINCT
+                                f.match_id, f.home_team, f.away_team,
+                                f.league_id, f.league_name, f.kickoff_at,
+                                f.home_team_id, f.away_team_id,
+                                ht.logo_url as home_logo, at.logo_url as away_logo
+                            FROM fixtures f
+                            JOIN odds_snapshots os ON f.match_id = os.match_id
+                            LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                            LEFT JOIN teams at ON f.away_team_id = at.team_id
+                            WHERE f.kickoff_at <= NOW()
+                                AND f.kickoff_at > NOW() - INTERVAL '4 hours'
+                                AND f.status = 'scheduled'
+                                AND f.league_id = %s
+                                AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                                AND EXISTS (
+                                    SELECT 1 FROM live_match_stats lms
+                                    WHERE lms.match_id = f.match_id
+                                    AND lms.timestamp > NOW() - INTERVAL '10 minutes'
+                                )
+                            ORDER BY f.kickoff_at ASC
+                            LIMIT %s
+                        """, (league_id, remaining_limit))
+                    else:
+                        cursor.execute("""
+                            SELECT DISTINCT
+                                f.match_id, f.home_team, f.away_team,
+                                f.league_id, f.league_name, f.kickoff_at,
+                                f.home_team_id, f.away_team_id,
+                                ht.logo_url as home_logo, at.logo_url as away_logo
+                            FROM fixtures f
+                            JOIN odds_snapshots os ON f.match_id = os.match_id
+                            LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                            LEFT JOIN teams at ON f.away_team_id = at.team_id
+                            WHERE f.kickoff_at <= NOW()
+                                AND f.kickoff_at > NOW() - INTERVAL '4 hours'
+                                AND f.status = 'scheduled'
+                                AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                                AND EXISTS (
+                                    SELECT 1 FROM live_match_stats lms
+                                    WHERE lms.match_id = f.match_id
+                                    AND lms.timestamp > NOW() - INTERVAL '10 minutes'
+                                )
+                            ORDER BY f.kickoff_at ASC
+                            LIMIT %s
+                        """, (remaining_limit,))
+                    live = cursor.fetchall()
+                    fixtures.extend(live)
+                    remaining_limit -= len(live)
+                
+                # Step 3: Backfill with finished matches (if still need more)
+                if remaining_limit > 0:
+                    if league_id:
+                        cursor.execute("""
+                            SELECT DISTINCT
+                                f.match_id, f.home_team, f.away_team,
+                                f.league_id, f.league_name, f.kickoff_at,
+                                f.home_team_id, f.away_team_id,
+                                ht.logo_url as home_logo, at.logo_url as away_logo
+                            FROM fixtures f
+                            LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                            LEFT JOIN teams at ON f.away_team_id = at.team_id
+                            WHERE f.status = 'finished'
+                                AND f.league_id = %s
+                                AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                            ORDER BY f.kickoff_at DESC
+                            LIMIT %s
+                        """, (league_id, remaining_limit))
+                    else:
+                        cursor.execute("""
+                            SELECT DISTINCT
+                                f.match_id, f.home_team, f.away_team,
+                                f.league_id, f.league_name, f.kickoff_at,
+                                f.home_team_id, f.away_team_id,
+                                ht.logo_url as home_logo, at.logo_url as away_logo
+                            FROM fixtures f
+                            LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                            LEFT JOIN teams at ON f.away_team_id = at.team_id
+                            WHERE f.status = 'finished'
+                                AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                            ORDER BY f.kickoff_at DESC
+                            LIMIT %s
+                        """, (remaining_limit,))
+                    finished = cursor.fetchall()
+                    fixtures.extend(finished)
             
-            fixtures = cursor.fetchall()
+            else:
+                raise HTTPException(400, "Status must be 'upcoming', 'live', 'finished', or 'all'")
+            
+            # Fetch results (except for status="all" which builds fixtures manually)
+            if status != "all":
+                fixtures = cursor.fetchall()
             
             if not fixtures:
                 return {
