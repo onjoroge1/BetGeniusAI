@@ -164,10 +164,19 @@ class TeamEnrichmentService:
         
         team = best['team']
         code = team.get('code')
+        team_id = team.get('id')
+        
+        # IMPROVEMENT: Always construct logo URL from team ID as fallback
+        # Pattern: https://media.api-sports.io/football/teams/{id}.png
+        logo_url = team.get('logo')
+        if not logo_url and team_id:
+            logo_url = f"https://media.api-sports.io/football/teams/{team_id}.png"
+            logger.info(f"Constructed logo URL from team ID: {logo_url}")
+        
         return {
-            'api_football_team_id': team.get('id'),
+            'api_football_team_id': team_id,
             'name': team.get('name'),
-            'logo_url': team.get('logo'),
+            'logo_url': logo_url,
             'country': team.get('country'),
             'slug': code.lower() if code else None,
             'match_score': best['score']
