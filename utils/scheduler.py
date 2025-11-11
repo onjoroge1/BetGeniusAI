@@ -54,6 +54,8 @@ class BackgroundScheduler:
         self.last_ai_analysis_run: Optional[datetime] = None
         # Fixture ID resolver (runs every 60 seconds to link fixtures with API-Football IDs)
         self.last_fixture_resolver_run: Optional[datetime] = None
+        # TBD Fixture Resolver (runs every 5 minutes to update placeholder teams)
+        self.last_tbd_resolver_run: Optional[datetime] = None
         # Momentum calculator (Phase 2 - runs every 60 seconds for live matches)
         self.last_momentum_calc_run: Optional[datetime] = None
         # Live market engine (Phase 2 - runs every 60 seconds for in-play predictions)
@@ -85,6 +87,7 @@ class BackgroundScheduler:
         logger.info("🎯 Phase B: Fresh odds collection enabled - HIGH PRIORITY every 60 seconds")
         logger.info("⚽ API-Football Phase B: Continuous collection enabled - every 60 seconds (75k/day limit)")
         logger.info("🔗 Fixture ID Resolver enabled - runs every 60 seconds to link API-Football IDs")
+        logger.info("🔄 TBD Fixture Resolver enabled - runs every 5 minutes to update placeholder teams")
         logger.info("CLV Club alert producer enabled - runs every 60 seconds")
         logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
         logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
@@ -308,6 +311,10 @@ class BackgroundScheduler:
                 # 🔗 PHASE 2: Fixture ID Resolver - runs every 60 seconds to link fixtures with API-Football IDs
                 if "fixture_resolver" not in self.last_run or (now - self.last_run["fixture_resolver"]).total_seconds() >= 60:
                     await self._spawn("fixture_resolver", self._run_fixture_id_resolver, timeout=90)
+                
+                # 🔄 PHASE 2: TBD Fixture Resolver - runs every 5 minutes to update placeholder teams
+                if "tbd_resolver" not in self.last_run or (now - self.last_run["tbd_resolver"]).total_seconds() >= 300:
+                    await self._spawn("tbd_resolver", self._run_tbd_fixture_resolver, timeout=60)
                 
                 # 🔴 PHASE 1: Live data collection - runs every 60 seconds for live matches
                 if "live_data" not in self.last_run or (now - self.last_run["live_data"]).total_seconds() >= 60:
@@ -608,6 +615,24 @@ class BackgroundScheduler:
             
         except Exception as e:
             logger.error(f"🔗 Fixture ID Resolver error: {e}")
+    
+    async def _run_tbd_fixture_resolver(self):
+        """
+        🔄 PHASE 2: TBD Fixture Resolver
+        Automatically updates fixtures with "TBD" placeholder teams:
+        1. Queries The Odds API to check if teams have been determined
+        2. Updates fixtures table with real team names
+        3. Cleans up old finished TBD fixtures (24h retention)
+        Runs every 5 minutes
+        """
+        try:
+            from models.tbd_fixture_resolver import run_tbd_resolution
+            
+            logger.debug("🔄 TBD Fixture Resolver: Starting...")
+            run_tbd_resolution()
+            
+        except Exception as e:
+            logger.error(f"🔄 TBD Fixture Resolver error: {e}")
     
     async def _run_live_data_collection(self):
         """
