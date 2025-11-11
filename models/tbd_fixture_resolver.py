@@ -30,18 +30,21 @@ class TbdFixtureResolver:
         
         self.sport_mappings = {
             39: "soccer_england_epl",
-            140: "soccer_spain_la_liga",
-            78: "soccer_germany_bundesliga",
-            135: "soccer_italy_serie_a",
+            46: "soccer_england_league2",
             61: "soccer_france_ligue_one",
-            94: "soccer_portugal_primeira_liga",
+            71: "soccer_brazil_campeonato",
+            78: "soccer_germany_bundesliga",
             88: "soccer_netherlands_eredivisie",
-            203: "soccer_turkey_super_league",
-            144: "soccer_belgium_first_div",
+            94: "soccer_portugal_primeira_liga",
             103: "soccer_norway_eliteserien",
             113: "soccer_sweden_allsvenskan",
             119: "soccer_denmark_superliga",
+            135: "soccer_italy_serie_a",
+            140: "soccer_spain_la_liga",
+            141: "soccer_spain_segunda_division",
+            144: "soccer_belgium_first_div",
             179: "soccer_scotland_premiership",
+            203: "soccer_turkey_super_league",
             253: "soccer_efl_champ",
         }
         
