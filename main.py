@@ -6055,6 +6055,7 @@ async def get_market_data(
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.match_id = %s
                           AND f.status = 'finished'
+                          AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                         LIMIT 1
                     """
                 else:
@@ -6078,6 +6079,7 @@ async def get_market_data(
                         WHERE f.match_id = %s
                           AND f.kickoff_at > NOW()
                           AND f.status = 'scheduled'
+                          AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                         LIMIT 1
                     """
                 cursor.execute(query, (match_id,))
@@ -6109,6 +6111,7 @@ async def get_market_data(
                         WHERE f.kickoff_at > NOW()
                             AND f.status = 'scheduled'
                             AND f.league_id = %s
+                            AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
                     """
@@ -6132,6 +6135,7 @@ async def get_market_data(
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at > NOW()
                             AND f.status = 'scheduled'
+                            AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
                     """
@@ -6160,6 +6164,7 @@ async def get_market_data(
                             AND f.kickoff_at > NOW() - INTERVAL '4 hours'
                             AND f.status = 'scheduled'
                             AND f.league_id = %s
+                            AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                             AND EXISTS (
                                 SELECT 1 FROM live_match_stats lms
                                 WHERE lms.match_id = f.match_id
@@ -6189,6 +6194,7 @@ async def get_market_data(
                         WHERE f.kickoff_at <= NOW()
                             AND f.kickoff_at > NOW() - INTERVAL '4 hours'
                             AND f.status = 'scheduled'
+                            AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                             AND EXISTS (
                                 SELECT 1 FROM live_match_stats lms
                                 WHERE lms.match_id = f.match_id
@@ -6219,6 +6225,7 @@ async def get_market_data(
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.status = 'finished'
                             AND f.league_id = %s
+                            AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                         ORDER BY f.kickoff_at DESC
                         LIMIT %s
                     """
@@ -6240,6 +6247,7 @@ async def get_market_data(
                         LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.status = 'finished'
+                            AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                         ORDER BY f.kickoff_at DESC
                         LIMIT %s
                     """
