@@ -5,16 +5,17 @@ Polls The Odds API every 5-10 minutes to update fixtures when teams are determin
 
 Architecture:
 - Finds all fixtures with 'TBD' in home_team or away_team
-- Queries The Odds API to check if teams have been determined
+- Caches API responses per league to avoid redundant calls
 - Updates fixtures table with real team names
-- Triggers team enrichment for logo fetching
-- Cleans up old finished TBD fixtures (24h retention)
+- Soft deletes (archives) old finished TBD fixtures instead of hard delete
+- Includes retry logic and observable metrics
 """
 
 import os
 import psycopg2
 import requests
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
 
@@ -43,6 +44,18 @@ class TbdFixtureResolver:
             179: "soccer_scotland_premiership",
             253: "soccer_efl_champ",
         }
+        
+        self.league_cache: Dict[int, List[Dict]] = {}
+        self.api_calls_this_run = 0
+        self.max_api_calls = 20
+        
+        self.metrics = {
+            "tbd_count": 0,
+            "resolved": 0,
+            "archived": 0,
+            "failed": 0,
+            "api_calls": 0
+        }
     
     def get_tbd_fixtures(self) -> List[Dict]:
         """
@@ -67,6 +80,7 @@ class TbdFixtureResolver:
                     WHERE (home_team = 'TBD' OR away_team = 'TBD')
                       AND status = 'scheduled'
                       AND kickoff_at > NOW() - INTERVAL '7 days'
+                      AND COALESCE(archived, false) = false
                     ORDER BY kickoff_at ASC
                 """)
                 
@@ -83,6 +97,7 @@ class TbdFixtureResolver:
                         "created_at": row[7]
                     })
                 
+                self.metrics["tbd_count"] = len(fixtures)
                 logger.info(f"Found {len(fixtures)} TBD fixtures to resolve")
                 return fixtures
                 
@@ -90,34 +105,71 @@ class TbdFixtureResolver:
             logger.error(f"Failed to get TBD fixtures: {e}")
             return []
     
-    def query_odds_api_for_fixture(self, league_id: int, kickoff_at: datetime) -> Optional[Dict]:
+    def query_odds_api_with_cache(self, league_id: int) -> Optional[List[Dict]]:
         """
-        Query The Odds API to find the fixture by league and kickoff time
-        Returns: Dict with home_team and away_team if found, None otherwise
+        Query The Odds API for a league (with caching to avoid redundant calls)
+        Returns: List of events if successful, None otherwise
         """
+        if league_id in self.league_cache:
+            logger.debug(f"Using cached API response for league {league_id}")
+            return self.league_cache[league_id]
+        
+        if self.api_calls_this_run >= self.max_api_calls:
+            logger.warning(f"API call limit reached ({self.max_api_calls}), skipping league {league_id}")
+            return None
+        
         sport_key = self.sport_mappings.get(league_id)
         if not sport_key:
             logger.debug(f"No sport mapping for league_id {league_id}")
             return None
         
-        try:
-            url = f"{self.odds_api_base}/sports/{sport_key}/odds/"
-            params = {
-                "apiKey": self.odds_api_key,
-                "regions": "us,uk,eu",
-                "markets": "h2h",
-                "oddsFormat": "decimal"
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if not isinstance(data, list):
-                logger.warning(f"Unexpected API response format for {sport_key}")
-                return None
-            
-            for event in data:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                url = f"{self.odds_api_base}/sports/{sport_key}/odds/"
+                params = {
+                    "apiKey": self.odds_api_key,
+                    "regions": "us,uk,eu",
+                    "markets": "h2h",
+                    "oddsFormat": "decimal"
+                }
+                
+                response = requests.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                
+                self.api_calls_this_run += 1
+                self.metrics["api_calls"] += 1
+                
+                if not isinstance(data, list):
+                    logger.warning(f"Unexpected API response format for {sport_key}")
+                    return None
+                
+                self.league_cache[league_id] = data
+                logger.debug(f"✅ Fetched and cached {len(data)} events for league {league_id}")
+                return data
+                
+            except requests.exceptions.RequestException as e:
+                wait_time = 2 ** attempt
+                logger.warning(f"API request failed (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Failed to query Odds API for league {league_id} after {max_retries} attempts")
+                    self.metrics["failed"] += 1
+                    return None
+        
+        return None
+    
+    def find_fixture_in_league_data(self, league_data: List[Dict], kickoff_at: datetime) -> Optional[Dict]:
+        """
+        Find a fixture in league data by kickoff time
+        Returns: Dict with home_team and away_team if found, None otherwise
+        """
+        for event in league_data:
+            try:
                 event_time = datetime.fromisoformat(event["commence_time"].replace("Z", "+00:00"))
                 time_diff = abs((event_time - kickoff_at).total_seconds())
                 
@@ -132,12 +184,11 @@ class TbdFixtureResolver:
                             "api_event_id": event.get("id"),
                             "commence_time": event_time
                         }
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Failed to query Odds API for league {league_id}: {e}")
-            return None
+            except Exception as e:
+                logger.warning(f"Error parsing event: {e}")
+                continue
+        
+        return None
     
     def update_fixture_teams(self, match_id: str, home_team: str, away_team: str) -> bool:
         """
@@ -162,73 +213,122 @@ class TbdFixtureResolver:
                 
         except Exception as e:
             logger.error(f"Failed to update fixture {match_id}: {e}")
+            self.metrics["failed"] += 1
             return False
     
-    def cleanup_old_tbd_fixtures(self) -> int:
+    def ensure_archived_column(self):
         """
-        Archive or delete old finished TBD fixtures
-        Returns: Number of fixtures cleaned up
+        Ensure the archived column exists in fixtures table (for soft delete)
         """
         try:
             with psycopg2.connect(self.db_url) as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute("""
-                    DELETE FROM fixtures
+                    ALTER TABLE fixtures 
+                    ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false
+                """)
+                
+                conn.commit()
+                
+        except Exception as e:
+            logger.warning(f"Failed to add archived column (may already exist): {e}")
+    
+    def archive_old_tbd_fixtures(self) -> int:
+        """
+        Archive (soft delete) old finished TBD fixtures
+        Returns: Number of fixtures archived
+        """
+        try:
+            self.ensure_archived_column()
+            
+            with psycopg2.connect(self.db_url) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    UPDATE fixtures
+                    SET archived = true,
+                        updated_at = NOW()
                     WHERE (home_team = 'TBD' OR away_team = 'TBD')
                       AND status = 'finished'
                       AND kickoff_at < NOW() - INTERVAL '24 hours'
+                      AND COALESCE(archived, false) = false
                     RETURNING match_id
                 """)
                 
-                deleted_ids = cursor.fetchall()
+                archived_ids = cursor.fetchall()
                 conn.commit()
                 
-                count = len(deleted_ids)
+                count = len(archived_ids)
                 if count > 0:
-                    logger.info(f"🗑️ Cleaned up {count} old finished TBD fixtures")
+                    logger.info(f"📦 Archived {count} old finished TBD fixtures (soft delete)")
+                    self.metrics["archived"] = count
                 
                 return count
                 
         except Exception as e:
-            logger.error(f"Failed to cleanup old TBD fixtures: {e}")
+            logger.error(f"Failed to archive old TBD fixtures: {e}")
+            self.metrics["failed"] += 1
             return 0
     
-    def resolve_tbd_fixtures(self) -> Tuple[int, int]:
+    def resolve_tbd_fixtures(self) -> Dict[str, int]:
         """
         Main resolution process
-        Returns: (resolved_count, cleaned_up_count)
+        Returns: metrics dict with counts
         """
+        self.league_cache.clear()
+        self.api_calls_this_run = 0
+        
+        self.ensure_archived_column()
+        
         tbd_fixtures = self.get_tbd_fixtures()
         
         if not tbd_fixtures:
             logger.info("No TBD fixtures to resolve")
-            cleaned_up = self.cleanup_old_tbd_fixtures()
-            return 0, cleaned_up
+            archived = self.archive_old_tbd_fixtures()
+            return self.metrics
         
-        resolved_count = 0
-        
+        group_by_league = {}
         for fixture in tbd_fixtures:
-            match_id = fixture["match_id"]
             league_id = fixture["league_id"]
-            kickoff_at = fixture["kickoff_at"]
+            if league_id not in group_by_league:
+                group_by_league[league_id] = []
+            group_by_league[league_id].append(fixture)
+        
+        logger.info(f"Processing {len(tbd_fixtures)} TBD fixtures across {len(group_by_league)} leagues")
+        
+        for league_id, fixtures in group_by_league.items():
+            league_data = self.query_odds_api_with_cache(league_id)
             
-            updated_teams = self.query_odds_api_for_fixture(league_id, kickoff_at)
+            if not league_data:
+                continue
             
-            if updated_teams:
-                success = self.update_fixture_teams(
-                    match_id,
-                    updated_teams["home_team"],
-                    updated_teams["away_team"]
-                )
+            for fixture in fixtures:
+                match_id = fixture["match_id"]
+                kickoff_at = fixture["kickoff_at"]
                 
-                if success:
-                    resolved_count += 1
+                updated_teams = self.find_fixture_in_league_data(league_data, kickoff_at)
+                
+                if updated_teams:
+                    success = self.update_fixture_teams(
+                        match_id,
+                        updated_teams["home_team"],
+                        updated_teams["away_team"]
+                    )
+                    
+                    if success:
+                        self.metrics["resolved"] += 1
         
-        cleaned_up = self.cleanup_old_tbd_fixtures()
+        archived = self.archive_old_tbd_fixtures()
         
-        logger.info(f"TBD Resolution Summary: {resolved_count} resolved, {cleaned_up} cleaned up")
-        return resolved_count, cleaned_up
+        logger.info(f"TBD Resolution Summary: {self.metrics['resolved']} resolved, "
+                   f"{self.metrics['archived']} archived, {self.metrics['api_calls']} API calls, "
+                   f"{self.metrics['failed']} failures, {self.metrics['tbd_count']} total TBD")
+        
+        if self.metrics['tbd_count'] > 50:
+            logger.warning(f"⚠️ HIGH TBD COUNT: {self.metrics['tbd_count']} unresolved TBD fixtures detected!")
+        
+        return self.metrics
 
 
 def run_tbd_resolution():
@@ -237,8 +337,9 @@ def run_tbd_resolution():
     """
     resolver = TbdFixtureResolver()
     try:
-        resolved, cleaned = resolver.resolve_tbd_fixtures()
-        logger.info(f"TBD resolution complete: {resolved} resolved, {cleaned} cleaned")
+        metrics = resolver.resolve_tbd_fixtures()
+        logger.info(f"TBD resolution complete: {metrics['resolved']} resolved, "
+                   f"{metrics['archived']} archived, {metrics['tbd_count']} remain")
         return True
     except Exception as e:
         logger.error(f"TBD resolution failed: {e}")
