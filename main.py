@@ -6029,6 +6029,7 @@ async def get_market_data(
                           AND f.kickoff_at <= NOW()
                           AND f.kickoff_at > NOW() - INTERVAL '4 hours'
                           AND f.status = 'scheduled'
+                          AND f.home_team != 'TBD' AND f.away_team != 'TBD'
                           AND EXISTS (
                               SELECT 1 FROM live_match_stats lms
                               WHERE lms.match_id = f.match_id
