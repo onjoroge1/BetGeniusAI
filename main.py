@@ -6010,86 +6010,32 @@ async def get_market_data(
             
             logger.info(f"✅ Loaded {len(bookmaker_map)} bookmaker mappings in batch")
             
-            # OPTIMIZATION 2: Single-match fast path
+            # OPTIMIZATION 2: Single-match fast path (status-agnostic)
             if match_id:
-                # Fast path: Get specific match by ID (with status-based filtering)
-                if status == "live":
-                    # For live matches: check data freshness
-                    query = """
-                        SELECT DISTINCT
-                            f.match_id,
-                            f.home_team,
-                            f.away_team,
-                            f.league_id,
-                            f.league_name,
-                            f.kickoff_at,
-                            f.home_team_id,
-                            f.away_team_id,
-                            ht.logo_url as home_logo,
-                            at.logo_url as away_logo
-                        FROM fixtures f
-                        JOIN odds_snapshots os ON f.match_id = os.match_id
-                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
-                        LEFT JOIN teams at ON f.away_team_id = at.team_id
-                        WHERE f.match_id = %s
-                          AND f.kickoff_at <= NOW()
-                          AND f.kickoff_at > NOW() - INTERVAL '4 hours'
-                          AND f.status = 'scheduled'
-                          AND f.home_team != 'TBD' AND f.away_team != 'TBD'
-                          AND EXISTS (
-                              SELECT 1 FROM live_match_stats lms
-                              WHERE lms.match_id = f.match_id
-                              AND lms.timestamp > NOW() - INTERVAL '10 minutes'
-                          )
-                        LIMIT 1
-                    """
-                elif status == "finished":
-                    # For finished matches: just check finished status
-                    query = """
-                        SELECT DISTINCT
-                            f.match_id,
-                            f.home_team,
-                            f.away_team,
-                            f.league_id,
-                            f.league_name,
-                            f.kickoff_at,
-                            f.home_team_id,
-                            f.away_team_id,
-                            ht.logo_url as home_logo,
-                            at.logo_url as away_logo
-                        FROM fixtures f
-                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
-                        LEFT JOIN teams at ON f.away_team_id = at.team_id
-                        WHERE f.match_id = %s
-                          AND f.status = 'finished'
-                          AND f.home_team != 'TBD' AND f.away_team != 'TBD'
-                        LIMIT 1
-                    """
-                else:
-                    # For upcoming matches: just check scheduled status
-                    query = """
-                        SELECT DISTINCT
-                            f.match_id,
-                            f.home_team,
-                            f.away_team,
-                            f.league_id,
-                            f.league_name,
-                            f.kickoff_at,
-                            f.home_team_id,
-                            f.away_team_id,
-                            ht.logo_url as home_logo,
-                            at.logo_url as away_logo
-                        FROM fixtures f
-                        JOIN odds_snapshots os ON f.match_id = os.match_id
-                        LEFT JOIN teams ht ON f.home_team_id = ht.team_id
-                        LEFT JOIN teams at ON f.away_team_id = at.team_id
-                        WHERE f.match_id = %s
-                          AND f.kickoff_at > NOW()
-                          AND f.status = 'scheduled'
-                          AND f.home_team != 'TBD' AND f.away_team != 'TBD'
-                        LIMIT 1
-                    """
+                # FIX: When fetching a single match by ID, don't filter by status
+                # The match_id is unique - just get it regardless of state
+                # This allows /market?match_id=X to work without requiring status parameter
+                query = """
+                    SELECT DISTINCT
+                        f.match_id,
+                        f.home_team,
+                        f.away_team,
+                        f.league_id,
+                        f.league_name,
+                        f.kickoff_at,
+                        f.home_team_id,
+                        f.away_team_id,
+                        ht.logo_url as home_logo,
+                        at.logo_url as away_logo
+                    FROM fixtures f
+                    LEFT JOIN teams ht ON f.home_team_id = ht.team_id
+                    LEFT JOIN teams at ON f.away_team_id = at.team_id
+                    WHERE f.match_id = %s
+                      AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                    LIMIT 1
+                """
                 cursor.execute(query, (match_id,))
+                fixtures = cursor.fetchall()  # Fetch results immediately for single-match path
             
             # Step 1: Get fixtures based on status
             # Note: System uses kickoff_at for determining status (scheduled/finished only in DB)
