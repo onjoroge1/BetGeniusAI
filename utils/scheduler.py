@@ -85,6 +85,7 @@ class BackgroundScheduler:
         logger.info("Background scheduler started - enhanced schedule: 6h weekdays, 3h weekends")
         logger.info("Automated metrics calculation enabled - runs every 6 hours at 03:00, 09:00, 15:00, 21:00 UTC")
         logger.info("🎯 Phase B: Fresh odds collection enabled - HIGH PRIORITY every 60 seconds")
+        logger.info("🎲 The Odds API Phase B: Continuous collection enabled - every 60 seconds (100k/day limit)")
         logger.info("⚽ API-Football Phase B: Continuous collection enabled - every 60 seconds (75k/day limit)")
         logger.info("🔗 Fixture ID Resolver enabled - runs every 60 seconds to link API-Football IDs")
         logger.info("🔄 TBD Fixture Resolver enabled - runs every 5 minutes to update placeholder teams")
@@ -277,6 +278,11 @@ class BackgroundScheduler:
                 # Use background task with 5-minute timeout to prevent blocking
                 if "phase_b" not in self.last_run or (now - self.last_run["phase_b"]).total_seconds() >= 60:
                     await self._spawn("phase_b", self._run_phase_b_fresh_odds, timeout=300)
+                
+                # 🎲 The Odds API Phase B: Continuous collection every 60 seconds (100k/day limit)
+                # Extended timeout (300s) to allow scanning all 39 leagues
+                if "theodds_phase_b" not in self.last_run or (now - self.last_run["theodds_phase_b"]).total_seconds() >= 60:
+                    await self._spawn("theodds_phase_b", self._run_theodds_phase_b, timeout=300)
                 
                 # ⚽ API-Football Phase B: Continuous collection every 60 seconds (75k/day limit = plenty of headroom)
                 if "api_football_phase_b" not in self.last_run or (now - self.last_run["api_football_phase_b"]).total_seconds() >= 60:
@@ -569,6 +575,27 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"🎯 CLV Producer error: {e}")
+    
+    async def _run_theodds_phase_b(self):
+        """
+        🎲 The Odds API Phase B: Continuous odds collection every 60 seconds
+        Primary source for multi-bookmaker odds (21+ bookmakers)
+        100,000 requests/day limit = ~69 req/min capacity (plenty of headroom)
+        """
+        try:
+            logger.info("🎲 The Odds API Phase B: Starting collection...")
+            
+            # Call The Odds API collection method
+            results = await self.collector.collect_upcoming_odds_snapshots()
+            
+            if results.get("new_odds_collected", 0) > 0:
+                logger.info(f"🎲 The Odds API: {results['new_odds_collected']} odds snapshots collected " +
+                           f"from {results.get('upcoming_matches_found', 0)} matches")
+            else:
+                logger.debug(f"🎲 The Odds API: No new odds collected")
+                
+        except Exception as e:
+            logger.error(f"🎲 The Odds API Phase B error: {e}")
     
     async def _run_api_football_phase_b(self):
         """
