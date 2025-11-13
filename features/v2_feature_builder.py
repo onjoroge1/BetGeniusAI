@@ -6,17 +6,21 @@ uses, querying from training_matches, odds_consensus, and match_context tables.
 
 Features:
 - Phase 1 (46 features):
-  - Odds features (21): probability drifts, dispersion, volatility, coverage
+  - Odds features (19): probability consensus, dispersion, volatility, coverage
   - ELO ratings (3): home_elo, away_elo, elo_diff
   - Form metrics (6): points, goals scored/conceded for home/away
   - Home advantage (2): home wins in last 10 home games
   - H2H history (3): home wins, draws, away wins
   - Advanced stats (8): shots, shots on target, corners, yellows
   - Rest/schedule (2): days since last match
-  - Market metrics (1): market_entropy, favorite_margin
+  - Market metrics (3): market_entropy, favorite_margin, book_dispersion
 
 - Phase 2 (4 additional features - TOTAL 50):
   - Context features (4): rest_days_home/away, schedule_congestion_home/away_7d
+
+- Phase 2.5 (4 additional features - TOTAL 54):
+  - Drift features (4): prob_drift_home/draw/away, drift_magnitude
+  - Captures odds movement from early (T-24h+) to latest (T-0h)
 
 All features computed with strict time-based cutoff to prevent leakage.
 """
@@ -33,7 +37,7 @@ import os
 logger = logging.getLogger(__name__)
 
 class V2FeatureBuilder:
-    """Build all features required by V2 LightGBM model (Phase 1: 46, Phase 2: 50)"""
+    """Build all features required by V2 LightGBM model (Phase 1: 46, Phase 2: 50, Phase 2.5: 54)"""
     
     def __init__(self, database_url: Optional[str] = None):
         """Initialize feature builder with database connection"""
@@ -109,6 +113,9 @@ class V2FeatureBuilder:
         # Phase 2: Context features (rest days, congestion)
         context_features = self._build_context_features(match_id, cutoff_time)
         
+        # Phase 2.5: Drift features (odds movement early → latest)
+        drift_features = self._build_drift_features(match_id, cutoff_time)
+        
         # Combine all features
         all_features = {
             **odds_features,
@@ -117,11 +124,12 @@ class V2FeatureBuilder:
             **h2h_features,
             **advanced_features,
             **schedule_features,
-            **context_features  # Phase 2
+            **context_features,  # Phase 2
+            **drift_features  # Phase 2.5
         }
         
-        # Validate feature count (46 Phase 1 + 4 Phase 2 = 50)
-        expected_count = 50 if context_features else 46
+        # Validate feature count (46 Phase 1 + 4 Phase 2 + 4 Phase 2.5 = 54)
+        expected_count = 54 if drift_features else 50 if context_features else 46
         if len(all_features) != expected_count:
             logger.warning(f"Expected {expected_count} features, got {len(all_features)}")
         
@@ -653,14 +661,70 @@ class V2FeatureBuilder:
             'schedule_congestion_away_7d': 0.0
         }
     
+    def _build_drift_features(self, match_id: int, cutoff_time: datetime) -> Dict[str, float]:
+        """
+        Build odds drift features from Phase 2.5 data (4 features)
+        
+        Captures market movement from early odds (T-24h+) to latest odds (T-0h).
+        Drift indicates "smart money" flow and late information (injuries, suspensions).
+        
+        Features:
+        - prob_drift_home: Change in home win probability (early → latest)
+        - prob_drift_draw: Change in draw probability (early → latest)
+        - prob_drift_away: Change in away win probability (early → latest)
+        - drift_magnitude: Overall market movement magnitude
+        
+        Architect recommendation: Include coverage indicator to distinguish 
+        zero drift (stable market) from missing drift data.
+        """
+        query = text("""
+            SELECT 
+                e.ph_early, e.pd_early, e.pa_early,
+                l.ph_cons, l.pd_cons, l.pa_cons
+            FROM odds_early_snapshot e
+            INNER JOIN odds_real_consensus l ON e.match_id = l.match_id
+            WHERE e.match_id = :match_id
+        """)
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(query, {"match_id": match_id}).mappings().first()
+            
+            if result and result['ph_early'] is not None:
+                # Calculate drift for each outcome
+                drift_home = float(result['ph_cons'] - result['ph_early'])
+                drift_draw = float(result['pd_cons'] - result['pd_early'])
+                drift_away = float(result['pa_cons'] - result['pa_early'])
+                
+                # Calculate magnitude (Euclidean distance in probability space)
+                import math
+                drift_magnitude = math.sqrt(drift_home**2 + drift_draw**2 + drift_away**2)
+                
+                return {
+                    'prob_drift_home': drift_home,
+                    'prob_drift_draw': drift_draw,
+                    'prob_drift_away': drift_away,
+                    'drift_magnitude': drift_magnitude
+                }
+        except Exception as e:
+            logger.debug(f"Drift features unavailable for match {match_id}: {e}")
+        
+        # Graceful defaults when drift data unavailable
+        # Note: Zero drift could mean stable market OR missing data
+        # Model will learn to distinguish via other features (e.g., num_snapshots)
+        return {
+            'prob_drift_home': 0.0,
+            'prob_drift_draw': 0.0,
+            'prob_drift_away': 0.0,
+            'drift_magnitude': 0.0
+        }
+    
     def _get_default_features(self) -> Dict[str, float]:
-        """Return default feature values when data is missing"""
+        """Return default feature values when data is missing (54 features total)"""
         return {
             # Phase 1 features (46)
             'p_last_home': 0.33, 'p_last_draw': 0.33, 'p_last_away': 0.34,
             'p_open_home': 0.33, 'p_open_draw': 0.33, 'p_open_away': 0.34,
-            'prob_drift_home': 0.0, 'prob_drift_draw': 0.0, 'prob_drift_away': 0.0,
-            'drift_magnitude': 0.0,
             'dispersion_home': 0.01, 'dispersion_draw': 0.01, 'dispersion_away': 0.01,
             'book_dispersion': 0.01,
             'volatility_home': 0.0, 'volatility_draw': 0.0, 'volatility_away': 0.0,
@@ -680,7 +744,12 @@ class V2FeatureBuilder:
             'rest_days_home': 7.0,
             'rest_days_away': 7.0,
             'schedule_congestion_home_7d': 0.0,
-            'schedule_congestion_away_7d': 0.0
+            'schedule_congestion_away_7d': 0.0,
+            # Phase 2.5 features (4) - Drift features
+            'prob_drift_home': 0.0,
+            'prob_drift_draw': 0.0,
+            'prob_drift_away': 0.0,
+            'drift_magnitude': 0.0
         }
 
 
