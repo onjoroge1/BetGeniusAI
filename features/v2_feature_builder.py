@@ -5,20 +5,19 @@ This module builds the complete feature set that the V2 LightGBM model
 uses, querying from training_matches, odds_consensus, and match_context tables.
 
 Features:
-- Phase 1 (46 features):
-  - Odds features (19): probability consensus, dispersion, volatility, coverage
+- Phase 1 (42 features):
+  - Odds features (18): probability consensus, dispersion, volatility, coverage, market metrics
   - ELO ratings (3): home_elo, away_elo, elo_diff
   - Form metrics (6): points, goals scored/conceded for home/away
-  - Home advantage (2): home wins in last 10 home games
+  - Home advantage (2): home/away wins in last 10 home/away games
   - H2H history (3): home wins, draws, away wins
   - Advanced stats (8): shots, shots on target, corners, yellows
   - Rest/schedule (2): days since last match
-  - Market metrics (3): market_entropy, favorite_margin, book_dispersion
 
-- Phase 2 (4 additional features - TOTAL 50):
+- Phase 2 (4 additional features - TOTAL 46):
   - Context features (4): rest_days_home/away, schedule_congestion_home/away_7d
 
-- Phase 2.5 (4 additional features - TOTAL 54):
+- Phase 2.5 (4 additional features - TOTAL 50):
   - Drift features (4): prob_drift_home/draw/away, drift_magnitude
   - Captures odds movement from early (T-24h+) to latest (T-0h)
 
@@ -37,7 +36,7 @@ import os
 logger = logging.getLogger(__name__)
 
 class V2FeatureBuilder:
-    """Build all features required by V2 LightGBM model (Phase 1: 46, Phase 2: 50, Phase 2.5: 54)"""
+    """Build all features required by V2 LightGBM model (Phase 1: 42, Phase 2: 46, Phase 2.5: 50)"""
     
     def __init__(self, database_url: Optional[str] = None):
         """Initialize feature builder with database connection"""
@@ -128,8 +127,8 @@ class V2FeatureBuilder:
             **drift_features  # Phase 2.5
         }
         
-        # Validate feature count (46 Phase 1 + 4 Phase 2 + 4 Phase 2.5 = 54)
-        expected_count = 54 if drift_features else 50 if context_features else 46
+        # Validate feature count (42 Phase 1 + 4 Phase 2 + 4 Phase 2.5 = 50)
+        expected_count = 50 if drift_features else 46 if context_features else 42
         if len(all_features) != expected_count:
             logger.warning(f"Expected {expected_count} features, got {len(all_features)}")
         
@@ -157,7 +156,7 @@ class V2FeatureBuilder:
     
     def _build_odds_features(self, match_id: int, cutoff_time: datetime) -> Dict[str, float]:
         """
-        Build odds-based features (21 features)
+        Build odds-based features (18 features)
         
         CRITICAL: Uses "best available pre-kickoff" with strict validation
         
@@ -169,15 +168,17 @@ class V2FeatureBuilder:
         
         Features:
         - p_last_home, p_last_draw, p_last_away: Latest PRE-KICKOFF odds probabilities
-        - p_open_home, p_open_draw, p_open_away: Opening odds probabilities
-        - prob_drift_home/draw/away: Drift from open to last
-        - drift_magnitude: Total probability drift
+        - p_open_home, p_open_draw, p_open_away: Opening odds probabilities (approximated as p_last for now)
         - dispersion_home/draw/away: Variance across bookmakers
         - book_dispersion: Overall bookmaker disagreement
         - volatility_home/draw/away: Temporal volatility
         - num_books_last: Number of bookmakers
         - num_snapshots: Number of odds snapshots
         - coverage_hours: Time coverage
+        - market_entropy: Uncertainty in market
+        - favorite_margin: Difference between favorite and underdog
+        
+        Note: Drift features (prob_drift_*, drift_magnitude) moved to Phase 2.5 _build_drift_features()
         
         Args:
             cutoff_time: Maximum timestamp for odds snapshots (typically kickoff or kickoff - 1h)
@@ -260,15 +261,10 @@ class V2FeatureBuilder:
         )
         
         # For now, assume minimal drift (open ≈ last)
+        # Real drift features calculated in Phase 2.5 _build_drift_features()
         p_open_home = p_last_home
         p_open_draw = p_last_draw
         p_open_away = p_last_away
-        
-        # Calculate derived features
-        prob_drift_home = p_last_home - p_open_home
-        prob_drift_draw = p_last_draw - p_open_draw
-        prob_drift_away = p_last_away - p_open_away
-        drift_magnitude = abs(prob_drift_home) + abs(prob_drift_draw) + abs(prob_drift_away)
         
         # Dispersion
         dispersion_home = odds.get('dispersion_home', 0.01)
@@ -295,28 +291,31 @@ class V2FeatureBuilder:
         favorite_margin = max(probs) - min(probs)
         
         return {
+            # Latest probabilities (3)
             'p_last_home': p_last_home,
             'p_last_draw': p_last_draw,
             'p_last_away': p_last_away,
+            # Opening probabilities (3) - approximated as latest for now
             'p_open_home': p_open_home,
             'p_open_draw': p_open_draw,
             'p_open_away': p_open_away,
-            'prob_drift_home': prob_drift_home,
-            'prob_drift_draw': prob_drift_draw,
-            'prob_drift_away': prob_drift_away,
-            'drift_magnitude': drift_magnitude,
+            # Dispersion (4)
             'dispersion_home': dispersion_home,
             'dispersion_draw': dispersion_draw,
             'dispersion_away': dispersion_away,
             'book_dispersion': book_dispersion,
+            # Volatility (3)
             'volatility_home': volatility_home,
             'volatility_draw': volatility_draw,
             'volatility_away': volatility_away,
+            # Coverage metrics (3)
             'num_books_last': num_books_last,
             'num_snapshots': num_snapshots,
             'coverage_hours': coverage_hours,
+            # Market metrics (2)
             'market_entropy': float(market_entropy),
             'favorite_margin': float(favorite_margin)
+            # Total: 18 odds features (drift features moved to Phase 2.5)
         }
     
     def _build_elo_features(self, home_team_id: int, away_team_id: int, 
