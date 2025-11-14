@@ -1,0 +1,131 @@
+~/workspace$ export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+timeout 1800 python training/step_a_optimizations.py
+======================================================================
+  STEP A: V2 OPTIMIZATION LOOP (FAST MODE)
+======================================================================
+Loading 400 matches with drift features (optimized for speed)...
+✓ Loaded 400 matches with drift features
+   Date range: 2025-08-23 11:29:59.793278 to 2025-11-09 14:00:00
+   Outcome distribution: H=184, D=95, A=121
+
+🔨 Building features...
+   100/400 (25%)
+   200/400 (50%)
+   300/400 (75%)
+   400/400 (100%)
+✓ Built 400 feature vectors (100.0% success)
+
+
+======================================================================
+STEP A.1: SANITY CHECK (RANDOM LABELS)
+======================================================================
+Training with random labels: 320 train, 80 valid
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[5] valid_0's multi_logloss: 1.04952
+
+Results:
+  Accuracy: 0.450 (expected: ~0.333)
+  LogLoss: 1.050 (expected: ~1.10)
+❌ FAIL: Model performing too well on random labels (potential leakage)
+
+⚠️  WARNING: Sanity check failed, but continuing with other steps...
+
+======================================================================
+STEP A.2: HYPERPARAMETER TUNING
+======================================================================
+Grid search: 243 combinations
+Testing subset: 9 combinations (3x3 grid for speed)
+
+Testing: {'num_leaves': 31, 'min_data_in_leaf': 50, 'feature_fraction': 0.8, 'lambda_l1': 0, 'lambda_l2': 0}
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[1] valid_0's multi_logloss: 1.10195
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[17]    valid_0's multi_logloss: 0.974991
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[16]    valid_0's multi_logloss: 1.03109
+  Avg LogLoss: 1.0360
+
+Testing: {'num_leaves': 47, 'min_data_in_leaf': 100, 'feature_fraction': 0.8, 'lambda_l1': 0.5, 'lambda_l2': 0.5}
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[1] valid_0's multi_logloss: 1.10195
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[1] valid_0's multi_logloss: 1.0443
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[9] valid_0's multi_logloss: 1.03421
+  Avg LogLoss: 1.0602
+
+Testing: {'num_leaves': 63, 'min_data_in_leaf': 150, 'feature_fraction': 0.9, 'lambda_l1': 1.0, 'lambda_l2': 1.0}
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[1] valid_0's multi_logloss: 1.10195
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[2] valid_0's multi_logloss: 1.0443
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[1] valid_0's multi_logloss: 1.04941
+  Avg LogLoss: 1.0652
+
+✅ Best params: {'num_leaves': 31, 'min_data_in_leaf': 50, 'feature_fraction': 0.8, 'lambda_l1': 0, 'lambda_l2': 0}
+   LogLoss: 1.0360
+
+======================================================================
+STEP A.3: CLASS BALANCING
+======================================================================
+Class distribution: {np.int64(0): np.int64(184), np.int64(1): np.int64(95), np.int64(2): np.int64(121)}
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[27]    valid_0's multi_logloss: 0.97375
+Draw weight 1.00: Acc=0.588, Draw recall=0.053
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[27]    valid_0's multi_logloss: 0.973035
+Draw weight 1.25: Acc=0.600, Draw recall=0.263
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[27]    valid_0's multi_logloss: 0.979283
+Draw weight 1.30: Acc=0.550, Draw recall=0.263
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[22]    valid_0's multi_logloss: 0.980974
+Draw weight 1.35: Acc=0.562, Draw recall=0.263
+✅ Class balancing tested (recommend 1.30×)
+
+======================================================================
+STEP A.4: META-FEATURES
+======================================================================
+✓ Added 2 meta-features:
+  - league_tier
+  - favorite_strength
+
+✅ Total features: 52 → 54
+
+======================================================================
+STEP A.5: PER-LEAGUE EVALUATION
+======================================================================
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[26]    valid_0's multi_logloss: 0.980537
+
+Per-League Performance:
+League ID       Matches    Accuracy     LogLoss   
+--------------------------------------------------
+
+✅ Per-league evaluation complete
+
+======================================================================
+✅ ALL STEP A OPTIMIZATIONS COMPLETE
+======================================================================
+
+Next steps:
+  1. Review hyperparameter recommendations
+  2. Apply class balancing (1.30× draw weight)
+  3. Retrain V2 model with optimizations
+  4. Measure accuracy lift vs 49.5% baseline
