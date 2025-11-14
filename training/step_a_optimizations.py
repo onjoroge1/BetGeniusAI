@@ -64,18 +64,18 @@ class PurgedTimeSeriesSplit:
                 yield train_indices, valid_indices
 
 
-def load_training_data():
-    """Load training data with features already built"""
+def load_training_data(limit=400):
+    """Load training data with features already built (limited for speed)"""
     print("="*70)
-    print("  STEP A: V2 OPTIMIZATION LOOP")
+    print("  STEP A: V2 OPTIMIZATION LOOP (FAST MODE)")
     print("="*70)
-    print("Loading training data with drift features...")
+    print(f"Loading {limit} matches with drift features (optimized for speed)...")
     
     database_url = os.getenv('DATABASE_URL')
     engine = create_engine(database_url)
     
-    # Load matches with drift features
-    query = text("""
+    # Load matches with drift features (LIMIT for fast optimization)
+    query = text(f"""
         SELECT 
             tm.match_id,
             tm.match_date,
@@ -90,7 +90,8 @@ def load_training_data():
           AND tm.match_date IS NOT NULL
           AND tm.outcome IS NOT NULL
           AND tm.outcome IN ('H', 'D', 'A', 'Home', 'Draw', 'Away')
-        ORDER BY tm.match_date
+        ORDER BY RANDOM()
+        LIMIT {limit}
     """)
     
     with engine.connect() as conn:
@@ -444,8 +445,8 @@ def step5_per_league_evaluation(df, best_params):
 
 def main():
     """Run all Step A optimizations"""
-    # Load data
-    df = load_training_data()
+    # Load data (fast mode: 400 matches)
+    df = load_training_data(limit=400)
     
     if len(df) < 200:
         print(f"❌ Insufficient data: {len(df)} matches (need at least 200)")
