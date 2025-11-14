@@ -1,0 +1,327 @@
+export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+python training/train_v2_odds_only.py
+======================================================================
+  V2 ODDS-ONLY TRAINING (GUARANTEED LEAK-FREE)
+======================================================================
+Using 17 odds-derived features only
+Excluding: form, ELO, H2H, advanced stats, rest days, schedule
+
+✅ Loaded 1000 matches
+
+🔨 Building features (odds-only)...
+   100/1000 (10.0%)
+   200/1000 (20.0%)
+   300/1000 (30.0%)
+   400/1000 (40.0%)
+   500/1000 (50.0%)
+   600/1000 (60.0%)
+   700/1000 (70.0%)
+   800/1000 (80.0%)
+   900/1000 (90.0%)
+   1000/1000 (100.0%)
+✅ Built 1000 feature vectors
+
+======================================================================
+SANITY CHECKS (Odds-Only)
+======================================================================
+Random label test: Acc=0.370, LogLoss=1.322
+✅ PASS: No leakage detected
+
+======================================================================
+TRAINING ODDS-ONLY MODEL
+======================================================================
+Training until validation scores don't improve for 10 rounds
+[10]    valid_0's multi_logloss: 1.02672
+Early stopping, best iteration is:
+[4] valid_0's multi_logloss: 1.01622
+
+✅ ODDS-ONLY MODEL RESULTS:
+   Accuracy: 0.495 (49.5%)
+   LogLoss:  1.0162
+   Brier:    0.2030
+
+   Feature count: 17
+   Model size: 12 trees
+
+💾 Saved to: artifacts/models/v2_odds_only/model.txt
+
+======================================================================
+✅ ODDS-ONLY V2 MODEL READY FOR PRODUCTION
+======================================================================
+~/workspace$ python training/leak_detector.py
+======================================================================
+  LEAK DETECTOR: Feature Group Ablation
+======================================================================
+Testing each feature group with random-label sanity check
+Expected: ~33% accuracy. If >40%, group is LEAKY.
+
+✅ Loaded 300 matches
+
+🔨 Building ALL features...
+   50/300
+   100/300
+   150/300
+   200/300
+   250/300
+   300/300
+✅ Built 300 vectors with 50 features
+
+======================================================================
+TESTING FEATURE GROUPS
+======================================================================
+
+ODDS (17 features):
+  Accuracy: 0.307 (30.7%)
+  LogLoss:  1.405
+  Verdict:  ✅ CLEAN
+
+ELO (3 features):
+  Accuracy: 0.387 (38.7%)
+  LogLoss:  1.132
+  Verdict:  ✅ CLEAN
+
+FORM (6 features):
+  Accuracy: 0.387 (38.7%)
+  LogLoss:  1.214
+  Verdict:  ✅ CLEAN
+
+H2H (3 features):
+  Accuracy: 0.387 (38.7%)
+  LogLoss:  1.125
+  Verdict:  ✅ CLEAN
+
+❌ ADVANCED: No features found
+
+SCHEDULE (6 features):
+  Accuracy: 0.360 (36.0%)
+  LogLoss:  1.269
+  Verdict:  ✅ CLEAN
+
+======================================================================
+LEAK DETECTION SUMMARY
+======================================================================
+
+Ranked by accuracy (high = leaky):
+  elo         : 0.387  ✅ CLEAN
+  h2h         : 0.387  ✅ CLEAN
+  form        : 0.387  ✅ CLEAN
+  schedule    : 0.360  ✅ CLEAN
+  odds        : 0.307  ✅ CLEAN
+
+🔴 LEAKY GROUPS (0): 
+🟢 CLEAN GROUPS (5): elo, h2h, form, schedule, odds
+
+======================================================================
+NEXT STEPS:
+======================================================================
+✅ All groups clean! Safe to proceed with full training.
+~/workspace$ python scripts/manage_training.py --train
+2025-11-14 22:26:30,981 - INFO - ======================================================================
+2025-11-14 22:26:30,981 - INFO -   STARTING LEAKAGE-FREE MODEL TRAINING
+2025-11-14 22:26:30,981 - INFO - ======================================================================
+2025-11-14 22:26:30,981 - INFO - Anti-leakage measures:
+2025-11-14 22:26:30,981 - INFO -   1. Time-based CV with 7-day embargo
+2025-11-14 22:26:30,981 - INFO -   2. Pre-kickoff odds only (T-1h)
+2025-11-14 22:26:30,981 - INFO -   3. Sanity checks enabled
+2025-11-14 22:26:30,981 - INFO - ======================================================================
+2025-11-14 22:26:31,100 - INFO - 
+📊 Training Dataset:
+2025-11-14 22:26:31,100 - INFO -    Total matches:      10,240
+2025-11-14 22:26:31,100 - INFO -    Phase 2 coverage:   13.4%
+2025-11-14 22:26:31,100 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-11-12 23:30:00
+2025-11-14 22:26:31,100 - INFO - 
+🚀 Launching leakage-free training script...
+2025-11-14 22:26:31,117 - INFO -    LibGOMP configured: /nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib
+2025-11-14 22:26:31,117 - INFO - 
+======================================================================
+2025-11-14 22:26:31,117 - INFO - Training started - output will stream below
+2025-11-14 22:26:31,117 - INFO - Expected duration: 4-5 hours for full dataset
+2025-11-14 22:26:31,117 - INFO - ======================================================================
+
+======================================================================
+  V2-TEAM++ LEAKAGE-FREE TRAINING
+  Anti-leakage measures:
+    1. Time-based CV with 7-day embargo
+    2. Pre-kickoff odds only (T-1h)
+    3. Random sampling (not DESC order)
+    4. Sanity checks for leakage detection
+======================================================================
+======================================================================
+  V2-TEAM++ DATA LOADING (LEAKAGE-FREE)
+======================================================================
+Date range: 2020-01-01 to 2025-12-31
+Pre-kickoff cutoff: T-1h minimum
+Limit: 5000 matches
+
+✅ Loaded 1370 matches
+   Date range: 2025-08-18 18:59:59.832021 to 2025-11-11 19:00:00
+   Outcome distribution:
+      Home: 659 (48.1%)
+      Draw: 320 (23.4%)
+      Away: 391 (28.5%)
+
+🔨 Building features (pre-kickoff only, T-1h)...
+   Processed 50/1370 matches (3.6%, 100.0% success)
+   Processed 100/1370 matches (7.3%, 100.0% success)
+   Processed 150/1370 matches (10.9%, 100.0% success)
+   Processed 200/1370 matches (14.6%, 100.0% success)
+   Processed 250/1370 matches (18.2%, 100.0% success)
+   Processed 300/1370 matches (21.9%, 100.0% success)
+   Processed 350/1370 matches (25.5%, 100.0% success)
+   Processed 400/1370 matches (29.2%, 100.0% success)
+   Processed 450/1370 matches (32.8%, 100.0% success)
+   Processed 500/1370 matches (36.5%, 100.0% success)
+   Processed 550/1370 matches (40.1%, 100.0% success)
+   Processed 600/1370 matches (43.8%, 100.0% success)
+   Processed 650/1370 matches (47.4%, 100.0% success)
+   Processed 700/1370 matches (51.1%, 100.0% success)
+   Processed 750/1370 matches (54.7%, 100.0% success)
+   Processed 800/1370 matches (58.4%, 100.0% success)
+   Processed 850/1370 matches (62.0%, 100.0% success)
+   Processed 900/1370 matches (65.7%, 100.0% success)
+   Processed 950/1370 matches (69.3%, 100.0% success)
+   Processed 1000/1370 matches (73.0%, 100.0% success)
+   Processed 1050/1370 matches (76.6%, 100.0% success)
+   Processed 1100/1370 matches (80.3%, 100.0% success)
+   Processed 1150/1370 matches (83.9%, 100.0% success)
+   Processed 1200/1370 matches (87.6%, 100.0% success)
+   Processed 1250/1370 matches (91.2%, 100.0% success)
+   Processed 1300/1370 matches (94.9%, 100.0% success)
+   Processed 1350/1370 matches (98.5%, 100.0% success)
+
+✅ Feature extraction complete
+   Success: 1370 matches (100.0%)
+   Dropped (no valid odds): 0 matches
+   Failed (other errors): 0 matches
+   Total processed: 1370 matches
+
+======================================================================
+  LEAKAGE DETECTION - SANITY CHECKS (FIXED)
+======================================================================
+Using global permutation + TimeSeriesSplit (no leakage in tests)
+
+🔍 Sanity Check 1: Random Label Permutation (Global)
+   Expected: ~33% accuracy ± 2%
+   CRITICAL: Labels permuted ONCE before CV (not within folds)
+   Result: 42.0% accuracy
+   ⚠️  FAIL: 42.0% > 40% suggests LEAKAGE!
+   This means features contain future information!
+
+🔍 Sanity Check 2: Row Permutation (Feature Alignment Test)
+   Expected: ~33% accuracy ± 2%
+   Shuffles X rows but keeps y fixed - breaks feature→label alignment
+   Result: 43.0% accuracy
+   ⚠️  FAIL: 43.0% > 40% suggests FEATURE LEAKAGE!
+   This means features contain match-specific future information!
+
+🔍 Sanity Check 3: Market-Only Baseline (Time-Split)
+   Expected: 48-52% accuracy (efficient markets)
+   Result: 45.6% accuracy
+   ✅ PASS: Market efficiency as expected
+
+======================================================================
+  SANITY CHECK SUMMARY
+======================================================================
+⚠️  SOME CHECKS FAILED - Review results above
+   - rand_label_check: FAIL - Possible leakage
+   - row_perm_check: FAIL - Feature leakage detected
+======================================================================
+
+⚠️  WARNING: Sanity checks failed - review results before proceeding
+Continue training anyway? (y/n): y
+
+======================================================================
+  V2-TEAM++ TRAINING (Time-Based CV, Leakage-Free)
+======================================================================
+CV Strategy: 5-fold Time Series Split
+Embargo: 7 days between train/valid
+
+Training with 50 features
+Dataset size: 1370 matches
+Date range: 2025-08-18 18:59:59.832021 to 2025-11-11 19:00:00
+
+--- Fold 1/5 ---
+Train: 146 matches (2025-08-18 18:59:59.832021 to 2025-09-21 10:29:59.192558)
+Valid: 228 matches (2025-09-28 10:29:59.657606 to 2025-10-12 22:59:59.768765)
+  LogLoss: 1.0665
+  Brier:   0.2706
+  Accuracy: 47.4%
+
+--- Fold 2/5 ---
+Train: 403 matches (2025-08-18 18:59:59.832021 to 2025-10-05 23:29:59.439689)
+Valid: 228 matches (2025-10-12 23:30:00 to 2025-10-20 17:00:00)
+  LogLoss: 1.0467
+  Brier:   0.2561
+  Accuracy: 45.6%
+
+--- Fold 3/5 ---
+Train: 458 matches (2025-08-18 18:59:59.832021 to 2025-10-13 00:14:59.368716)
+Valid: 228 matches (2025-10-20 17:00:00 to 2025-10-28 19:30:00)
+  LogLoss: 1.0058
+  Brier:   0.2492
+  Accuracy: 50.9%
+
+--- Fold 4/5 ---
+Train: 708 matches (2025-08-18 18:59:59.832021 to 2025-10-21 19:00:00)
+Valid: 228 matches (2025-10-28 19:30:00 to 2025-11-02 18:15:00)
+  LogLoss: 0.9586
+  Brier:   0.2573
+  Accuracy: 53.9%
+
+--- Fold 5/5 ---
+Train: 879 matches (2025-08-18 18:59:59.832021 to 2025-10-26 16:30:00)
+Valid: 228 matches (2025-11-02 18:15:00 to 2025-11-11 19:00:00)
+  LogLoss: 1.0006
+  Brier:   0.2638
+  Accuracy: 52.6%
+
+======================================================================
+  OUT-OF-FOLD METRICS (Time-Based CV)
+======================================================================
+  LogLoss:  1.0156
+  Brier:    0.2594
+  Accuracy: 50.1%
+======================================================================
+
+✅ PASS: Realistic accuracy within expected range (48-60%)
+
+📊 Top 20 Features by Importance:
+  dispersion_away                              21.0  [Phase 1]
+  away_form_goals_conceded                     21.0  [Phase 1]
+  home_form_goals_scored                       15.0  [Phase 1]
+  days_since_away_last_match                   14.0  [Phase 1]
+  favorite_margin                              14.0  [Phase 1]
+  p_last_draw                                  12.0  [Phase 1]
+  p_last_away                                   9.0  [Phase 1]
+  p_last_home                                   9.0  [Phase 1]
+  num_books_last                                8.0  [Phase 1]
+  drift_magnitude                               7.0  [Phase 1]
+  p_open_home                                   6.0  [Phase 1]
+  book_dispersion                               5.0  [Phase 1]
+  rest_days_away                                5.0  [Phase 2]
+  prob_drift_away                               5.0  [Phase 1]
+  prob_drift_draw                               4.0  [Phase 1]
+  away_form_goals_scored                        4.0  [Phase 1]
+  market_entropy                                4.0  [Phase 1]
+  days_since_home_last_match                    4.0  [Phase 1]
+  p_open_draw                                   3.0  [Phase 1]
+  home_form_goals_conceded                      3.0  [Phase 1]
+
+💾 Saving ensemble model...
+✅ Model saved to artifacts/models/v2_no_leakage
+
+✅ Training complete!
+
+Final metrics:
+  Accuracy: 50.1%
+  LogLoss:  1.0156
+  Brier:    0.2594
+2025-11-14 23:22:01,427 - INFO - 
+📊 Training Output:
+2025-11-14 23:22:01,427 - INFO - 
+2025-11-14 23:22:01,427 - INFO - 
+✅ Training complete!
+2025-11-14 23:22:01,427 - INFO -    Model version: v2-team-plus-plus-20251114-232201
+2025-11-14 23:22:01,427 - INFO -    Accuracy: N/A
+2025-11-14 23:22:01,427 - INFO -    LogLoss: N/A
+~/workspace$ 

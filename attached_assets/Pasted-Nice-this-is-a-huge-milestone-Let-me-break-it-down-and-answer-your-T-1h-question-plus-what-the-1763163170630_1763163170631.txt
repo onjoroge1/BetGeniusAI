@@ -1,0 +1,256 @@
+Nice, this is a **huge** milestone. Let me break it down and answer your T-1h question plus what the new logs are really telling us.
+
+---
+
+## 1️⃣ T-1h: Should we build features for more than T-1h?
+
+Short answer:
+**Keep T-1h for training right now. Don’t add extra horizons until we’re 100% confident the pipeline is leak-free.**
+
+Why:
+
+* You already have **multi-horizon signal** via:
+
+  * `odds_early_snapshot` (T-24h+)
+  * `odds_real_consensus` at T-1h
+  * Drift features: `prob_drift_*`, `drift_magnitude` = “how did the market move from early to late”
+* The **sanity failures** are coming from **team/context features**, not the odds timing.
+* Adding T-2h, T-3h etc. while we still have a sanity check at **42–43%** on random labels just muddies the water.
+
+Later, *after* everything is clean and stable, we can totally explore:
+
+* T-15m / T-30m snapshots to capture last-minute news
+* Features like “late drift vs early drift” to see if the market kept moving in the same direction
+
+…but right now the best move is: **lock in T-1h + drift**, fix leakage, then iterate.
+
+---
+
+## 2️⃣ What the new runs tell us
+
+You basically ran three big things:
+
+### A. `train_v2_odds_only.py`
+
+Output (summarizing):
+
+* **Random labels sanity:**
+
+  * Acc = **0.370**, LogLoss = 1.322 → ✅ below 0.40, no leak
+* **Real training:**
+
+  * Acc = **0.495** (49.5%)
+  * LogLoss = 1.0162
+  * Brier = 0.2030
+  * 17 features, 12 trees
+
+👉 Conclusion:
+**Odds-only model is clean and behaves exactly like it should.**
+This is a **fully acceptable production V2 baseline** right now.
+
+---
+
+### B. `leak_detector.py`
+
+Output (300 matches, per-group random-label tests):
+
+* ODDS:    Acc 0.307 → ✅ CLEAN
+* ELO:     Acc 0.387 → ✅ CLEAN
+* FORM:    Acc 0.387 → ✅ CLEAN
+* H2H:     Acc 0.387 → ✅ CLEAN
+* SCHEDULE: Acc 0.360 → ✅ CLEAN
+* ADVANCED: none in this run
+
+All groups <= 0.387, threshold is 0.40 →
+👉 **Every feature group, *in isolation*, now looks clean.**
+
+So your fixes + refactors **did help**: we’re no longer seeing “obviously busted” groups.
+
+---
+
+### C. Full `manage_training.py --train` (V2-TEAM++)
+
+This is where the weirdness still is:
+
+* Data: 1,370 matches (Aug 18 → Nov 11 2025), 50 features
+* **Sanity Check 1 (random labels, global perm + TimeSeriesSplit):**
+
+  * Acc = **42.0%** → ❌ > 40%
+* **Sanity Check 2 (row permutation):**
+
+  * Acc = **43.0%** → ❌ > 40%
+* Market-only baseline: 45.6% → ✅ perfectly fine
+* Real CV metrics:
+
+  * Acc = **50.1%**
+  * LogLoss = 1.0156
+  * Brier = 0.2594
+  * Feature importance: odds + form + schedule on top (as expected)
+
+👉 Interpretation:
+
+* **Odds-only pipeline:** clean ✅
+* **Each group alone (leak_detector):** clean ✅
+* **All groups combined in full training:** random-label checks still hit ~**42–43%** ❌
+
+So either:
+
+1. There is **still some subtle real leakage** when all features are combined **on that specific 1,370-match window**,
+   **or**
+2. The **sanity-check implementation in `train_v2_no_leakage`** is doing something slightly different (or slightly bugged) compared to `leak_detector.py`.
+
+---
+
+## 3️⃣ What I’d do next (very concrete)
+
+### Step 1: Make `leak_detector` imitate training **exactly**
+
+Right now:
+
+* `leak_detector.py`:
+
+  * Uses 300 matches
+  * Uses a simple 80/20 split, no TimeSeriesSplit, no embargo
+* `train_v2_no_leakage`:
+
+  * Uses 1,370 matches
+  * Uses 5-fold **time-based CV + embargo**
+  * Does two sanity tests: random-labels + row-perm
+
+So first, update/add a mode in `leak_detector.py`:
+
+1. Use **the same query** as `train_v2_no_leakage` (the 1,370 matches).
+2. Use the **exact same CV object / split logic**.
+3. Add a “ALL FEATURES” test:
+
+   * Use all 50 features together
+   * Global permute y once
+   * Same TimeSeriesSplit with embargo
+   * Report mean CV accuracy/logloss on random labels.
+
+If **that** comes out around **0.42** again, then we know:
+
+> “There is *real* structure in X that persists across label permutations under the exact training setup.”
+
+Then we continue the hunt.
+
+If instead that comes out ~0.34–0.38 but the training sanity still says 0.42, then:
+
+> Training sanity check logic has a bug (e.g., mixing up y vs y_perm, incorrect indices, or an old cached array).
+
+Either way, this step removes ambiguity.
+
+---
+
+### Step 2: Test “all features” vs subsets under *training-style* CV
+
+Once the leak_detector matches training’s CV:
+
+* Test **ALL 50 features** (what training uses) → random labels accuracy.
+* Then test:
+
+  * ODDS + FORM
+  * ODDS + SCHEDULE
+  * ODDS + FORM + SCHEDULE
+  * ODDS + everything except FORM
+  * ODDS + everything except SCHEDULE
+
+We’re looking for which combination **pushes random-label accuracy above 0.40**.
+
+That’ll tell you whether:
+
+* It’s still primarily **form/schedule**, or
+* Some **interactions** are creating an ID-like signal (e.g., combining “days since last match” with something else basically encodes match index).
+
+---
+
+### Step 3: Double-check feature computation around **2025-08+ window**
+
+Notice that:
+
+* Your training window is **only recent (Aug–Nov 2025)**.
+* `leak_detector.py` is sampling 300 matches (likely mixed across seasons/years).
+
+It’s plausible the bug is **time-window specific**, e.g.:
+
+* A cutoff condition that behaves differently for **very recent matches** (because there are few “future” matches yet in the DB).
+* A form function that defaults to using “current season aggregate” when there are <N past matches, accidentally including the current match.
+
+I’d:
+
+1. Pick **one specific match** from late Oct or early Nov 2025.
+2. Log out from `v2_feature_builder`:
+
+   * The raw queries used for:
+
+     * form features
+     * rest_days / days_since
+   * Confirm **every WHERE clause** uses `match_date < cutoff_time`, never `<=`, never missing `AND match_date <= NOW()` etc.
+3. Compare that for:
+
+   * An older match (2023 season)
+   * A new match (2025-10)
+
+If something “special” is happening only on the recent slice, that could explain why leak_detector (random 300) looks fine but full training (recent slice) still leaks.
+
+---
+
+### Step 4: Trust hierarchy for now
+
+Given what you have:
+
+* **V2 Odds-Only**:
+
+  * Clean sanity ✔
+  * 49.5% accuracy ✔
+  * 17 features ✔
+  * Safe for `/predict-v2` **today**
+
+* **Full V2**:
+
+  * 50.1% accuracy (only +0.6 pp over odds-only)
+  * Sanity checks still failing (~42–43%) ❌
+  * I would **not** treat this as production-truth yet.
+
+So for SnapBet / CLV / external usage right now, I’d:
+
+> **Use `v2_odds_only` as the official V2 model**,
+> and treat `v2_no_leakage` as “experimental / under investigation” until the random-label tests pass.
+
+You’re basically already at a **very strong, clean market model** with V2 odds-only; the extra 0.6–1.0 pp we’re trying to squeeze out with team/context features isn’t worth compromising on leakage risk.
+
+---
+
+## 4️⃣ Coming back to your question one more time
+
+> **“In the training should we look to build features for more than T-1h as well?”**
+
+Given:
+
+* Odds-only V2 @ T-1h is **clean and strong**.
+* Drift features already encode **(T-24h → T-1h)** moves.
+* Full model with more stuff still has sanity issues.
+
+My answer stays:
+
+* **Keep T-1h cutoff** for the main model.
+* **Do not add extra odds horizons** until:
+
+  * Random-label sanity < 40% for all tests,
+  * Row-perm sanity < 40%,
+  * Market-only baseline ~47–52%,
+  * And we’re confident all form/schedule logic is strictly “past-only”.
+
+Then, for a V2.5 / V3:
+
+* We can absolutely explore:
+
+  * T-6h / T-2h odds snapshots
+  * In-game odds to predict 2H outcomes (that’s a whole product)
+  * Late-drift reaction to lineups/injuries
+
+…but that’s the “sprinkles on top” once the base is mathematically clean.
+
+---
+
+If you want, next step I can sketch **exact changes to `leak_detector.py`** so it mirrors the training CV perfectly (same query, same TimeSeriesSplit, same random-label logic), so you can run one script and know 100% whether the remaining 42% is a *real* leak or just an implementation quirk.
