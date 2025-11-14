@@ -1,8 +1,8 @@
 {
-  "last_training_date": "2025-11-12T01:41:48.818792",
-  "matches_used": 10215,
-  "phase2_coverage": 13.333333333333334,
-  "model_version": "v2-team-plus-plus-20251112-014148",
+  "last_training_date": "2025-11-14T01:53:09.365379",
+  "matches_used": 10240,
+  "phase2_coverage": 13.37890625,
+  "model_version": "v2-team-plus-plus-20251114-015309",
   "performance": {},
   "cv_folds": 5,
   "min_matches": 3000
