@@ -1,0 +1,279 @@
+Nice, thanks for dumping the whole story, that helps a lot. Let me boil down what this actually means.
+
+---
+
+## 1️⃣ What the new runs are telling us
+
+### Step A quick optimizations
+
+* **Random-label sanity (400 matches):**
+
+  * Accuracy = **0.45**
+  * Expected ≈ **0.33**
+  * Verdict: **still FAIL → there *is* feature leakage**.
+
+* **Hyperparams:**
+
+  * Best:
+
+    ```python
+    num_leaves = 31
+    min_data_in_leaf = 50
+    feature_fraction = 0.8
+    lambda_l1 = 0
+    lambda_l2 = 0
+    ```
+  * LogLoss ≈ **1.036** on that small sample → fine, but secondary to leakage right now.
+
+* **Class balancing:**
+
+  * Draw weight 1.0: Acc 0.588, Draw recall 0.053 (model basically ignores draws)
+  * Draw weight 1.25: Acc 0.600, Draw recall 0.263
+  * Draw weight 1.30: Acc 0.550, Draw recall 0.263
+  * Draw weight 1.35: Acc 0.562, Draw recall 0.263
+  * Script “recommends” 1.30×, but that recommendation itself is on a **leaky feature set**, so we should not treat it as gospel yet (it’s directionally fine though).
+
+* **Meta-features + per-league eval:** All executed, but again, they’re built on a dataset that we now know still has leakage.
+
+### Full training run
+
+* **Sanity Check 1 (random label, global permutation):**
+
+  * Accuracy = **41.4%** → > 40% threshold ⇒ **FAIL**
+* **Sanity Check 2 (row permutation):**
+
+  * Accuracy = **42.7%** → **FAIL**
+* **Sanity Check 3 (market-only):**
+
+  * Accuracy = **47.1%** → **PASS** and very on-brand for efficient odds
+
+💡 That’s huge: it basically proves:
+
+> **Odds-only features are clean. The leak lives in the extra team/context features.**
+
+* **Time-based CV performance (all 50 features):**
+
+  * LogLoss: **1.0166**
+  * Brier: **0.2582**
+  * Accuracy: **50.1%**
+  * That is exactly in the plausible “real model” band (48–52%), BUT since sanity checks say there’s leakage, this 50.1% is probably **somewhat inflated**.
+
+* **Top feature importances still dominated by:**
+
+  * `dispersion_away`
+  * `away_form_goals_conceded`
+  * `home_form_goals_scored`
+  * `days_since_away_last_match`
+  * `favorite_margin`
+  * `rest_days_away`
+  * `days_since_home_last_match`
+  * plus odds stuff (`p_last_*`, `p_open_*`, `book_dispersion`, `market_entropy`, `drift_magnitude`, etc.)
+
+So we’re in this weird-but-classic state:
+
+* Cross-val metrics look realistic.
+* Market-only baseline behaves.
+* But **random-label and row-permutation tests still say: “Yo, some feature is encoding the outcome structurally.”**
+
+---
+
+## 2️⃣ What this definitely means
+
+1. **You CANNOT stamp this as truly leakage-free yet.**
+   The sanity checks are the ultimate judge, not the accuracy.
+
+2. **The leak is not in odds_real_consensus / odds_early_snapshot.**
+   Market-only test passes and performs ~47% – that’s normal.
+
+3. **The leak is almost certainly in one of:**
+
+   * Form features (`*_form_*`)
+   * Rest days / days-since-last-match (`rest_days_*`, `days_since_*`)
+   * Possibly any ELO / rolling rating logic, if that exists under the hood
+   * Any feature that uses “past/future matches” from a schedule/fixture table
+
+Given the importances:
+
+* `days_since_away_last_match`
+* `rest_days_away`
+* `days_since_home_last_match`
+* and form goals
+
+…these are **highly suspicious**.
+
+---
+
+## 3️⃣ Immediate practical recommendation
+
+### ✅ A. Don’t use *this* v2 model in production as “leakage-free”
+
+It’s a nice milestone (50.1% with all your features is very encouraging), but we still treat it as **R&D**, not the **canonical clean v2**.
+
+### ✅ B. Ship a *safe* “Odds-only V2” as a baseline
+
+While we chase the leak, you can **safely**:
+
+* Train a model using **only odds-based features**:
+
+  * `p_open_home`, `p_open_draw`, `p_open_away`
+  * `p_last_home`, `p_last_draw`, `p_last_away`
+  * `num_books_last`, `book_dispersion`, `market_entropy`
+  * `dispersion_home/away/draw`
+  * `favorite_margin`
+  * `prob_drift_*`, `drift_magnitude` (still odds-derived)
+* Exclude:
+
+  * Anything with `form_`
+  * `rest_days_*`
+  * `days_since_*`
+  * `schedule_congestion_*`
+  * Any ELO / rating / advanced team stats
+
+Then:
+
+* Re-run random-label sanity with **only these columns**.
+* That should drop to ~0.33–0.36 accuracy and logloss ≳ 1.05 → **PASS**.
+* Whatever accuracy that odds-only model gets (probably high-40s / ~50%) is **honest** and usable as v2.0-safe.
+
+---
+
+## 4️⃣ How to actually isolate the leak (concrete plan)
+
+If you’re down to tweak code, here’s the surgical way to smoke this out.
+
+### Step 1 – Group features by type in code
+
+In `v2_feature_builder` (or wherever you build the final DataFrame), define groups:
+
+```python
+ODDS_FEATURES = [
+    "p_open_home", "p_open_draw", "p_open_away",
+    "p_last_home", "p_last_draw", "p_last_away",
+    "num_books_last", "book_dispersion", "market_entropy",
+    "dispersion_home", "dispersion_draw", "dispersion_away",
+    "favorite_margin",
+    "prob_drift_home", "prob_drift_draw", "prob_drift_away",
+    "drift_magnitude",
+]
+
+FORM_FEATURES = [c for c in df.columns if "form_" in c]
+
+SCHEDULE_FEATURES = [
+    c for c in df.columns
+    if ("rest_days" in c) or ("days_since" in c) or ("congestion" in c)
+]
+
+# anything else team/history-based, e.g. h2h, elo, etc
+```
+
+You already have **Phase 1/2/2.5** tags in logs, but doing it explicitly like this in code makes ablations trivial.
+
+### Step 2 – Build a tiny script that runs sanity separately per group
+
+For each group:
+
+* Use **only** that group’s columns for `X`.
+* Run the same random-label check as in Step A.1:
+
+  * permute **once globally**
+  * 80/20 split
+  * 50 boosting rounds
+* Record accuracy.
+
+You’ll likely see something like:
+
+* Odds-only → **0.34–0.36** ✅
+* Form-only → **0.43–0.46** ❌
+* Schedule-only → maybe high too ❌
+* Combo (form+schedule) → even higher ❌
+
+Whichever **alone** pops up over 0.40 is your criminal.
+
+### Step 3 – Fix the underlying logic
+
+Once we know the guilty group:
+
+Typical concrete fixes:
+
+1. **Form / rolling stats:**
+
+   * Ensure they are computed using strictly:
+
+     ```sql
+     WHERE past_match_date < target_match_date
+     ```
+   * Not:
+
+     * `<= target_match_date` (can include *this* match)
+     * Or built from a precomputed season table that already includes outcomes for all matches.
+
+2. **Rest days / days_since_last_match / congestion:**
+
+   * Same rule:
+
+     ```sql
+     WHERE past_match_date < target_match_date
+     ```
+   * Make sure you are not accidentally using fixtures or played matches **after** the current match as part of the “window”.
+
+3. **Any ELO / rating field:**
+
+   * Ratings must be from a **checkpoint table at T-1h**, not recalculated with full season results every time.
+   * If you’re replaying entire season then reading rating after all matches, you’ve baked in future outcomes.
+
+---
+
+## 5️⃣ What I’d do *right now* in priority order
+
+If you want a straight to-do list:
+
+1. **Train & sanity check an odds-only model**
+
+   * Modify training script to restrict to `ODDS_FEATURES` list.
+   * Run:
+
+     ```bash
+     export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+     python scripts/manage_training.py --train  # after you limit features
+     ```
+   * Confirm:
+
+     * Random-label accuracy ≈ 0.33
+     * Row-permutation accuracy ≈ 0.33
+   * That gives you: **“V2-ODDS-ONLY – guaranteed clean”**.
+
+2. **Ablate and identify leak group**
+
+   * Add a small helper script that:
+
+     * Loads the same 400 matches.
+     * For each feature group (odds, form, schedule, etc):
+
+       * Runs the random-label sanity.
+   * Note which group(s) blow past 0.40.
+
+3. **Patch the offending feature builder code**
+
+   * Tighten date filters.
+   * Ensure no “season aggregate” tables include future games when read at T-1h.
+
+4. **Re-run Step A optimizations only after sanity passes**
+
+   * Once random-label & row-permutation are BOTH ✅:
+
+     * Re-run Step A for real:
+
+       * Hyperparams
+       * Class balancing (draw ≈ 1.3× is still a reasonable prior)
+       * Meta-features
+       * Per-league eval
+   * Then that 53% target becomes **legit**.
+
+---
+
+If you want, next message I can draft **exact code edits** for:
+
+* restricting features to odds-only in your current `train_v2_no_leakage.py`
+* a small `training/ablation_sanity.py` that runs group-wise checks with your existing builder and DB.
+
+You’ve done all the hard infra work already – we’re down to hunting one sneaky leak in team/context features.
