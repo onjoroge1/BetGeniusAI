@@ -81,8 +81,10 @@ class V2FeatureBuilderTransformed(V2FeatureBuilder):
             cong_a = float(result['schedule_congestion_away_7d'] or 0.0)
             
             # Transform: Use relative ratios
-            # +1 to avoid division by zero
-            rest_advantage = rest_h / (rest_a + 1.0)
+            # +1 to BOTH numerator and denominator for symmetric smoothing
+            # This ensures parity (equal rest) = 1.0, not <1.0
+            # Example: 5 vs 5 days → (5+1)/(5+1) = 1.0 ✅ (not 5/6 = 0.83 ❌)
+            rest_advantage = (rest_h + 1.0) / (rest_a + 1.0)
             congestion_ratio = (cong_h + 1.0) / (cong_a + 1.0)
             
             # Cap extreme ratios (outlier protection)
