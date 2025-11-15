@@ -1,0 +1,18 @@
+{
+  "model_name": "V2 Odds-Only Baseline",
+  "model_type": "LightGBM",
+  "n_features": 17,
+  "feature_type": "odds_only",
+  "oof_metrics": {
+    "accuracy_3way": 0.495,
+    "log_loss": 1.0162,
+    "brier_score": 0.2030
+  },
+  "sanity_checks": {
+    "random_label_test": 0.370,
+    "status": "PASS - No leakage detected"
+  },
+  "training_date": "2025-11-14",
+  "n_training_samples": 1000,
+  "description": "Clean odds-only V2 model using only market-derived features. Guaranteed leak-free baseline."
+}

@@ -1,0 +1,8 @@
+[
+  "p_open_home", "p_open_draw", "p_open_away",
+  "p_last_home", "p_last_draw", "p_last_away",
+  "num_books_last", "book_dispersion", "market_entropy",
+  "dispersion_home", "dispersion_draw", "dispersion_away",
+  "favorite_margin",
+  "prob_drift_home", "prob_drift_draw", "prob_drift_away", "drift_magnitude"
+]

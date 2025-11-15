@@ -1,8 +1,11 @@
 """
-V2 LightGBM Prediction Service
-Loads trained V2 LightGBM model (52.7% accuracy, 75.9% @ 62% threshold)
+V2 LightGBM Prediction Service - ODDS-ONLY BASELINE
+Loads trained V2 odds-only model (49.5% accuracy, leak-free)
 
-NOW WITH FULL 46-FEATURE PIPELINE RESTORED
+CURRENT MODEL: v2_odds_only (17 features, guaranteed clean)
+- Market intelligence only (no team/context features)
+- Random label sanity: 37.0% (PASS)
+- LogLoss: 1.0162, Brier: 0.2030
 """
 import pickle
 import json
@@ -20,14 +23,15 @@ logger = logging.getLogger(__name__)
 
 class V2LightGBMPredictor:
     """
-    V2 LightGBM prediction service
+    V2 LightGBM prediction service - Odds-Only Baseline
     
     Performance:
-    - Overall: 52.7% 3-way accuracy
-    - Selective (conf >= 0.62): 75.9% hit rate @ 17.3% coverage
+    - Overall: 49.5% 3-way accuracy (leak-free)
+    - Features: 17 odds-derived (no team/context)
+    - Status: Production-ready, clean sanity checks
     """
     
-    def __init__(self, model_dir: str = "artifacts/models/lgbm_historical_36k"):
+    def __init__(self, model_dir: str = "artifacts/models/v2_odds_only"):
         self.model_dir = Path(model_dir)
         self.models = None
         self.feature_cols = None
