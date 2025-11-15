@@ -105,10 +105,15 @@ def test_feature_combination(X, y, feature_names, test_name):
             'num_leaves': 15,
             'learning_rate': 0.05,
             'feature_fraction': 0.8,
-            'verbose': -1
+            'verbosity': -1
         }
         
-        model = lgb.train(params, train_data, num_boost_round=50, verbose_eval=False)
+        model = lgb.train(
+            params,
+            train_data,
+            num_boost_round=50,
+            callbacks=[lgb.log_evaluation(0)]
+        )
         
         # Predict and measure accuracy
         preds = model.predict(X_val)

@@ -93,6 +93,28 @@ def main():
     
     print(f"\nDataset: {len(X)} matches x {len(feature_cols)} features")
     
+    # === FEATURE UNIQUENESS DIAGNOSTICS ===
+    print("\n" + "="*80)
+    print("  FEATURE UNIQUENESS DIAGNOSTICS")
+    print("="*80)
+    print("Inspecting features for potential match fingerprinting...")
+    
+    nunique = df[feature_cols].nunique().sort_values(ascending=False)
+    print(f"\nTop 15 most unique features (out of {len(df)} total matches):")
+    for feat, count in nunique.head(15).items():
+        uniqueness_pct = (count / len(df)) * 100
+        status = "⚠️  HIGH" if uniqueness_pct > 50 else "✅ OK"
+        print(f"  {feat:40s}: {count:5d} unique ({uniqueness_pct:5.1f}%) {status}")
+    
+    # Check for near-unique combinations
+    print(f"\nFeatures with >80% uniqueness (fingerprint risk):")
+    high_unique = nunique[nunique / len(df) > 0.8]
+    if len(high_unique) > 0:
+        for feat in high_unique.index:
+            print(f"  ❌ {feat}: {high_unique[feat]} / {len(df)} ({100*high_unique[feat]/len(df):.1f}%)")
+    else:
+        print("  ✅ None found - good sign!")
+    
     # === SANITY CHECK: Random Label Test ===
     print("\n" + "="*80)
     print("  SANITY CHECK: Random Label Test")

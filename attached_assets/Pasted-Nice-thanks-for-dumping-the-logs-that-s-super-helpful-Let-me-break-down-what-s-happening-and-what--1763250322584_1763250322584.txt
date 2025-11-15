@@ -1,0 +1,303 @@
+Nice, thanks for dumping the logs—that’s super helpful. Let me break down what’s happening and what you should do next.
+
+---
+
+## 1️⃣ What the logs are telling us
+
+### a) `Expected 48 features, got 46`
+
+This is just a **hard-coded expectation** inside the scripts, not a core problem with the model.
+
+What likely happened:
+
+* Original full V2: **50 features**
+* We planned:
+
+  * Drop 2 duplicate schedule features (`days_since_home_last_match`, `days_since_away_last_match`) → **48**
+  * Replace 4 raw rest/congestion features with **2 transformed ones** (`rest_advantage`, `congestion_ratio`)
+    → **46 features total**
+
+So the training + ablation scripts are still expecting **48**, but your builder now returns **46**, which matches the new design.
+
+👉 **Fix:**
+In both `train_v2_transformed.py` and `leak_detector_ablation.py`, find the code that checks feature count, e.g.:
+
+```python
+EXPECTED_FEATURES = 48
+...
+if X.shape[1] != EXPECTED_FEATURES:
+    print(f"Expected {EXPECTED_FEATURES} features, got {X.shape[1]}")
+```
+
+and change it to either:
+
+```python
+EXPECTED_FEATURES = 46
+```
+
+or better yet, **stop hard-coding** entirely and just log:
+
+```python
+print(f"Feature count: {X.shape[1]}")
+```
+
+The spammy “Expected 48 features…” message is not the root issue.
+
+---
+
+### b) The real problem: random-label acc **0.515** 🤮
+
+From `train_v2_transformed.py`:
+
+```text
+Random-label accuracy: 0.515
+Random-label logloss : 1.036
+❌ FAIL: Random-label sanity still too high, aborting.
+Features may still contain leakage.
+```
+
+This is a **huge** red flag.
+
+* With 3-class random labels, a safe model should sit around **0.33** accuracy.
+* We said `< 0.40` is acceptable.
+* **0.515** means:
+  the model is learning something *very close* to a lookup key / fingerprint for each match, even though labels are permuted.
+
+That means one (or more) of these is true:
+
+1. Some feature or combo of features is acting like a **match_id** (uniquely identifying each match).
+2. Or, some context data is still **contaminated with post-match info** (e.g. match_context computed after the result).
+3. Or, your train/valid split for the random-label test is “leaky” (e.g. identical rows in both halves).
+
+Given:
+
+* Odds-only V2 sanity was **0.37** (clean ✅),
+* And leak persisted **after** transforming rest/congestion → the root cause is **not just the exact rest days**. We haven’t killed the core leak yet.
+
+So: right now, **full V2 is still not safe**, even transformed.
+
+---
+
+### c) `leak_detector_ablation.py` crash
+
+You see:
+
+```text
+Testing: 1. Odds Only (Baseline)
+Features: 18 (1. Odds Only (Baseline))
+Traceback (most recent call last):
+  ...
+  model = lgb.train(params, train_data, num_boost_round=50, verbose_eval=False)
+```
+
+The stack trace cuts off before the actual error, but given your other scripts, the likely issue is:
+
+* LightGBM version + `verbose_eval` usage.
+* In newer usage patterns you’ve been using:
+
+```python
+lgb.train(
+    params,
+    train_data,
+    num_boost_round=100,
+    valid_sets=[valid_data],
+    callbacks=[
+        lgb.early_stopping(stopping_rounds=10),
+        lgb.log_evaluation(period=0),
+    ],
+)
+```
+
+But in `leak_detector_ablation.py` it’s probably still:
+
+```python
+model = lgb.train(params, train_data, num_boost_round=50, verbose_eval=False)
+```
+
+On some LightGBM builds, mixing `verbose_eval` or not providing proper callbacks blows up.
+
+👉 **Fix that call** in `leak_detector_ablation.py` to match the pattern that works elsewhere:
+
+```python
+model = lgb.train(
+    params,
+    train_data,
+    num_boost_round=50,
+    valid_sets=[train_data],  # or [valid_data] if you add a valid split
+    callbacks=[
+        lgb.early_stopping(stopping_rounds=10),
+        lgb.log_evaluation(period=0),
+    ],
+)
+```
+
+or, if you’re only doing a single 80/20 split inside `test_feature_combination`, do:
+
+```python
+train_data = lgb.Dataset(X_train, label=y_train)
+valid_data = lgb.Dataset(X_valid, label=y_valid, reference=train_data)
+
+model = lgb.train(
+    params,
+    train_data,
+    num_boost_round=50,
+    valid_sets=[valid_data],
+    callbacks=[
+        lgb.early_stopping(stopping_rounds=10),
+        lgb.log_evaluation(period=0),
+    ],
+)
+```
+
+And **remove `verbose_eval=...`**.
+
+That’ll get leak_detector_ablation running again.
+
+---
+
+## 2️⃣ What you should do *next* (concrete steps)
+
+Right now we have two parallel priorities:
+
+1. Fix the tooling annoyance (feature count + LGBM call) ✅
+2. Actually find and kill the leakage ❌
+
+Let’s line it up.
+
+---
+
+### Step 1 – Fix the easy stuff
+
+1. **Feature count expectations**
+
+   * In:
+
+     * `training/train_v2_transformed.py`
+     * `training/leak_detector_ablation.py`
+   * Either:
+
+     * Set `EXPECTED_FEATURES = 46`, or
+     * Remove the expectation; just log `X.shape[1]`.
+
+2. **Update LightGBM call in `leak_detector_ablation.py`**
+
+   * Replace `verbose_eval=False` with proper `callbacks` like in `train_v2_no_leakage.py` / `train_v2_odds_only.py`.
+
+This will:
+
+* Stop the "Expected 48 features" spam.
+* Let the ablation script actually run to completion again.
+
+---
+
+### Step 2 – Re-run ablation with `V2_USE_TRANSFORMED=1`
+
+Once leak_detector_ablation is fixed, run:
+
+```bash
+export V2_USE_TRANSFORMED=1
+export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+python training/leak_detector_ablation.py
+```
+
+You want to see **random-label accuracy per combo**, especially:
+
+* Odds only
+* Odds + ELO
+* Odds + Form
+* Odds + Schedule/Context (transformed)
+* Odds + All non-odds
+
+Watch which combos jump **above 0.40**.
+
+If:
+
+* Odds-only is still ≈ 0.30–0.37 → odds are clean ✅
+* Any combo with team/context still pushes ≥ 0.40 → the leak is **data-level**, not just representation (i.e. match_context or feature queries are including future info).
+
+---
+
+### Step 3 – Do the **data audit** (this is critical now)
+
+The 0.515 random-label accuracy screams: “I know exactly which match you are.”
+
+We have to rule out **post-match contamination** in `match_context` and related aggregates.
+
+Run something like (psql or similar):
+
+```sql
+-- Check if any match_context rows are created AFTER the match:
+SELECT COUNT(*) AS post_match_updates
+FROM match_context mc
+JOIN training_matches tm ON mc.match_id = tm.match_id
+WHERE mc.created_at > tm.match_date;
+```
+
+Also sample some rows:
+
+```sql
+SELECT mc.match_id,
+       mc.created_at,
+       mc.updated_at,
+       tm.match_date,
+       EXTRACT(EPOCH FROM (mc.created_at - tm.match_date))/3600 AS hours_after
+FROM match_context mc
+JOIN training_matches tm ON mc.match_id = tm.match_id
+ORDER BY ABS(mc.created_at - tm.match_date) DESC
+LIMIT 50;
+```
+
+If you see **any sizeable positive `hours_after`**, then match_context is being built/updated after the match and can “smuggle” future info into the features (even in subtle ways).
+
+If that’s the case, no amount of rest-day binning will truly fix it—you have to:
+
+* Adjust the pipeline so `match_context` is computed strictly **before** kickoff,
+* Or recompute a clean version of the context table using only historical data up to each match.
+
+---
+
+### Step 4 – Inspect “uniqueness” of features
+
+With 1370 rows and 46 features, 0.515 random-label accuracy suggests features (or their combos) are **almost unique per row**.
+
+When you have access to the feature dataframe (inside `train_v2_transformed.py`), add a debug block like:
+
+```python
+# After building df with all features
+feature_cols = [c for c in df.columns if c not in ['match_id', 'outcome', 'match_date', 'league_id']]
+print("Top features by uniqueness:")
+nunique = df[feature_cols].nunique().sort_values(ascending=False)
+print(nunique.head(15))
+print(f"Rows: {len(df)}")
+```
+
+If you see something like:
+
+* A feature with `nunique` very close to `len(df)` that **shouldn’t be that unique** (e.g. a time index, a hash, something derived from match_id or timestamp), that’s a suspect.
+* Or if the **combination** of time + team stats yields near-unique fingerprints, the ablation script should flag combos like `odds + context + form` with high random-label accuracy.
+
+---
+
+## 3️⃣ Big picture status
+
+Right now:
+
+* ✅ **V2.0 odds-only** is **clean** and usable (49.5%).
+* ❌ **Full V2 transformed** is **still leaky** (random-label 0.515), so we cannot trust 50.1% accuracy.
+* 🧪 The transformation alone wasn’t enough → suggests a **deeper data-level leak** or an overly-unique combination of context stats.
+
+So the priority stack is:
+
+1. **Fix the ablation script + feature count expectations** so tools run cleanly.
+2. **Run ablation with `V2_USE_TRANSFORMED=1`** to see which combos still leak.
+3. **Audit `match_context` + any pre-aggregated tables** for post-match timestamps.
+4. **Inspect feature uniqueness** to find stealth “fingerprint” features.
+5. Only then try another transformation / feature-removal round and re-run random-label sanity.
+
+If you want, next message I can:
+
+* Write a small, **drop-in debug block** for `train_v2_transformed.py` that:
+
+  * Prints feature names,
+  * Prints uniqueness counts,
+  * And prints random-label accuracy per **feature group** right inside that script (without relying on ablation).
