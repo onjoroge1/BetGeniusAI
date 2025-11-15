@@ -8,6 +8,7 @@ Preferred communication style: Simple, everyday language.
 Production Model Decision: Use simple weighted consensus based on performance comparison showing 0.031549 LogLoss improvement over complex model.
 Model Performance Analysis: Model rating 6.3/10 (B Grade) with 54.3% 3-way accuracy and 62.4% 2-way accuracy. Rating corrected after fixing Brier score normalization issue (0.191 vs incorrectly reported 0.573).
 Improvement Priority: Focus on enhanced feature engineering and gradient boosting ensemble methods for immediate gains, with deep learning and reinforcement learning as longer-term research directions.
+V2.1 Transformation Strategy: Approved relative ratio transformations (rest_advantage, congestion_ratio) with corrected parity formula achieving 27.01% uniqueness (down from 81.61%). Alternative binned features available (2.04% uniqueness) if needed.
 
 ## System Architecture
 
@@ -19,8 +20,9 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Deployment Architecture**: Supports Autoscale (API-only) and Development/VM (full functionality with background scheduler) modes.
 
 ### Machine Learning Pipeline
-- **Models**: Production V1 (weighted consensus) and V2 (LightGBM ensemble) models.
-- **Feature Engineering**: Reusable pipeline extracting 50 features for V2, including drift features capturing smart money movement.
+- **Models**: Production V1 (weighted consensus) and V2 (LightGBM ensemble) models. V2.1 in development with leak-resistant transformations.
+- **Feature Engineering**: Reusable pipeline with 48 features for V2 (reduced from 50 after removing duplicates). V2.1 uses transformed features (46 total: 40 base + 2 context_transformed + 4 drift).
+- **Leak Mitigation**: V2.1 implements transformed feature builder reducing match fingerprinting from 81.61% → 27.01% uniqueness via relative ratios (rest_advantage, congestion_ratio).
 - **Training Data**: Utilizes a substantial dataset of matches with full feature coverage.
 - **Calibration & Constraints**: Extensive testing for optimal model configuration.
 - **Shadow Testing System**: Operational market-delta ridge regression for A/B testing and auto-promotion.
