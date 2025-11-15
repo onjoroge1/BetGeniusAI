@@ -127,8 +127,13 @@ class V2FeatureBuilder:
             **drift_features  # Phase 2.5
         }
         
-        # Validate feature count (42 Phase 1 + 4 Phase 2 + 4 Phase 2.5 = 50)
-        expected_count = 50 if drift_features else 46 if context_features else 42
+        # Validate feature count
+        # Phase 1: 40 base (18 odds + 3 elo + 6 form + 2 home_adv + 3 h2h + 8 adv_stats)
+        # Phase 2: 4 context (rest_days_home/away, congestion_home/away_7d)
+        # Phase 2.5: 4 drift (prob_drift_home/draw/away, drift_magnitude)
+        # Schedule features deprecated (duplicates of context) - was 2, now 0
+        # Total: 40 + 4 + 4 = 48 features (was 50)
+        expected_count = 48 if drift_features else 44 if context_features else 40
         if len(all_features) != expected_count:
             logger.warning(f"Expected {expected_count} features, got {len(all_features)}")
         
@@ -579,19 +584,22 @@ class V2FeatureBuilder:
     def _build_schedule_features(self, home_team_id: int, away_team_id: int,
                                  cutoff_time: datetime) -> Dict[str, float]:
         """
-        Build schedule-based features (2 features)
+        DEPRECATED: Schedule features merged into context features
         
-        Features:
-        - days_since_home_last_match: Days of rest for home team
-        - days_since_away_last_match: Days of rest for away team
+        Previous features (REMOVED - duplicates of context features):
+        - days_since_home_last_match → Now in context as rest_days_home
+        - days_since_away_last_match → Now in context as rest_days_away
+        
+        These were identical calculations, causing:
+        1. Feature duplication (50 → 48 features after removal)
+        2. Increased leak risk (reinforced time-based fingerprinting)
+        3. Multicollinearity (perfect correlation)
+        
+        Use _build_context_features() instead for rest/schedule data.
         """
-        home_rest = self._get_days_since_last_match(home_team_id, cutoff_time)
-        away_rest = self._get_days_since_last_match(away_team_id, cutoff_time)
-        
-        return {
-            'days_since_home_last_match': home_rest,
-            'days_since_away_last_match': away_rest
-        }
+        # Return empty dict - no longer used
+        # Context features provide same information
+        return {}
     
     def _get_days_since_last_match(self, team_id: int, cutoff_time: datetime) -> float:
         """Calculate days since team's last match"""
