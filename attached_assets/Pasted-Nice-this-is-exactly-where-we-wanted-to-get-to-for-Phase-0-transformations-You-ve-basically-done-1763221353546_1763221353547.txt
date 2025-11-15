@@ -1,0 +1,397 @@
+Nice, this is exactly where we wanted to get to for Phase 0 + transformations. You’ve basically done the hard conceptual part; now it’s “run tests + retrain + deploy”.
+
+I’ll treat your message as: “What’s next? How do we run ablation + train V2.1 cleanly?”
+So I’ll lay out concrete steps and code/commands — no extra theory.
+
+⸻
+
+1️⃣ Quick sanity: where we are right now
+
+You’ve already:
+	•	✅ Confirmed match_context values are correct (timestamps are batch-artifact only).
+	•	✅ Measured original time-feature uniqueness:
+	•	81.61% unique tuples → high fingerprint risk.
+	•	✅ Implemented transformed features:
+	•	Removed duplicates: days_since_home_last_match, days_since_away_last_match.
+	•	New features (core ones):
+
+rest_advantage   = (rest_days_home + 1) / (rest_days_away + 1)   # 1.0 = parity, >1 = home more rested
+congestion_ratio = (cong_home_7d + 1) / (cong_away_7d + 1)       # 1.0 = parity, >1 = home busier
+
+
+	•	✅ Re-checked uniqueness with new features:
+	•	Uniqueness ~27.01% (vs 81.61% before).
+	•	Collision ~72.99%, common pattern (1.0, 1.0) ≈ 23% of matches.
+	•	→ This is exactly what we wanted: features describe patterns, not individual matches.
+
+So Phase 0 + “transform context features” is done.
+
+Now we just need to (A) re-run ablation / sanity checks, then (B) retrain V2.1 with the new builder, then (C) wire into API / A/B test.
+
+⸻
+
+2️⃣ Phase A: Run ablation with the transformed feature builder
+
+2.1. Wire the ablation script to use the transformed builder
+
+You mentioned:
+	•	features/v2_feature_builder_transformed.py
+	•	leak_detector_ablation.py
+
+We want the ablation script to be able to toggle between:
+	•	V2FeatureBuilder (original)
+	•	V2FeatureBuilderTransformed (new, leak-resistant)
+
+Inside features/v2_feature_builder_transformed.py you likely already have something like:
+
+# features/v2_feature_builder_transformed.py
+
+from .v2_feature_builder import V2FeatureBuilder
+
+class V2FeatureBuilderTransformed(V2FeatureBuilder):
+    def _build_context_features(self, match_id, cutoff_time):
+        # your transformed logic here
+        ...
+
+If not, that’s the pattern to use: subclass, override only context/schedule parts.
+
+Now, in leak_detector_ablation.py, at the top, make sure you can select builder via a flag/env:
+
+import os
+import sys
+sys.path.append('.')
+
+from features.v2_feature_builder import get_v2_feature_builder as get_base_builder
+from features.v2_feature_builder_transformed import V2FeatureBuilderTransformed
+
+Then define a factory:
+
+def get_feature_builder(use_transformed: bool = False):
+    if use_transformed:
+        return V2FeatureBuilderTransformed()
+    else:
+        return get_base_builder()
+
+And wherever you currently do:
+
+builder = get_v2_feature_builder()
+
+change to:
+
+use_transformed = os.getenv("V2_USE_TRANSFORMED", "0") == "1"
+builder = get_feature_builder(use_transformed=use_transformed)
+
+2.2. Run ablation with transformed features
+
+From the repo root:
+
+# Use the new transformed context features
+export V2_USE_TRANSFORMED=1
+export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+
+python training/leak_detector_ablation.py
+
+What you’re looking for:
+	•	For each group / combo leak_detector_ablation.py tests, pay attention to random-label accuracy:
+	•	✅ Good / clean: ~0.30 – 0.38
+	•	❌ Suspicious / leaky: > 0.40
+	•	Specifically:
+	•	Odds-only should be ≈ 0.30–0.35 (we already saw ~0.307).
+	•	Odds + transformed context should now be < 0.40, ideally low-30s.
+	•	All features combined (full V2.1) must be < 0.40 on random labels.
+
+If any combo with the transformed features still hits 0.40+ consistently → we treat that as remaining leak (then we’d either coarsen bins more or drop context entirely). But based on your uniqueness reduction, I’d expect:
+	•	All groups individually < 0.40,
+	•	Full combo < 0.40 as well.
+
+⸻
+
+3️⃣ Phase B: Train V2.1 with the new feature set
+
+Once ablation looks clean, we train a “V2.1 clean full” model using the transformed builder.
+
+3.1. Create a dedicated training script
+
+Instead of overloading train_v2_no_leakage.py, I’d create a sibling:
+
+training/train_v2_transformed.py
+
+Skeleton:
+
+#!/usr/bin/env python3
+import os, sys, numpy as np, pandas as pd
+from sqlalchemy import create_engine, text
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import accuracy_score, log_loss, brier_score_loss
+import lightgbm as lgb
+
+sys.path.append('.')
+from features.v2_feature_builder_transformed import V2FeatureBuilderTransformed
+
+N_SPLITS = 5
+EMBARGO_DAYS = 7
+
+def load_matches(limit=5000):
+    engine = create_engine(os.getenv("DATABASE_URL"))
+    query = text("""
+        SELECT tm.match_id, tm.match_date, tm.outcome
+        FROM training_matches tm
+        INNER JOIN match_context mc ON tm.match_id = mc.match_id
+        INNER JOIN odds_real_consensus orc ON tm.match_id = orc.match_id
+        WHERE tm.match_date >= '2020-01-01'
+          AND tm.match_date < '2025-12-31'
+          AND tm.outcome IN ('Home','Draw','Away')
+        ORDER BY tm.match_date
+        LIMIT :limit
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={"limit": limit})
+    df["outcome"] = df["outcome"].map({"Home":"H","Draw":"D","Away":"A"})
+    return df
+
+def build_features(matches):
+    builder = V2FeatureBuilderTransformed()
+    rows = []
+    for i, row in matches.iterrows():
+        feats = builder.build_features(
+            row["match_id"],
+            cutoff_time=pd.to_datetime(row["match_date"])
+        )
+        feats["outcome"] = row["outcome"]
+        feats["match_date"] = row["match_date"]
+        rows.append(feats)
+        if (i+1) % 100 == 0:
+            print(f"   {i+1}/{len(matches)}", flush=True)
+    df = pd.DataFrame(rows)
+    print(f"✅ Built features for {len(df)} matches")
+    return df
+
+def encode_y(y_str):
+    m = {"H":0,"D":1,"A":2}
+    return np.array([m[v] for v in y_str])
+
+def main():
+    print("="*70)
+    print("  V2.1 TRANSFORMED TRAINING (LEAKAGE-FREE)")
+    print("="*70)
+
+    matches = load_matches(limit=5000)
+    print(f"✅ Loaded {len(matches)} matches")
+
+    print("\n🔨 Building features (transformed context)...")
+    df = build_features(matches)
+
+    feature_cols = [c for c in df.columns if c not in ["outcome","match_date","match_id","league_id"]]
+    X = df[feature_cols].values
+    y = encode_y(df["outcome"].values)
+    dates = pd.to_datetime(df["match_date"].values)
+
+    # --- Sanity: random-label test (quick) ---
+    rng = np.random.default_rng(42)
+    y_rand = rng.permutation(y)
+    split = int(len(X) * 0.8)
+    X_tr, X_va = X[:split], X[split:]
+    y_tr, y_va = y_rand[:split], y_rand[split:]
+
+    train_data = lgb.Dataset(X_tr, label=y_tr)
+    valid_data = lgb.Dataset(X_va, label=y_va, reference=train_data)
+
+    rand_params = {
+        "objective": "multiclass",
+        "num_class": 3,
+        "metric": "multi_logloss",
+        "learning_rate": 0.05,
+        "num_leaves": 31,
+        "feature_fraction": 0.8,
+        "verbosity": -1,
+        "seed": 42,
+    }
+
+    print("\nSANITY: Random-label test (should be < 0.40 acc)...")
+    rand_model = lgb.train(
+        rand_params,
+        train_data,
+        num_boost_round=50,
+        valid_sets=[valid_data],
+        callbacks=[
+            lgb.early_stopping(10),
+            lgb.log_evaluation(0),
+        ],
+    )
+
+    y_proba_rand = rand_model.predict(X_va, num_iteration=rand_model.best_iteration)
+    y_pred_rand = np.argmax(y_proba_rand, axis=1)
+    acc_rand = accuracy_score(y_va, y_pred_rand)
+    ll_rand = log_loss(y_va, y_proba_rand)
+    print(f"  Random-label accuracy: {acc_rand:.3f}")
+    print(f"  Random-label logloss : {ll_rand:.3f}")
+
+    if acc_rand >= 0.40:
+        print("❌ FAIL: Random-label sanity still too high, aborting.")
+        return
+    else:
+        print("✅ PASS: Random-label sanity looks clean.")
+
+    # --- Real training with time CV + embargo ---
+    print("\n======================================================================")
+    print("  V2.1 TRAINING (Time-Based CV)")
+    print("======================================================================")
+
+    from training.step_a_optimizations import PurgedTimeSeriesSplit  # if available
+
+    cv = PurgedTimeSeriesSplit(n_splits=N_SPLITS, embargo_days=EMBARGO_DAYS)
+
+    label_weights = np.ones(len(y))
+    # Draw class = 1
+    label_weights[y == 1] = 1.30  # Step A recommendation
+
+    params = {
+        "objective": "multiclass",
+        "num_class": 3,
+        "metric": "multi_logloss",
+        "learning_rate": 0.05,
+        "num_leaves": 31,
+        "min_data_in_leaf": 50,
+        "feature_fraction": 0.8,
+        "lambda_l1": 0.0,
+        "lambda_l2": 0.0,
+        "verbosity": -1,
+        "seed": 42,
+    }
+
+    oof_proba = np.zeros((len(X), 3), dtype=float)
+    oof_true = y.copy()
+
+    for fold, (tr_idx, va_idx) in enumerate(cv.split(X, y, groups=dates), start=1):
+        print(f"\n--- Fold {fold}/{N_SPLITS} ---")
+        X_tr, X_va = X[tr_idx], X[va_idx]
+        y_tr, y_va = y[tr_idx], y[va_idx]
+        w_tr = label_weights[tr_idx]
+
+        d_tr = lgb.Dataset(X_tr, label=y_tr, weight=w_tr)
+        d_va = lgb.Dataset(X_va, label=y_va, reference=d_tr)
+
+        model = lgb.train(
+            params,
+            d_tr,
+            num_boost_round=500,
+            valid_sets=[d_va],
+            callbacks=[
+                lgb.early_stopping(25),
+                lgb.log_evaluation(50),
+            ],
+        )
+
+        proba_va = model.predict(X_va, num_iteration=model.best_iteration)
+        oof_proba[va_idx] = proba_va
+
+        acc = accuracy_score(y_va, np.argmax(proba_va, axis=1))
+        ll = log_loss(y_va, proba_va)
+        br = brier_score_loss(
+            (y_va[:, None] == np.array([0,1,2])).astype(int).reshape(-1),
+            proba_va.reshape(-1)
+        )
+        print(f"  Fold Acc: {acc:.3f}")
+        print(f"  Fold LL : {ll:.3f}")
+        print(f"  Fold Brier: {br:.3f}")
+
+    # Overall metrics
+    overall_acc = accuracy_score(oof_true, np.argmax(oof_proba, axis=1))
+    overall_ll = log_loss(oof_true, oof_proba)
+    # Multi-class Brier: avg over 3 classes
+    one_hot = np.eye(3)[oof_true]
+    overall_br = np.mean(np.sum((oof_proba - one_hot)**2, axis=1)) / 2.0
+
+    print("\n======================================================================")
+    print("  V2.1 OOF METRICS")
+    print("======================================================================")
+    print(f"  Accuracy: {overall_acc:.3f}")
+    print(f"  LogLoss : {overall_ll:.3f}")
+    print(f"  Brier   : {overall_br:.3f}")
+
+    # TODO: save final model(s) to artifacts/models/v2_transformed
+    # e.g. train on full data and dump model.txt via model.save_model(...)
+
+if __name__ == "__main__":
+    main()
+
+You don’t have to copy this verbatim, but this is the structure:
+	•	quick random-label sanity inside the script
+	•	then full CV with your Step A hyperparams + draw weighting.
+
+3.2. Run V2.1 training
+
+From repo root:
+
+export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+
+python training/train_v2_transformed.py
+
+Targets to look for:
+	•	Random-label sanity (inside script):
+	•	Acc < 0.40 (ideally ~0.33–0.37)
+	•	OOF metrics:
+	•	Accuracy: ~0.52–0.54
+	•	LogLoss: < 1.00
+	•	Brier: ≤ ~0.25
+
+If you land ~0.50–0.51 again, still clean, but that tells us V2.1 isn’t yet outperforming V2.0 by much. If you hit 0.52+ with good sanity → that’s the “green light” model.
+
+⸻
+
+4️⃣ Phase C: Wire into /predict-v2 with A/B test vs odds-only
+
+Once V2.1 metrics look good:
+	1.	Keep V2.0 odds-only as the “baseline” (already leak-free & simple).
+	2.	Add V2.1 clean full as alternative in your backend:
+
+Pseudo:
+
+def predict_v2(match_id, use_full_model: bool = True):
+    if use_full_model:
+        # Use V2.1 transformed model
+        ...
+    else:
+        # Use V2.0 odds-only
+        ...
+
+Then A/B at the API level:
+
+import random
+
+def predict_v2_ab_test(match_id):
+    roll = random.random()
+    if roll < 0.5:
+        served = "v2_odds_only"
+        res = predict_v2(match_id, use_full_model=False)
+    else:
+        served = "v2_full"
+        res = predict_v2(match_id, use_full_model=True)
+
+    log_prediction(match_id, served_model=served, probs=res["probabilities"])
+    return res
+
+After enough volume, compare:
+	•	Accuracy per model,
+	•	Brier score,
+	•	CLV / ROI on simulated bets.
+
+Promote V2.1 when it clearly dominates.
+
+⸻
+
+5️⃣ What I’d do right now in your shoes
+
+In order, with zero extra decision overhead:
+	1.	Run ablation with transformed builder:
+
+export V2_USE_TRANSFORMED=1
+export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+python training/leak_detector_ablation.py
+
+	2.	If all random-label accuracies < 0.40 → proceed.
+	3.	Implement / finalize train_v2_transformed.py as above (or patch your existing training script to use the transformed builder).
+	4.	Train V2.1 and log final metrics.
+	5.	Wire V2.1 into /predict-v2 alongside odds-only for A/B.
+
+If you paste the actual leak_detector_ablation.py output once you run with V2_USE_TRANSFORMED=1, I can help interpret it and tweak thresholds or features if anything still looks off.

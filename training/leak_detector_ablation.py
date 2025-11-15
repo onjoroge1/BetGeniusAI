@@ -14,9 +14,20 @@ from datetime import datetime, timedelta
 import sys
 sys.path.append('.')
 from features.v2_feature_builder import get_v2_feature_builder
+from features.v2_feature_builder_transformed import V2FeatureBuilderTransformed
+
+def get_feature_builder(use_transformed=False):
+    """Factory: select original or transformed builder"""
+    if use_transformed:
+        print("🔄 Using TRANSFORMED feature builder (leak-resistant)")
+        return V2FeatureBuilderTransformed()
+    else:
+        print("📊 Using ORIGINAL feature builder")
+        return get_v2_feature_builder()
 
 # Feature group definitions
-FEATURE_GROUPS = {
+# Note: schedule group deprecated (duplicates), context uses transformed features if enabled
+FEATURE_GROUPS_ORIGINAL = {
     'odds': [
         'p_last_home', 'p_last_draw', 'p_last_away',
         'p_open_home', 'p_open_draw', 'p_open_away',
@@ -39,12 +50,22 @@ FEATURE_GROUPS = {
         'home_corners', 'away_corners',
         'home_yellows', 'away_yellows'
     ],
-    'schedule': ['days_since_home_last_match', 'days_since_away_last_match'],
     'context': [
         'rest_days_home', 'rest_days_away',
         'schedule_congestion_home_7d', 'schedule_congestion_away_7d'
     ],
     'drift': ['prob_drift_home', 'prob_drift_draw', 'prob_drift_away', 'drift_magnitude']
+}
+
+FEATURE_GROUPS_TRANSFORMED = {
+    'odds': FEATURE_GROUPS_ORIGINAL['odds'],
+    'elo': FEATURE_GROUPS_ORIGINAL['elo'],
+    'form': FEATURE_GROUPS_ORIGINAL['form'],
+    'home_adv': FEATURE_GROUPS_ORIGINAL['home_adv'],
+    'h2h': FEATURE_GROUPS_ORIGINAL['h2h'],
+    'advanced': FEATURE_GROUPS_ORIGINAL['advanced'],
+    'context_transformed': ['rest_advantage', 'congestion_ratio'],  # 4 raw → 2 transformed
+    'drift': FEATURE_GROUPS_ORIGINAL['drift']
 }
 
 def test_feature_combination(X, y, feature_names, test_name):
@@ -116,20 +137,27 @@ def main():
     print("Goal: Pinpoint which feature combinations cause leakage")
     print("="*80)
     
+    # Check if using transformed features
+    use_transformed = os.getenv("V2_USE_TRANSFORMED", "0") == "1"
+    FEATURE_GROUPS = FEATURE_GROUPS_TRANSFORMED if use_transformed else FEATURE_GROUPS_ORIGINAL
+    
+    print(f"\nMode: {'TRANSFORMED (leak-resistant)' if use_transformed else 'ORIGINAL'}")
+    print(f"Feature groups: {list(FEATURE_GROUPS.keys())}")
+    
     # Load data
     print("\nLoading training data...")
-    builder = get_v2_feature_builder()
+    builder = get_feature_builder(use_transformed=use_transformed)
     
     # Get recent matches (Aug-Nov 2025, same as training)
     from sqlalchemy import create_engine, text
     engine = create_engine(os.getenv('DATABASE_URL'))
     
     query = text("""
-        SELECT match_id, match_date, outcome_code
+        SELECT match_id, match_date, outcome
         FROM training_matches
         WHERE match_date >= '2025-08-01'
           AND match_date < '2025-11-15'
-          AND outcome_code IN ('H', 'D', 'A')
+          AND outcome IN ('Home', 'Draw', 'Away')
         ORDER BY match_date
         LIMIT 1000
     """)
@@ -156,8 +184,8 @@ def main():
             all_features.append(features)
             
             # Encode labels
-            label_map = {'H': 0, 'D': 1, 'A': 2}
-            labels.append(label_map[row['outcome_code']])
+            label_map = {'Home': 0, 'Draw': 1, 'Away': 2}
+            labels.append(label_map[row['outcome']])
             valid_matches.append(row['match_id'])
         except Exception as e:
             continue
