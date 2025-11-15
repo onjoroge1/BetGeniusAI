@@ -55,7 +55,7 @@ V2.1 Transformation Strategy: Approved relative ratio transformations (rest_adva
 - **Team Logo System**: Dimension table with logo_url and API Football team ID mapping, intelligent enrichment service.
 
 ### API Endpoints
-- **Prediction API**: `/predict` (V1 consensus), `/predict-v2` (premium V2 SELECT), `/market` (market board with V1/V2, team logos, status filters: upcoming, live, finished).
+- **Prediction API**: `/predict` (V1 consensus), `/predict-v2` (premium V2 SELECT), `/market` (market board with V1/V2, team logos, status filters: upcoming, live, finished). Recent fix (2025-11-15): Dynamic status determination, added momentum and model_markets fields for live matches, fixed live data conditional logic.
 - **Betting Intelligence API**: `/betting-intelligence/{match_id}` (per-match CLV, edge, Kelly sizing), `/betting-intelligence` (curated opportunities). Features include edge calculation, CLV analysis, and Kelly Criterion optimal stake sizing.
 - **WebSocket Streaming**: `/ws/live/{match_id}` for real-time match events and prediction updates.
 - **Admin Endpoints**: For data management, match discovery, and training statistics.

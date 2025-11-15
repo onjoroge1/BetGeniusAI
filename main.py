@@ -6502,13 +6502,44 @@ async def get_market_data(
                     analysis = None
                     ui_hints = {"primary_model": "v1_consensus" if v1_data else None}
                 
+                # FIX: Determine ACTUAL match status from database, not URL param
+                # Check if match has fresh live data (updated in last 10 min)
+                cursor.execute("""
+                    SELECT COUNT(*) FROM live_match_stats
+                    WHERE match_id = %s
+                      AND timestamp > NOW() - INTERVAL '10 minutes'
+                """, (match_id,))
+                
+                has_fresh_live_data = cursor.fetchone()[0] > 0
+                
+                # Determine actual status based on kickoff time and live data
+                from datetime import datetime, timezone
+                now_utc = datetime.now(timezone.utc)
+                kickoff_utc = kickoff_at.replace(tzinfo=timezone.utc) if kickoff_at and kickoff_at.tzinfo is None else kickoff_at
+                
+                if kickoff_utc and kickoff_utc > now_utc:
+                    actual_status = "UPCOMING"
+                elif has_fresh_live_data:
+                    actual_status = "LIVE"
+                else:
+                    # Check if match is marked finished in DB
+                    cursor.execute("""
+                        SELECT status FROM fixtures WHERE match_id = %s
+                    """, (match_id,))
+                    db_status_row = cursor.fetchone()
+                    if db_status_row and db_status_row[0] == 'finished':
+                        actual_status = "FINISHED"
+                    else:
+                        # Match started but no fresh data - likely finished
+                        actual_status = "FINISHED"
+                
                 # PHASE 1 ENHANCEMENT: Add live data for live matches
                 live_data = None
                 live_events = None
                 ai_analysis = None
                 odds_velocity_data = None
                 
-                if status == "live":
+                if actual_status == "LIVE":
                     # Get latest live statistics (only if fresh - updated in last 10 minutes)
                     cursor.execute("""
                         SELECT minute, period,
@@ -6607,7 +6638,7 @@ async def get_market_data(
                 # Build match object
                 match_obj = {
                     "match_id": match_id,
-                    "status": status.upper(),
+                    "status": actual_status,  # FIX: Use actual status, not URL param
                     "kickoff_at": kickoff_at.isoformat() if kickoff_at else None,
                     "league": {
                         "id": league_id,
@@ -6638,6 +6669,9 @@ async def get_market_data(
                 # Add live data fields if available
                 if live_data:
                     match_obj["live_data"] = live_data
+                    
+                    # FIX: Add score at top level for backward compatibility
+                    match_obj["score"] = live_data["current_score"]
                 
                 if live_events:
                     match_obj["live_events"] = live_events
@@ -6648,10 +6682,45 @@ async def get_market_data(
                 if odds_velocity_data:
                     match_obj["odds"]["velocity"] = odds_velocity_data
                 
+                # FIX: Add MOMENTUM for live matches (Phase 2 feature)
+                if actual_status == "LIVE" and live_data:
+                    try:
+                        from models.momentum_calculator import MomentumCalculator
+                        momentum_calc = MomentumCalculator()
+                        
+                        result = momentum_calc.compute_momentum(match_id)
+                        if result:
+                            momentum_home, momentum_away, breakdown = result
+                            match_obj["momentum"] = {
+                                "home": momentum_home,
+                                "away": momentum_away,
+                                "breakdown": breakdown
+                            }
+                            logger.info(f"✅ Added momentum for match {match_id}: H={momentum_home}, A={momentum_away}")
+                    except Exception as e:
+                        logger.error(f"❌ Momentum calculation failed for match {match_id}: {e}")
+                        # Don't block response if momentum fails
+                
+                # FIX: Add MODEL_MARKETS for live matches (Phase 2 feature)
+                if actual_status == "LIVE" and live_data:
+                    try:
+                        from models.live_market_engine import LiveMarketEngine
+                        market_engine = LiveMarketEngine()
+                        
+                        minutes_elapsed = float(live_data.get('minute', 0))
+                        markets = market_engine.compute_live_markets(match_id, minutes_elapsed)
+                        
+                        if markets:
+                            match_obj["model_markets"] = markets
+                            logger.info(f"✅ Added live markets for match {match_id} at {minutes_elapsed} min")
+                    except Exception as e:
+                        logger.error(f"❌ Live markets calculation failed for match {match_id}: {e}")
+                        # Don't block response if markets fail
+                
                 # BETTING INTELLIGENCE: Add CLV, edge, and Kelly sizing
                 betting_intel = None
                 
-                if status == "upcoming" and (v1_data or v2_data):
+                if actual_status == "UPCOMING" and (v1_data or v2_data):
                     from utils.odds_extract import extract_odds_and_probs
                     
                     # Use best available model (V2 if available and qualified, else V1)
@@ -6673,7 +6742,7 @@ async def get_market_data(
                         except Exception as e:
                             logger.warning(f"Betting intelligence calc failed for match {match_id}: {e}")
                 
-                elif status == "live" and live_data:
+                elif actual_status == "LIVE" and live_data:
                     from utils.odds_extract import extract_odds_and_probs
                     
                     # For live matches, use in-play predictions if available
