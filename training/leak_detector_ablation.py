@@ -240,23 +240,35 @@ def main():
     print("PHASE 3: TIME-BASED TESTS (CRITICAL)")
     print("="*80)
     
-    # Test 7: Odds + Schedule
-    schedule_features = FEATURE_GROUPS['odds'] + FEATURE_GROUPS['schedule']
-    results.append(test_feature_combination(
-        X, y, schedule_features, "6. Odds + Schedule (SUSPECTED)"
-    ))
-    
-    # Test 8: Odds + Context
-    context_features = FEATURE_GROUPS['odds'] + FEATURE_GROUPS['context']
-    results.append(test_feature_combination(
-        X, y, context_features, "7. Odds + Context (SUSPECTED)"
-    ))
-    
-    # Test 9: Odds + Schedule + Context (CRITICAL)
-    time_features = FEATURE_GROUPS['odds'] + FEATURE_GROUPS['schedule'] + FEATURE_GROUPS['context']
-    results.append(test_feature_combination(
-        X, y, time_features, "8. Odds + Schedule + Context (HIGH RISK)"
-    ))
+    if use_transformed:
+        # Transformed mode: test context_transformed features
+        print("Testing TRANSFORMED context features (leak-resistant)...")
+        
+        context_trans_features = FEATURE_GROUPS['odds'] + FEATURE_GROUPS['context_transformed']
+        results.append(test_feature_combination(
+            X, y, context_trans_features, "6. Odds + Context_Transformed (2 ratios)"
+        ))
+    else:
+        # Original mode: test schedule + context (known leaky)
+        # Test 7: Odds + Schedule
+        if 'schedule' in FEATURE_GROUPS:
+            schedule_features = FEATURE_GROUPS['odds'] + FEATURE_GROUPS['schedule']
+            results.append(test_feature_combination(
+                X, y, schedule_features, "6. Odds + Schedule (SUSPECTED)"
+            ))
+        
+        # Test 8: Odds + Context
+        context_features = FEATURE_GROUPS['odds'] + FEATURE_GROUPS['context']
+        results.append(test_feature_combination(
+            X, y, context_features, "7. Odds + Context (SUSPECTED)"
+        ))
+        
+        # Test 9: Odds + Schedule + Context (CRITICAL)
+        if 'schedule' in FEATURE_GROUPS:
+            time_features = FEATURE_GROUPS['odds'] + FEATURE_GROUPS['schedule'] + FEATURE_GROUPS['context']
+            results.append(test_feature_combination(
+                X, y, time_features, "8. Odds + Schedule + Context (HIGH RISK)"
+            ))
     
     # Test 10: Team features combined
     print("\n" + "="*80)
@@ -269,12 +281,14 @@ def main():
         X, y, team_features, "9. Odds + All Team Features"
     ))
     
-    # Test 11: All 50 features (replication)
-    all_50 = []
+    # Test 11: All features (replication)
+    all_features_list = []
     for group in FEATURE_GROUPS.values():
-        all_50.extend(group)
+        all_features_list.extend(group)
+    
+    test_name = f"10. ALL {len(all_features_list)} FEATURES ({'Transformed' if use_transformed else 'Original'})"
     results.append(test_feature_combination(
-        X, y, all_50, "10. ALL 50 FEATURES (Replication)"
+        X, y, all_features_list, test_name
     ))
     
     # Summary table
