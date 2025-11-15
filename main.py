@@ -6690,11 +6690,20 @@ async def get_market_data(
                         
                         result = momentum_calc.compute_momentum(match_id)
                         if result:
-                            momentum_home, momentum_away, breakdown = result
+                            momentum_home, momentum_away, driver_summary = result
+                            
+                            # Ensure driver_summary has all required fields with defaults
+                            formatted_drivers = {
+                                "shots_on_target": driver_summary.get("shots_on_target", "balanced"),
+                                "possession": driver_summary.get("possession", "balanced"),
+                                "red_card": driver_summary.get("red_card", None)
+                            }
+                            
                             match_obj["momentum"] = {
                                 "home": momentum_home,
                                 "away": momentum_away,
-                                "breakdown": breakdown
+                                "minute": live_data.get("minute", 0),  # Add current minute
+                                "driver_summary": formatted_drivers  # Rename from breakdown
                             }
                             logger.info(f"✅ Added momentum for match {match_id}: H={momentum_home}, A={momentum_away}")
                     except Exception as e:

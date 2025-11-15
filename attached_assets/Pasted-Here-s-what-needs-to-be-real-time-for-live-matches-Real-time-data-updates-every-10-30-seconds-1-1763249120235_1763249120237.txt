@@ -1,0 +1,28 @@
+Here’s what needs to be real-time for live matches:
+Real-time data (updates every 10–30 seconds)
+1. live_data — highest priority
+"live_data": {  "current_score": { "home": 1, "away": 0 },  // Updates when goals scored  "minute": 37,                                // Updates every minute  "period": "1H",                              // Updates at HT/2H  "statistics": {                              // Updates every 30s    "shots": { "home": 8, "away": 5 },    "shots_on_target": { "home": 3, "away": 2 },    "possession": { "home": 55, "away": 45 },    "corners": { "home": 4, "away": 2 },    "fouls": { "home": 6, "away": 8 },    "yellow_cards": { "home": 1, "away": 2 },    "red_cards": { "home": 0, "away": 0 },    // ... other stats  },  "events": [                                  // Updates when events occur    { "minute": 23, "type": "goal", "team": "home", "player": "Player Name" }  ]}
+2. momentum — updates every 30–60 seconds
+"momentum": {  "home": 65,                                  // Updates as match progresses  "away": 35,                                  // Updates as match progresses  "minute": 37,                                // Current minute  "driver_summary": {                          // Updates when key events happen    "shots_on_target": "home",                 // Changes based on recent shots    "possession": "home",                      // Changes based on recent possession    "red_card": null                           // Updates if red card occurs  }}
+3. model_markets — updates every 30–60 seconds
+"model_markets": {  "updated_at": "2025-11-15T23:03:06.685179",  // Timestamp of last update  "win_draw_win": {                            // Updates as match progresses    "home": 0.48,                              // Changes based on current state    "draw": 0.26,    "away": 0.26  },  "over_under": {                              // Updates as goals are scored    "over": 0.65,    "under": 0.35,    "line": 2.5  },  "next_goal": {                               // Updates frequently    "home": 0.45,    "none": 0.30,    "away": 0.25  }}
+4. odds — updates every 10–30 seconds (for RealtimeAdvancedMarkets)
+"odds": {  "novig_current": {                           // Updates as odds change    "home": 0.122,    "draw": 0.206,    "away": 0.672  },  "books": { ... }                             // Updates as bookmakers adjust}
+Static data (doesn’t need real-time updates)
+match_id
+kickoff_at
+league (name, id)
+home / away (team names, logos)
+status (set to "LIVE" once, doesn't change until finished)
+Update frequency recommendations
+live_data.minute and live_data.current_score: every 1–5 seconds (when goals occur)
+live_data.statistics: every 30 seconds
+momentum: every 30–60 seconds
+model_markets: every 30–60 seconds
+odds: every 10–30 seconds
+WebSocket delta format
+The frontend expects partial updates via WebSocket. You can send only changed fields:
+{  "match_id": 1351162,  "minute": 38,                    // Just the minute if only that changed  "live_data": {    "current_score": { "home": 1, "away": 0 }  // Just score if only that changed  }}
+Or full objects:
+{  "match_id": 1351162,  "momentum": { ... },             // Full momentum object  "model_markets": { ... }         // Full model_markets object}
+The frontend merges these deltas into the existing match data.
