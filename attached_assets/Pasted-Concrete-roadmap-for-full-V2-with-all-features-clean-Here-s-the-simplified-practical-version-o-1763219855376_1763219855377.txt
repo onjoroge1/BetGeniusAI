@@ -1,0 +1,97 @@
+Concrete roadmap for “full V2 with all features” (clean)
+
+Here’s the simplified, practical version of the roadmap your backend agent wrote.
+
+PHASE 0 – Pre-flight (Data sanity) – Do this first
+
+Goal: Make sure leak isn’t coming from dirty tables.
+	1.	Audit match_context timestamps
+	•	Check that match_context.created_at is always ≤ match_date:
+	•	If you see rows where created_at > match_date → that’s straight future leakage, you must fix the pipeline.
+	2.	Collision / fingerprint analysis (time features)
+	•	Look at how often (rest_days_home, rest_days_away, congestion_h, congestion_a) combos repeat.
+	•	If most tuples are unique or near-unique, they act like a match ID when combined with form/h2h.
+
+If either of those looks bad → fix data first, before retraining.
+
+⸻
+
+PHASE A – Diagnose: find the leak “combo”
+
+Goal: Confirm which combo of feature groups creates leakage.
+	1.	Enhanced ablation (you already have leak_detector_ablation.py)
+	•	Test sets like:
+	•	Odds
+	•	Odds + Drift
+	•	Odds + ELO
+	•	Odds + Form
+	•	Odds + Schedule
+	•	Odds + Context
+	•	Odds + Schedule + Context
+	•	Odds + All Team
+	•	All 50 features
+	•	Use random-label sanity:
+	•	< 40% → okay
+	•	40% → leaking
+	2.	Expect:
+Everything individually might pass, but:
+	•	Odds + Schedule + Context or
+	•	Odds + Team + Schedule/Context
+will likely spike above 40% → that’s the match fingerprint interaction.
+	3.	Remove obvious duplicates
+	•	days_since_home_last_match vs rest_days_home (same data).
+	•	Keep one; drop the other (feature count 50 → 48).
+
+⸻
+
+PHASE B – Fix time/context features (transform, don’t nuke, if possible)
+
+Goal: Keep the signal (“rest advantage”) but kill the fingerprint.
+
+Two main tricks:
+	1.	Bin absolute days / congestion
+	•	Instead of rest_days_home = 3, use bins:
+	•	0 = 0–2 days
+	•	1 = 3–4 days
+	•	2 = 5–7 days
+	•	3 = 8+ days
+	•	Same idea for congestion (0,1,2,3+ matches in last 7 days).
+	2.	Use relative ratios
+	•	rest_advantage = rest_days_home / (rest_days_away + 1)
+	•	congestion_ratio = (cong_home + 1) / (cong_away + 1)
+
+Net effect:
+	•	4 raw time features → 2 or 4 coarser, more generic features.
+	•	Much harder to uniquely identify a specific match, but the model can still learn:
+	•	“Home team more rested?”
+	•	“Away team more congested?” etc.
+
+	3.	Re-run sanity with transformed features
+	•	Random labels and row permutation must drop into mid-30s%.
+	•	If still ≥40% even after binning/ratios, the nuclear option is:
+	•	Drop time/context features entirely and run with ~46 features.
+
+⸻
+
+PHASE C – Retrain clean V2 (with full feature set)
+
+Once sanity is clean:
+	1.	Retrain with ~46–48 features
+	•	Include:
+	•	Odds + drift
+	•	ELO
+	•	Form
+	•	H2H
+	•	Advanced stats
+	•	Transformed context/time (or drop if they still leak)
+	•	Meta features (league_tier, favorite_strength)
+	•	Apply Step A hyperparameters:
+	•	num_leaves ≈ 31
+	•	min_data_in_leaf ≈ 50
+	•	feature_fraction ≈ 0.8
+	•	Apply draw class weight ≈ 1.30x to help draws.
+	2.	Validation targets
+	•	Sanity: both random label & row perm < 40%.
+	•	Accuracy: 52–54% on time-based CV.
+	•	LogLoss: < 1.0.
+	•	Brier: ~0.24–0.25.
