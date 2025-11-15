@@ -6513,7 +6513,6 @@ async def get_market_data(
                 has_fresh_live_data = cursor.fetchone()[0] > 0
                 
                 # Determine actual status based on kickoff time and live data
-                from datetime import datetime, timezone
                 now_utc = datetime.now(timezone.utc)
                 kickoff_utc = kickoff_at.replace(tzinfo=timezone.utc) if kickoff_at and kickoff_at.tzinfo is None else kickoff_at
                 
