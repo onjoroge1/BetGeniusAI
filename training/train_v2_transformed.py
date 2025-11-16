@@ -120,6 +120,19 @@ def main():
     print("  SANITY CHECK: Random Label Test")
     print("="*80)
     
+    # Compute class distribution
+    class_counts = np.bincount(y)
+    class_probs = class_counts / len(y)
+    majority_acc = class_probs.max()
+    
+    print("Class distribution (0=Home, 1=Draw, 2=Away):")
+    for i, (count, prob) in enumerate(zip(class_counts, class_probs)):
+        label = ['Home', 'Draw', 'Away'][i]
+        print(f"  {label}: {count} matches ({prob:.1%})")
+    
+    print(f"\nMajority-class baseline: {majority_acc:.3f}")
+    print("Training on random labels (should be ≤ baseline + 0.05)...")
+    
     rng = np.random.default_rng(42)
     y_rand = rng.permutation(y)
     split = int(len(X) * 0.8)
@@ -140,7 +153,6 @@ def main():
         "seed": 42,
     }
     
-    print("Training on random labels (should be < 0.40 acc)...")
     rand_model = lgb.train(
         rand_params,
         train_data,
@@ -157,16 +169,20 @@ def main():
     acc_rand = accuracy_score(y_va, y_pred_rand)
     ll_rand = log_loss(y_va, y_proba_rand)
     
+    # Dynamic threshold based on class imbalance
+    threshold = majority_acc + 0.05
+    
     print(f"\n  Random-label accuracy: {acc_rand:.3f}")
     print(f"  Random-label logloss : {ll_rand:.3f}")
-    print(f"  Threshold: < 0.40 = CLEAN")
+    print(f"  Threshold: < {threshold:.3f} (majority baseline + 0.05)")
     
-    if acc_rand >= 0.40:
-        print("\n❌ FAIL: Random-label sanity still too high, aborting.")
-        print("   Features may still contain leakage.")
+    if acc_rand >= threshold:
+        print(f"\n❌ FAIL: Random-label accuracy ({acc_rand:.3f}) exceeds threshold ({threshold:.3f})")
+        print("   Features may contain leakage.")
         return
     else:
-        print(f"\n✅ PASS: Random-label sanity looks clean ({acc_rand:.3f} < 0.40)")
+        print(f"\n✅ PASS: Random-label sanity clean ({acc_rand:.3f} < {threshold:.3f})")
+        print("   Model cannot exploit features on shuffled labels - no leakage detected.")
     
     # === REAL TRAINING WITH TIME CV ===
     print("\n" + "="*80)
