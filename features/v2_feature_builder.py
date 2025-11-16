@@ -633,39 +633,48 @@ class V2FeatureBuilder:
     
     def _build_context_features(self, match_id: int, cutoff_time: datetime) -> Dict[str, float]:
         """
-        Build match context features from Phase 2 data (4 features)
+        Build match context features from match_context_v2 (clean, leak-free data)
         
         Features:
-        - rest_days_home: Days since home team's last match (from match_context)
-        - rest_days_away: Days since away team's last match (from match_context)
-        - schedule_congestion_home_7d: Home team matches in last 7 days (from match_context)
-        - schedule_congestion_away_7d: Away team matches in last 7 days (from match_context)
+        - rest_days_home: Days since home team's last match
+        - rest_days_away: Days since away team's last match
+        - schedule_congestion_home_7d: Home team matches in last 7 days
+        - schedule_congestion_away_7d: Away team matches in last 7 days
+        
+        Note: Uses match_context_v2 (created with strict pre-match timestamps)
+        instead of match_context (contaminated with post-match data).
         """
         query = text("""
             SELECT 
                 rest_days_home,
                 rest_days_away,
-                schedule_congestion_home_7d,
-                schedule_congestion_away_7d
-            FROM match_context
+                matches_home_last_7d,
+                matches_away_last_7d
+            FROM match_context_v2
             WHERE match_id = :match_id
+              AND as_of_time <= :cutoff_time
+            ORDER BY as_of_time DESC
+            LIMIT 1
         """)
         
         try:
             with self.engine.connect() as conn:
-                result = conn.execute(query, {"match_id": match_id}).mappings().first()
+                result = conn.execute(query, {
+                    "match_id": match_id,
+                    "cutoff_time": cutoff_time
+                }).mappings().first()
             
             if result:
                 return {
                     'rest_days_home': float(result['rest_days_home'] or 7.0),
                     'rest_days_away': float(result['rest_days_away'] or 7.0),
-                    'schedule_congestion_home_7d': float(result['schedule_congestion_home_7d'] or 0.0),
-                    'schedule_congestion_away_7d': float(result['schedule_congestion_away_7d'] or 0.0)
+                    'schedule_congestion_home_7d': float(result['matches_home_last_7d'] or 0.0),
+                    'schedule_congestion_away_7d': float(result['matches_away_last_7d'] or 0.0)
                 }
         except Exception as e:
             logger.debug(f"Context features unavailable for match {match_id}: {e}")
         
-        # Graceful defaults if no Phase 2 data yet
+        # Graceful defaults if no context data available
         return {
             'rest_days_home': 7.0,
             'rest_days_away': 7.0,

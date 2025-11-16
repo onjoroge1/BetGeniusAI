@@ -34,6 +34,8 @@ class V2FeatureBuilderTransformed(V2FeatureBuilder):
         """
         Build TRANSFORMED context features (2 features instead of 4)
         
+        Uses clean match_context_v2 data (no post-match contamination).
+        
         Original (LEAKY - 81.61% unique combinations):
         - rest_days_home: 3.0 days
         - rest_days_away: 5.0 days
@@ -50,22 +52,27 @@ class V2FeatureBuilderTransformed(V2FeatureBuilder):
         - rest_advantage: Ratio of home rest to away rest (>1 = home more rested)
         - congestion_ratio: Ratio of home congestion to away congestion (>1 = home busier)
         """
-        # Get raw values from match_context
         from sqlalchemy import text
         
         query = text("""
             SELECT 
                 rest_days_home,
                 rest_days_away,
-                schedule_congestion_home_7d,
-                schedule_congestion_away_7d
-            FROM match_context
+                matches_home_last_7d,
+                matches_away_last_7d
+            FROM match_context_v2
             WHERE match_id = :match_id
+              AND as_of_time <= :cutoff_time
+            ORDER BY as_of_time DESC
+            LIMIT 1
         """)
         
         try:
             with self.engine.connect() as conn:
-                result = conn.execute(query, {"match_id": match_id}).mappings().first()
+                result = conn.execute(query, {
+                    "match_id": match_id,
+                    "cutoff_time": cutoff_time
+                }).mappings().first()
             
             if not result:
                 # No context data - return neutral values
@@ -77,8 +84,8 @@ class V2FeatureBuilderTransformed(V2FeatureBuilder):
             # Extract raw values
             rest_h = float(result['rest_days_home'] or 7.0)
             rest_a = float(result['rest_days_away'] or 7.0)
-            cong_h = float(result['schedule_congestion_home_7d'] or 0.0)
-            cong_a = float(result['schedule_congestion_away_7d'] or 0.0)
+            cong_h = float(result['matches_home_last_7d'] or 0.0)
+            cong_a = float(result['matches_away_last_7d'] or 0.0)
             
             # Transform: Use relative ratios
             # +1 to BOTH numerator and denominator for symmetric smoothing
@@ -129,10 +136,13 @@ class V2FeatureBuilderTransformed(V2FeatureBuilder):
             SELECT 
                 rest_days_home,
                 rest_days_away,
-                schedule_congestion_home_7d,
-                schedule_congestion_away_7d
-            FROM match_context
+                matches_home_last_7d,
+                matches_away_last_7d
+            FROM match_context_v2
             WHERE match_id = :match_id
+              AND as_of_time <= :cutoff_time
+            ORDER BY as_of_time DESC
+            LIMIT 1
         """)
         
         def bin_rest_days(days: float) -> float:
@@ -159,7 +169,10 @@ class V2FeatureBuilderTransformed(V2FeatureBuilder):
         
         try:
             with self.engine.connect() as conn:
-                result = conn.execute(query, {"match_id": match_id}).mappings().first()
+                result = conn.execute(query, {
+                    "match_id": match_id,
+                    "cutoff_time": cutoff_time
+                }).mappings().first()
             
             if not result:
                 # No context data - return neutral bins
@@ -173,8 +186,8 @@ class V2FeatureBuilderTransformed(V2FeatureBuilder):
             # Extract and bin values
             rest_h = float(result['rest_days_home'] or 7.0)
             rest_a = float(result['rest_days_away'] or 7.0)
-            cong_h = float(result['schedule_congestion_home_7d'] or 0.0)
-            cong_a = float(result['schedule_congestion_away_7d'] or 0.0)
+            cong_h = float(result['matches_home_last_7d'] or 0.0)
+            cong_a = float(result['matches_away_last_7d'] or 0.0)
             
             return {
                 'rest_home_bin': bin_rest_days(rest_h),
