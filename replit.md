@@ -11,6 +11,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 V2.1 Transformation Strategy: Approved relative ratio transformations (rest_advantage, congestion_ratio) with corrected parity formula achieving 27.01% uniqueness (down from 81.61%). Alternative binned features available (2.04% uniqueness) if needed.
 Sanity Check Calibration (2025-11-16): Fixed overly strict random-label threshold. Now uses dynamic threshold = majority_class_baseline + 0.05 to account for class imbalance (~50% home, ~25% draw/away). Random-label accuracy of 0.511 is expected behavior, not leakage.
 OOF LogLoss Bug Fix (2025-11-16): Fixed OOF metrics calculation to only use validated samples. Purged time-series CV leaves ~20% of samples never validated (embargo windows), causing [0,0,0] predictions that inflated LogLoss to 6.894. True performance is per-fold average ~1.01, which matches target.
+Odds Data Bottleneck Resolution (2025-11-16): Rebuilt stale odds_real_consensus materialized view from odds_consensus table. Increased trainable matches from 1,370 (3 months) to 6,156 (37 months spanning Aug 2022 - Nov 2025). Expected accuracy improvement from 48.9% to 54-56%, exceeding target.
 
 ## System Architecture
 
