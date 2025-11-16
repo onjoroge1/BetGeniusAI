@@ -1,0 +1,231 @@
+~/workspace$ ./scripts/train_v2.sh --use-transformed
+================================================================================
+  BETGENIUS AI - V2 MODEL TRAINING
+================================================================================
+Started: 2025-11-16 20:41:29 UTC
+
+Configuration:
+  - Features: Transformed (2 context)
+  - Max samples: All available
+  - Sanity checks: Enabled ✅
+================================================================================
+
+2025-11-16 20:41:29,288 - INFO - Using transformed context features
+2025-11-16 20:41:29,288 - INFO - ✅ Database connection verified
+2025-11-16 20:41:29,288 - INFO - Starting V2.3 training (transformed features)...
+================================================================================
+  V2.1 TRANSFORMED TRAINING (LEAKAGE-FREE)
+  Features: 46 total (40 base + 2 context_transformed + 4 drift)
+  Target: 52-54% accuracy with clean sanity checks
+================================================================================
+✅ Loaded 5000 matches
+
+🔨 Building features (transformed context)...
+   This may take 10-15 minutes for 5000 matches...
+2025-11-16 20:41:30,683 - INFO - ✅ V2FeatureBuilder initialized
+   100/5000
+   200/5000
+   300/5000
+   400/5000
+   500/5000
+   600/5000
+   700/5000
+   800/5000
+   900/5000
+   1000/5000
+   1100/5000
+   1200/5000
+   1300/5000
+   1400/5000
+   1500/5000
+   1600/5000
+   1700/5000
+   1800/5000
+   1900/5000
+   2000/5000
+   2100/5000
+   2200/5000
+   2300/5000
+   2400/5000
+   2500/5000
+   2600/5000
+   2700/5000
+   2800/5000
+   2900/5000
+   3000/5000
+   3100/5000
+   3200/5000
+   3300/5000
+   3400/5000
+   3500/5000
+   3600/5000
+   3700/5000
+   3800/5000
+   3900/5000
+   4000/5000
+   4100/5000
+   4200/5000
+   4300/5000
+   4400/5000
+   4500/5000
+   4600/5000
+   4700/5000
+   4800/5000
+   4900/5000
+   5000/5000
+✅ Built features for 5000 matches
+   Feature count: 46
+
+Dataset: 5000 matches x 46 features
+
+================================================================================
+  FEATURE UNIQUENESS DIAGNOSTICS
+================================================================================
+Inspecting features for potential match fingerprinting...
+
+Top 15 most unique features (out of 5000 total matches):
+  rest_advantage                          :  2265 unique ( 45.3%) ✅ OK
+  p_last_home                             :   961 unique ( 19.2%) ✅ OK
+  p_open_away                             :   961 unique ( 19.2%) ✅ OK
+  p_open_home                             :   961 unique ( 19.2%) ✅ OK
+  market_entropy                          :   961 unique ( 19.2%) ✅ OK
+  p_last_away                             :   961 unique ( 19.2%) ✅ OK
+  p_last_draw                             :   960 unique ( 19.2%) ✅ OK
+  favorite_margin                         :   960 unique ( 19.2%) ✅ OK
+  p_open_draw                             :   960 unique ( 19.2%) ✅ OK
+  prob_drift_home                         :   256 unique (  5.1%) ✅ OK
+  prob_drift_away                         :   256 unique (  5.1%) ✅ OK
+  drift_magnitude                         :   256 unique (  5.1%) ✅ OK
+  prob_drift_draw                         :   256 unique (  5.1%) ✅ OK
+  home_form_goals_conceded                :    22 unique (  0.4%) ✅ OK
+  away_form_goals_scored                  :    22 unique (  0.4%) ✅ OK
+
+Features with >80% uniqueness (fingerprint risk):
+  ✅ None found - good sign!
+
+================================================================================
+  SANITY CHECK: Random Label Test
+================================================================================
+Class distribution (0=Home, 1=Draw, 2=Away):
+  Home: 2169 matches (43.4%)
+  Draw: 1267 matches (25.3%)
+  Away: 1564 matches (31.3%)
+
+Majority-class baseline: 0.434
+Training on random labels (should be ≤ baseline + 0.05)...
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[1] valid_0's multi_logloss: 1.06982
+
+  Random-label accuracy: 0.446
+  Random-label logloss : 1.070
+  Threshold: < 0.484 (majority baseline + 0.05)
+
+✅ PASS: Random-label sanity clean (0.446 < 0.484)
+   Model cannot exploit features on shuffled labels - no leakage detected.
+
+================================================================================
+  V2.1 TRAINING (Time-Based Cross-Validation)
+================================================================================
+
+--- Fold 1/5 ---
+Training until validation scores don't improve for 25 rounds
+[50]    valid_0's multi_logloss: 0.0369019
+[100]   valid_0's multi_logloss: 0.0129535
+Early stopping, best iteration is:
+[119]   valid_0's multi_logloss: 0.0122152
+  Fold Acc: 0.998
+  Fold LL : 0.012
+  Fold Brier: 0.002
+
+--- Fold 2/5 ---
+Training until validation scores don't improve for 25 rounds
+[50]    valid_0's multi_logloss: 0.0320824
+[100]   valid_0's multi_logloss: 0.00327614
+[150]   valid_0's multi_logloss: 0.00196642
+[200]   valid_0's multi_logloss: 0.000478493
+Early stopping, best iteration is:
+[215]   valid_0's multi_logloss: 0.000413048
+  Fold Acc: 1.000
+  Fold LL : 0.000
+  Fold Brier: 0.000
+
+--- Fold 3/5 ---
+Training until validation scores don't improve for 25 rounds
+[50]    valid_0's multi_logloss: 0.0341497
+[100]   valid_0's multi_logloss: 0.00392119
+[150]   valid_0's multi_logloss: 0.00238827
+[200]   valid_0's multi_logloss: 0.000670442
+[250]   valid_0's multi_logloss: 0.000239585
+Early stopping, best iteration is:
+[241]   valid_0's multi_logloss: 0.000238638
+  Fold Acc: 1.000
+  Fold LL : 0.000
+  Fold Brier: 0.000
+
+--- Fold 4/5 ---
+Training until validation scores don't improve for 25 rounds
+[50]    valid_0's multi_logloss: 0.0292378
+[100]   valid_0's multi_logloss: 0.00105201
+[150]   valid_0's multi_logloss: 5.15924e-05
+[200]   valid_0's multi_logloss: 8.56122e-06
+[250]   valid_0's multi_logloss: 4.42448e-06
+Early stopping, best iteration is:
+[230]   valid_0's multi_logloss: 3.91746e-06
+  Fold Acc: 1.000
+  Fold LL : 0.000
+  Fold Brier: 0.000
+
+--- Fold 5/5 ---
+Training until validation scores don't improve for 25 rounds
+[50]    valid_0's multi_logloss: 0.0290793
+[100]   valid_0's multi_logloss: 0.00105144
+[150]   valid_0's multi_logloss: 3.91733e-05
+[200]   valid_0's multi_logloss: 1.57188e-06
+[250]   valid_0's multi_logloss: 3.00123e-07
+[300]   valid_0's multi_logloss: 2.80869e-07
+Early stopping, best iteration is:
+[289]   valid_0's multi_logloss: 2.80869e-07
+  Fold Acc: 1.000
+  Fold LL : 0.000
+  Fold Brier: 0.000
+
+================================================================================
+  V2.1 OOF METRICS (Out-of-Fold)
+================================================================================
+Validated samples: 4165 / 5000 (83.3%)
+  Accuracy: 1.000
+  LogLoss : 0.003
+  Brier   : 0.000
+
+  Grade: A
+  Target: 52-54% (A- grade)
+
+================================================================================
+  TRAINING FINAL MODEL (Full Dataset)
+================================================================================
+
+✅ Saved final model to artifacts/models/v2_transformed_lgbm.txt
+✅ Saved feature info to artifacts/models/v2_transformed_features.pkl
+
+================================================================================
+  TRAINING COMPLETE
+================================================================================
+  Model: artifacts/models/v2_transformed_lgbm.txt
+  Accuracy: 1.000 (A)
+  Ready for A/B testing vs V2.0 odds-only baseline
+
+================================================================================
+✅ TRAINING COMPLETED SUCCESSFULLY
+================================================================================
+
+Output files:
+  - models/v2_lgbm_production.txt (trained model)
+  - models/v2_training_metadata.json (metrics)
+
+Next steps:
+  1. Review sanity checks in the output above
+  2. Check random-label accuracy (<0.40 = clean)
+  3. Deploy model if all checks pass
+================================================================================
+~/workspace$ 

@@ -1,0 +1,288 @@
+Fam… **YES** — this is *catastrophic overfitting*.
+Like, **not normal**, “this model is memorizing the entire dataset” overfitting.
+
+Let me break it down cleanly and bluntly.
+
+---
+
+# 🚨 1. What you're seeing is impossible in real football data
+
+Your folds:
+
+```
+Fold Acc: 0.998
+Fold Acc: 1.000
+Fold Acc: 1.000
+Fold Acc: 1.000
+Fold Acc: 1.000
+```
+
+And OOF:
+
+```
+OOF Accuracy: 1.000
+OOF Brier: 0.000
+OOF LogLoss: 0.003
+```
+
+This means:
+
+> LightGBM is predicting the EXACT result for **every** match in holdout
+> using the features.
+
+That **cannot** happen on real football outcomes. Even The Book doesn’t know outcomes with 100% certainty.
+
+So the model is not “smart.”
+
+**It is memorizing.**
+Which means:
+
+### ❌ There is still leakage
+
+**OR**
+
+### ❌ There are features that encode the outcome directly / almost directly
+
+**OR**
+
+### ❌ The time-based CV split is broken
+
+**OR**
+
+### ❌ You're no longer training on 1,370 matches — now it’s 5,000 matches, which includes the future in the past folds
+
+**OR**
+
+### ❌ odds features suddenly include post-match info or final line settlement
+
+One of those is happening.
+
+---
+
+# 🚨 2. The smoking gun is this line:
+
+```
+Loaded 5000 matches
+```
+
+Before, you trained on **1,370** matches, because:
+
+* They had `match_context_v2`
+* AND they had book odds (`odds_real_consensus`)
+* AND they were in `training_matches`
+
+But suddenly:
+
+> **Your training set jumped to 5,000 matches**.
+
+NOT POSSIBLE without:
+
+* A new join,
+* A changed DB state,
+* Or odds being duplicated / incorrectly joined
+* Or training script being altered to pull more matches
+
+And *5000 matches* created a super obvious timeline leak into the earlier folds.
+
+**Time-based CV is now mixing FUTURE matches into the past folds.**
+That guarantees overfitting.
+
+---
+
+# 🚨 3. Why every fold is 1.000 accuracy
+
+### ➤ Overfitting Cause #1: FUTURE ODDS VALUES ARE LEAKING
+
+If the time split isn’t purging future data properly:
+
+* The model sees odds for the same match in train and validation.
+* Or worse, it sees future lines for other matches from the same date.
+
+This leads to:
+
+* Perfect memorization of probability distributions.
+
+### ➤ Overfitting Cause #2: Some internal drift features might now be using full-history odds tables
+
+If drift features include:
+
+* movement from pre-match to close
+* OR any late odds snapshot
+* OR improperly filtered odds history
+
+…that introduces **post-match** signals.
+
+### ➤ Overfitting Cause #3: The CV is broken
+
+Your fold LL curve:
+
+```
+[50] logloss 0.03
+[100] logloss 0.01
+[200] logloss 0.0004
+[250] logloss 0.0002
+```
+
+This is classic “training and validation contain the *same examples*.”
+
+This means:
+
+**Validation sets overlap train sets.**
+That is ALWAYS 100% overfit.
+
+---
+
+# 🚨 4. THIS MODEL CANNOT BE USED.
+
+Zero chance this is a real model.
+It is not giving true predictive power.
+It has memorized outcomes.
+
+---
+
+# 🔥 5. WHAT TO DO NEXT (step-by-step fix)
+
+Here’s how we debug this quickly and properly.
+
+---
+
+## Step 1 — Print the UNIQUE match_ids in each fold
+
+Add this inside your CV loop:
+
+```python
+print(f"Fold {fold}")
+print("Train max date:", dates[tr_idx].max())
+print("Valid min date:", dates[va_idx].min())
+print("Overlap:", np.intersect1d(tr_idx, va_idx).shape[0])
+```
+
+If overlap > 0 → your splitter is broken.
+
+If train max date >= valid min date → leakage through time order.
+
+---
+
+## Step 2 — Confirm odds join
+
+Query the DB:
+
+```sql
+SELECT COUNT(*)
+FROM odds_real_consensus 
+WHERE last_updated_at > match_date + INTERVAL '1 hour';
+```
+
+If this returns > 0 → book odds are using post-match settlement values.
+
+THAT will give you 1.0 accuracy.
+
+---
+
+## Step 3 — Confirm training data source
+
+The jump from **1370 → 5000** matches means:
+
+* You are now including matches with **no odds**.
+* Or including **future matches** incorrectly.
+* Or joining **wrong odds table**.
+
+Run:
+
+```sql
+SELECT COUNT(*) 
+FROM training_matches tm
+LEFT JOIN odds_real_consensus orc ON tm.match_id = orc.match_id
+WHERE orc.match_id IS NULL;
+```
+
+You should get:
+
+* ~5k - 1370 = ~3630 matches with **no odds**.
+
+But your model *loves* matches without odds, which is suspicious.
+
+---
+
+## Step 4 — Check drift features
+
+If your drift features are based on:
+
+* `latest_odds - opening_odds`
+* or even worse:
+* `closing_odds - opening_odds`
+
+…those use closing odds, which settle **AFTER the match**.
+
+That alone will cause perfect leakage.
+
+Search for:
+
+```
+close
+final
+settle
+last
+closing
+```
+
+in your odds table.
+
+If ANY of your odds sources include:
+
+* post-match correction,
+* refund adjustment,
+* or settlement closing lines,
+
+the model will cheat.
+
+---
+
+# 🧠 Summary — You Are 100% Overfitting
+
+**Evidence:**
+
+* Every fold has ~0.0 logloss
+* Every fold has ~1.000 accuracy
+* Final model accuracy = 1.000
+* Model predicts outcomes perfectly on unseen data
+* Random-label test passes → context is clean → leak is in ODDS or CV
+
+---
+
+# 🧨 My verdict
+
+You do NOT have a clean model.
+
+The issue is:
+
+> **Odds data or CV split is leaking post-match information.**
+> Not the new match_context_v2.
+
+The next step is EXACTLY what I said:
+
+👉 Print fold date boundaries
+👉 Check odds snapshots for timestamps
+👉 Inspect drift features
+👉 Confirm your CV is actually purged and embargoed correctly
+
+If you want, I can go into your:
+
+* `prob_drift_home`
+* `drift_magnitude`
+* `p_last_home`
+* `p_open_home`
+* etc.
+
+And identify which one is leaking.
+
+Just upload:
+
+```
+v2_feature_builder_transformed.py
+v2_feature_builder.py
+```
+
+together with the odds table schema.
+
+We will find the leak TODAY.
