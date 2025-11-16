@@ -35,11 +35,14 @@ import argparse
 import logging
 from datetime import datetime
 
+# CRITICAL: Set library path BEFORE importing training modules (which import LightGBM)
+os.environ['LD_LIBRARY_PATH'] = "/nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib"
+
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Only import the transformed training module (the raw v2 module doesn't exist)
 from training.train_v2_transformed import main as train_transformed
-from training.train_v2 import main as train_raw
 
 # Configure logging
 logging.basicConfig(
@@ -121,14 +124,15 @@ def main():
     
     logger.info("✅ Database connection verified")
     
-    # Run training
+    # Run training (only transformed version available)
     try:
-        if args.use_transformed:
-            logger.info("Starting V2.3 training (transformed features)...")
-            train_transformed()
-        else:
-            logger.info("Starting V2 training (raw features)...")
-            train_raw()
+        if not args.use_transformed:
+            print("⚠️  WARNING: Raw V2 training not available")
+            print("    Using TRANSFORMED features instead (recommended)")
+            print()
+        
+        logger.info("Starting V2.3 training (transformed features)...")
+        train_transformed()
         
         print()
         print("=" * 80)

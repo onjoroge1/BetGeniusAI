@@ -20,13 +20,14 @@ V2.1 Transformation Strategy: Approved relative ratio transformations (rest_adva
 - **Deployment Architecture**: Supports Autoscale (API-only) and Development/VM (full functionality with background scheduler) modes.
 
 ### Machine Learning Pipeline
-- **Models**: Production V1 (weighted consensus) and V2 (LightGBM ensemble) models. V2.1 in development with leak-resistant transformations.
-- **Feature Engineering**: Reusable pipeline with 48 features for V2 (reduced from 50 after removing duplicates). V2.1 uses transformed features (46 total: 40 base + 2 context_transformed + 4 drift).
-- **Leak Mitigation**: V2.1 implements transformed feature builder reducing match fingerprinting from 81.61% → 27.01% uniqueness via relative ratios (rest_advantage, congestion_ratio).
-- **Training Data**: Utilizes a substantial dataset of matches with full feature coverage.
-- **Calibration & Constraints**: Extensive testing for optimal model configuration.
+- **Models**: Production V1 (weighted consensus) and V2 (LightGBM ensemble) models. V2.3 (2025-11-16) uses leak-free match_context_v2 table with 0% contamination.
+- **Feature Engineering**: Reusable pipeline with 46 features for V2.3 (40 base + 2 context_transformed + 4 drift). All context features computed using ONLY past matches with strict T-1h cutoff.
+- **Leak Elimination (2025-11-16)**: Replaced contaminated match_context table (100% post-match data) with match_context_v2 (0% contamination, validated). Automated pipeline ensures all context data uses as_of_time = match_date - 1 hour.
+- **Training Data**: 1,370 matches (2020+) with 100% clean context coverage. Historical backfill completed via scripts/backfill_match_context_v2.py.
+- **Calibration & Constraints**: Extensive testing for optimal model configuration including random-label sanity checks (<40% target).
 - **Shadow Testing System**: Operational market-delta ridge regression for A/B testing and auto-promotion.
 - **Auto-Retraining System**: Models retrain automatically based on match volume.
+- **Match Context Builder**: Automated service runs every 5 minutes in scheduler, populates match_context_v2 for new matches with zero manual intervention.
 - **Market System**: Poisson-based market expansion providing 50+ mathematically consistent markets.
 - **Accuracy Tracking**: Automated backend monitoring for predictions, calculating metrics (Brier score, LogLoss, Hit-rate).
 - **Live Betting Intelligence**: Includes a Momentum Engine (0-100 scoring based on weighted features) and a Live Market Engine for in-play predictions with time-aware blending and momentum boost.
