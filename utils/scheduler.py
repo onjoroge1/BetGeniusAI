@@ -72,6 +72,8 @@ class BackgroundScheduler:
         # Background task tracking (for non-blocking execution)
         self.tasks: dict = {}  # name -> asyncio.Task
         self.last_run: dict = {}  # name -> datetime
+        # Match context builder (V2 - runs every 5 minutes to populate match_context_v2)
+        self.last_context_builder_run: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -95,6 +97,7 @@ class BackgroundScheduler:
         logger.info("📊 Phase 2 Momentum Engine enabled - runs every 60 seconds for live matches")
         logger.info("🎲 Phase 2 Live Market Engine enabled - runs every 60 seconds for in-play predictions")
         logger.info("🗑️  Phase 2 Stale Data Cleanup enabled - runs every 30 minutes to remove old live data")
+        logger.info("🔨 Match Context Builder (V2) enabled - runs every 5 minutes to populate match_context_v2")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -341,6 +344,10 @@ class BackgroundScheduler:
                 # 🗑️ PHASE 2: Stale data cleanup - runs every 30 minutes to remove old live data
                 if "stale_cleanup" not in self.last_run or (now - self.last_run["stale_cleanup"]).total_seconds() >= 1800:
                     await self._spawn("stale_cleanup", self._cleanup_stale_live_data, timeout=30)
+                
+                # 🔨 Match Context Builder (V2) - runs every 5 minutes to populate match_context_v2
+                if "context_builder" not in self.last_run or (now - self.last_run["context_builder"]).total_seconds() >= 300:
+                    await self._spawn("context_builder", self._run_match_context_builder, timeout=60)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -796,6 +803,28 @@ class BackgroundScheduler:
         except Exception as e:
             logger.error(f"🗑️ Stale data cleanup error: {e}")
             self.last_run["stale_cleanup"] = datetime.utcnow()
+    
+    async def _run_match_context_builder(self):
+        """
+        🔨 Match Context Builder (V2)
+        Automatically builds match_context_v2 entries for new matches
+        Uses strict pre-match timestamps to prevent data leakage
+        Runs every 5 minutes
+        """
+        try:
+            from models.match_context_builder import build_context_for_recent_matches
+            
+            logger.debug("🔨 Context builder: Checking for new matches...")
+            rows_created = build_context_for_recent_matches(lookback_hours=48)
+            
+            if rows_created > 0:
+                logger.info(f"🔨 Context builder: Built context for {rows_created} new matches")
+            
+            self.last_run["context_builder"] = datetime.utcnow()
+            
+        except Exception as e:
+            logger.error(f"🔨 Match context builder error: {e}")
+            self.last_run["context_builder"] = datetime.utcnow()
     
     async def _run_clv_ttl_cleanup(self):
         """Archive expired CLV alerts to history table"""
