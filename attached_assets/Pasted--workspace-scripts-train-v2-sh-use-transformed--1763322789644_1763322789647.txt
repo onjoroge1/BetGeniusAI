@@ -1,0 +1,186 @@
+~/workspace$ ./scripts/train_v2.sh --use-transformed
+================================================================================
+  BETGENIUS AI - V2 MODEL TRAINING
+================================================================================
+Started: 2025-11-16 19:04:36 UTC
+
+Configuration:
+  - Features: Transformed (2 context)
+  - Max samples: All available
+  - Sanity checks: Enabled ✅
+================================================================================
+
+2025-11-16 19:04:36,775 - INFO - Using transformed context features
+2025-11-16 19:04:36,775 - INFO - ✅ Database connection verified
+2025-11-16 19:04:36,776 - INFO - Starting V2.3 training (transformed features)...
+================================================================================
+  V2.1 TRANSFORMED TRAINING (LEAKAGE-FREE)
+  Features: 46 total (40 base + 2 context_transformed + 4 drift)
+  Target: 52-54% accuracy with clean sanity checks
+================================================================================
+✅ Loaded 1370 matches
+
+🔨 Building features (transformed context)...
+   This may take 10-15 minutes for 5000 matches...
+2025-11-16 19:04:38,042 - INFO - ✅ V2FeatureBuilder initialized
+   100/1370
+   200/1370
+   300/1370
+   400/1370
+   500/1370
+   600/1370
+   700/1370
+   800/1370
+   900/1370
+   1000/1370
+   1100/1370
+   1200/1370
+   1300/1370
+✅ Built features for 1370 matches
+   Feature count: 46
+
+Dataset: 1370 matches x 46 features
+
+================================================================================
+  FEATURE UNIQUENESS DIAGNOSTICS
+================================================================================
+Inspecting features for potential match fingerprinting...
+
+Top 15 most unique features (out of 1370 total matches):
+  p_last_home                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_last_draw                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_last_away                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_open_home                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_open_draw                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_open_away                             :  1370 unique (100.0%) ⚠️  HIGH
+  dispersion_home                         :  1370 unique (100.0%) ⚠️  HIGH
+  dispersion_draw                         :  1370 unique (100.0%) ⚠️  HIGH
+  dispersion_away                         :  1370 unique (100.0%) ⚠️  HIGH
+  book_dispersion                         :  1370 unique (100.0%) ⚠️  HIGH
+  volatility_home                         :  1370 unique (100.0%) ⚠️  HIGH
+  volatility_draw                         :  1370 unique (100.0%) ⚠️  HIGH
+  volatility_away                         :  1370 unique (100.0%) ⚠️  HIGH
+  favorite_margin                         :  1370 unique (100.0%) ⚠️  HIGH
+  market_entropy                          :  1370 unique (100.0%) ⚠️  HIGH
+
+Features with >80% uniqueness (fingerprint risk):
+  ❌ p_last_home: 1370 / 1370 (100.0%)
+  ❌ p_last_draw: 1370 / 1370 (100.0%)
+  ❌ p_last_away: 1370 / 1370 (100.0%)
+  ❌ p_open_home: 1370 / 1370 (100.0%)
+  ❌ p_open_draw: 1370 / 1370 (100.0%)
+  ❌ p_open_away: 1370 / 1370 (100.0%)
+  ❌ dispersion_home: 1370 / 1370 (100.0%)
+  ❌ dispersion_draw: 1370 / 1370 (100.0%)
+  ❌ dispersion_away: 1370 / 1370 (100.0%)
+  ❌ book_dispersion: 1370 / 1370 (100.0%)
+  ❌ volatility_home: 1370 / 1370 (100.0%)
+  ❌ volatility_draw: 1370 / 1370 (100.0%)
+  ❌ volatility_away: 1370 / 1370 (100.0%)
+  ❌ favorite_margin: 1370 / 1370 (100.0%)
+  ❌ market_entropy: 1370 / 1370 (100.0%)
+
+================================================================================
+  SANITY CHECK: Random Label Test
+================================================================================
+Class distribution (0=Home, 1=Draw, 2=Away):
+  Home: 659 matches (48.1%)
+  Draw: 320 matches (23.4%)
+  Away: 391 matches (28.5%)
+
+Majority-class baseline: 0.481
+Training on random labels (should be ≤ baseline + 0.05)...
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[3] valid_0's multi_logloss: 1.03491
+
+  Random-label accuracy: 0.511
+  Random-label logloss : 1.035
+  Threshold: < 0.531 (majority baseline + 0.05)
+
+✅ PASS: Random-label sanity clean (0.511 < 0.531)
+   Model cannot exploit features on shuffled labels - no leakage detected.
+
+================================================================================
+  V2.1 TRAINING (Time-Based Cross-Validation)
+================================================================================
+
+--- Fold 1/5 ---
+Training until validation scores don't improve for 25 rounds
+Early stopping, best iteration is:
+[19]    valid_0's multi_logloss: 1.04105
+  Fold Acc: 0.469
+  Fold LL : 1.041
+  Fold Brier: 0.311
+
+--- Fold 2/5 ---
+Training until validation scores don't improve for 25 rounds
+Early stopping, best iteration is:
+[24]    valid_0's multi_logloss: 1.05124
+  Fold Acc: 0.443
+  Fold LL : 1.051
+  Fold Brier: 0.316
+
+--- Fold 3/5 ---
+Training until validation scores don't improve for 25 rounds
+Early stopping, best iteration is:
+[15]    valid_0's multi_logloss: 1.0149
+  Fold Acc: 0.487
+  Fold LL : 1.015
+  Fold Brier: 0.303
+
+--- Fold 4/5 ---
+Training until validation scores don't improve for 25 rounds
+Early stopping, best iteration is:
+[19]    valid_0's multi_logloss: 0.988155
+  Fold Acc: 0.539
+  Fold LL : 0.988
+  Fold Brier: 0.293
+
+--- Fold 5/5 ---
+Training until validation scores don't improve for 25 rounds
+[50]    valid_0's multi_logloss: 0.975887
+Early stopping, best iteration is:
+[30]    valid_0's multi_logloss: 0.969593
+  Fold Acc: 0.526
+  Fold LL : 0.970
+  Fold Brier: 0.289
+/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sklearn/metrics/_classification.py:259: UserWarning: The y_prob values do not sum to one. Make sure to pass probabilities.
+  warnings.warn(
+
+================================================================================
+  V2.1 OOF METRICS (Out-of-Fold)
+================================================================================
+  Accuracy: 0.489
+  LogLoss : 6.894
+  Brier   : 0.336
+
+  Grade: B
+  Target: 52-54% (A- grade)
+
+================================================================================
+  TRAINING FINAL MODEL (Full Dataset)
+================================================================================
+
+✅ Saved final model to artifacts/models/v2_transformed_lgbm.txt
+✅ Saved feature info to artifacts/models/v2_transformed_features.pkl
+
+================================================================================
+  TRAINING COMPLETE
+================================================================================
+  Model: artifacts/models/v2_transformed_lgbm.txt
+  Accuracy: 0.489 (B)
+  Ready for A/B testing vs V2.0 odds-only baseline
+
+================================================================================
+✅ TRAINING COMPLETED SUCCESSFULLY
+================================================================================
+
+Output files:
+  - models/v2_lgbm_production.txt (trained model)
+  - models/v2_training_metadata.json (metrics)
+
+Next steps:
+  1. Review sanity checks in the output above
+  2. Check random-label accuracy (<0.40 = clean)
+  3. Deploy model if all checks pass
