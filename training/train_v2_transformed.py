@@ -212,6 +212,7 @@ def main():
     
     oof_proba = np.zeros((len(X), 3), dtype=float)
     oof_true = y.copy()
+    oof_mask = np.zeros(len(X), dtype=bool)  # Track which rows were validated
     fold_models = []
     
     for fold, (tr_idx, va_idx) in enumerate(cv.split(X, y, groups=dates), start=1):
@@ -237,6 +238,7 @@ def main():
         fold_models.append(model)
         proba_va = model.predict(X_va, num_iteration=model.best_iteration)
         oof_proba[va_idx] = proba_va
+        oof_mask[va_idx] = True  # Mark these rows as validated
         
         acc = accuracy_score(y_va, np.argmax(proba_va, axis=1))
         ll = log_loss(y_va, proba_va)
@@ -249,15 +251,18 @@ def main():
         print(f"  Fold LL : {ll:.3f}")
         print(f"  Fold Brier: {br:.3f}")
     
-    # Overall OOF metrics
-    overall_acc = accuracy_score(oof_true, np.argmax(oof_proba, axis=1))
-    overall_ll = log_loss(oof_true, oof_proba)
-    one_hot = np.eye(3)[oof_true]
-    overall_br = np.mean(np.sum((oof_proba - one_hot)**2, axis=1)) / 2.0
-    
+    # Overall OOF metrics (only on validated samples)
+    # Purged time-series split may leave some rows never validated
     print("\n" + "="*80)
     print("  V2.1 OOF METRICS (Out-of-Fold)")
     print("="*80)
+    print(f"Validated samples: {oof_mask.sum()} / {len(oof_mask)} ({100*oof_mask.sum()/len(oof_mask):.1f}%)")
+    
+    overall_acc = accuracy_score(oof_true[oof_mask], np.argmax(oof_proba[oof_mask], axis=1))
+    overall_ll = log_loss(oof_true[oof_mask], oof_proba[oof_mask])
+    one_hot = np.eye(3)[oof_true[oof_mask]]
+    overall_br = np.mean(np.sum((oof_proba[oof_mask] - one_hot)**2, axis=1)) / 2.0
+    
     print(f"  Accuracy: {overall_acc:.3f}")
     print(f"  LogLoss : {overall_ll:.3f}")
     print(f"  Brier   : {overall_br:.3f}")
