@@ -1,0 +1,109 @@
+~/workspace$ ./scripts/train_v2.sh --use-transformed
+================================================================================
+  BETGENIUS AI - V2 MODEL TRAINING
+================================================================================
+Started: 2025-11-16 16:39:22 UTC
+
+Configuration:
+  - Features: Transformed (2 context)
+  - Max samples: All available
+  - Sanity checks: Enabled ✅
+================================================================================
+
+2025-11-16 16:39:22,636 - INFO - Using transformed context features
+2025-11-16 16:39:22,636 - INFO - ✅ Database connection verified
+2025-11-16 16:39:22,636 - INFO - Starting V2.3 training (transformed features)...
+================================================================================
+  V2.1 TRANSFORMED TRAINING (LEAKAGE-FREE)
+  Features: 46 total (40 base + 2 context_transformed + 4 drift)
+  Target: 52-54% accuracy with clean sanity checks
+================================================================================
+✅ Loaded 1370 matches
+
+🔨 Building features (transformed context)...
+   This may take 10-15 minutes for 5000 matches...
+2025-11-16 16:39:24,112 - INFO - ✅ V2FeatureBuilder initialized
+   100/1370
+   200/1370
+   300/1370
+   400/1370
+   500/1370
+   600/1370
+   700/1370
+   800/1370
+   900/1370
+   1000/1370
+   1100/1370
+   1200/1370
+   1300/1370
+✅ Built features for 1370 matches
+   Feature count: 46
+
+Dataset: 1370 matches x 46 features
+
+================================================================================
+  FEATURE UNIQUENESS DIAGNOSTICS
+================================================================================
+Inspecting features for potential match fingerprinting...
+
+Top 15 most unique features (out of 1370 total matches):
+  p_last_home                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_last_draw                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_last_away                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_open_home                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_open_draw                             :  1370 unique (100.0%) ⚠️  HIGH
+  p_open_away                             :  1370 unique (100.0%) ⚠️  HIGH
+  dispersion_home                         :  1370 unique (100.0%) ⚠️  HIGH
+  dispersion_draw                         :  1370 unique (100.0%) ⚠️  HIGH
+  dispersion_away                         :  1370 unique (100.0%) ⚠️  HIGH
+  book_dispersion                         :  1370 unique (100.0%) ⚠️  HIGH
+  volatility_home                         :  1370 unique (100.0%) ⚠️  HIGH
+  volatility_draw                         :  1370 unique (100.0%) ⚠️  HIGH
+  volatility_away                         :  1370 unique (100.0%) ⚠️  HIGH
+  favorite_margin                         :  1370 unique (100.0%) ⚠️  HIGH
+  market_entropy                          :  1370 unique (100.0%) ⚠️  HIGH
+
+Features with >80% uniqueness (fingerprint risk):
+  ❌ p_last_home: 1370 / 1370 (100.0%)
+  ❌ p_last_draw: 1370 / 1370 (100.0%)
+  ❌ p_last_away: 1370 / 1370 (100.0%)
+  ❌ p_open_home: 1370 / 1370 (100.0%)
+  ❌ p_open_draw: 1370 / 1370 (100.0%)
+  ❌ p_open_away: 1370 / 1370 (100.0%)
+  ❌ dispersion_home: 1370 / 1370 (100.0%)
+  ❌ dispersion_draw: 1370 / 1370 (100.0%)
+  ❌ dispersion_away: 1370 / 1370 (100.0%)
+  ❌ book_dispersion: 1370 / 1370 (100.0%)
+  ❌ volatility_home: 1370 / 1370 (100.0%)
+  ❌ volatility_draw: 1370 / 1370 (100.0%)
+  ❌ volatility_away: 1370 / 1370 (100.0%)
+  ❌ favorite_margin: 1370 / 1370 (100.0%)
+  ❌ market_entropy: 1370 / 1370 (100.0%)
+
+================================================================================
+  SANITY CHECK: Random Label Test
+================================================================================
+Training on random labels (should be < 0.40 acc)...
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[3] valid_0's multi_logloss: 1.03491
+
+  Random-label accuracy: 0.511
+  Random-label logloss : 1.035
+  Threshold: < 0.40 = CLEAN
+
+❌ FAIL: Random-label sanity still too high, aborting.
+   Features may still contain leakage.
+
+================================================================================
+✅ TRAINING COMPLETED SUCCESSFULLY
+================================================================================
+
+Output files:
+  - models/v2_lgbm_production.txt (trained model)
+  - models/v2_training_metadata.json (metrics)
+
+Next steps:
+  1. Review sanity checks in the output above
+  2. Check random-label accuracy (<0.40 = clean)
+  3. Deploy model if all checks pass
