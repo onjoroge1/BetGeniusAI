@@ -1,0 +1,299 @@
+Bet, let’s lock this in and actually **build V2 `match_context` the right way**.
+
+You already agreed to the strategy, so I’ll give you **concrete, copy-pasteable stuff**:
+
+1. New table schema
+2. One-shot SQL backfill (no leak)
+3. Guardrail constraint
+4. How this plugs into V2 features right now
+
+---
+
+## 1️⃣ Create a clean `match_context_v2` table
+
+Assuming:
+
+* `matches(match_id BIGINT, home_team_id BIGINT, away_team_id BIGINT, match_date_utc TIMESTAMPTZ)`
+* Adjust types to `TEXT` if your IDs are text-y.
+
+```sql
+CREATE TABLE IF NOT EXISTS match_context_v2 (
+    match_id                  BIGINT PRIMARY KEY REFERENCES matches(match_id),
+
+    -- "What we knew" time (logical cutoff, e.g. T-1h)
+    as_of_time                TIMESTAMPTZ NOT NULL,
+
+    -- Rest days
+    rest_days_home            NUMERIC(6,2) NOT NULL,
+    rest_days_away            NUMERIC(6,2) NOT NULL,
+
+    -- Schedule congestion in prior 3 and 7 days
+    matches_home_last_3d      INT NOT NULL,
+    matches_home_last_7d      INT NOT NULL,
+    matches_away_last_3d      INT NOT NULL,
+    matches_away_last_7d      INT NOT NULL,
+
+    -- Optional flags (can extend later)
+    derby_flag                BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Metadata
+    created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    generation_version        INT NOT NULL DEFAULT 1
+);
+```
+
+If `match_id` is `TEXT` in your DB, just swap `BIGINT` → `TEXT` in the DDL.
+
+---
+
+## 2️⃣ One-shot **leak-free backfill** from `matches`
+
+This is a pure SQL backfill that:
+
+* Uses **only past matches** (`p.match_date_utc < m.match_date_utc`)
+* Computes rest days + congestion windows
+* Simulates T-1h with `as_of_time = match_date_utc - interval '1 hour'`
+
+```sql
+-- 🧹 Optional: clear any old data
+TRUNCATE TABLE match_context_v2;
+
+WITH base AS (
+    SELECT
+        m.match_id,
+        m.home_team_id,
+        m.away_team_id,
+        m.match_date_utc
+    FROM matches m
+    -- limit date range if you want, e.g. WHERE m.match_date_utc >= '2022-01-01'
+),
+
+-- Last previous match for home team
+last_home_match AS (
+    SELECT
+        b.match_id,
+        MAX(p.match_date_utc) AS prev_home_match_date
+    FROM base b
+    LEFT JOIN matches p
+        ON p.home_team_id = b.home_team_id
+       AND p.match_date_utc < b.match_date_utc          -- ONLY PAST
+    GROUP BY b.match_id
+),
+
+-- Last previous match for away team
+last_away_match AS (
+    SELECT
+        b.match_id,
+        MAX(p.match_date_utc) AS prev_away_match_date
+    FROM base b
+    LEFT JOIN matches p
+        ON p.away_team_id = b.away_team_id
+       AND p.match_date_utc < b.match_date_utc          -- ONLY PAST
+    GROUP BY b.match_id
+),
+
+-- Congestion: how many matches in last 3 / 7 days for home team
+home_congestion AS (
+    SELECT
+        b.match_id,
+        COUNT(*) FILTER (
+            WHERE p.match_date_utc >= b.match_date_utc - interval '3 days'
+              AND p.match_date_utc <  b.match_date_utc
+        ) AS matches_home_last_3d,
+        COUNT(*) FILTER (
+            WHERE p.match_date_utc >= b.match_date_utc - interval '7 days'
+              AND p.match_date_utc <  b.match_date_utc
+        ) AS matches_home_last_7d
+    FROM base b
+    LEFT JOIN matches p
+        ON (p.home_team_id = b.home_team_id OR p.away_team_id = b.home_team_id)
+       AND p.match_date_utc < b.match_date_utc          -- ONLY PAST
+    GROUP BY b.match_id
+),
+
+-- Congestion: how many matches in last 3 / 7 days for away team
+away_congestion AS (
+    SELECT
+        b.match_id,
+        COUNT(*) FILTER (
+            WHERE p.match_date_utc >= b.match_date_utc - interval '3 days'
+              AND p.match_date_utc <  b.match_date_utc
+        ) AS matches_away_last_3d,
+        COUNT(*) FILTER (
+            WHERE p.match_date_utc >= b.match_date_utc - interval '7 days'
+              AND p.match_date_utc <  b.match_date_utc
+        ) AS matches_away_last_7d
+    FROM base b
+    LEFT JOIN matches p
+        ON (p.home_team_id = b.away_team_id OR p.away_team_id = b.away_team_id)
+       AND p.match_date_utc < b.match_date_utc          -- ONLY PAST
+    GROUP BY b.match_id
+)
+
+INSERT INTO match_context_v2 (
+    match_id,
+    as_of_time,
+    rest_days_home,
+    rest_days_away,
+    matches_home_last_3d,
+    matches_home_last_7d,
+    matches_away_last_3d,
+    matches_away_last_7d,
+    derby_flag,
+    generation_version
+)
+SELECT
+    b.match_id,
+    b.match_date_utc - interval '1 hour' AS as_of_time,
+
+    -- Rest days: if no prev match, default to 30 days
+    COALESCE(
+        EXTRACT(EPOCH FROM (b.match_date_utc - lhm.prev_home_match_date)) / 86400.0,
+        30.0
+    ) AS rest_days_home,
+    COALESCE(
+        EXTRACT(EPOCH FROM (b.match_date_utc - lam.prev_away_match_date)) / 86400.0,
+        30.0
+    ) AS rest_days_away,
+
+    hc.matches_home_last_3d,
+    hc.matches_home_last_7d,
+    ac.matches_away_last_3d,
+    ac.matches_away_last_7d,
+
+    -- TODO: if you want real derby logic, replace this
+    FALSE AS derby_flag,
+    1     AS generation_version
+FROM base b
+LEFT JOIN last_home_match   lhm ON lhm.match_id = b.match_id
+LEFT JOIN last_away_match   lam ON lam.match_id = b.match_id
+LEFT JOIN home_congestion   hc  ON hc.match_id  = b.match_id
+LEFT JOIN away_congestion   ac  ON ac.match_id  = b.match_id;
+```
+
+That’s a **single SQL script** you can run in `psql` / Neon / Supabase and fully backfill the new table.
+
+---
+
+## 3️⃣ Add a hard guardrail to prevent future leak
+
+Even though we *logically* used only past matches, let’s also enforce that the context row’s logical cutoff (`as_of_time`) is never after the match:
+
+```sql
+ALTER TABLE match_context_v2
+ADD CONSTRAINT asof_before_match_ck
+CHECK (
+    as_of_time <= (
+        SELECT match_date_utc
+        FROM matches m
+        WHERE m.match_id = match_context_v2.match_id
+    )
+);
+```
+
+And a quick sanity check:
+
+```sql
+SELECT COUNT(*) AS bad_rows
+FROM match_context_v2 mc
+JOIN matches m ON mc.match_id = m.match_id
+WHERE mc.as_of_time > m.match_date_utc;
+-- This MUST be 0
+```
+
+If that ever returns > 0, we know something is off and we skip using context features in training.
+
+---
+
+## 4️⃣ How to use this in the V2 feature builder
+
+In `v2_feature_builder.py`, instead of touching the old contaminated `match_context`, you:
+
+```python
+def _build_context_features(self, match_id: int, cutoff_time: datetime) -> dict:
+    """
+    Pulls from match_context_v2, but STILL enforces cutoff_time to be safe.
+    """
+
+    row = self.db.fetch_one(
+        """
+        SELECT
+            rest_days_home,
+            rest_days_away,
+            matches_home_last_3d,
+            matches_home_last_7d,
+            matches_away_last_3d,
+            matches_away_last_7d,
+            derby_flag
+        FROM match_context_v2
+        WHERE match_id = :match_id
+          AND as_of_time <= :cutoff_time
+        ORDER BY as_of_time DESC
+        LIMIT 1
+        """,
+        {"match_id": match_id, "cutoff_time": cutoff_time},
+    )
+
+    if not row:
+        return {}
+
+    # Keep raw values or compute transformed here
+    rest_h = float(row["rest_days_home"])
+    rest_a = float(row["rest_days_away"])
+
+    return {
+        "rest_days_home": rest_h,
+        "rest_days_away": rest_a,
+        "matches_home_last_3d": row["matches_home_last_3d"],
+        "matches_home_last_7d": row["matches_home_last_7d"],
+        "matches_away_last_3d": row["matches_away_last_3d"],
+        "matches_away_last_7d": row["matches_away_last_7d"],
+        "derby_flag": 1.0 if row["derby_flag"] else 0.0,
+    }
+```
+
+Later, if you still like the **relative** stuff:
+
+```python
+"rest_advantage": rest_h / (rest_a + 1.0),
+"congestion_ratio_3d": (row["matches_home_last_3d"] + 1)
+                        / (row["matches_away_last_3d"] + 1),
+"congestion_ratio_7d": (row["matches_home_last_7d"] + 1)
+                        / (row["matches_away_last_7d"] + 1),
+```
+
+But the core win is: the **source table is now clean and recomputable**.
+
+---
+
+## 5️⃣ What to do *right now* (step-by-step)
+
+Here’s your concrete move list, fam:
+
+1. **Create new table**
+
+   Run the `CREATE TABLE match_context_v2` DDL.
+
+2. **Backfill**
+
+   Run the big `WITH base AS (...) ... INSERT INTO match_context_v2` script.
+
+3. **Add guardrail constraint**
+
+   Run the `ALTER TABLE ... CHECK (as_of_time <= match_date_utc)` plus the sanity `SELECT COUNT(*)` test.
+
+4. **Update feature builder**
+
+   * Point context features to `match_context_v2`
+   * Still pass `cutoff_time` and enforce `as_of_time <= cutoff_time`
+
+5. **Retrain with context re-enabled (V2.3)**
+
+   * Re-run:
+
+     * Random label sanity
+     * Row permutation test
+   * Expect both < 0.40 now.
+   * Compare performance vs V2.2 (no-context).
+
+If you paste me the **exact `matches` schema** (columns + types) I can tighten that SQL to be 100% drop-in, but as-is this is a solid blueprint you can implement straight away.
