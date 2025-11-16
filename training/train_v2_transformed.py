@@ -28,7 +28,7 @@ def load_matches(limit=5000):
     query = text("""
         SELECT tm.match_id, tm.match_date, tm.outcome
         FROM training_matches tm
-        INNER JOIN match_context mc ON tm.match_id = mc.match_id
+        INNER JOIN match_context_v2 mc ON tm.match_id = mc.match_id
         INNER JOIN odds_real_consensus orc ON tm.match_id = orc.match_id
         WHERE tm.match_date >= '2020-01-01'
           AND tm.match_date < '2025-11-15'
