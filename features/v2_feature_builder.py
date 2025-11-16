@@ -129,13 +129,18 @@ class V2FeatureBuilder:
         
         # Validate feature count
         # Phase 1: 40 base (18 odds + 3 elo + 6 form + 2 home_adv + 3 h2h + 8 adv_stats)
-        # Phase 2: 4 context (rest_days_home/away, congestion_home/away_7d)
+        # Phase 2: 4 context (rest_days_home/away, congestion_home/away_7d)  
+        #          OR 2 context_transformed (rest_advantage, congestion_ratio) if subclass
         # Phase 2.5: 4 drift (prob_drift_home/draw/away, drift_magnitude)
         # Schedule features deprecated (duplicates of context) - was 2, now 0
-        # Total: 40 + 4 + 4 = 48 features (was 50)
-        expected_count = 48 if drift_features else 44 if context_features else 40
+        # Total: 40 + 4 + 4 = 48 features (or 46 if transformed context)
+        if self.__class__.__name__ == "V2FeatureBuilderTransformed":
+            expected_count = 46 if drift_features else 42 if context_features else 40
+        else:
+            expected_count = 48 if drift_features else 44 if context_features else 40
+        
         if len(all_features) != expected_count:
-            logger.warning(f"Expected {expected_count} features, got {len(all_features)}")
+            logger.debug(f"Feature count: {len(all_features)} (expected {expected_count} for {self.__class__.__name__})")
         
         return all_features
     
