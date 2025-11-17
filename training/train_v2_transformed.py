@@ -17,7 +17,7 @@ import lightgbm as lgb
 from datetime import timedelta
 import joblib
 
-from features.v2_feature_builder_transformed import V2FeatureBuilderTransformed
+from features.batch_feature_builder import BatchFeatureBuilder
 
 N_SPLITS = 5
 EMBARGO_DAYS = 7
@@ -43,25 +43,13 @@ def load_matches(limit=5000):
     return df
 
 def build_features(matches):
-    """Build features using transformed builder"""
-    builder = V2FeatureBuilderTransformed()
-    rows = []
+    """Build features using optimized batch builder"""
+    print("   Using BatchFeatureBuilder (optimized for speed)")
+    builder = BatchFeatureBuilder()
     
-    for i, row in matches.iterrows():
-        if (i+1) % 100 == 0:
-            print(f"   {i+1}/{len(matches)}", flush=True)
-        
-        try:
-            cutoff = pd.to_datetime(row["match_date"]) - timedelta(hours=1)
-            feats = builder.build_features(row["match_id"], cutoff)
-            feats["outcome"] = row["outcome"]
-            feats["match_date"] = row["match_date"]
-            feats["match_id"] = row["match_id"]
-            rows.append(feats)
-        except Exception as e:
-            continue
+    # Batch build all features at once
+    df = builder.build_features_batch(matches)
     
-    df = pd.DataFrame(rows)
     print(f"✅ Built features for {len(df)} matches")
     print(f"   Feature count: {len(df.columns) - 3}")  # -3 for outcome, match_date, match_id
     return df
@@ -82,8 +70,8 @@ def main():
     matches = load_matches(limit=5000)
     
     # Build features
-    print("\n🔨 Building features (transformed context)...")
-    print("   This may take 10-15 minutes for 5000 matches...")
+    print("\n🔨 Building features (batch optimized)...")
+    print("   Expected time: <30 seconds for 648 matches...")
     df = build_features(matches)
     
     feature_cols = [c for c in df.columns if c not in ["outcome","match_date","match_id"]]
