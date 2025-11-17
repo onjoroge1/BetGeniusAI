@@ -11,7 +11,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 V2.1 Transformation Strategy: Approved relative ratio transformations (rest_advantage, congestion_ratio) with corrected parity formula achieving 27.01% uniqueness (down from 81.61%). Alternative binned features available (2.04% uniqueness) if needed.
 Sanity Check Calibration (2025-11-16): Fixed overly strict random-label threshold. Now uses dynamic threshold = majority_class_baseline + 0.05 to account for class imbalance (~50% home, ~25% draw/away). Random-label accuracy of 0.511 is expected behavior, not leakage.
 OOF LogLoss Bug Fix (2025-11-16): Fixed OOF metrics calculation to only use validated samples. Purged time-series CV leaves ~20% of samples never validated (embargo windows), causing [0,0,0] predictions that inflated LogLoss to 6.894. True performance is per-fold average ~1.01, which matches target.
-Odds Data Bottleneck Resolution (2025-11-16): Rebuilt stale odds_real_consensus materialized view from odds_consensus table. Increased trainable matches from 1,370 (3 months) to 6,156 (37 months spanning Aug 2022 - Nov 2025). Expected accuracy improvement from 48.9% to 54-56%, exceeding target.
+Data Leakage Elimination (2025-11-17): Discovered and eliminated catastrophic overfitting caused by backdated odds (39% of odds_consensus contained post-match data created AFTER kickoff with outcome knowledge → 100% accuracy). Rebuilt odds_real_consensus with strict pre-match filter (ts_effective < kickoff_at), reducing from 7,548 contaminated rows to 751 clean rows (0% backdated). Clean dataset: 648 trainable matches from Oct-Nov 2025 with 100% integrity verification. Training blocked by feature builder performance (648 individual DB queries = 10+ min). Next: Optimize batch queries or scale to 2,000+ matches via odds_snapshots backfill for 52-54% target accuracy.
 
 ## System Architecture
 
@@ -26,7 +26,7 @@ Odds Data Bottleneck Resolution (2025-11-16): Rebuilt stale odds_real_consensus 
 - **Models**: Production V1 (weighted consensus) and V2 (LightGBM ensemble) models. V2.3 (2025-11-16) uses leak-free match_context_v2 table with 0% contamination.
 - **Feature Engineering**: Reusable pipeline with 46 features for V2.3 (40 base + 2 context_transformed + 4 drift). All context features computed using ONLY past matches with strict T-1h cutoff.
 - **Leak Elimination (2025-11-16)**: Replaced contaminated match_context table (100% post-match data) with match_context_v2 (0% contamination, validated). Automated pipeline ensures all context data uses as_of_time = match_date - 1 hour.
-- **Training Data**: 1,370 matches (2020+) with 100% clean context coverage. Historical backfill completed via scripts/backfill_match_context_v2.py.
+- **Training Data**: 648 matches (Oct-Nov 2025) with 100% clean odds and context data. All odds strictly pre-match (0% backdated contamination verified). Historical backfill via scripts/backfill_match_context_v2.py.
 - **Calibration & Constraints**: Extensive testing for optimal model configuration including random-label sanity checks (<40% target).
 - **Shadow Testing System**: Operational market-delta ridge regression for A/B testing and auto-promotion.
 - **Auto-Retraining System**: Models retrain automatically based on match volume.
