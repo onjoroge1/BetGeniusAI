@@ -35,15 +35,24 @@ class TheOddsAPIBackfiller:
     
     # Map our league IDs to The Odds API sport keys
     LEAGUE_MAPPING = {
+        # Top 5 European Leagues
         39: 'soccer_epl',              # Premier League
         140: 'soccer_spain_la_liga',   # La Liga
         135: 'soccer_italy_serie_a',   # Serie A
         78: 'soccer_germany_bundesliga',  # Bundesliga
         61: 'soccer_france_ligue_one', # Ligue 1
+        
+        # Other Major Leagues
         88: 'soccer_germany_bundesliga2',  # Bundesliga 2
         94: 'soccer_portugal_primeira_liga',  # Primeira Liga
         203: 'soccer_turkey_super_league',  # Süper Lig
         262: 'soccer_brazil_campeonato',    # Brasileirão
+        
+        # Additional European Leagues (887 matches available!)
+        2: 'soccer_uefa_champs_league',    # UEFA Champions League (269 matches)
+        119: 'soccer_denmark_superliga',   # Superliga (193 matches)
+        207: 'soccer_switzerland_superleague',  # Swiss Super League (230 matches)
+        218: 'soccer_austria_bundesliga',  # Austrian Bundesliga (195 matches)
     }
     
     def __init__(self, dry_run: bool = False):
@@ -85,7 +94,7 @@ class TheOddsAPIBackfiller:
             WHERE tm.match_date >= %s
               AND tm.outcome IN ('H', 'D', 'A')
               AND os.match_id IS NULL
-              AND tm.league_id IN (39, 140, 135, 78, 61, 88, 94, 203, 262)
+              AND tm.league_id IN (39, 140, 135, 78, 61, 88, 94, 203, 262, 2, 119, 207, 218)
             ORDER BY tm.match_date DESC
             LIMIT %s
         """
@@ -187,6 +196,7 @@ class TheOddsAPIBackfiller:
             return len(bookmakers) * 3
         
         conn = psycopg2.connect(self.database_url)
+        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = conn.cursor()
         
         inserted = 0
@@ -236,8 +246,13 @@ class TheOddsAPIBackfiller:
                                  odds_decimal, implied_prob, market_margin, 
                                  ts_snapshot, secs_to_kickoff, created_at, source)
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 'theodds')
-                                ON CONFLICT (match_id, book_id, market, outcome, ts_snapshot) 
-                                DO NOTHING
+                                ON CONFLICT (match_id, book_id, market, outcome) 
+                                DO UPDATE SET
+                                    odds_decimal = EXCLUDED.odds_decimal,
+                                    implied_prob = EXCLUDED.implied_prob,
+                                    market_margin = EXCLUDED.market_margin,
+                                    ts_snapshot = EXCLUDED.ts_snapshot,
+                                    secs_to_kickoff = EXCLUDED.secs_to_kickoff
                             """, (
                                 match_id,
                                 league_id,
@@ -255,7 +270,7 @@ class TheOddsAPIBackfiller:
                             logger.error(f"Error inserting odds: {e}")
                             continue
         
-        conn.commit()
+        # No need to commit with autocommit mode
         cursor.close()
         conn.close()
         

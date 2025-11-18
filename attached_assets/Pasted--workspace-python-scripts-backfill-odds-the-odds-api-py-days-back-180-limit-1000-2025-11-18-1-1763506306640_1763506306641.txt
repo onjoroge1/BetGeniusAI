@@ -1,0 +1,30 @@
+~/workspace$ python scripts/backfill_odds_the_odds_api.py --days-back 180 --limit 1000
+2025-11-18 19:59:36,312 - INFO - Initialized TheOddsAPIBackfiller (dry_run=False)
+2025-11-18 19:59:36,312 - INFO - ================================================================================
+2025-11-18 19:59:36,312 - INFO - THE ODDS API HISTORICAL BACKFILL
+2025-11-18 19:59:36,312 - INFO - Days back: 180
+2025-11-18 19:59:36,312 - INFO - Limit: 1000 matches
+2025-11-18 19:59:36,312 - INFO - Dry run: False
+2025-11-18 19:59:36,312 - INFO - ================================================================================
+2025-11-18 19:59:36,898 - INFO - Found 0 matches needing odds
+2025-11-18 19:59:36,898 - INFO - ✅ No matches found needing backfill
+~/workspace$ python scripts/backfill_odds_the_odds_api.py --days-back 180 --limit 100
+2025-11-18 22:50:55,224 - INFO - Initialized TheOddsAPIBackfiller (dry_run=False)
+2025-11-18 22:50:55,224 - INFO - ================================================================================
+2025-11-18 22:50:55,224 - INFO - THE ODDS API HISTORICAL BACKFILL
+2025-11-18 22:50:55,224 - INFO - Days back: 180
+2025-11-18 22:50:55,224 - INFO - Limit: 100 matches
+2025-11-18 22:50:55,224 - INFO - Dry run: False
+2025-11-18 22:50:55,224 - INFO - ================================================================================
+2025-11-18 22:50:55,694 - INFO - Found 0 matches needing odds
+2025-11-18 22:50:55,695 - INFO - ✅ No matches found needing backfill
+~/workspace$ python scripts/backfill_odds_the_odds_api.py
+2025-11-18 22:51:23,892 - INFO - Initialized TheOddsAPIBackfiller (dry_run=False)
+2025-11-18 22:51:23,892 - INFO - ================================================================================
+2025-11-18 22:51:23,892 - INFO - THE ODDS API HISTORICAL BACKFILL
+2025-11-18 22:51:23,892 - INFO - Days back: 60
+2025-11-18 22:51:23,892 - INFO - Limit: 100 matches
+2025-11-18 22:51:23,892 - INFO - Dry run: False
+2025-11-18 22:51:23,892 - INFO - ================================================================================
+2025-11-18 22:51:24,359 - INFO - Found 0 matches needing odds
+2025-11-18 22:51:24,360 - INFO - ✅ No matches found needing backfill
