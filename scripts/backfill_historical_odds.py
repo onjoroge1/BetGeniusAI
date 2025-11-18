@@ -55,7 +55,7 @@ class HistoricalOddsBackfiller:
         conn = psycopg2.connect(self.db_url)
         cursor = conn.cursor()
         
-        # Find matches with results but no odds
+        # Find matches with results but no odds - include league_id and kickoff_at
         query = """
             SELECT 
                 tm.match_id,
@@ -66,14 +66,18 @@ class HistoricalOddsBackfiller:
                 tm.outcome,
                 tm.home_goals,
                 tm.away_goals,
-                lm.league_name
+                lm.league_name,
+                tm.league_id,
+                COALESCE(f.kickoff_at, tm.match_date::timestamp) as kickoff_at
             FROM training_matches tm
             LEFT JOIN league_map lm ON tm.league_id = lm.league_id
+            LEFT JOIN fixtures f ON tm.match_id = f.match_id
             LEFT JOIN odds_snapshots os ON tm.match_id = os.match_id
             WHERE tm.outcome IN ('H', 'D', 'A')
               AND tm.home_goals IS NOT NULL
               AND os.match_id IS NULL  -- No odds collected yet
               AND tm.fixture_id IS NOT NULL  -- Has API-Football ID
+              AND tm.league_id IS NOT NULL  -- Required field
         """
         
         conditions = []
@@ -107,7 +111,9 @@ class HistoricalOddsBackfiller:
                 'outcome': row[5],
                 'home_goals': row[6],
                 'away_goals': row[7],
-                'league': row[8] or 'Unknown'
+                'league': row[8] or 'Unknown',
+                'league_id': row[9],
+                'kickoff_at': row[10]
             })
         
         cursor.close()
@@ -175,21 +181,31 @@ class HistoricalOddsBackfiller:
             print(f"❌ Error fetching odds for fixture {fixture_id}: {e}")
             return None
     
-    def store_historical_odds(self, match_id: int, fixture_id: int, odds: Dict) -> bool:
-        """Store historical odds in odds_snapshots table"""
+    def store_historical_odds(self, match_id: int, fixture_id: int, odds: Dict, league_id: int, kickoff_at: datetime) -> bool:
+        """Store historical odds in odds_snapshots table with all required fields"""
+        
+        # Calculate market_margin from overround
+        market_margin = odds['overround'] - 1.0
+        
+        # Set ts_snapshot to 24h before kickoff for historical data
+        horizon_hours = 24
+        secs_to_kickoff = horizon_hours * 3600
+        ts_snapshot = kickoff_at - timedelta(hours=horizon_hours)
+        
+        # Map API-Football bookmaker ID to internal book_id (Bet365 = 777)
+        api_bookmaker_id = odds.get('bookmaker_id', 8)
+        book_id = '777' if api_bookmaker_id == 8 else str(api_bookmaker_id)
         
         if self.dry_run:
             print(f"   [DRY RUN] Would store odds: H={odds['h_odds']:.2f} D={odds['d_odds']:.2f} A={odds['a_odds']:.2f}")
+            print(f"   [DRY RUN] league_id={league_id}, ts_snapshot={ts_snapshot}, margin={market_margin:.4f}")
             return True
         
         try:
             conn = psycopg2.connect(self.db_url)
             cursor = conn.cursor()
             
-            # Insert three rows (H, D, A) for this match
-            timestamp = datetime.now()
-            bookmaker_id = odds.get('bookmaker_id', 8)  # Default to Bet365
-            
+            # Insert three rows (H, D, A) for this match with all required fields
             for outcome, prob, decimal_odds in [
                 ('H', odds['ph_implied'], odds['h_odds']),
                 ('D', odds['pd_implied'], odds['d_odds']),
@@ -197,17 +213,23 @@ class HistoricalOddsBackfiller:
             ]:
                 cursor.execute("""
                     INSERT INTO odds_snapshots 
-                    (match_id, book_id, outcome, implied_prob, decimal_odds, created_at, secs_to_kickoff)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT DO NOTHING
+                    (match_id, league_id, book_id, market, outcome, 
+                     odds_decimal, implied_prob, market_margin, 
+                     ts_snapshot, secs_to_kickoff, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (match_id, book_id, market, outcome, ts_snapshot) 
+                    DO NOTHING
                 """, (
                     match_id,
-                    bookmaker_id,
+                    league_id,
+                    book_id,
+                    'h2h',
                     outcome,
-                    prob,
                     decimal_odds,
-                    timestamp,
-                    86400  # Assume 24h before kickoff for historical data
+                    prob,
+                    market_margin,
+                    ts_snapshot,
+                    secs_to_kickoff
                 ))
             
             conn.commit()
@@ -266,7 +288,7 @@ class HistoricalOddsBackfiller:
                 print(f"      Overround: {odds['overround']:.3f}")
                 
                 # Store odds
-                if self.store_historical_odds(match['match_id'], match['fixture_id'], odds):
+                if self.store_historical_odds(match["match_id"], match["fixture_id"], odds, match["league_id"], match["kickoff_at"]):
                     success_count += 1
                 else:
                     failed_count += 1
