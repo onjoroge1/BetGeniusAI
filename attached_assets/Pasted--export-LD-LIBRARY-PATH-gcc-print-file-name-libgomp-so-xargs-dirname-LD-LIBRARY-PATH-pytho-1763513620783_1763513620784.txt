@@ -1,0 +1,133 @@
+ export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+python training/train_v2_transformed.py
+================================================================================
+  V2.1 TRANSFORMED TRAINING (LEAKAGE-FREE)
+  Features: 46 total (40 base + 2 context_transformed + 4 drift)
+  Target: 52-54% accuracy with clean sanity checks
+================================================================================
+✅ Loaded 648 matches
+
+🔨 Building features (batch optimized)...
+   Expected time: <30 seconds for 648 matches...
+   Using BatchFeatureBuilder (optimized for speed)
+✅ Built features for 648 matches
+   Feature count: 49
+
+Dataset: 648 matches x 49 features
+
+================================================================================
+  FEATURE UNIQUENESS DIAGNOSTICS
+================================================================================
+Inspecting features for potential match fingerprinting...
+
+Top 15 most unique features (out of 648 total matches):
+  disp_draw                               :   648 unique (100.0%) ⚠️  HIGH
+  disp_away                               :   648 unique (100.0%) ⚠️  HIGH
+  disp_home                               :   648 unique (100.0%) ⚠️  HIGH
+  max_dispersion                          :   648 unique (100.0%) ⚠️  HIGH
+  avg_dispersion                          :   648 unique (100.0%) ⚠️  HIGH
+  odds_entropy                            :   645 unique ( 99.5%) ⚠️  HIGH
+  market_margin_avg                       :   639 unique ( 98.6%) ⚠️  HIGH
+  prob_spread                             :   612 unique ( 94.4%) ⚠️  HIGH
+  rest_advantage                          :   405 unique ( 62.5%) ⚠️  HIGH
+  p_last_away                             :   391 unique ( 60.3%) ⚠️  HIGH
+  p_away                                  :   391 unique ( 60.3%) ⚠️  HIGH
+  p_last_home                             :   346 unique ( 53.4%) ⚠️  HIGH
+  p_home                                  :   346 unique ( 53.4%) ⚠️  HIGH
+  underdog_prob                           :   323 unique ( 49.8%) ✅ OK
+  p_draw                                  :   265 unique ( 40.9%) ✅ OK
+
+Features with >80% uniqueness (fingerprint risk):
+  ❌ disp_draw: 648 / 648 (100.0%)
+  ❌ disp_away: 648 / 648 (100.0%)
+  ❌ disp_home: 648 / 648 (100.0%)
+  ❌ max_dispersion: 648 / 648 (100.0%)
+  ❌ avg_dispersion: 648 / 648 (100.0%)
+  ❌ odds_entropy: 645 / 648 (99.5%)
+  ❌ market_margin_avg: 639 / 648 (98.6%)
+  ❌ prob_spread: 612 / 648 (94.4%)
+
+================================================================================
+  SANITY CHECK: Random Label Test
+================================================================================
+Class distribution (0=Home, 1=Draw, 2=Away):
+  Home: 315 matches (48.6%)
+  Draw: 147 matches (22.7%)
+  Away: 186 matches (28.7%)
+
+Majority-class baseline: 0.486
+Training on random labels (should be ≤ baseline + 0.05)...
+Training until validation scores don't improve for 10 rounds
+Early stopping, best iteration is:
+[1] valid_0's multi_logloss: 1.08078
+
+  Random-label accuracy: 0.454
+  Random-label logloss : 1.081
+  Threshold: < 0.536 (majority baseline + 0.05)
+
+✅ PASS: Random-label sanity clean (0.454 < 0.536)
+   Model cannot exploit features on shuffled labels - no leakage detected.
+
+================================================================================
+  V2.1 TRAINING (Time-Based Cross-Validation)
+================================================================================
+
+--- Fold 1/5 ---
+Training until validation scores don't improve for 25 rounds
+Early stopping, best iteration is:
+[1] valid_0's multi_logloss: 1.04722
+  Fold Acc: 0.528
+  Fold LL : 1.047
+  Fold Brier: 0.312
+
+--- Fold 2/5 ---
+Training until validation scores don't improve for 25 rounds
+[50]    valid_0's multi_logloss: 0.957879
+Early stopping, best iteration is:
+[68]    valid_0's multi_logloss: 0.951558
+  Fold Acc: 0.574
+  Fold LL : 0.952
+  Fold Brier: 0.280
+
+--- Fold 3/5 ---
+Training until validation scores don't improve for 25 rounds
+Early stopping, best iteration is:
+[23]    valid_0's multi_logloss: 0.996692
+  Fold Acc: 0.528
+  Fold LL : 0.997
+  Fold Brier: 0.297
+
+--- Fold 4/5 ---
+Training until validation scores don't improve for 25 rounds
+[50]    valid_0's multi_logloss: 0.92611
+Early stopping, best iteration is:
+[70]    valid_0's multi_logloss: 0.919512
+  Fold Acc: 0.537
+  Fold LL : 0.920
+  Fold Brier: 0.275
+
+================================================================================
+  V2.1 OOF METRICS (Out-of-Fold)
+================================================================================
+Validated samples: 432 / 648 (66.7%)
+  Accuracy: 0.542
+  LogLoss : 0.979
+  Brier   : 0.291
+
+  Grade: A
+  Target: 52-54% (A- grade)
+
+================================================================================
+  TRAINING FINAL MODEL (Full Dataset)
+================================================================================
+
+✅ Saved final model to artifacts/models/v2_transformed_lgbm.txt
+✅ Saved feature info to artifacts/models/v2_transformed_features.pkl
+
+================================================================================
+  TRAINING COMPLETE
+================================================================================
+  Model: artifacts/models/v2_transformed_lgbm.txt
+  Accuracy: 0.542 (A)
+  Ready for A/B testing vs V2.0 odds-only baseline
+~/workspace$ 
