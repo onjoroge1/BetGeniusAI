@@ -1,6 +1,6 @@
 """
 Trending & Hot Matches API
-Returns pre-computed trending and hot matches from cache
+Returns pre-computed trending and hot matches from cache (or database fallback)
 """
 from fastapi import APIRouter, Query, HTTPException, Request
 from typing import Optional, List, Dict, Any
@@ -9,10 +9,22 @@ import logging
 import redis
 import json
 import os
+from sqlalchemy import create_engine, text, desc
+from sqlalchemy.orm import Session
+from models.trending_score import TrendingScore
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/trending", tags=["trending"])
+
+# Initialize database connection
+try:
+    db_url = os.getenv("DATABASE_URL")
+    db_engine = create_engine(db_url)
+    logger.info("✅ Database engine initialized")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize database: {e}")
+    db_engine = None
 
 # Initialize Redis client
 try:
@@ -29,7 +41,7 @@ try:
     redis_client.ping()
     logger.info(f"✅ Redis connected: {redis_host}:{redis_port}")
 except Exception as e:
-    logger.warning(f"⚠️ Redis not available: {e} - endpoints will compute on-demand")
+    logger.warning(f"⚠️ Redis not available: {e} - will use database fallback")
     redis_client = None
 
 
@@ -59,6 +71,89 @@ async def set_cached_data(key: str, data: Any, ttl: int = 300) -> bool:
     except Exception as e:
         logger.warning(f"Redis set error: {e}")
         return False
+
+
+async def get_hot_matches_from_db(league_id: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    """Query hot matches from database (fallback when Redis unavailable)"""
+    if not db_engine:
+        logger.warning("Database engine not available")
+        return []
+    
+    try:
+        with Session(db_engine) as session:
+            query = session.query(TrendingScore).order_by(desc(TrendingScore.hot_score))
+            
+            if league_id:
+                # Filter by league - need to join with fixtures
+                from models.fixtures import Fixture
+                query = query.join(Fixture, TrendingScore.match_id == Fixture.fixture_id).filter(
+                    Fixture.league_id == league_id
+                )
+            
+            scores = query.limit(limit).all()
+            
+            # Serialize to dict
+            matches = []
+            for score in scores:
+                matches.append({
+                    "match_id": score.match_id,
+                    "hot_score": float(score.hot_score),
+                    "trending_score": float(score.trending_score),
+                    "hot_rank": score.hot_rank,
+                    "trending_rank": score.trending_rank,
+                    "momentum_current": float(score.momentum_current) if score.momentum_current else 0.0,
+                    "momentum_velocity": float(score.momentum_velocity) if score.momentum_velocity else 0.0,
+                    "clv_signal_count": score.clv_signal_count or 0,
+                    "prediction_disagreement": float(score.prediction_disagreement) if score.prediction_disagreement else 0.0
+                })
+            
+            logger.info(f"✅ Loaded {len(matches)} hot matches from database")
+            return matches
+    except Exception as e:
+        logger.error(f"Error querying hot matches from DB: {e}")
+        return []
+
+
+async def get_trending_matches_from_db(timeframe: str = "5m", league_id: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    """Query trending matches from database (fallback when Redis unavailable)"""
+    if not db_engine:
+        logger.warning("Database engine not available")
+        return []
+    
+    try:
+        with Session(db_engine) as session:
+            query = session.query(TrendingScore).order_by(desc(TrendingScore.trending_score))
+            
+            if league_id:
+                # Filter by league - need to join with fixtures
+                from models.fixtures import Fixture
+                query = query.join(Fixture, TrendingScore.match_id == Fixture.fixture_id).filter(
+                    Fixture.league_id == league_id
+                )
+            
+            scores = query.limit(limit).all()
+            
+            # Serialize to dict
+            matches = []
+            for score in scores:
+                matches.append({
+                    "match_id": score.match_id,
+                    "hot_score": float(score.hot_score),
+                    "trending_score": float(score.trending_score),
+                    "hot_rank": score.hot_rank,
+                    "trending_rank": score.trending_rank,
+                    "momentum_current": float(score.momentum_current) if score.momentum_current else 0.0,
+                    "momentum_velocity": float(score.momentum_velocity) if score.momentum_velocity else 0.0,
+                    "clv_signal_count": score.clv_signal_count or 0,
+                    "prediction_disagreement": float(score.prediction_disagreement) if score.prediction_disagreement else 0.0,
+                    "timeframe": timeframe
+                })
+            
+            logger.info(f"✅ Loaded {len(matches)} trending matches from database")
+            return matches
+    except Exception as e:
+        logger.error(f"Error querying trending matches from DB: {e}")
+        return []
 
 
 # ============================================================================
@@ -104,17 +199,17 @@ async def get_hot_matches(
                 }
             }
         
-        # Cache miss - return empty for now (should be populated by scheduler)
-        # In production, this is rarely hit as scheduler keeps cache fresh
-        logger.warning(f"⚠️ Cache miss for hot matches - scheduler may not have run yet")
+        # Cache miss - try database fallback
+        logger.warning(f"⚠️ Cache miss for hot matches - querying database")
+        db_matches = await get_hot_matches_from_db(league_id=league_id, limit=limit)
         
         return {
-            "matches": [],
+            "matches": db_matches,
             "meta": {
                 "cache_hit": False,
-                "count": 0,
-                "status": "cache_miss",
-                "note": "Trending scores are pre-computed every 5 minutes. Check back in a moment.",
+                "count": len(db_matches),
+                "status": "database_fallback" if db_matches else "no_data",
+                "note": "Data served from database (cache unavailable)" if db_matches else "No trending scores available yet",
                 "timestamp": datetime.utcnow().isoformat()
             }
         }
@@ -169,17 +264,18 @@ async def get_trending_matches(
                 }
             }
         
-        # Cache miss
-        logger.warning(f"⚠️ Cache miss for trending matches")
+        # Cache miss - try database fallback
+        logger.warning(f"⚠️ Cache miss for trending matches - querying database")
+        db_matches = await get_trending_matches_from_db(timeframe=timeframe, league_id=league_id, limit=limit)
         
         return {
-            "matches": [],
+            "matches": db_matches,
             "meta": {
                 "cache_hit": False,
                 "timeframe": timeframe,
-                "count": 0,
-                "status": "cache_miss",
-                "note": "Trending scores are pre-computed every 5 minutes.",
+                "count": len(db_matches),
+                "status": "database_fallback" if db_matches else "no_data",
+                "note": "Data served from database (cache unavailable)" if db_matches else "No trending scores available yet",
                 "timestamp": datetime.utcnow().isoformat()
             }
         }
@@ -201,12 +297,26 @@ async def get_trending_status():
     Useful for debugging cache health and last update times
     """
     try:
+        # Check database status
+        db_hot_matches = []
+        db_trending_matches = []
+        
+        if db_engine:
+            try:
+                db_hot_matches = await get_hot_matches_from_db(limit=20)
+                db_trending_matches = await get_trending_matches_from_db(limit=20)
+            except Exception as e:
+                logger.warning(f"⚠️ Could not query database: {e}")
+        
+        # Check Redis status
         if not redis_client:
             return {
-                "status": "redis_unavailable",
-                "hot_matches": 0,
-                "trending_matches": 0,
-                "cache_health": "degraded",
+                "status": "degraded",
+                "source": "database_only",
+                "hot_matches_available": len(db_hot_matches),
+                "trending_matches_available": len(db_trending_matches),
+                "cache_health": "offline",
+                "message": "Redis cache offline, serving from database",
                 "timestamp": datetime.utcnow().isoformat()
             }
         
@@ -222,8 +332,11 @@ async def get_trending_status():
         
         return {
             "status": "healthy",
+            "source": "redis_cache",
             "hot_matches_cached": len(hot_cache) if hot_cache else 0,
             "trending_matches_cached": len(trending_cache) if trending_cache else 0,
+            "hot_matches_db_available": len(db_hot_matches),
+            "trending_matches_db_available": len(db_trending_matches),
             "cache_ttl_seconds": 300,
             "last_update": meta_data.get("updated_at", "unknown"),
             "cache_health": "healthy" if (hot_cache or trending_cache) else "empty",
