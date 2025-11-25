@@ -142,6 +142,9 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 from routes.realtime import router as realtime_router
 app.include_router(realtime_router, tags=["Phase 2 - Real-time"])
 
+from routes.trending import router as trending_router
+app.include_router(trending_router, tags=["PHASE 1 - Trending & Hot Matches"])
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,

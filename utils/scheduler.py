@@ -98,6 +98,7 @@ class BackgroundScheduler:
         logger.info("🎲 Phase 2 Live Market Engine enabled - runs every 60 seconds for in-play predictions")
         logger.info("🗑️  Phase 2 Stale Data Cleanup enabled - runs every 30 minutes to remove old live data")
         logger.info("🔨 Match Context Builder (V2) enabled - runs every 5 minutes to populate match_context_v2")
+        logger.info("🔥 PHASE 1: Trending Scores enabled - runs every 5 minutes to pre-compute hot/trending scores")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -348,6 +349,10 @@ class BackgroundScheduler:
                 # 🔨 Match Context Builder (V2) - runs every 5 minutes to populate match_context_v2
                 if "context_builder" not in self.last_run or (now - self.last_run["context_builder"]).total_seconds() >= 300:
                     await self._spawn("context_builder", self._run_match_context_builder, timeout=60)
+                
+                # 🔥 PHASE 1: Trending Scores Computation - runs every 5 minutes to pre-compute hot/trending scores
+                if "trending_scores" not in self.last_run or (now - self.last_run["trending_scores"]).total_seconds() >= 300:
+                    await self._spawn("trending_scores", self._run_trending_scores_computation, timeout=120)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -1092,6 +1097,26 @@ class BackgroundScheduler:
         except Exception as e:
             logger.error(f"[CONSENSUS] ❌ Critical error: {e}")
             return 0
+
+    async def _run_trending_scores_computation(self):
+        """
+        🔥 PHASE 1: Compute trending and hot scores
+        Pre-computed scores cached for <5ms serving
+        Runs every 5 minutes
+        """
+        try:
+            from jobs.compute_trending_scores import compute_trending_scores_job
+            logger.info("🔥 TRENDING: Starting scores computation...")
+            success = await compute_trending_scores_job()
+            if success:
+                logger.info("✅ TRENDING: Scores computation completed successfully")
+            else:
+                logger.warning("⚠️ TRENDING: Scores computation completed with warnings")
+        except ImportError:
+            logger.warning("⚠️ TRENDING: compute_trending_scores module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ TRENDING: Scores computation failed - {e}", exc_info=True)
+
 
 # Global scheduler instance
 _scheduler_instance: Optional[BackgroundScheduler] = None
