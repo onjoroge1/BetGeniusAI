@@ -52,13 +52,13 @@ async def compute_trending_scores_job():
             momentum_query = text("""
                 SELECT 
                     m.match_id,
-                    m.momentum as momentum_current,
+                    (COALESCE(m.momentum_home, 50) + COALESCE(m.momentum_away, 50)) / 2.0 as momentum_current,
                     f.league_id,
                     f.kickoff_at
                 FROM live_momentum m
                 JOIN fixtures f ON m.match_id = f.match_id
                 WHERE f.kickoff_at > NOW() - INTERVAL '24 hours'
-                ORDER BY m.momentum DESC
+                ORDER BY momentum_current DESC
             """)
             momentum_df = pd.read_sql(momentum_query, conn)
             logger.info(f"✅ Loaded {len(momentum_df)} matches with momentum data")
@@ -100,13 +100,18 @@ async def compute_trending_scores_job():
             velocity_query = text("""
                 SELECT 
                     m1.match_id,
-                    (m1.momentum - COALESCE(m2.momentum, m1.momentum)) / 
-                    NULLIF(EXTRACT(EPOCH FROM (m1.created_at - m2.created_at)) / 60, 0) as velocity
+                    CASE 
+                        WHEN m2.match_id IS NOT NULL THEN
+                            ((COALESCE(m1.momentum_home, 50) + COALESCE(m1.momentum_away, 50)) / 2.0 - 
+                             (COALESCE(m2.momentum_home, 50) + COALESCE(m2.momentum_away, 50)) / 2.0) / 
+                            NULLIF(EXTRACT(EPOCH FROM (m1.updated_at - m2.updated_at)) / 60, 0)
+                        ELSE 0.0
+                    END as velocity
                 FROM live_momentum m1
                 LEFT JOIN live_momentum m2 ON m1.match_id = m2.match_id 
-                    AND m2.created_at >= m1.created_at - INTERVAL '5 minutes'
-                    AND m2.created_at < m1.created_at
-                WHERE m1.created_at > NOW() - INTERVAL '5 minutes'
+                    AND m2.updated_at >= m1.updated_at - INTERVAL '5 minutes'
+                    AND m2.updated_at < m1.updated_at
+                WHERE m1.updated_at > NOW() - INTERVAL '24 hours'
             """)
             velocity_df = pd.read_sql(velocity_query, conn)
             logger.info(f"✅ Loaded velocity data for {len(velocity_df)} matches")
