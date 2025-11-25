@@ -1,0 +1,76 @@
+RROR:jobs.compute_trending_scores:❌ Trending scores computation failed: (psycopg2.errors.UndefinedColumn) column cp.home_prob does not exist
+LINE 4:                     cp.home_prob as v1_home,
+                            ^
+
+[SQL: 
+                SELECT DISTINCT
+                    cp.match_id,
+                    cp.home_prob as v1_home,
+                    cp.draw_prob as v1_draw,
+                    cp.away_prob as v1_away
+                FROM consensus_predictions cp
+                ORDER BY cp.created_at DESC
+                LIMIT 10000
+            ]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column cp.home_prob does not exist
+LINE 4:                     cp.home_prob as v1_home,
+                            ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/jobs/compute_trending_scores.py", line 95, in compute_trending_scores_job
+    pred_df = pd.read_sql(pred_query, conn)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pandas/io/sql.py", line 736, in read_sql
+    return pandas_sql.read_query(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pandas/io/sql.py", line 1848, in read_query
+    result = self.execute(sql, params)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/pandas/io/sql.py", line 1672, in execute
+    return self.con.execute(sql, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1415, in execute
+    return meth(
+           ^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column cp.home_prob does not exist
+LINE 4:                     cp.home_prob as v1_home,
+                            ^
+
+[SQL: 
+                SELECT DISTINCT
+                    cp.match_id,
+                    cp.home_prob as v1_home,
+                    cp.draw_prob as v1_draw,
+                    cp.away_prob as v1_away
+                FROM consensus_predictions cp
+                ORDER BY cp.created_at DESC
+                LIMIT 10000
+            ]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+WARNING:utils.scheduler:⚠️ TRENDING: Scores computati

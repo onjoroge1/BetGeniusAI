@@ -80,17 +80,17 @@ async def compute_trending_scores_job():
             clv_df = pd.read_sql(clv_query, conn)
             logger.info(f"✅ Loaded CLV data for {len(clv_df)} matches")
         
-        # Get predictions (V1 and V2 if available)
+        # Get predictions (V1: consensus predictions)
         with engine.connect() as conn:
             pred_query = text("""
-                SELECT DISTINCT
-                    cp.match_id,
-                    cp.home_prob as v1_home,
-                    cp.draw_prob as v1_draw,
-                    cp.away_prob as v1_away
-                FROM consensus_predictions cp
-                ORDER BY cp.created_at DESC
-                LIMIT 10000
+                SELECT 
+                    match_id,
+                    consensus_h as v1_home,
+                    consensus_d as v1_draw,
+                    consensus_a as v1_away
+                FROM consensus_predictions
+                WHERE time_bucket = '24h'
+                ORDER BY created_at DESC
             """)
             pred_df = pd.read_sql(pred_query, conn)
             logger.info(f"✅ Loaded predictions for {len(pred_df)} matches")
@@ -181,25 +181,34 @@ async def compute_trending_scores_job():
         logger.info("💾 Saving scores to database...")
         
         from sqlalchemy.orm import Session
+        
+        # Sort for ranking
+        scores_by_hot = sorted(scores_to_save, key=lambda x: x.hot_score, reverse=True)
+        scores_by_trending = sorted(scores_to_save, key=lambda x: x.trending_score, reverse=True)
+        
+        # Assign ranks
+        for i, score in enumerate(scores_by_hot):
+            score.hot_rank = i + 1
+        
+        for i, score in enumerate(scores_by_trending):
+            score.trending_rank = i + 1
+        
+        # Save to database and serialize WHILE in session
+        top_hot = []
+        top_trending = []
         with Session(engine) as session:
             # Delete old scores
             session.query(TrendingScore).delete()
-            
-            # Sort for ranking
-            scores_by_hot = sorted(scores_to_save, key=lambda x: x.hot_score, reverse=True)
-            scores_by_trending = sorted(scores_to_save, key=lambda x: x.trending_score, reverse=True)
-            
-            # Assign ranks
-            for i, score in enumerate(scores_by_hot):
-                score.hot_rank = i + 1
-            
-            for i, score in enumerate(scores_by_trending):
-                score.trending_rank = i + 1
+            session.commit()
             
             # Bulk save
             session.add_all(scores_to_save)
             session.commit()
             logger.info(f"✅ Saved {len(scores_to_save)} scores to database")
+            
+            # Convert to dicts WHILE still in session (BEFORE session closes)
+            top_hot = [s.to_dict() for s in scores_by_hot[:20]]
+            top_trending = [s.to_dict() for s in scores_by_trending[:20]]
         
         # ===== STEP 5: Cache results =====
         logger.info("⚡ Caching results in Redis...")
@@ -213,10 +222,6 @@ async def compute_trending_scores_job():
                 decode_responses=True,
                 socket_connect_timeout=2
             )
-            
-            # Prepare top 20 for each category
-            top_hot = [s.to_dict() for s in scores_by_hot[:20]]
-            top_trending = [s.to_dict() for s in scores_by_trending[:20]]
             
             # Cache with 5-minute TTL
             redis_client.setex("trending:hot:None:20", 300, json.dumps(top_hot))
@@ -240,8 +245,12 @@ async def compute_trending_scores_job():
         elapsed = (datetime.utcnow() - start_time).total_seconds()
         logger.info(f"✅ Trending scores computation completed in {elapsed:.2f}s")
         logger.info(f"   📊 {len(scores_to_save)} matches processed")
-        logger.info(f"   🔥 Top hot score: {scores_by_hot[0].hot_score if scores_by_hot else 0:.1f}")
-        logger.info(f"   📈 Top trending score: {scores_by_trending[0].trending_score if scores_by_trending else 0:.1f}")
+        
+        # Get top scores from dicts (avoid detached session issues)
+        if top_hot:
+            logger.info(f"   🔥 Top hot score: {top_hot[0].get('hot_score', 0):.1f}")
+        if top_trending:
+            logger.info(f"   📈 Top trending score: {top_trending[0].get('trending_score', 0):.1f}")
         
         return True
     
