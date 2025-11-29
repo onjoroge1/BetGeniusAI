@@ -1,7 +1,7 @@
 # BetGenius AI - Sports Prediction Backend
 
 ## Overview
-BetGenius AI is a sports prediction platform that delivers intelligent football match predictions using advanced machine learning and AI analysis. Its primary purpose is to offer market-relative performance, a superior user experience with confidence-calibrated predictions, and sophisticated risk management tools for sports betting in key African markets. Key capabilities include comprehensive data collection, robust ML models, AI-powered contextual analysis, strategic market intelligence, and a full live betting intelligence stack with real-time momentum scoring and WebSocket streaming.
+BetGenius AI is a sports prediction platform designed to provide intelligent football match predictions using advanced machine learning and AI analysis. Its core purpose is to offer market-relative performance, a superior user experience with confidence-calibrated predictions, and sophisticated risk management tools for sports betting in key African markets. The platform includes comprehensive data collection, robust ML models, AI-powered contextual analysis, strategic market intelligence, and a full live betting intelligence stack with real-time momentum scoring and WebSocket streaming.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -15,65 +15,62 @@ Data Leakage Elimination & V2 Training Success (2025-11-17): Discovered and elim
 Production Training Script (2025-11-18): Created train_v2_production.py for full production training. Quick script trains for 200 iterations, production script trains for 2000 iterations with aggressive early stopping (100 rounds) and proper hyperparameters (learning_rate=0.03, L1/L2 regularization, bagging). Expected training time: 5-10 minutes vs 10 seconds for quick script. Always use production script for final models and monthly retraining.
 PHASE 1 Implementation Complete (2025-11-25): Trending & Hot Matches API deployed and running. Session caching with Redis for <5ms response times. 3 new endpoints: /api/v1/trending/hot, /api/v1/trending/trending, /api/v1/trending/status. Scheduler job runs every 5 minutes computing scores. Perfect for frontend dashboard. Phase 2 (Middleware auth + personalization) planned for next sprint.
 Market API Redis Caching (2025-11-29): Implemented selective Redis caching for /market endpoint with status-based TTLs: finished=1hr (3600s), upcoming=10min (600s), live=10min (600s), individual match lookups=0 TTL (always fresh). Graceful fallback to no-cache mode when Redis unavailable. Expected 97% faster responses on cache hits (~50ms vs 2.4s).
+V2 Feature Adapter (2025-11-29): Fixed V2 predictions returning zeros by creating feature pruning adapter in v2_lgbm_predictor.py. Maps 48 features from v2_feature_builder to the 17 features the LightGBM model expects. Uses FEATURE_MAPPING dict with fallback sources for each target feature.
+Fixtures→Matches Sync (2025-11-29): Created jobs/sync_fixtures_to_matches.py to sync finished fixtures with results to matches table. Runs every 15 minutes via scheduler. Successfully synced 422 fixtures on initial run.
+Auto-Retrain System (2025-11-29): Created jobs/auto_retrain.py with threshold triggers: 50+ new matches since last training, 14+ days model staleness, or accuracy drift below 48%. Runs daily at 03:00 UTC via scheduler. Checks v2_predictions table for accuracy evaluation.
 
 ## System Architecture
 
 ### Backend Framework
-- **FastAPI**: Python web framework.
+- **FastAPI**: Python web framework for API development.
 - **SQLAlchemy**: ORM for database interactions.
 - **Pydantic**: For data validation.
-- **AsyncIO**: For asynchronous operations.
+- **AsyncIO**: For asynchronous operations, enhancing performance.
 - **Deployment Architecture**: Supports Autoscale (API-only) and Development/VM (full functionality with background scheduler) modes.
-- **Redis**: Session caching for trending scores (6 columns, <5ms serving).
+- **Redis**: Used for session caching, especially for trending scores, achieving sub-5ms response times.
 
 ### Machine Learning Pipeline
-- **Models**: Production V1 (weighted consensus) and V2 (LightGBM ensemble) models. V2.3 (2025-11-16) uses leak-free match_context_v2 table with 0% contamination.
-- **Feature Engineering**: Reusable pipeline with 46 features for V2.3 (40 base + 2 context_transformed + 4 drift). All context features computed using ONLY past matches with strict T-1h cutoff.
-- **Leak Elimination (2025-11-16)**: Replaced contaminated match_context table (100% post-match data) with match_context_v2 (0% contamination, validated). Automated pipeline ensures all context data uses as_of_time = match_date - 1 hour.
-- **Training Data**: 648 matches (Oct-Nov 2025) with 100% clean odds and context data. All odds strictly pre-match (0% backdated contamination verified). Historical backfill via scripts/backfill_match_context_v2.py. Can scale to 2,464 matches via optional backfill.
-- **Calibration & Constraints**: Extensive testing for optimal model configuration including random-label sanity checks (<40% target).
-- **Shadow Testing System**: Operational market-delta ridge regression for A/B testing and auto-promotion.
-- **Auto-Retraining System**: Models retrain automatically based on match volume (every 10 matches trigger). Production script available for monthly retraining.
-- **Match Context Builder**: Automated service runs every 5 minutes in scheduler, populates match_context_v2 for new matches with zero manual intervention.
-- **Market System**: Poisson-based market expansion providing 50+ mathematically consistent markets.
-- **Accuracy Tracking**: Automated backend monitoring for predictions, calculating metrics (Brier score, LogLoss, Hit-rate).
-- **Live Betting Intelligence**: Includes a Momentum Engine (0-100 scoring based on weighted features) and a Live Market Engine for in-play predictions with time-aware blending and momentum boost.
-- **Trending Scores System (PHASE 1, 2025-11-25)**: Pre-computed hot_score and trending_score for each match. Hot matches = high momentum + CLV alerts + V1/V2 disagreement. Trending matches = momentum acceleration + odds movement. Cached in Redis every 5 minutes, served <5ms. Scores available at /api/v1/trending/hot and /api/v1/trending/trending.
+- **Models**: Utilizes Production V1 (weighted consensus) and V2 (LightGBM ensemble) models. V2.3 specifically uses a leak-free `match_context_v2` table.
+- **Feature Engineering**: A reusable pipeline generates 46 features for V2.3 (40 base + 2 context_transformed + 4 drift), with all context features computed using only past matches with a strict T-1h cutoff.
+- **Leak Elimination**: Replaced contaminated `match_context` with validated `match_context_v2` to ensure data integrity and prevent overfitting.
+- **Training Data**: Comprises 648 clean matches (Oct-Nov 2025) with strictly pre-match odds. The system supports scaling up to 2,464 matches via optional backfill.
+- **Calibration & Constraints**: Extensive testing, including random-label sanity checks, ensures optimal model configuration.
+- **Shadow Testing System**: Implements market-delta ridge regression for A/B testing and automated model promotion.
+- **Auto-Retraining System**: Models are automatically retrained based on match volume (every 10 matches) and monthly via a production script.
+- **Match Context Builder**: An automated scheduler service populates `match_context_v2` for new matches every 5 minutes.
+- **Market System**: A Poisson-based approach generates 50+ mathematically consistent markets.
+- **Accuracy Tracking**: Automated backend monitoring calculates metrics like Brier score, LogLoss, and Hit-rate.
+- **Live Betting Intelligence**: Features a Momentum Engine (0-100 scoring) and a Live Market Engine for in-play predictions with time-aware blending.
+- **Trending Scores System**: Pre-computes `hot_score` and `trending_score` for matches, cached in Redis and updated every 5 minutes. Exposed via `/api/v1/trending/hot` and `/api/v1/trending/trending` endpoints.
 
 ### Data Collection
-- **Canonical Fixtures Table**: Single source of truth for match metadata.
-- **TBD Fixture Enrichment**: Automated service resolves "To Be Determined" placeholders.
+- **Canonical Fixtures Table**: Serves as the single source of truth for match metadata.
+- **TBD Fixture Enrichment**: Automated service to resolve "To Be Determined" placeholders.
 - **Multi-Source Real-Time Odds**: Parallel collection from The Odds API and API-Football.
-- **Fixture ID Resolver**: Advanced system for high linkage rates.
-- **Historical Match Data**: Extensive historical data (40,769 matches from 1993-2025) with results, bookmaker odds, and in-game statistics.
-- **CLV Monitoring**: Advanced system for detecting pricing inefficiencies, robust consensus calculation, real-time alerts, and closing line capture.
-- **Observability**: Prometheus metrics, Grafana dashboards, and operations runbook.
+- **Fixture ID Resolver**: Advanced system for high linkage rates across different data sources.
+- **Historical Match Data**: Extensive dataset of 40,769 matches (1993-2025) including results, odds, and in-game statistics.
+- **CLV Monitoring**: Advanced system for detecting pricing inefficiencies, robust consensus calculation, real-time alerts, and closing line value capture.
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: Provides comprehensive match analysis and contextual insights.
-
-### Data Flow & Feature Engineering
-- Automated processes for creating ML-ready features from raw data, utilizing horizon-aligned market snapshots.
 
 ### Database Layer
 - **PostgreSQL**: Primary database with optimized production indexes.
 - **Schema Bridge Views**: For streamlined analysis.
 - **Outcome Standardization**: Unified H/D/A outcome codes.
 - **Timezone Architecture**: All timestamp columns are timezone-aware UTC.
-- **Match Status Architecture**: Database stores 'scheduled' and 'finished' statuses, with upcoming matches determined by time-based filtering.
-- **Team Logo System**: Dimension table with logo_url and API Football team ID mapping, intelligent enrichment service.
-- **Trending Scores Table (PHASE 1, 2025-11-25)**: 8 columns (match_id, hot_score, trending_score, hot_rank, trending_rank, momentum_current, momentum_velocity, clv_signal_count, prediction_disagreement). 3 indexes on hot_score, trending_score, match_id. Updated every 5 minutes by scheduler.
+- **Match Status Architecture**: Stores 'scheduled' and 'finished' statuses, with upcoming matches determined by time-based filtering.
+- **Team Logo System**: Dimension table with `logo_url` and API Football team ID mapping.
+- **Trending Scores Table**: Stores `hot_score`, `trending_score`, and related metrics with dedicated indexes, updated every 5 minutes.
 
 ### API Endpoints
-- **Prediction API**: `/predict` (V1 consensus), `/predict-v2` (premium V2 SELECT), `/market` (market board with V1/V2, team logos, status filters: upcoming, live, finished). Recent fix (2025-11-15): Dynamic status determination, added momentum and model_markets fields for live matches, fixed live data conditional logic.
-- **Betting Intelligence API**: `/betting-intelligence/{match_id}` (per-match CLV, edge, Kelly sizing), `/betting-intelligence` (curated opportunities). Features include edge calculation, CLV analysis, and Kelly Criterion optimal stake sizing.
+- **Prediction API**: Includes `/predict` (V1 consensus), `/predict-v2` (premium V2 SELECT), and `/market` (market board with V1/V2, team logos, status filters).
+- **Betting Intelligence API**: Provides `/betting-intelligence/{match_id}` (per-match CLV, edge, Kelly sizing) and `/betting-intelligence` (curated opportunities).
 - **WebSocket Streaming**: `/ws/live/{match_id}` for real-time match events and prediction updates.
-- **Trending API (PHASE 1, 2025-11-25)**: `/api/v1/trending/hot` (high momentum + CLV opportunities), `/api/v1/trending/trending` (growing interest), `/api/v1/trending/status` (cache health). All endpoints use Redis caching, <5ms response time. Free tier (no auth required). Perfect for frontend dashboard.
-- **Admin Endpoints**: For data management, match discovery, and training statistics.
-- **Monitoring Endpoints**: For CLV health, shadow system metrics, and model evaluation.
+- **Trending API**: `/api/v1/trending/hot`, `/api/v1/trending/trending`, and `/api/v1/trending/status` for trending match data with Redis caching.
 
 ### UI/UX Decisions
-- Focus on superior user experience with confidence-calibrated predictions and uncertainty quantification.
+- Focuses on delivering a superior user experience through confidence-calibrated predictions and uncertainty quantification.
 
 ## External Dependencies
 
@@ -85,76 +82,8 @@ Market API Redis Caching (2025-11-29): Implemented selective Redis caching for /
 - **OpenAI API**: Specifically GPT-4o for contextual analysis.
 
 ### Cache & Session
-- **Redis**: Session caching for trending scores, sub-5ms serving.
+- **Redis**: Used for session caching, improving response times.
 
 ### Database
-- **PostgreSQL**: Core relational database.
-
-## Recent Changes (2025-11-25)
-
-### PHASE 1: Trending & Hot Matches API - PRODUCTION READY ✅✅
-
-**What was implemented**:
-1. **Database**: `trending_scores` table with hot_score, trending_score rankings
-2. **Models**: `models/trending_score.py` with ORM + score computation functions
-3. **Routes**: `routes/trending.py` with 3 endpoints (hot, trending, status) + Bearer token auth
-4. **Scheduler**: Integrated into `utils/scheduler.py` to run every 5 minutes
-5. **Database Fallback**: Automatic fallback from Redis cache to database queries
-6. **Integration**: Registered in `main.py` as new router
-
-**Key Features - VERIFIED WORKING**:
-- Hot Score Formula: (momentum × 0.4) + (CLV alerts × 0.3) + (disagreement × 0.2) + 0.1 base
-- Trending Score Formula: (velocity × 0.4) + (odds shift × 0.3) + (conf change × 0.2) + 0.1 base
-- Bearer token authentication: `Authorization: Bearer betgenius_secure_key_2024`
-- Redis caching: <5ms response times (when available)
-- Database fallback: Seamless fallback when Redis unavailable
-- Scheduler job: Runs every 5 minutes (2-3 seconds per cycle)
-- Error handling: Graceful degradation with clear status reporting
-- Data sources: Uses live_momentum, clv_alerts, consensus_predictions
-
-**Performance (Tested)**:
-- Response time: <50ms (database fallback)
-- Scheduler accuracy: 100% (all 5 matches processed successfully)
-- API availability: 100% (with or without Redis)
-- Score accuracy: Verified against database (all scores saved correctly)
-
-**API Endpoints - TESTED**:
-1. `GET /api/v1/trending/status` → Returns cache health & available matches
-2. `GET /api/v1/trending/hot?limit=20&league_id=39` → Returns hot matches sorted by hot_score
-3. `GET /api/v1/trending/trending?timeframe=5m&limit=20` → Returns trending matches sorted by trending_score
-
-**Recent Fixes (2025-11-25)**:
-- Fixed momentum query to use (momentum_home + momentum_away) / 2
-- Fixed velocity query to use updated_at instead of created_at
-- Fixed predictions query to use consensus_h/d/a columns
-- Fixed SQLAlchemy session management for detached instance errors
-- Added database fallback queries for all endpoints
-- Implemented graceful Redis failure handling
-- Updated status endpoint to show database availability
-
-**Testing Results**:
-- ✅ Authentication: Bearer token working correctly
-- ✅ Hot matches API: Returning 5 matches with full scores
-- ✅ Trending matches API: Returning 5 matches with full scores
-- ✅ Status endpoint: Shows 5 available matches, Redis offline, DB available
-- ✅ Query parameters: limit, league_id, timeframe all functional
-- ✅ Database fallback: Seamless serving when Redis unavailable
-- ✅ Scheduler: Running successfully every 5 minutes
-
-**Next Steps** (Phase 2, 1-2 weeks):
-- Implement user authentication middleware
-- Add personalized filtering (favorite leagues)
-- Add user activity tracking for analytics
-- Optional: WebSocket real-time updates for premium users
-
-**Documentation**:
-- PHASE_1_IMPLEMENTATION_COMPLETE.md - Full deployment guide
-- TRENDING_HOT_MATCHES_REVIEW.md - Technical analysis and recommendations
-- PRODUCTION_TRAINING_GUIDE.md - Training script comparison
-
-**PRODUCTION STATUS**: ✅ READY FOR DEPLOYMENT
-- All core functionality implemented and tested
-- Error handling robust and graceful
-- Database persistence verified
-- API endpoints responding correctly with authentication
-- Scheduler running reliably
+- **PostgreSQL**: The core relational database for persistent storage.
+```

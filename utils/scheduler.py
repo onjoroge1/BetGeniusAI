@@ -76,6 +76,8 @@ class BackgroundScheduler:
         self.last_context_builder_run: Optional[datetime] = None
         # Fixtures to matches sync (runs every 15 minutes to sync finished fixtures)
         self.last_fixtures_sync_run: Optional[datetime] = None
+        # Auto-retrain check (runs once per day at 03:00 UTC)
+        self.last_retrain_check_run: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -102,6 +104,7 @@ class BackgroundScheduler:
         logger.info("🔨 Match Context Builder (V2) enabled - runs every 5 minutes to populate match_context_v2")
         logger.info("🔥 PHASE 1: Trending Scores enabled - runs every 5 minutes to pre-compute hot/trending scores")
         logger.info("🔄 Fixtures→Matches Sync enabled - runs every 15 minutes to sync finished fixtures")
+        logger.info("🤖 Auto-Retrain enabled - runs daily at 03:00 UTC (triggers: 50+ new matches, 14-day staleness, accuracy drift)")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -360,6 +363,12 @@ class BackgroundScheduler:
                 # 🔄 Fixtures→Matches Sync - runs every 15 minutes to sync finished fixtures
                 if "fixtures_sync" not in self.last_run or (now - self.last_run["fixtures_sync"]).total_seconds() >= 900:
                     await self._spawn("fixtures_sync", self._run_fixtures_to_matches_sync, timeout=120)
+                
+                # 🤖 Auto-Retrain Check - runs once per day at 03:00 UTC
+                current_hour = now.hour
+                if current_hour == 3:
+                    if "auto_retrain" not in self.last_run or (now - self.last_run["auto_retrain"]).total_seconds() >= 86400:
+                        await self._spawn("auto_retrain", self._run_auto_retrain_check, timeout=1800)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -1145,6 +1154,36 @@ class BackgroundScheduler:
             logger.warning("⚠️ SYNC: sync_fixtures_to_matches module not found - skipping")
         except Exception as e:
             logger.error(f"❌ SYNC: Fixtures→matches sync failed - {e}", exc_info=True)
+
+    async def _run_auto_retrain_check(self):
+        """
+        🤖 Auto-Retrain Check Job
+        Checks triggers and retrains V2 model if needed.
+        Runs daily at 03:00 UTC.
+        
+        Triggers:
+        1. Match Volume: 50+ new finished matches
+        2. Model Staleness: Model not trained in 14+ days
+        3. Accuracy Drift: Recent accuracy below 48%
+        """
+        try:
+            from jobs.auto_retrain import auto_retrain_job
+            logger.info("🤖 RETRAIN: Starting auto-retrain check...")
+            result = await auto_retrain_job()
+            
+            if result.get('training_triggered'):
+                training_result = result.get('training_result', {})
+                if training_result.get('success'):
+                    logger.info(f"✅ RETRAIN: Model retrained successfully in {training_result.get('duration_seconds', 0):.0f}s")
+                else:
+                    logger.warning(f"⚠️ RETRAIN: Training failed - {training_result.get('error', 'unknown')}")
+            else:
+                triggers = result.get('triggers', {})
+                logger.info(f"✅ RETRAIN: No retraining needed - match_vol={triggers.get('match_volume', {}).get('new_matches', 0)}, age={triggers.get('model_staleness', {}).get('age_days', 0)}d")
+        except ImportError:
+            logger.warning("⚠️ RETRAIN: auto_retrain module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ RETRAIN: Auto-retrain check failed - {e}", exc_info=True)
 
 
 # Global scheduler instance
