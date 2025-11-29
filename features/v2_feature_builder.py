@@ -189,6 +189,75 @@ class V2FeatureBuilder:
             result = conn.execute(query_fixtures, {"match_id": match_id}).mappings().first()
             return dict(result) if result else None
     
+    def _compute_odds_from_snapshots(self, match_id: int, cutoff_time: datetime) -> Optional[Dict]:
+        """
+        Compute consensus odds from odds_snapshots for live inference.
+        
+        This is the fallback when odds_real_consensus doesn't have data for a match.
+        Aggregates individual bookmaker odds into consensus probabilities.
+        
+        Requirements:
+        - created_at < cutoff_time (strict pre-kickoff)
+        - At least 3 bookmakers for quality
+        
+        Returns:
+            Dict with odds features if valid data found, None otherwise
+        """
+        query = text("""
+            WITH latest_by_book AS (
+                SELECT DISTINCT ON (book_id, outcome)
+                    match_id,
+                    book_id,
+                    outcome,
+                    implied_prob,
+                    market_margin,
+                    created_at,
+                    EXTRACT(EPOCH FROM (:cutoff - created_at)) / 3600.0 as hours_before_ko
+                FROM odds_snapshots
+                WHERE match_id = :match_id
+                  AND created_at < :cutoff
+                  AND market = 'h2h'
+                ORDER BY book_id, outcome, created_at DESC
+            ),
+            book_probs AS (
+                SELECT 
+                    book_id,
+                    MAX(CASE WHEN outcome = 'H' THEN implied_prob END) as p_home,
+                    MAX(CASE WHEN outcome = 'D' THEN implied_prob END) as p_draw,
+                    MAX(CASE WHEN outcome = 'A' THEN implied_prob END) as p_away,
+                    AVG(market_margin) as margin,
+                    MAX(hours_before_ko) as hours_before
+                FROM latest_by_book
+                GROUP BY book_id
+                HAVING COUNT(DISTINCT outcome) = 3
+            ),
+            consensus AS (
+                SELECT 
+                    AVG(p_home) as p_last_home,
+                    AVG(p_draw) as p_last_draw,
+                    AVG(p_away) as p_last_away,
+                    COALESCE(STDDEV(p_home), 0.01) as dispersion_home,
+                    COALESCE(STDDEV(p_draw), 0.01) as dispersion_draw,
+                    COALESCE(STDDEV(p_away), 0.01) as dispersion_away,
+                    COUNT(*) as num_books_last,
+                    AVG(margin) as market_margin_avg,
+                    MIN(hours_before) as hours_before_ko
+                FROM book_probs
+            )
+            SELECT * FROM consensus WHERE num_books_last >= 3
+        """)
+        
+        with self.engine.connect() as conn:
+            result = conn.execute(query, {
+                "match_id": match_id,
+                "cutoff": cutoff_time
+            }).mappings().first()
+            
+            if result:
+                logger.info(f"Match {match_id}: Using odds_snapshots fallback ({result['hours_before_ko']:.2f}h before KO, {result['num_books_last']} books)")
+                return dict(result)
+            return None
+    
     def _build_odds_features(self, match_id: int, cutoff_time: datetime) -> Dict[str, float]:
         """
         Build odds-based features (18 features)
@@ -222,8 +291,9 @@ class V2FeatureBuilder:
             ValueError: If no valid pre-kickoff odds available (match will be dropped)
         """
         # Query STRICT pre-kickoff odds (must be BEFORE kickoff, not AT/AFTER)
-        # CRITICAL: Uses odds_real_consensus (built from odds_snapshots - REAL DATA)
-        # Never use odds_consensus or odds_prekickoff_clean - they contain fake/backdated data!
+        # Strategy:
+        # 1. First try odds_real_consensus (for training matches with validated historical data)
+        # 2. Fall back to computing consensus from odds_snapshots (for live inference)
         query = text("""
             SELECT 
                 ph_cons as p_last_home,
@@ -243,6 +313,12 @@ class V2FeatureBuilder:
             result = conn.execute(query, {
                 "match_id": match_id
             }).mappings().first()
+        
+        # FALLBACK: If not in odds_real_consensus, compute from odds_snapshots
+        # This enables V2 predictions for live matches using real-time collected odds
+        if not result:
+            logger.debug(f"Match {match_id}: No odds_real_consensus, trying odds_snapshots fallback...")
+            result = self._compute_odds_from_snapshots(match_id, cutoff_time)
         
         # CRITICAL: Raise exception if no valid odds (drop match, don't zero-fill!)
         if not result:
