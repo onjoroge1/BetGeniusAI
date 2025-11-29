@@ -1,0 +1,78 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        DATA COLLECTION (Every 60 seconds)                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  The Odds API  ──────►  odds_snapshots   ◄────── API-Football               │
+│  (bookmaker odds)       374,963 rows            (fixture data)              │
+│                         LIVE ✅                                              │
+│                         (Last update: just now)                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TABLE: fixtures                                       │
+│                        (Canonical source for match metadata)                 │
+│                        Has: home_team_id, away_team_id ✅                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼ (BROKEN! Not syncing to matches table)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TABLE: matches                                        │
+│                        896 rows total, but ZERO recent matches with team IDs │
+│                        ❌ home_team_id/away_team_id not populated for 7+ days│
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼ (Match Context Builder queries this)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TABLE: match_context_v2                               │
+│                        6,360 rows (all from Nov 16!)                         │
+│                        ❌ STALE - No new data since 11/16                    │
+│                                                                              │
+│  PURPOSE: Inference features (rest days, schedule congestion)               │
+│  USED BY: V2 Feature Builder for live predictions                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TABLE: training_matches                               │
+│                        (Historical matches with known outcomes)              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼ (Backfill script reads from here)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Backfill: backfill_odds_the_odds_api.py                   │
+│                                                                              │
+│  READS FROM: training_matches (finds matches needing odds)                   │
+│  WRITES TO:  odds_snapshots (inserts historical bookmaker odds)              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TABLE: odds_real_consensus                            │
+│                        766 rows (last update: Nov 19)                        │
+│                        ❌ FROZEN for training only                           │
+│                                                                              │
+│  PURPOSE: Training data - CLEAN, leak-free historical consensus odds        │
+│  USED BY: train_v2_production.py for model training                         │
+│  NEVER MODIFY: Keep frozen to maintain training data integrity              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        MODEL TRAINING                                        │
+│                        train_v2_production.py                                │
+│                                                                              │
+│  READS:  training_matches + odds_real_consensus → 17 features                │
+│  OUTPUT: artifacts/models/v2_lgbm_*.pkl                                      │
+│  LAST TRAINED: November (model expects 17 features)                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        LIVE INFERENCE (/market API)                          │
+│                        v2_feature_builder.py                                 │
+│                                                                              │
+│  READS:  fixtures + odds_snapshots + match_context_v2 → 48 features          │
+│  ❌ MISMATCH: Model expects 17, builder creates 48                           │
+│  RESULT: Zero predictions                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
