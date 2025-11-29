@@ -47,16 +47,28 @@ class MatchContextBuilder:
             with psycopg2.connect(self.database_url) as conn:
                 with conn.cursor() as cursor:
                     # Find matches without context that are upcoming or recent
+                    # Use fixtures table as primary source (more reliable for upcoming matches)
+                    # Falls back to matches table for historical data
                     cursor.execute("""
-                        SELECT m.match_id, m.home_team_id, m.away_team_id, m.match_date_utc
-                        FROM matches m
-                        LEFT JOIN match_context_v2 mc ON m.match_id = mc.match_id
-                        WHERE mc.match_id IS NULL
-                          AND m.home_team_id IS NOT NULL
-                          AND m.away_team_id IS NOT NULL
-                          AND m.match_date_utc > NOW() - INTERVAL '%s hours'
-                        ORDER BY m.match_date_utc
-                    """ % lookback_hours)
+                        SELECT * FROM (
+                            SELECT f.match_id, f.home_team_id, f.away_team_id, f.kickoff_at as match_date
+                            FROM fixtures f
+                            LEFT JOIN match_context_v2 mc ON f.match_id = mc.match_id
+                            WHERE mc.match_id IS NULL
+                              AND f.kickoff_at > NOW() - INTERVAL '%s hours'
+                            
+                            UNION
+                            
+                            SELECT m.match_id, m.home_team_id, m.away_team_id, m.match_date_utc as match_date
+                            FROM matches m
+                            LEFT JOIN match_context_v2 mc ON m.match_id = mc.match_id
+                            WHERE mc.match_id IS NULL
+                              AND m.home_team_id IS NOT NULL
+                              AND m.away_team_id IS NOT NULL
+                              AND m.match_date_utc > NOW() - INTERVAL '%s hours'
+                        ) combined
+                        ORDER BY match_date
+                    """ % (lookback_hours, lookback_hours))
                     
                     matches_needing_context = cursor.fetchall()
                     
@@ -67,76 +79,129 @@ class MatchContextBuilder:
                     logger.info(f"🔨 Building context for {len(matches_needing_context)} matches...")
                     
                     # Build context using leak-free SQL
+                    # Use fixtures as primary source, with team name matching for historical lookups
+                    # Fallback to team ID matching for matches table
                     cursor.execute("""
                         WITH base AS (
-                            SELECT
-                                m.match_id,
-                                m.home_team_id,
-                                m.away_team_id,
-                                m.match_date_utc
-                            FROM matches m
-                            LEFT JOIN match_context_v2 mc ON m.match_id = mc.match_id
-                            WHERE mc.match_id IS NULL
-                              AND m.home_team_id IS NOT NULL
-                              AND m.away_team_id IS NOT NULL
-                              AND m.match_date_utc > NOW() - INTERVAL '%s hours'
+                            SELECT * FROM (
+                                -- Use fixtures table as primary source (has team names for upcoming matches)
+                                SELECT
+                                    f.match_id,
+                                    f.home_team_id,
+                                    f.away_team_id,
+                                    f.home_team,
+                                    f.away_team,
+                                    f.kickoff_at as match_date_utc
+                                FROM fixtures f
+                                LEFT JOIN match_context_v2 mc ON f.match_id = mc.match_id
+                                WHERE mc.match_id IS NULL
+                                  AND f.kickoff_at > NOW() - INTERVAL '%s hours'
+                                
+                                UNION
+                                
+                                -- Fallback to matches table for historical data with team IDs
+                                SELECT
+                                    m.match_id,
+                                    m.home_team_id,
+                                    m.away_team_id,
+                                    NULL as home_team,
+                                    NULL as away_team,
+                                    m.match_date_utc
+                                FROM matches m
+                                LEFT JOIN match_context_v2 mc ON m.match_id = mc.match_id
+                                WHERE mc.match_id IS NULL
+                                  AND m.home_team_id IS NOT NULL
+                                  AND m.away_team_id IS NOT NULL
+                                  AND m.match_date_utc > NOW() - INTERVAL '%s hours'
+                            ) combined
                         ),
                         
+                        -- Look up previous matches using team names (for fixtures) or team IDs (for matches)
                         last_home_match AS (
                             SELECT
                                 b.match_id,
-                                MAX(p.match_date_utc) AS prev_home_match_date
+                                MAX(GREATEST(
+                                    COALESCE(pf.kickoff_at, '1900-01-01'::timestamp),
+                                    COALESCE(pm.match_date_utc, '1900-01-01'::timestamp)
+                                )) AS prev_home_match_date
                             FROM base b
-                            LEFT JOIN matches p
-                                ON p.home_team_id = b.home_team_id
-                               AND p.match_date_utc < b.match_date_utc
+                            LEFT JOIN fixtures pf
+                                ON b.home_team IS NOT NULL
+                               AND (pf.home_team = b.home_team OR pf.away_team = b.home_team)
+                               AND pf.kickoff_at < b.match_date_utc
+                               AND pf.status = 'finished'
+                            LEFT JOIN matches pm
+                                ON b.home_team_id IS NOT NULL
+                               AND (pm.home_team_id = b.home_team_id OR pm.away_team_id = b.home_team_id)
+                               AND pm.match_date_utc < b.match_date_utc
                             GROUP BY b.match_id
                         ),
                         
                         last_away_match AS (
                             SELECT
                                 b.match_id,
-                                MAX(p.match_date_utc) AS prev_away_match_date
+                                MAX(GREATEST(
+                                    COALESCE(pf.kickoff_at, '1900-01-01'::timestamp),
+                                    COALESCE(pm.match_date_utc, '1900-01-01'::timestamp)
+                                )) AS prev_away_match_date
                             FROM base b
-                            LEFT JOIN matches p
-                                ON p.away_team_id = b.away_team_id
-                               AND p.match_date_utc < b.match_date_utc
+                            LEFT JOIN fixtures pf
+                                ON b.away_team IS NOT NULL
+                               AND (pf.home_team = b.away_team OR pf.away_team = b.away_team)
+                               AND pf.kickoff_at < b.match_date_utc
+                               AND pf.status = 'finished'
+                            LEFT JOIN matches pm
+                                ON b.away_team_id IS NOT NULL
+                               AND (pm.home_team_id = b.away_team_id OR pm.away_team_id = b.away_team_id)
+                               AND pm.match_date_utc < b.match_date_utc
                             GROUP BY b.match_id
                         ),
                         
                         home_congestion AS (
                             SELECT
                                 b.match_id,
-                                COUNT(*) FILTER (
-                                    WHERE p.match_date_utc >= b.match_date_utc - interval '3 days'
-                                      AND p.match_date_utc <  b.match_date_utc
+                                COUNT(DISTINCT COALESCE(pf.match_id, pm.match_id)) FILTER (
+                                    WHERE COALESCE(pf.kickoff_at, pm.match_date_utc) >= b.match_date_utc - interval '3 days'
+                                      AND COALESCE(pf.kickoff_at, pm.match_date_utc) < b.match_date_utc
                                 ) AS matches_home_last_3d,
-                                COUNT(*) FILTER (
-                                    WHERE p.match_date_utc >= b.match_date_utc - interval '7 days'
-                                      AND p.match_date_utc <  b.match_date_utc
+                                COUNT(DISTINCT COALESCE(pf.match_id, pm.match_id)) FILTER (
+                                    WHERE COALESCE(pf.kickoff_at, pm.match_date_utc) >= b.match_date_utc - interval '7 days'
+                                      AND COALESCE(pf.kickoff_at, pm.match_date_utc) < b.match_date_utc
                                 ) AS matches_home_last_7d
                             FROM base b
-                            LEFT JOIN matches p
-                                ON (p.home_team_id = b.home_team_id OR p.away_team_id = b.home_team_id)
-                               AND p.match_date_utc < b.match_date_utc
+                            LEFT JOIN fixtures pf
+                                ON b.home_team IS NOT NULL
+                               AND (pf.home_team = b.home_team OR pf.away_team = b.home_team)
+                               AND pf.kickoff_at < b.match_date_utc
+                               AND pf.status = 'finished'
+                            LEFT JOIN matches pm
+                                ON b.home_team_id IS NOT NULL
+                               AND (pm.home_team_id = b.home_team_id OR pm.away_team_id = b.home_team_id)
+                               AND pm.match_date_utc < b.match_date_utc
                             GROUP BY b.match_id
                         ),
                         
                         away_congestion AS (
                             SELECT
                                 b.match_id,
-                                COUNT(*) FILTER (
-                                    WHERE p.match_date_utc >= b.match_date_utc - interval '3 days'
-                                      AND p.match_date_utc <  b.match_date_utc
+                                COUNT(DISTINCT COALESCE(pf.match_id, pm.match_id)) FILTER (
+                                    WHERE COALESCE(pf.kickoff_at, pm.match_date_utc) >= b.match_date_utc - interval '3 days'
+                                      AND COALESCE(pf.kickoff_at, pm.match_date_utc) < b.match_date_utc
                                 ) AS matches_away_last_3d,
-                                COUNT(*) FILTER (
-                                    WHERE p.match_date_utc >= b.match_date_utc - interval '7 days'
-                                      AND p.match_date_utc <  b.match_date_utc
+                                COUNT(DISTINCT COALESCE(pf.match_id, pm.match_id)) FILTER (
+                                    WHERE COALESCE(pf.kickoff_at, pm.match_date_utc) >= b.match_date_utc - interval '7 days'
+                                      AND COALESCE(pf.kickoff_at, pm.match_date_utc) < b.match_date_utc
                                 ) AS matches_away_last_7d
                             FROM base b
-                            LEFT JOIN matches p
-                                ON (p.home_team_id = b.away_team_id OR p.away_team_id = b.away_team_id)
-                               AND p.match_date_utc < b.match_date_utc
+                            LEFT JOIN fixtures pf
+                                ON b.away_team IS NOT NULL
+                               AND (pf.home_team = b.away_team OR pf.away_team = b.away_team)
+                               AND pf.kickoff_at < b.match_date_utc
+                               AND pf.status = 'finished'
+                            LEFT JOIN matches pm
+                                ON b.away_team_id IS NOT NULL
+                               AND (pm.home_team_id = b.away_team_id OR pm.away_team_id = b.away_team_id)
+                               AND pm.match_date_utc < b.match_date_utc
                             GROUP BY b.match_id
                         )
                         
@@ -155,14 +220,14 @@ class MatchContextBuilder:
                         SELECT
                             b.match_id,
                             b.match_date_utc - interval '1 hour' AS as_of_time,
-                            COALESCE(
-                                EXTRACT(EPOCH FROM (b.match_date_utc - lhm.prev_home_match_date)) / 86400.0,
-                                30.0
-                            ) AS rest_days_home,
-                            COALESCE(
-                                EXTRACT(EPOCH FROM (b.match_date_utc - lam.prev_away_match_date)) / 86400.0,
-                                30.0
-                            ) AS rest_days_away,
+                            CASE 
+                                WHEN lhm.prev_home_match_date <= '1900-01-01'::timestamp THEN 30.0
+                                ELSE COALESCE(EXTRACT(EPOCH FROM (b.match_date_utc - lhm.prev_home_match_date)) / 86400.0, 30.0)
+                            END AS rest_days_home,
+                            CASE 
+                                WHEN lam.prev_away_match_date <= '1900-01-01'::timestamp THEN 30.0
+                                ELSE COALESCE(EXTRACT(EPOCH FROM (b.match_date_utc - lam.prev_away_match_date)) / 86400.0, 30.0)
+                            END AS rest_days_away,
                             COALESCE(hc.matches_home_last_3d, 0),
                             COALESCE(hc.matches_home_last_7d, 0),
                             COALESCE(ac.matches_away_last_3d, 0),
@@ -174,7 +239,8 @@ class MatchContextBuilder:
                         LEFT JOIN last_away_match   lam ON lam.match_id = b.match_id
                         LEFT JOIN home_congestion   hc  ON hc.match_id  = b.match_id
                         LEFT JOIN away_congestion   ac  ON ac.match_id  = b.match_id
-                    """ % lookback_hours)
+                        ON CONFLICT (match_id) DO NOTHING
+                    """ % (lookback_hours, lookback_hours))
                     
                     rows_inserted = cursor.rowcount
                     conn.commit()

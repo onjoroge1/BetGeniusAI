@@ -92,7 +92,7 @@ class TheOddsAPIBackfiller:
             LEFT JOIN fixtures f ON tm.match_id = f.match_id
             LEFT JOIN odds_snapshots os ON tm.match_id = os.match_id
             WHERE tm.match_date >= %s
-              AND tm.outcome IN ('H', 'D', 'A')
+              AND tm.outcome IN ('H', 'D', 'A', 'Home', 'Draw', 'Away')
               AND os.match_id IS NULL
               AND tm.league_id IN (39, 140, 135, 78, 61, 88, 94, 203, 262, 2, 119, 207, 218)
             ORDER BY tm.match_date DESC
