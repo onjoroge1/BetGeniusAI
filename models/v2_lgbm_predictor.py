@@ -6,6 +6,8 @@ CURRENT MODEL: v2_odds_only (17 features, guaranteed clean)
 - Market intelligence only (no team/context features)
 - Random label sanity: 37.0% (PASS)
 - LogLoss: 1.0162, Brier: 0.2030
+
+FEATURE ADAPTER: Maps 48-feature builder output → 17-feature model input
 """
 import pickle
 import json
@@ -20,6 +22,61 @@ sys.path.append('.')
 from features.v2_feature_builder import get_v2_feature_builder
 
 logger = logging.getLogger(__name__)
+
+FEATURE_MAPPING = {
+    'p_open_home': ['p_home', 'p_last_home'],
+    'p_open_draw': ['p_draw', 'p_last_draw'],
+    'p_open_away': ['p_away', 'p_last_away'],
+    'p_last_home': ['p_last_home', 'p_home'],
+    'p_last_draw': ['p_last_draw', 'p_draw'],
+    'p_last_away': ['p_last_away', 'p_away'],
+    'num_books_last': ['n_books', 'n_books_normalized'],
+    'book_dispersion': ['avg_dispersion', 'max_dispersion'],
+    'market_entropy': ['odds_entropy'],
+    'dispersion_home': ['disp_home', 'dispersion_home'],
+    'dispersion_draw': ['disp_draw', 'dispersion_draw'],
+    'dispersion_away': ['disp_away', 'dispersion_away'],
+    'favorite_margin': ['prob_spread', 'favorite_prob'],
+    'prob_drift_home': ['prob_drift_home'],
+    'prob_drift_draw': ['prob_drift_draw'],
+    'prob_drift_away': ['prob_drift_away'],
+    'drift_magnitude': ['drift_magnitude'],
+}
+
+def adapt_features(raw_features: Dict[str, float], required_features: list) -> Dict[str, float]:
+    """
+    Adapt feature builder output (48 features) to model input (17 features)
+    
+    This pruning adapter maps builder feature names to model feature names,
+    handling naming discrepancies between training and inference pipelines.
+    
+    Args:
+        raw_features: Dictionary from V2FeatureBuilder.build_features()
+        required_features: List of features the model expects
+    
+    Returns:
+        Dictionary with exactly the features the model needs
+    """
+    adapted = {}
+    
+    for target_feature in required_features:
+        value = None
+        
+        if target_feature in raw_features:
+            value = raw_features[target_feature]
+        elif target_feature in FEATURE_MAPPING:
+            for source in FEATURE_MAPPING[target_feature]:
+                if source in raw_features:
+                    value = raw_features[source]
+                    break
+        
+        if value is None:
+            logger.debug(f"Feature {target_feature} not found, using default 0.0")
+            value = 0.0
+        
+        adapted[target_feature] = float(value) if not (value is None or (isinstance(value, float) and np.isnan(value))) else 0.0
+    
+    return adapted
 
 class V2LightGBMPredictor:
     """
@@ -147,9 +204,10 @@ class V2LightGBMPredictor:
             # Try to build full features from database
             if match_id and self.feature_builder:
                 try:
-                    features = self.feature_builder.build_features(match_id)
+                    raw_features = self.feature_builder.build_features(match_id)
+                    features = adapt_features(raw_features, self.feature_cols)
                     feature_source = 'full_pipeline'
-                    logger.info(f"✅ Built {len(features)} features for match {match_id}")
+                    logger.info(f"✅ Built {len(raw_features)} features, adapted to {len(features)} for match {match_id}")
                 except Exception as e:
                     logger.warning(f"⚠️  Feature building failed for match {match_id}: {e}")
                     logger.warning("⚠️  Falling back to market-only features")
