@@ -145,8 +145,15 @@ class V2FeatureBuilder:
         return all_features
     
     def _get_match_info(self, match_id: int) -> Optional[Dict]:
-        """Get basic match information"""
-        query = text("""
+        """Get basic match information
+        
+        Strategy: Try training_matches first (for training), then fall back to fixtures (for inference)
+        This allows the feature builder to work for both:
+        - Historical training matches (in training_matches table)
+        - Live/upcoming matches for inference (in fixtures table)
+        """
+        # First try training_matches (curated training data)
+        query_training = text("""
             SELECT 
                 match_id,
                 home_team_id,
@@ -161,7 +168,25 @@ class V2FeatureBuilder:
         """)
         
         with self.engine.connect() as conn:
-            result = conn.execute(query, {"match_id": match_id}).mappings().first()
+            result = conn.execute(query_training, {"match_id": match_id}).mappings().first()
+            if result:
+                return dict(result)
+            
+            # Fallback to fixtures table (for live inference)
+            query_fixtures = text("""
+                SELECT 
+                    match_id,
+                    home_team_id,
+                    away_team_id,
+                    league_id,
+                    kickoff_at as kickoff_time,
+                    home_team,
+                    away_team
+                FROM fixtures
+                WHERE match_id = :match_id
+                LIMIT 1
+            """)
+            result = conn.execute(query_fixtures, {"match_id": match_id}).mappings().first()
             return dict(result) if result else None
     
     def _build_odds_features(self, match_id: int, cutoff_time: datetime) -> Dict[str, float]:

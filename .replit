@@ -2,7 +2,7 @@ modules = ["python-3.11", "python3", "postgresql-16"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["arrow-cpp", "cairo", "ffmpeg-full", "freetype", "gcc", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "libyaml", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "tcl", "tk", "xsimd"]
+packages = ["arrow-cpp", "cairo", "ffmpeg-full", "freetype", "gcc", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "libyaml", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "tcl", "tk", "xsimd", "redis"]
 
 [workflows]
 runButton = "Project"
@@ -25,7 +25,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "export LD_LIBRARY_PATH=\"$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH\" && python main.py"
+args = "redis-server --daemonize yes --port 6379 2>/dev/null; sleep 1; export LD_LIBRARY_PATH=\"$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH\" && python main.py"
 waitForPort = 8000
 
 [deployment]
@@ -35,10 +35,6 @@ deploymentTarget = "autoscale"
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 8000
-externalPort = 8000
 
 [[ports]]
 localPort = 33535
@@ -95,6 +91,10 @@ externalPort = 3002
 [[ports]]
 localPort = 46667
 externalPort = 3000
+
+[[ports]]
+localPort = 8000
+externalPort = 8000
 
 [agent]
 expertMode = true
