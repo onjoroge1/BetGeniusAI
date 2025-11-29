@@ -74,6 +74,8 @@ class BackgroundScheduler:
         self.last_run: dict = {}  # name -> datetime
         # Match context builder (V2 - runs every 5 minutes to populate match_context_v2)
         self.last_context_builder_run: Optional[datetime] = None
+        # Fixtures to matches sync (runs every 15 minutes to sync finished fixtures)
+        self.last_fixtures_sync_run: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -99,6 +101,7 @@ class BackgroundScheduler:
         logger.info("🗑️  Phase 2 Stale Data Cleanup enabled - runs every 30 minutes to remove old live data")
         logger.info("🔨 Match Context Builder (V2) enabled - runs every 5 minutes to populate match_context_v2")
         logger.info("🔥 PHASE 1: Trending Scores enabled - runs every 5 minutes to pre-compute hot/trending scores")
+        logger.info("🔄 Fixtures→Matches Sync enabled - runs every 15 minutes to sync finished fixtures")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -353,6 +356,10 @@ class BackgroundScheduler:
                 # 🔥 PHASE 1: Trending Scores Computation - runs every 5 minutes to pre-compute hot/trending scores
                 if "trending_scores" not in self.last_run or (now - self.last_run["trending_scores"]).total_seconds() >= 300:
                     await self._spawn("trending_scores", self._run_trending_scores_computation, timeout=120)
+                
+                # 🔄 Fixtures→Matches Sync - runs every 15 minutes to sync finished fixtures
+                if "fixtures_sync" not in self.last_run or (now - self.last_run["fixtures_sync"]).total_seconds() >= 900:
+                    await self._spawn("fixtures_sync", self._run_fixtures_to_matches_sync, timeout=120)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -1116,6 +1123,28 @@ class BackgroundScheduler:
             logger.warning("⚠️ TRENDING: compute_trending_scores module not found - skipping")
         except Exception as e:
             logger.error(f"❌ TRENDING: Scores computation failed - {e}", exc_info=True)
+
+    async def _run_fixtures_to_matches_sync(self):
+        """
+        🔄 Fixtures→Matches Sync Job
+        Syncs finished fixtures with results to the matches table.
+        Runs every 15 minutes.
+        """
+        try:
+            from jobs.sync_fixtures_to_matches import sync_fixtures_to_matches_job
+            logger.info("🔄 SYNC: Starting fixtures→matches sync...")
+            result = await sync_fixtures_to_matches_job()
+            synced = result.get('synced', 0)
+            skipped = result.get('skipped', 0)
+            errors = result.get('errors', 0)
+            if synced > 0:
+                logger.info(f"✅ SYNC: Completed - synced={synced}, skipped={skipped}, errors={errors}")
+            else:
+                logger.debug(f"🔄 SYNC: No new fixtures to sync")
+        except ImportError:
+            logger.warning("⚠️ SYNC: sync_fixtures_to_matches module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ SYNC: Fixtures→matches sync failed - {e}", exc_info=True)
 
 
 # Global scheduler instance
