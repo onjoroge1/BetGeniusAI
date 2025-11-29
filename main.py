@@ -6051,6 +6051,17 @@ async def get_market_data(
     try:
         logger.info(f"📊 MARKET REQUEST | status={status}, league={league_id}, match={match_id}, limit={limit}, v2={include_v2}")
         
+        # CACHING LOGIC: Skip cache for individual match lookups (match_id parameter = 0 TTL)
+        # Cache batch status calls with status-specific TTLs
+        cache_enabled = not match_id  # No caching for individual match detail pages
+        cache_key = None
+        
+        if cache_enabled and status in MARKET_CACHE_TTL:
+            cache_key = f"market:{status}:league={league_id}:limit={limit}:v2={include_v2}"
+            cached_result = get_market_cache(cache_key)
+            if cached_result:
+                return cached_result
+        
         matches = []
         
         with psycopg2.connect(os.environ.get('DATABASE_URL')) as conn:
@@ -6926,11 +6937,19 @@ async def get_market_data(
         
         logger.info(f"✅ MARKET: Returned {len(matches)} matches")
         
-        return {
+        # Build response
+        response_data = {
             "matches": matches,
             "total_count": len(matches),
             "timestamp": datetime.utcnow().isoformat()
         }
+        
+        # CACHE SET: Store in cache for batch status calls (NOT individual match lookups)
+        if cache_enabled and cache_key and status in MARKET_CACHE_TTL:
+            ttl = MARKET_CACHE_TTL[status]
+            set_market_cache(cache_key, response_data, ttl)
+        
+        return response_data
         
     except HTTPException:
         raise
