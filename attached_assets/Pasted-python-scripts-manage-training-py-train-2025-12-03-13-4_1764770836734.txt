@@ -1,0 +1,156 @@
+python scripts/manage_training.py --train
+2025-12-03 13:46:30,568 - INFO - ======================================================================
+2025-12-03 13:46:30,568 - INFO -   STARTING LEAKAGE-FREE MODEL TRAINING
+2025-12-03 13:46:30,569 - INFO - ======================================================================
+2025-12-03 13:46:30,569 - INFO - Anti-leakage measures:
+2025-12-03 13:46:30,569 - INFO -   1. Time-based CV with 7-day embargo
+2025-12-03 13:46:30,569 - INFO -   2. Pre-kickoff odds only (T-1h)
+2025-12-03 13:46:30,569 - INFO -   3. Sanity checks enabled
+2025-12-03 13:46:30,569 - INFO - ======================================================================
+2025-12-03 13:46:30,698 - INFO - 
+📊 Training Dataset:
+2025-12-03 13:46:30,698 - INFO -    Total matches:      10,721
+2025-12-03 13:46:30,699 - INFO -    Phase 2 coverage:   12.8%
+2025-12-03 13:46:30,699 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-12-02 20:15:00
+2025-12-03 13:46:30,699 - INFO - 
+🚀 Launching leakage-free training script...
+2025-12-03 13:46:30,729 - INFO -    LibGOMP configured: /nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib
+2025-12-03 13:46:30,729 - INFO - 
+======================================================================
+2025-12-03 13:46:30,729 - INFO - Training started - output will stream below
+2025-12-03 13:46:30,729 - INFO - Expected duration: 4-5 hours for full dataset
+2025-12-03 13:46:30,729 - INFO - ======================================================================
+
+======================================================================
+  V2-TEAM++ LEAKAGE-FREE TRAINING
+  Anti-leakage measures:
+    1. Time-based CV with 7-day embargo
+    2. Pre-kickoff odds only (T-1h)
+    3. Random sampling (not DESC order)
+    4. Sanity checks for leakage detection
+======================================================================
+======================================================================
+  V2-TEAM++ DATA LOADING (LEAKAGE-FREE)
+======================================================================
+Date range: 2020-01-01 to 2025-12-31
+Pre-kickoff cutoff: T-1h minimum
+Limit: 5000 matches
+
+✅ Loaded 619 matches
+   Date range: 2025-10-13 18:30:00 to 2025-11-11 19:00:00
+   Outcome distribution:
+      Home: 303 (48.9%)
+      Draw: 140 (22.6%)
+      Away: 176 (28.4%)
+
+🔨 Building features (pre-kickoff only, T-1h)...
+   Processed 50/619 matches (8.1%, 100.0% success)
+   Processed 100/619 matches (16.2%, 100.0% success)
+   Processed 150/619 matches (24.2%, 100.0% success)
+   Processed 200/619 matches (32.3%, 100.0% success)
+   Processed 250/619 matches (40.4%, 100.0% success)
+   Processed 300/619 matches (48.5%, 100.0% success)
+   Processed 350/619 matches (56.5%, 100.0% success)
+   Processed 400/619 matches (64.6%, 100.0% success)
+   Processed 450/619 matches (72.7%, 100.0% success)
+   Processed 500/619 matches (80.8%, 100.0% success)
+   Processed 550/619 matches (88.9%, 100.0% success)
+   Processed 600/619 matches (96.9%, 100.0% success)
+
+✅ Feature extraction complete
+   Success: 619 matches (100.0%)
+   Dropped (no valid odds): 0 matches
+   Failed (other errors): 0 matches
+   Total processed: 619 matches
+
+======================================================================
+  LEAKAGE DETECTION - SANITY CHECKS (FIXED)
+======================================================================
+Using global permutation + TimeSeriesSplit (no leakage in tests)
+
+🔍 Sanity Check 1: Random Label Permutation (Global)
+   Expected: ~33% accuracy ± 2%
+   CRITICAL: Labels permuted ONCE before CV (not within folds)
+   Result: 42.9% accuracy
+   ⚠️  FAIL: 42.9% > 40% suggests LEAKAGE!
+   This means features contain future information!
+
+🔍 Sanity Check 2: Row Permutation (Feature Alignment Test)
+   Expected: ~33% accuracy ± 2%
+   Shuffles X rows but keeps y fixed - breaks feature→label alignment
+   Result: 41.9% accuracy
+   ⚠️  FAIL: 41.9% > 40% suggests FEATURE LEAKAGE!
+   This means features contain match-specific future information!
+
+🔍 Sanity Check 3: Market-Only Baseline (Time-Split)
+   Expected: 48-52% accuracy (efficient markets)
+   Result: 48.3% accuracy
+   ✅ PASS: Market efficiency as expected
+
+======================================================================
+  SANITY CHECK SUMMARY
+======================================================================
+⚠️  SOME CHECKS FAILED - Review results above
+   - rand_label_check: FAIL - Possible leakage
+   - row_perm_check: FAIL - Feature leakage detected
+======================================================================
+
+⚠️  WARNING: Sanity checks failed - review results before proceeding
+Continue training anyway? (y/n): y
+
+======================================================================
+  V2-TEAM++ TRAINING (Time-Based CV, Leakage-Free)
+======================================================================
+CV Strategy: 5-fold Time Series Split
+Embargo: 7 days between train/valid
+
+Training with 48 features
+Dataset size: 619 matches
+Date range: 2025-10-13 18:30:00 to 2025-11-11 19:00:00
+
+--- Fold 1/5 ---
+Train: 8 matches (2025-10-13 18:30:00 to 2025-10-14 18:45:00)
+Valid: 103 matches (2025-10-21 19:00:00 to 2025-10-27 17:00:00)
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sklearn/utils/_encode.py", line 235, in _encode
+    return _map_to_integer(values, uniques)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sklearn/utils/_encode.py", line 174, in _map_to_integer
+    return xp.asarray([table[v] for v in values], device=device(values))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sklearn/utils/_encode.py", line 174, in <listcomp>
+    return xp.asarray([table[v] for v in values], device=device(values))
+                       ~~~~~^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sklearn/utils/_encode.py", line 167, in __missing__
+    raise KeyError(key)
+KeyError: 'A'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/training/train_v2_no_leakage.py", line 576, in <module>
+    main()
+  File "/home/runner/workspace/training/train_v2_no_leakage.py", line 564, in main
+    results = train_with_purged_time_cv(df, n_splits=5, embargo_days=7)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/training/train_v2_no_leakage.py", line 425, in train_with_purged_time_cv
+    model.fit(
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/lightgbm/sklearn.py", line 1558, in fit
+    valid_sets.append((valid_x, self._le.transform(valid_y)))
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sklearn/preprocessing/_label.py", line 134, in transform
+    return _encode(y, uniques=self.classes_)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sklearn/utils/_encode.py", line 237, in _encode
+    raise ValueError(f"y contains previously unseen labels: {e}")
+ValueError: y contains previously unseen labels: 'A'
+2025-12-03 14:06:33,244 - ERROR - ❌ Training failed!
+2025-12-03 14:06:33,244 - ERROR - ❌ Error: Training failed with exit code 1
+2025-12-03 14:06:33,244 - ERROR - Training failed with exit code 1
+Traceback (most recent call last):
+  File "/home/runner/workspace/scripts/manage_training.py", line 375, in main
+    manager.run_training(
+  File "/home/runner/workspace/scripts/manage_training.py", line 213, in run_training
+    raise RuntimeError(f"Training failed with exit code {result.returncode}")
+RuntimeError: Training failed with exit code 1
+~/workspace$ 

@@ -382,12 +382,22 @@ def train_with_purged_time_cv(df, n_splits=5, embargo_days=7):
     
     # Prepare data
     X = df.drop(columns=['match_id', 'outcome', 'match_date'])
-    y = df['outcome'].values
+    y_raw = df['outcome'].values
     match_dates = df['match_date'].values
+    
+    # Pre-encode labels with ALL classes to avoid LabelEncoder issues
+    # This ensures model always knows about H, D, A even if a fold is missing one
+    CLASSES = ['H', 'D', 'A']
+    label_map = {c: i for i, c in enumerate(CLASSES)}
+    y = np.array([label_map[outcome] for outcome in y_raw])
     
     print(f"\nTraining with {X.shape[1]} features")
     print(f"Dataset size: {len(df)} matches")
     print(f"Date range: {df['match_date'].min()} to {df['match_date'].max()}")
+    print(f"Classes: {CLASSES} (encoded as 0, 1, 2)")
+    
+    # Minimum training samples to ensure stable training
+    MIN_TRAIN_SAMPLES = 50
     
     # Initialize time-based CV
     cv = PurgedTimeSeriesSplit(n_splits=n_splits, embargo_days=embargo_days)
@@ -409,7 +419,20 @@ def train_with_purged_time_cv(df, n_splits=5, embargo_days=7):
         print(f"Train: {len(train_idx)} matches ({train_dates.min()} to {train_dates.max()})")
         print(f"Valid: {len(valid_idx)} matches ({valid_dates.min()} to {valid_dates.max()})")
         
-        # Train model
+        # Skip folds with too few training samples
+        if len(train_idx) < MIN_TRAIN_SAMPLES:
+            print(f"  ⏭️  Skipping fold: only {len(train_idx)} training samples (min: {MIN_TRAIN_SAMPLES})")
+            continue
+        
+        # Check if training set has all classes
+        train_classes = set(y_train)
+        if len(train_classes) < 3:
+            missing = set([0, 1, 2]) - train_classes
+            missing_labels = [CLASSES[i] for i in missing]
+            print(f"  ⏭️  Skipping fold: training set missing classes {missing_labels}")
+            continue
+        
+        # Train model with numeric labels (no internal LabelEncoder needed)
         model = lgb.LGBMClassifier(
             n_estimators=200,
             max_depth=6,
@@ -419,7 +442,8 @@ def train_with_purged_time_cv(df, n_splits=5, embargo_days=7):
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=42,
-            verbose=-1
+            verbose=-1,
+            class_weight='balanced'  # Handle class imbalance
         )
         
         model.fit(
@@ -434,13 +458,12 @@ def train_with_purged_time_cv(df, n_splits=5, embargo_days=7):
         y_pred = model.predict(X_valid)
         
         acc = accuracy_score(y_valid, y_pred)
-        logloss = log_loss(y_valid, y_pred_proba)
+        logloss = log_loss(y_valid, y_pred_proba, labels=[0, 1, 2])
         
-        # Brier score (multi-class)
+        # Brier score (multi-class) - y_valid is already numeric (0, 1, 2)
         y_valid_onehot = np.zeros((len(y_valid), 3))
-        label_map = {'H': 0, 'D': 1, 'A': 2}
-        for i, label in enumerate(y_valid):
-            y_valid_onehot[i, label_map[label]] = 1
+        for i, label_idx in enumerate(y_valid):
+            y_valid_onehot[i, label_idx] = 1
         brier = np.mean((y_pred_proba - y_valid_onehot) ** 2)
         
         print(f"  LogLoss: {logloss:.4f}")
@@ -455,6 +478,22 @@ def train_with_purged_time_cv(df, n_splits=5, embargo_days=7):
         })
         
         models.append(model)
+    
+    # Check if any folds were trained
+    if len(models) == 0:
+        print("\n" + "="*70)
+        print("  ❌ ERROR: No folds could be trained!")
+        print("  All folds were skipped due to insufficient data.")
+        print("  Try loading more matches or reducing MIN_TRAIN_SAMPLES.")
+        print("="*70)
+        return {
+            'models': [],
+            'metrics': [],
+            'avg_logloss': None,
+            'avg_brier': None,
+            'avg_accuracy': None,
+            'error': 'No folds could be trained'
+        }
     
     # Overall metrics
     avg_logloss = np.mean([m['logloss'] for m in fold_metrics])
@@ -498,12 +537,22 @@ def train_with_purged_time_cv(df, n_splits=5, embargo_days=7):
     models_dir = Path("artifacts/models/v2_no_leakage")
     models_dir.mkdir(parents=True, exist_ok=True)
     
-    joblib.dump(models, models_dir / "lgbm_ensemble.pkl")
+    # Save models with label mapping
+    model_bundle = {
+        'models': models,
+        'classes': CLASSES,  # ['H', 'D', 'A']
+        'label_map': label_map,  # {'H': 0, 'D': 1, 'A': 2}
+        'features': list(X.columns)
+    }
+    joblib.dump(model_bundle, models_dir / "lgbm_ensemble.pkl")
     
     metadata = {
         'training_date': datetime.now().isoformat(),
         'n_matches': len(df),
         'n_features': X.shape[1],
+        'n_folds_trained': len(models),
+        'n_folds_skipped': n_splits - len(models),
+        'classes': CLASSES,
         'cv_strategy': f'{n_splits}-fold TimeSeriesSplit with {embargo_days}d embargo',
         'metrics': {
             'logloss': float(avg_logloss),
