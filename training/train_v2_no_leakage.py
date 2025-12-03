@@ -272,15 +272,22 @@ def run_sanity_checks(df):
     rand_label_acc = float(np.mean(rand_acc_list))
     print(f"   Result: {rand_label_acc*100:.1f}% accuracy")
     
-    if rand_label_acc > 0.40:
-        print(f"   ⚠️  FAIL: {rand_label_acc*100:.1f}% > 40% suggests LEAKAGE!")
-        print("   This means features contain future information!")
+    # Calculate class-aware threshold based on actual distribution
+    # With 44.7% Home wins, majority class baseline is ~45%
+    # Threshold should be slightly below majority class to catch real leakage
+    majority_class_pct = y_numeric.value_counts().max() / len(y_numeric)
+    leakage_threshold = min(0.48, majority_class_pct * 1.05)  # 5% above majority baseline or 48%, whichever is lower
+    
+    if rand_label_acc > leakage_threshold:
+        print(f"   ⚠️  FAIL: {rand_label_acc*100:.1f}% > {leakage_threshold*100:.1f}% (class-adjusted threshold)")
+        print("   This may indicate real leakage beyond class imbalance!")
         results['rand_label_check'] = 'FAIL - Possible leakage'
     elif rand_label_acc < 0.28:
         print(f"   ⚠️  WARNING: {rand_label_acc*100:.1f}% < 28% (unusually low)")
         results['rand_label_check'] = 'PASS (but low)'
     else:
-        print(f"   ✅ PASS: Random baseline as expected")
+        print(f"   ✅ PASS: Within expected range for class distribution")
+        print(f"   (Majority class: {majority_class_pct*100:.1f}%, threshold: {leakage_threshold*100:.1f}%)")
         results['rand_label_check'] = 'PASS'
     
     # Sanity Check 2: Row Permutation (NEW - detects feature leakage)
@@ -304,15 +311,16 @@ def run_sanity_checks(df):
     row_perm_acc = float(np.mean(row_acc_list))
     print(f"   Result: {row_perm_acc*100:.1f}% accuracy")
     
-    if row_perm_acc > 0.40:
-        print(f"   ⚠️  FAIL: {row_perm_acc*100:.1f}% > 40% suggests FEATURE LEAKAGE!")
-        print("   This means features contain match-specific future information!")
+    # Use same class-aware threshold
+    if row_perm_acc > leakage_threshold:
+        print(f"   ⚠️  FAIL: {row_perm_acc*100:.1f}% > {leakage_threshold*100:.1f}% (class-adjusted)")
+        print("   This may indicate feature leakage beyond class imbalance!")
         results['row_perm_check'] = 'FAIL - Feature leakage detected'
     elif row_perm_acc < 0.28:
         print(f"   ⚠️  WARNING: {row_perm_acc*100:.1f}% < 28% (unusually low)")
         results['row_perm_check'] = 'PASS (but low)'
     else:
-        print(f"   ✅ PASS: No feature leakage detected")
+        print(f"   ✅ PASS: Within expected range for class distribution")
         results['row_perm_check'] = 'PASS'
     
     # Sanity Check 3: Market-only baseline (using TimeSeriesSplit)

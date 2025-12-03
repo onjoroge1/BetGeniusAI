@@ -1,0 +1,108 @@
+~/workspace$ python scripts/manage_training.py --train
+2025-12-03 14:17:28,367 - INFO - ======================================================================
+2025-12-03 14:17:28,367 - INFO -   STARTING LEAKAGE-FREE MODEL TRAINING
+2025-12-03 14:17:28,367 - INFO - ======================================================================
+2025-12-03 14:17:28,367 - INFO - Anti-leakage measures:
+2025-12-03 14:17:28,367 - INFO -   1. Time-based CV with 7-day embargo
+2025-12-03 14:17:28,367 - INFO -   2. Pre-kickoff odds only (T-1h)
+2025-12-03 14:17:28,367 - INFO -   3. Sanity checks enabled
+2025-12-03 14:17:28,367 - INFO - ======================================================================
+2025-12-03 14:17:28,491 - INFO - 
+📊 Training Dataset:
+2025-12-03 14:17:28,491 - INFO -    Total matches:      10,734
+2025-12-03 14:17:28,491 - INFO -    Phase 2 coverage:   12.8%
+2025-12-03 14:17:28,492 - INFO -    Date range:         2022-08-05 18:30:00 to 2025-12-03 10:00:00
+2025-12-03 14:17:28,492 - INFO - 
+🚀 Launching leakage-free training script...
+2025-12-03 14:17:28,515 - INFO -    LibGOMP configured: /nix/store/xvzz97yk73hw03v5dhhz3j47ggwf1yq1-gcc-13.2.0-lib/lib
+2025-12-03 14:17:28,515 - INFO - 
+======================================================================
+2025-12-03 14:17:28,515 - INFO - Training started - output will stream below
+2025-12-03 14:17:28,515 - INFO - Expected duration: 4-5 hours for full dataset
+2025-12-03 14:17:28,515 - INFO - ======================================================================
+
+======================================================================
+  V2-TEAM++ LEAKAGE-FREE TRAINING
+  Anti-leakage measures:
+    1. Time-based CV with 7-day embargo
+    2. Pre-kickoff odds only (T-1h)
+    3. Random sampling (not DESC order)
+    4. Sanity checks for leakage detection
+======================================================================
+======================================================================
+  V2-TEAM++ DATA LOADING (LEAKAGE-FREE)
+======================================================================
+Date range: 2020-01-01 to 2025-12-31
+Pre-kickoff cutoff: T-1h minimum
+Limit: 5000 matches
+
+✅ Loaded 619 matches
+   Date range: 2025-10-13 18:30:00 to 2025-11-11 19:00:00
+   Outcome distribution:
+      Home: 303 (48.9%)
+      Draw: 140 (22.6%)
+      Away: 176 (28.4%)
+
+🔨 Building features (pre-kickoff only, T-1h)...
+   Processed 50/619 matches (8.1%, 100.0% success)
+   Processed 100/619 matches (16.2%, 100.0% success)
+   Processed 150/619 matches (24.2%, 100.0% success)
+   Processed 200/619 matches (32.3%, 100.0% success)
+   Processed 250/619 matches (40.4%, 100.0% success)
+   Processed 300/619 matches (48.5%, 100.0% success)
+   Processed 350/619 matches (56.5%, 100.0% success)
+   Processed 400/619 matches (64.6%, 100.0% success)
+   Processed 450/619 matches (72.7%, 100.0% success)
+    Processed 500/619 matches (80.8%, 100.0% success)
+   Processed 550/619 matches (88.9%, 100.0% success)
+   Processed 600/619 matches (96.9%, 100.0% success)
+
+✅ Feature extraction complete
+   Success: 619 matches (100.0%)
+   Dropped (no valid odds): 0 matches
+   Failed (other errors): 0 matches
+   Total processed: 619 matches
+
+======================================================================
+  LEAKAGE DETECTION - SANITY CHECKS (FIXED)
+======================================================================
+Using global permutation + TimeSeriesSplit (no leakage in tests)
+
+🔍 Sanity Check 1: Random Label Permutation (Global)
+   Expected: ~33% accuracy ± 2%
+   CRITICAL: Labels permuted ONCE before CV (not within folds)
+   Result: 43.1% accuracy
+   ⚠️  FAIL: 43.1% > 40% suggests LEAKAGE!
+   This means features contain future information!
+
+🔍 Sanity Check 2: Row Permutation (Feature Alignment Test)
+   Expected: ~33% accuracy ± 2%
+   Shuffles X rows but keeps y fixed - breaks feature→label alignment
+   Result: 40.6% accuracy
+   ⚠️  FAIL: 40.6% > 40% suggests FEATURE LEAKAGE!
+   This means features contain match-specific future information!
+
+🔍 Sanity Check 3: Market-Only Baseline (Time-Split)
+   Expected: 48-52% accuracy (efficient markets)
+   Result: 52.6% accuracy
+   ✅ PASS: Market efficiency as expected
+
+======================================================================
+  SANITY CHECK SUMMARY
+======================================================================
+⚠️  SOME CHECKS FAILED - Review results above
+   - rand_label_check: FAIL - Possible leakage
+   - row_perm_check: FAIL - Feature leakage detected
+======================================================================
+
+⚠️  WARNING: Sanity checks failed - review results before proceeding
+Continue training anyway? (y/n): y
+Training aborted
+2025-12-03 14:37:29,064 - INFO - 
+📊 Training Output:
+2025-12-03 14:37:29,064 - INFO - 
+2025-12-03 14:37:29,067 - INFO - 
+✅ Training complete!
+2025-12-03 14:37:29,068 - INFO -    Model version: v2-team-plus-plus-20251203-143729
+2025-12-03 14:37:29,068 - INFO -    Accuracy: N/A
+2025-12-03 14:37:29,068 - INFO -    LogLoss: N/A
