@@ -290,13 +290,14 @@ class BackgroundScheduler:
                     await self._spawn("phase_b", self._run_phase_b_fresh_odds, timeout=300)
                 
                 # 🎲 The Odds API Phase B: Continuous collection every 60 seconds (100k/day limit)
-                # Extended timeout (300s) to allow scanning all 39 leagues
+                # Extended timeout (600s) to allow scanning all 39 leagues with rate limiting
                 if "theodds_phase_b" not in self.last_run or (now - self.last_run["theodds_phase_b"]).total_seconds() >= 60:
-                    await self._spawn("theodds_phase_b", self._run_theodds_phase_b, timeout=300)
+                    await self._spawn("theodds_phase_b", self._run_theodds_phase_b, timeout=600)
                 
                 # ⚽ API-Football Phase B: Continuous collection every 60 seconds (75k/day limit = plenty of headroom)
+                # Extended timeout (300s) to allow scanning all leagues (was 120s, causing timeouts)
                 if "api_football_phase_b" not in self.last_run or (now - self.last_run["api_football_phase_b"]).total_seconds() >= 60:
-                    await self._spawn("api_football_phase_b", self._run_api_football_phase_b, timeout=120)
+                    await self._spawn("api_football_phase_b", self._run_api_football_phase_b, timeout=300)
                 
                 # Run CLV Club alert producer every 60 seconds (background task)
                 if "clv_producer" not in self.last_run or (now - self.last_run["clv_producer"]).total_seconds() >= 60:

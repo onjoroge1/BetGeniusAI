@@ -464,7 +464,28 @@ class DatabaseManager:
         
         try:
             import psycopg2
-            conn = psycopg2.connect(self.database_url)
+            import time
+            
+            # Retry logic for transient connection failures (IPv6 issues)
+            max_retries = 3
+            retry_delay = 2
+            conn = None
+            
+            for attempt in range(max_retries):
+                try:
+                    conn = psycopg2.connect(self.database_url, connect_timeout=10)
+                    break  # Connection successful
+                except psycopg2.OperationalError as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"🔄 [CONSENSUS REFRESH] Connection attempt {attempt + 1} failed, retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        raise  # Re-raise on final attempt
+            
+            if conn is None:
+                logger.error("❌ [CONSENSUS REFRESH] Could not establish database connection")
+                return 0
             cursor = conn.cursor()
             
             # Find upcoming matches with recent odds

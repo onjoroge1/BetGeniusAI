@@ -29,7 +29,7 @@ class TbdFixtureResolver:
         self.odds_api_base = "https://api.the-odds-api.com/v4"
         
         self.sport_mappings = {
-            39: "soccer_england_epl",
+            39: "soccer_epl",  # Fixed: was soccer_england_epl (404 error)
             46: "soccer_england_league2",
             61: "soccer_france_ligue_one",
             71: "soccer_brazil_campeonato",
