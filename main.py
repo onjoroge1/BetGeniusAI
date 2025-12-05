@@ -6015,6 +6015,148 @@ async def predict_v2_select(
         raise HTTPException(500, f"Prediction failed: {str(e)}")
 
 
+# V3 ENDPOINTS: Sharp Book Intelligence Model
+@app.post("/predict-v3")
+async def predict_v3_sharp(
+    request: PredictionRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    V3 Sharp Book Intelligence endpoint (Premium - Requires API Key)
+    
+    Features 34 features including:
+    - V2 Odds (17): Market probabilities, dispersion, volatility, drift
+    - Sharp Book (4): Pinnacle/Betfair odds, soft vs sharp divergence
+    - League ECE (3): Expected Calibration Error, tier weights
+    - Injuries (6): Player availability impact
+    - Timing (4): Market movement velocity, steam moves
+    
+    Returns V3 prediction with enhanced sharp book intelligence
+    """
+    start_time = datetime.now()
+    
+    try:
+        logger.info(f"🎯 V3 SHARP REQUEST | match_id={request.match_id}")
+        
+        try:
+            from models.v3_predictor import get_v3_predictor
+            v3_predictor = get_v3_predictor()
+        except Exception as e:
+            logger.warning(f"V3 model not available: {e}")
+            raise HTTPException(503, "V3 model not trained yet - run training/train_v3_sharp.py")
+        
+        match_data = get_enhanced_data_collector().collect_comprehensive_match_data(request.match_id)
+        if not match_data:
+            raise HTTPException(404, f"Match {request.match_id} not found")
+        
+        v3_result = v3_predictor.predict(request.match_id)
+        if not v3_result:
+            raise HTTPException(422, "V3 prediction failed - insufficient data")
+        
+        probs = v3_result['probabilities']
+        h_norm, d_norm, a_norm = normalize_hda(
+            probs.get('home', 0.0),
+            probs.get('draw', 0.0),
+            probs.get('away', 0.0)
+        )
+        
+        prediction_mapping = {'home': 'home_win', 'draw': 'draw', 'away': 'away_win'}
+        recommended_bet = prediction_mapping.get(v3_result['prediction'], v3_result['prediction'])
+        
+        processing_time = (datetime.now() - start_time).total_seconds()
+        
+        return {
+            "match_info": {
+                "match_id": request.match_id,
+                "home_team": match_data['match_details']['teams']['home']['name'],
+                "away_team": match_data['match_details']['teams']['away']['name'],
+                "venue": match_data['match_details']['fixture']['venue']['name'],
+                "date": match_data['match_details']['fixture']['date'],
+                "league": match_data['match_details']['league']['name']
+            },
+            "predictions": {
+                "home_win": round(h_norm, 3),
+                "draw": round(d_norm, 3),
+                "away_win": round(a_norm, 3),
+                "confidence": round(v3_result['confidence'], 3),
+                "recommended_bet": recommended_bet
+            },
+            "model_info": {
+                "type": "v3_sharp_lightgbm",
+                "version": "1.0.0",
+                "features_used": v3_result.get('features_used', 0),
+                "total_features": v3_result.get('total_features', 34),
+                "feature_categories": {
+                    "v2_odds": 17,
+                    "sharp_book": 4,
+                    "league_ece": 3,
+                    "injuries": 6,
+                    "timing": 4
+                }
+            },
+            "processing_time": round(processing_time, 3),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"V3 SHARP error: {e}", exc_info=True)
+        raise HTTPException(500, f"V3 prediction failed: {str(e)}")
+
+
+@app.get("/predict-v3/status")
+async def predict_v3_status():
+    """Check V3 model status and data availability"""
+    import psycopg2
+    
+    try:
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*), COUNT(DISTINCT match_id) FROM sharp_book_odds")
+        sharp_row = cursor.fetchone()
+        
+        cursor.execute("SELECT COUNT(*) FROM league_calibration")
+        ece_row = cursor.fetchone()
+        
+        cursor.execute("SELECT COUNT(*) FROM player_injuries")
+        injury_row = cursor.fetchone()
+        
+        conn.close()
+        
+        try:
+            from models.v3_predictor import get_v3_predictor
+            v3_predictor = get_v3_predictor()
+            model_info = v3_predictor.get_model_info()
+            model_status = "ready"
+        except Exception as e:
+            model_info = None
+            model_status = f"not_trained: {str(e)}"
+        
+        return {
+            "model_status": model_status,
+            "model_info": model_info,
+            "data_collection": {
+                "sharp_book_odds": {
+                    "total_records": sharp_row[0] if sharp_row else 0,
+                    "unique_matches": sharp_row[1] if sharp_row else 0
+                },
+                "league_calibration": {
+                    "leagues_calibrated": ece_row[0] if ece_row else 0
+                },
+                "player_injuries": {
+                    "injury_records": injury_row[0] if injury_row else 0
+                }
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"V3 status error: {e}")
+        raise HTTPException(500, f"Status check failed: {str(e)}")
+
+
 @app.get("/market")
 async def get_market_data(
     status: str = "all",
