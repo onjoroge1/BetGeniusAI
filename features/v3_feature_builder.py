@@ -128,10 +128,10 @@ class V3FeatureBuilder:
         """Get basic match information"""
         cursor.execute("""
             SELECT 
-                id, home_team_id, away_team_id, league_id, 
-                kickoff_at, api_football_id
+                match_id, home_team_id, away_team_id, league_id, 
+                kickoff_at
             FROM fixtures
-            WHERE id = %s
+            WHERE match_id = %s
         """, (match_id,))
         
         row = cursor.fetchone()
@@ -144,7 +144,7 @@ class V3FeatureBuilder:
             'away_team_id': row[2],
             'league_id': row[3],
             'kickoff_time': row[4],
-            'api_football_id': row[5]
+            'api_football_id': row[0]  # Use match_id as fallback
         }
     
     def _build_v2_features(self, cursor, match_id: int, cutoff_time: datetime) -> Dict[str, float]:
@@ -153,13 +153,15 @@ class V3FeatureBuilder:
         features = {name: 0.0 for name in self.V2_FEATURE_NAMES}
         
         # Get latest odds consensus before cutoff
+        # Table uses: ph_cons, pd_cons, pa_cons, ts_effective, market_margin_avg
         cursor.execute("""
             SELECT 
-                prob_home, prob_draw, prob_away,
-                n_books, market_margin
+                ph_cons, pd_cons, pa_cons,
+                n_books, market_margin_avg,
+                disph, dispd, dispa
             FROM odds_consensus
-            WHERE match_id = %s AND ts_snapshot <= %s
-            ORDER BY ts_snapshot DESC
+            WHERE match_id = %s AND ts_effective <= %s
+            ORDER BY ts_effective DESC
             LIMIT 1
         """, (match_id, cutoff_time))
         
@@ -170,40 +172,27 @@ class V3FeatureBuilder:
             features['prob_away'] = float(row[2]) if row[2] else 0.0
             features['book_coverage'] = float(row[3]) if row[3] else 0.0
             features['market_overround'] = float(row[4]) if row[4] else 0.0
+            features['book_dispersion_home'] = float(row[5]) if row[5] else 0.0
+            features['book_dispersion_draw'] = float(row[6]) if row[6] else 0.0
+            features['book_dispersion_away'] = float(row[7]) if row[7] else 0.0
         
-        # Get odds dispersion from snapshots
+        # Get odds volatility from individual snapshots (pivot by outcome)
         cursor.execute("""
             SELECT 
-                STDDEV(home_odds) as std_home,
-                STDDEV(draw_odds) as std_draw,
-                STDDEV(away_odds) as std_away
+                outcome,
+                MAX(implied_prob) - MIN(implied_prob) as volatility
             FROM odds_snapshots
             WHERE match_id = %s AND ts_snapshot <= %s
-              AND home_odds IS NOT NULL
+            GROUP BY outcome
         """, (match_id, cutoff_time))
         
-        disp_row = cursor.fetchone()
-        if disp_row:
-            features['book_dispersion_home'] = float(disp_row[0]) if disp_row[0] else 0.0
-            features['book_dispersion_draw'] = float(disp_row[1]) if disp_row[1] else 0.0
-            features['book_dispersion_away'] = float(disp_row[2]) if disp_row[2] else 0.0
-        
-        # Get odds volatility (change over time)
-        cursor.execute("""
-            SELECT 
-                MAX(home_odds) - MIN(home_odds) as vol_home,
-                MAX(draw_odds) - MIN(draw_odds) as vol_draw,
-                MAX(away_odds) - MIN(away_odds) as vol_away
-            FROM odds_snapshots
-            WHERE match_id = %s AND ts_snapshot <= %s
-              AND home_odds IS NOT NULL
-        """, (match_id, cutoff_time))
-        
-        vol_row = cursor.fetchone()
-        if vol_row:
-            features['odds_volatility_home'] = float(vol_row[0]) if vol_row[0] else 0.0
-            features['odds_volatility_draw'] = float(vol_row[1]) if vol_row[1] else 0.0
-            features['odds_volatility_away'] = float(vol_row[2]) if vol_row[2] else 0.0
+        for vol_row in cursor.fetchall():
+            if vol_row[0] == 'H':
+                features['odds_volatility_home'] = float(vol_row[1]) if vol_row[1] else 0.0
+            elif vol_row[0] == 'D':
+                features['odds_volatility_draw'] = float(vol_row[1]) if vol_row[1] else 0.0
+            elif vol_row[0] == 'A':
+                features['odds_volatility_away'] = float(vol_row[1]) if vol_row[1] else 0.0
         
         # Calculate drift (early vs late odds)
         drift_features = self._calculate_drift(cursor, match_id, cutoff_time)
@@ -229,10 +218,10 @@ class V3FeatureBuilder:
         early_cutoff = cutoff_time - timedelta(hours=24)
         
         cursor.execute("""
-            SELECT prob_home, prob_draw, prob_away
+            SELECT ph_cons, pd_cons, pa_cons
             FROM odds_consensus
-            WHERE match_id = %s AND ts_snapshot <= %s
-            ORDER BY ts_snapshot DESC
+            WHERE match_id = %s AND ts_effective <= %s
+            ORDER BY ts_effective DESC
             LIMIT 1
         """, (match_id, early_cutoff))
         
@@ -240,10 +229,10 @@ class V3FeatureBuilder:
         
         # Get late snapshot (latest before cutoff)
         cursor.execute("""
-            SELECT prob_home, prob_draw, prob_away
+            SELECT ph_cons, pd_cons, pa_cons
             FROM odds_consensus
-            WHERE match_id = %s AND ts_snapshot <= %s
-            ORDER BY ts_snapshot DESC
+            WHERE match_id = %s AND ts_effective <= %s
+            ORDER BY ts_effective DESC
             LIMIT 1
         """, (match_id, cutoff_time))
         
@@ -266,7 +255,7 @@ class V3FeatureBuilder:
         
         features = {name: 0.0 for name in self.SHARP_FEATURE_NAMES}
         
-        # Try to get by match_id first
+        # Try to get by match_id first (use all sharp books: pinnacle, betfair, matchbook)
         cursor.execute("""
             SELECT 
                 AVG(prob_home) as sharp_prob_home,
@@ -275,7 +264,6 @@ class V3FeatureBuilder:
             FROM sharp_book_odds
             WHERE match_id = %s 
               AND ts_recorded <= %s
-              AND bookmaker = 'pinnacle'
         """, (match_id, cutoff_time))
         
         row = cursor.fetchone()
@@ -283,8 +271,8 @@ class V3FeatureBuilder:
         # If no match_id match, try to find by team names and kickoff time
         if not row or row[0] is None:
             cursor.execute("""
-                SELECT home_team, away_team, ts_kickoff
-                FROM fixtures WHERE id = %s
+                SELECT home_team, away_team, kickoff_at
+                FROM fixtures WHERE match_id = %s
             """, (match_id,))
             fixture = cursor.fetchone()
             
@@ -300,7 +288,6 @@ class V3FeatureBuilder:
                       AND away_team ILIKE %s
                       AND ts_kickoff BETWEEN %s - INTERVAL '2 hours' AND %s + INTERVAL '2 hours'
                       AND ts_recorded <= %s
-                      AND bookmaker = 'pinnacle'
                 """, (f"%{home_team}%", f"%{away_team}%", kickoff, kickoff, cutoff_time))
                 row = cursor.fetchone()
         
@@ -311,9 +298,9 @@ class V3FeatureBuilder:
             
             # Calculate divergence (sharp vs soft book consensus)
             cursor.execute("""
-                SELECT prob_home FROM odds_consensus
-                WHERE match_id = %s AND ts_snapshot <= %s
-                ORDER BY ts_snapshot DESC LIMIT 1
+                SELECT ph_cons FROM odds_consensus
+                WHERE match_id = %s AND ts_effective <= %s
+                ORDER BY ts_effective DESC LIMIT 1
             """, (match_id, cutoff_time))
             
             soft_row = cursor.fetchone()
@@ -425,12 +412,12 @@ class V3FeatureBuilder:
         # Calculate movement velocity (rate of change in last 24h)
         cursor.execute("""
             SELECT 
-                MIN(prob_home) as min_prob,
-                MAX(prob_home) as max_prob,
+                MIN(ph_cons) as min_prob,
+                MAX(ph_cons) as max_prob,
                 COUNT(*) as n_snapshots
             FROM odds_consensus
             WHERE match_id = %s 
-              AND ts_snapshot BETWEEN %s - INTERVAL '24 hours' AND %s
+              AND ts_effective BETWEEN %s - INTERVAL '24 hours' AND %s
         """, (match_id, cutoff_time, cutoff_time))
         
         vel_row = cursor.fetchone()
@@ -449,13 +436,13 @@ class V3FeatureBuilder:
             SELECT soft_vs_sharp_divergence
             FROM (
                 SELECT 
-                    oc.prob_home - sb.prob_home as soft_vs_sharp_divergence
+                    oc.ph_cons - sb.prob_home as soft_vs_sharp_divergence
                 FROM odds_consensus oc
                 JOIN sharp_book_odds sb ON oc.match_id = sb.match_id
                 WHERE oc.match_id = %s
-                  AND oc.ts_snapshot <= %s
+                  AND oc.ts_effective <= %s
                   AND sb.ts_recorded <= %s
-                ORDER BY oc.ts_snapshot DESC
+                ORDER BY oc.ts_effective DESC
                 LIMIT 1
             ) x
         """, (match_id, cutoff_time, cutoff_time))
