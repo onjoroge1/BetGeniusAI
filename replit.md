@@ -18,6 +18,9 @@ Market API Redis Caching (2025-11-29): Implemented selective Redis caching for /
 V2 Feature Adapter (2025-11-29): Fixed V2 predictions returning zeros by creating feature pruning adapter in v2_lgbm_predictor.py. Maps 48 features from v2_feature_builder to the 17 features the LightGBM model expects. Uses FEATURE_MAPPING dict with fallback sources for each target feature.
 Fixtures→Matches Sync (2025-11-29): Created jobs/sync_fixtures_to_matches.py to sync finished fixtures with results to matches table. Runs every 15 minutes via scheduler. Successfully synced 422 fixtures on initial run.
 Auto-Retrain System (2025-11-29): Created jobs/auto_retrain.py with threshold triggers: 50+ new matches since last training, 14+ days model staleness, or accuracy drift below 48%. Runs daily at 03:00 UTC via scheduler. Checks v2_predictions table for accuracy evaluation.
+V3 Sharp Book Intelligence (2025-12-05): Created sharp_book_odds table and SharpBookCollector for tracking Pinnacle and other sharp bookmaker odds separately. Runs every 5 minutes via scheduler. V3 features: sharp_prob_home/draw/away, soft_vs_sharp_divergence, sharp_line_movement, pinnacle_overround.
+Multi-Sport Expansion (2025-12-05): Implemented NBA, NHL, and MLB (off-season) data collection. Created multisport_fixtures (37 events), multisport_odds_snapshots (374 odds), multisport_training tables. MultiSportCollector runs every 5 minutes for odds, hourly for results. API-Sports integration for basketball/baseball team data with API_SPORTS_KEY (75,000 requests/day each). MLB paused until April 2025 (off-season).
+League ECE Calibration (2025-12-05): Created league_calibration table for tracking per-league Expected Calibration Error. Enables V3 feature: league_tier_weight for prediction confidence adjustment.
 
 ## System Architecture
 

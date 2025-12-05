@@ -105,6 +105,10 @@ class BackgroundScheduler:
         logger.info("🔥 PHASE 1: Trending Scores enabled - runs every 5 minutes to pre-compute hot/trending scores")
         logger.info("🔄 Fixtures→Matches Sync enabled - runs every 15 minutes to sync finished fixtures")
         logger.info("🤖 Auto-Retrain enabled - runs daily at 03:00 UTC (triggers: 50+ new matches, 14-day staleness, accuracy drift)")
+        logger.info("🎯 V3 Sharp Book Collection enabled - runs every 5 minutes to track Pinnacle odds")
+        logger.info("🏀🏒 Multi-Sport Odds Collection enabled - runs every 5 minutes for NBA/NHL/MLB")
+        logger.info("📊 Multi-Sport Results enabled - runs every hour to fetch completed scores")
+        logger.info("🏀⚾ API-Sports Data Collection enabled - runs every hour for team/player data")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -370,6 +374,22 @@ class BackgroundScheduler:
                 if current_hour == 3:
                     if "auto_retrain" not in self.last_run or (now - self.last_run["auto_retrain"]).total_seconds() >= 86400:
                         await self._spawn("auto_retrain", self._run_auto_retrain_check, timeout=1800)
+                
+                # 🎯 V3: Sharp Book Collection - runs every 5 minutes to track Pinnacle odds
+                if "sharp_book" not in self.last_run or (now - self.last_run["sharp_book"]).total_seconds() >= 300:
+                    await self._spawn("sharp_book", self._run_sharp_book_collection, timeout=120)
+                
+                # 🏀🏒 Multi-Sport Odds Collection - runs every 5 minutes for NBA/NHL/MLB
+                if "multisport_odds" not in self.last_run or (now - self.last_run["multisport_odds"]).total_seconds() >= 300:
+                    await self._spawn("multisport_odds", self._run_multisport_odds_collection, timeout=120)
+                
+                # 📊 Multi-Sport Results - runs every hour to fetch completed game scores
+                if "multisport_results" not in self.last_run or (now - self.last_run["multisport_results"]).total_seconds() >= 3600:
+                    await self._spawn("multisport_results", self._run_multisport_results_collection, timeout=60)
+                
+                # 🏀⚾ API-Sports Data - runs every hour to sync team data
+                if "api_sports" not in self.last_run or (now - self.last_run["api_sports"]).total_seconds() >= 3600:
+                    await self._spawn("api_sports", self._run_api_sports_collection, timeout=180)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -1185,6 +1205,90 @@ class BackgroundScheduler:
             logger.warning("⚠️ RETRAIN: auto_retrain module not found - skipping")
         except Exception as e:
             logger.error(f"❌ RETRAIN: Auto-retrain check failed - {e}", exc_info=True)
+
+    async def _run_sharp_book_collection(self):
+        """
+        🎯 V3: Sharp Book Collection
+        Tracks Pinnacle and other sharp bookmaker odds separately.
+        Runs every 5 minutes for V3 feature engineering.
+        """
+        try:
+            from models.sharp_book_collector import run_sharp_book_collection
+            logger.info("🎯 SHARP: Starting sharp book collection...")
+            results = run_sharp_book_collection()
+            total_stored = sum(r.get('odds_stored', 0) for r in results.values() if isinstance(r, dict))
+            logger.info(f"✅ SHARP: Collection complete - {total_stored} odds stored")
+        except ImportError:
+            logger.warning("⚠️ SHARP: sharp_book_collector module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ SHARP: Collection failed - {e}", exc_info=True)
+
+    async def _run_multisport_odds_collection(self):
+        """
+        🏀🏒 Multi-Sport Odds Collection
+        Collects odds for NBA, NHL, and MLB from The Odds API.
+        Runs every 5 minutes.
+        """
+        try:
+            from models.multisport_collector import run_multisport_collection
+            logger.info("🏀🏒 MULTISPORT: Starting odds collection...")
+            results = run_multisport_collection()
+            
+            for sport, data in results.items():
+                if isinstance(data, dict):
+                    if data.get('status') == 'off_season':
+                        logger.debug(f"  ⏸️ {sport}: off-season")
+                    elif 'events' in data:
+                        logger.info(f"  ✅ {sport}: {data.get('events', 0)} events, {data.get('odds_stored', 0)} odds")
+        except ImportError:
+            logger.warning("⚠️ MULTISPORT: multisport_collector module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ MULTISPORT: Odds collection failed - {e}", exc_info=True)
+
+    async def _run_multisport_results_collection(self):
+        """
+        📊 Multi-Sport Results Collection
+        Fetches completed game scores for NBA, NHL, MLB.
+        Runs every hour.
+        """
+        try:
+            from models.multisport_collector import run_multisport_results
+            logger.info("📊 MULTISPORT: Fetching results...")
+            results = run_multisport_results()
+            total_updated = sum(r.get('results_updated', 0) for r in results.values() if isinstance(r, dict))
+            if total_updated > 0:
+                logger.info(f"✅ MULTISPORT: {total_updated} results updated")
+        except ImportError:
+            logger.warning("⚠️ MULTISPORT: multisport_collector module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ MULTISPORT: Results collection failed - {e}", exc_info=True)
+
+    async def _run_api_sports_collection(self):
+        """
+        🏀⚾ API-Sports Data Collection
+        Collects team/player data from API-Basketball and API-Baseball.
+        Runs every hour for V3 features.
+        """
+        try:
+            from models.api_sports_collector import run_api_sports_collection
+            logger.info("🏀⚾ API-SPORTS: Starting data collection...")
+            results = run_api_sports_collection()
+            
+            for sport, data in results.items():
+                if isinstance(data, dict):
+                    if data.get('status') == 'off_season':
+                        logger.debug(f"  ⏸️ {sport}: off-season")
+                    elif 'error' in data:
+                        logger.warning(f"  ⚠️ {sport}: {data.get('error')}")
+                    else:
+                        teams = sum(d.get('teams', 0) for d in data.values() if isinstance(d, dict))
+                        games = sum(d.get('games', 0) for d in data.values() if isinstance(d, dict))
+                        if teams > 0 or games > 0:
+                            logger.info(f"  ✅ {sport}: {teams} teams, {games} games synced")
+        except ImportError:
+            logger.warning("⚠️ API-SPORTS: api_sports_collector module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ API-SPORTS: Data collection failed - {e}", exc_info=True)
 
 
 # Global scheduler instance
