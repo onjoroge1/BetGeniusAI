@@ -1,0 +1,583 @@
+Detailed Implementation Roadmaps
+
+Part 1: V3 Feature Prep for Soccer
+
+Current State Assessment
+
+| Data Source | Status | Coverage |
+| --- | --- | --- |
+| **The Odds API** | ✅ Active | 40 soccer leagues, Pinnacle available |
+| **API-Football** | ✅ Active | Injuries, player stats, fixtures |
+| **Pinnacle Direct** | ❌ Closed | API access restricted (Jul 2025) |
+| **API-Basketball** | ❌ Not available | Not on current RapidAPI plan |
+| **API-Hockey** | ❌ Not available | Not on current RapidAPI plan |
+
+V3 Feature Categories
+
+```
+V3 = V2 (17 odds features)
+   + Sharp Book Intelligence (4 features)
+   + League ECE Calibration (3 features)
+   + Player/Injury Context (6 features)
+   + Market Timing Features (4 features)
+
+Total: 34 features
+
+```
+
+---
+
+Phase 1: Sharp Book Intelligence (Week 1-2)
+
+**Goal**: Track Pinnacle odds separately and compute sharp/soft book divergence
+
+1.1 Database Schema
+
+```
+-- Sharp book tracking table
+CREATE TABLE sharp_book_odds (
+    id SERIAL PRIMARY KEY,
+    match_id INTEGER NOT NULL,
+    sport VARCHAR(20) DEFAULT 'soccer',
+    bookmaker VARCHAR(50) NOT NULL,  -- 'pinnacle', 'betfair', 'sbobet'
+    is_sharp BOOLEAN DEFAULT true,
+
+    -- Moneyline odds (decimal)
+    odds_home NUMERIC(6,3),
+    odds_draw NUMERIC(6,3),
+    odds_away NUMERIC(6,3),
+
+    -- Implied probabilities
+    prob_home NUMERIC(5,4),
+    prob_draw NUMERIC(5,4),
+    prob_away NUMERIC(5,4),
+
+    -- Market efficiency indicators
+    overround NUMERIC(5,4),        -- Pinnacle typically 2-3%
+    margin NUMERIC(5,4),
+
+    ts_recorded TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    ts_kickoff TIMESTAMP WITH TIME ZONE,
+    hours_before_kickoff NUMERIC(6,2),
+
+    UNIQUE(match_id, bookmaker, ts_recorded)
+);
+CREATE INDEX idx_sharp_book_match ON sharp_book_odds(match_id);
+CREATE INDEX idx_sharp_book_time ON sharp_book_odds(ts_recorded);
+
+```
+
+1.2 Sharp Book Collector
+
+```
+# models/sharp_book_collector.py
+class SharpBookCollector:
+    """
+    Collects Pinnacle odds separately for sharp book analysis
+
+    V3 Features derived:
+    1. pinnacle_prob_home/draw/away  - Sharp market view
+    2. soft_vs_sharp_divergence      - Edge detection
+    3. sharp_line_movement           - Smart money direction
+    4. pinnacle_overround            - Market efficiency
+    """
+
+    SHARP_BOOKS = ['pinnacle', 'betfair_ex_uk', 'matchbook']
+    SOFT_BOOKS = ['draftkings', 'fanduel', 'betmgm', 'caesars']
+
+```
+
+1.3 V3 Features from Sharp Books
+
+| Feature | Description | Expected Predictive Value |
+| --- | --- | --- |
+| `sharp_prob_home/draw/away` | Pinnacle implied probabilities | High - sharp line = best estimate |
+| `sharp_soft_divergence_h` | Pinnacle vs avg soft book prob | Medium - identifies soft book errors |
+| `sharp_movement_24h` | Pinnacle line movement | High - tracks smart money |
+| `sharp_overround` | Pinnacle margin | Low - market efficiency indicator |
+
+---
+
+Phase 2: League ECE Calibration (Week 2-3)
+
+**Goal**: Track calibration quality per league to weight predictions
+
+2.1 Database Schema
+
+```
+-- League calibration tracking
+CREATE TABLE league_calibration (
+    id SERIAL PRIMARY KEY,
+    league_id INTEGER NOT NULL,
+    league_name VARCHAR(100),
+    sport VARCHAR(20) DEFAULT 'soccer',
+
+    -- Calibration metrics (rolling 100 matches)
+    ece_score NUMERIC(5,4),           -- Expected Calibration Error
+    brier_score NUMERIC(5,4),         -- Brier score
+    log_loss NUMERIC(6,4),            -- Log loss
+    accuracy_3way NUMERIC(5,4),       -- 3-way accuracy
+
+    -- Sample info
+    n_matches INTEGER,
+    window_start DATE,
+    window_end DATE,
+
+    -- Reliability tier
+    tier VARCHAR(10),                 -- 'A', 'B', 'C', 'D'
+    tier_weight NUMERIC(3,2),         -- 1.0, 0.8, 0.6, 0.4
+
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(league_id, window_end)
+);
+CREATE INDEX idx_league_cal_league ON league_calibration(league_id);
+
+```
+
+2.2 ECE Calculator Job
+
+```
+# jobs/league_ece_calculator.py
+class LeagueECECalculator:
+    """
+    Calculates per-league calibration metrics weekly
+
+    V3 Features derived:
+    1. league_ece              - Calibration quality
+    2. league_tier_weight      - Prediction confidence weight
+    3. league_historical_edge  - Historical model performance
+    """
+
+    def calculate_ece(self, probs: np.ndarray, outcomes: np.ndarray) -> float:
+        """Expected Calibration Error - lower is better"""
+        pass
+
+```
+
+2.3 V3 Features from ECE
+
+| Feature | Description | Expected Predictive Value |
+| --- | --- | --- |
+| `league_ece` | League calibration error | Medium - weights prediction confidence |
+| `league_tier_weight` | A/B/C/D tier (1.0/0.8/0.6/0.4) | Medium - prediction adjustment |
+| `league_coverage_pct` | % matches with full odds data | Low - data quality indicator |
+
+---
+
+Phase 3: Player & Injury Context (Week 3-4)
+
+**Goal**: Capture team strength changes from injuries/suspensions
+
+3.1 Database Schema
+
+```
+-- Injury tracking table
+CREATE TABLE player_injuries (
+    id SERIAL PRIMARY KEY,
+    player_id INTEGER,
+    player_name VARCHAR(100) NOT NULL,
+    team_id INTEGER,
+    team_name VARCHAR(100),
+    league_id INTEGER,
+
+    -- Injury details
+    injury_type VARCHAR(50),         -- 'Injury', 'Suspension', 'International Duty'
+    injury_reason VARCHAR(200),      -- 'Hamstring', 'Red Card', etc.
+
+    -- Impact assessment
+    player_value_rating NUMERIC(3,1), -- 1-10 importance score
+    expected_return DATE,
+
+    -- Match context
+    fixture_id INTEGER,
+    fixture_date DATE,
+
+    -- Metadata
+    source VARCHAR(50) DEFAULT 'api-football',
+    ts_recorded TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(player_id, fixture_id)
+);
+-- Team injury summary (pre-computed)
+CREATE TABLE team_injury_summary (
+    id SERIAL PRIMARY KEY,
+    match_id INTEGER NOT NULL,
+    team_id INTEGER NOT NULL,
+    team_type VARCHAR(4),            -- 'home' or 'away'
+
+    -- Aggregated metrics
+    n_injured INTEGER DEFAULT 0,
+    n_suspended INTEGER DEFAULT 0,
+    total_impact_score NUMERIC(5,2), -- Sum of player ratings
+    key_players_out TEXT[],          -- Array of key missing players
+
+    ts_computed TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(match_id, team_id)
+);
+CREATE INDEX idx_injuries_team ON player_injuries(team_id);
+CREATE INDEX idx_injuries_fixture ON player_injuries(fixture_id);
+
+```
+
+3.2 Injury Collector Job
+
+```
+# jobs/injury_collector.py
+class InjuryCollector:
+    """
+    Collects injury/suspension data from API-Football
+    Runs: Every 6 hours (injuries don't change rapidly)
+
+    V3 Features derived:
+    1. home_injury_impact / away_injury_impact
+    2. home_key_players_out / away_key_players_out
+    3. injury_advantage (relative team strength change)
+    """
+
+    API_ENDPOINT = "https://v3.football.api-sports.io/injuries"
+
+```
+
+3.3 V3 Features from Injuries
+
+| Feature | Description | Expected Predictive Value |
+| --- | --- | --- |
+| `home_injury_impact` | Weighted impact of missing players | Medium-High |
+| `away_injury_impact` | Weighted impact of missing players | Medium-High |
+| `injury_advantage` | home_impact - away_impact | Medium |
+| `key_players_missing_h` | Count of key players out (rating > 7) | Medium |
+| `key_players_missing_a` | Count of key players out (rating > 7) | Medium |
+| `total_squad_availability` | % of first XI available | Low-Medium |
+
+---
+
+Phase 4: Market Timing Features (Week 4-5)
+
+**Goal**: Capture odds movement patterns and timing signals
+
+4.1 Enhanced Odds Tracking
+
+```
+-- Add columns to existing odds_snapshots
+ALTER TABLE odds_snapshots ADD COLUMN IF NOT EXISTS
+    hours_to_kickoff NUMERIC(6,2);
+ALTER TABLE odds_snapshots ADD COLUMN IF NOT EXISTS
+    is_closing_snapshot BOOLEAN DEFAULT false;
+
+```
+
+4.2 V3 Features from Market Timing
+
+| Feature | Description | Expected Predictive Value |
+| --- | --- | --- |
+| `movement_velocity_24h` | Rate of odds change (last 24h) | Medium-High |
+| `steam_move_detected` | Sharp line movement signal | High |
+| `reverse_line_movement` | Public betting opposite to line | Medium |
+| `time_to_kickoff_bucket` | T-24h, T-12h, T-6h, T-1h | Low |
+
+---
+
+V3 Roadmap Timeline
+
+```
+Week 1-2: Sharp Book Intelligence
+├── Day 1-2: Create sharp_book_odds table
+├── Day 3-5: Build SharpBookCollector
+├── Day 6-7: Add to scheduler, test collection
+└── Day 8-10: Verify Pinnacle data quality
+Week 2-3: League ECE Calibration
+├── Day 1-2: Create league_calibration table
+├── Day 3-5: Build LeagueECECalculator job
+├── Day 6-7: Backfill historical calibration
+└── Day 8-10: Add weekly scheduler job
+Week 3-4: Player & Injury Context
+├── Day 1-2: Create injury tables
+├── Day 3-5: Build InjuryCollector
+├── Day 6-7: Test API-Football injuries endpoint
+└── Day 8-10: Create team_injury_summary aggregations
+Week 4-5: Market Timing Features
+├── Day 1-3: Enhance odds_snapshots schema
+├── Day 4-6: Build movement velocity calculator
+└── Day 7-10: Integrate all V3 features into builder
+Week 6: V3 Model Training
+├── Day 1-3: Update V3FeatureBuilder with 34 features
+├── Day 4-5: Train V3 LightGBM with all features
+└── Day 6-7: A/B test vs V2 via shadow inference
+
+```
+
+---
+
+Part 2: NBA & NHL Data Collection Roadmap
+
+Data Source Strategy
+
+| Source | NBA | NHL | Cost | Priority |
+| --- | --- | --- | --- | --- |
+| **The Odds API** | ✅ 9 games today | ✅ 15 games today | Existing quota | **Use this** |
+| **API-Basketball** | ❌ Not on plan | N/A | +$19/mo | Future |
+| **API-Hockey** | N/A | ❌ Not on plan | +$19/mo | Future |
+
+**Recommendation**: Start with The Odds API only (odds-based model like V2), then add API-Basketball/Hockey for V3-level features.
+
+---
+
+Phase 1: Multi-Sport Database Schema (Week 1)
+
+```
+-- Universal fixtures table (extend existing)
+ALTER TABLE fixtures ADD COLUMN IF NOT EXISTS sport VARCHAR(20) DEFAULT 'soccer';
+ALTER TABLE fixtures ADD COLUMN IF NOT EXISTS sport_key VARCHAR(50);
+-- Create sport-specific views for backward compatibility
+CREATE OR REPLACE VIEW soccer_fixtures AS
+SELECT * FROM fixtures WHERE sport = 'soccer';
+-- Multi-sport odds snapshots
+CREATE TABLE multisport_odds_snapshots (
+    id SERIAL PRIMARY KEY,
+    sport VARCHAR(20) NOT NULL,              -- 'basketball', 'hockey'
+    sport_key VARCHAR(50) NOT NULL,          -- 'basketball_nba', 'icehockey_nhl'
+    event_id VARCHAR(100) NOT NULL,          -- The Odds API event ID
+
+    -- Match info
+    home_team VARCHAR(100) NOT NULL,
+    away_team VARCHAR(100) NOT NULL,
+    commence_time TIMESTAMP WITH TIME ZONE,
+
+    -- Odds (2-way for NBA/NHL)
+    home_odds NUMERIC(6,3),
+    away_odds NUMERIC(6,3),
+    home_prob NUMERIC(5,4),
+    away_prob NUMERIC(5,4),
+
+    -- Spread (point spread for NBA, puck line for NHL)
+    home_spread NUMERIC(5,2),
+    home_spread_odds NUMERIC(6,3),
+    away_spread_odds NUMERIC(6,3),
+
+    -- Totals (over/under)
+    total_line NUMERIC(5,2),
+    over_odds NUMERIC(6,3),
+    under_odds NUMERIC(6,3),
+
+    -- Bookmaker info
+    bookmaker VARCHAR(50),
+    n_bookmakers INTEGER,
+
+    -- Metadata
+    source VARCHAR(50) DEFAULT 'theoddsapi',
+    ts_recorded TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(event_id, bookmaker, ts_recorded)
+);
+CREATE INDEX idx_multisport_odds_sport ON multisport_odds_snapshots(sport);
+CREATE INDEX idx_multisport_odds_event ON multisport_odds_snapshots(event_id);
+CREATE INDEX idx_multisport_odds_time ON multisport_odds_snapshots(commence_time);
+-- Multi-sport training data
+CREATE TABLE multisport_training (
+    id SERIAL PRIMARY KEY,
+    sport VARCHAR(20) NOT NULL,
+    sport_key VARCHAR(50) NOT NULL,
+    event_id VARCHAR(100) NOT NULL,
+
+    -- Match info
+    home_team VARCHAR(100),
+    away_team VARCHAR(100),
+    match_date DATE,
+
+    -- Result (2-way)
+    home_score INTEGER,
+    away_score INTEGER,
+    outcome CHAR(1),  -- 'H' or 'A' (no draws in NBA/NHL regular time)
+
+    -- Pre-computed features (JSONB for flexibility)
+    features JSONB,
+
+    created_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(sport, event_id)
+);
+CREATE INDEX idx_multisport_training_sport ON multisport_training(sport);
+
+```
+
+---
+
+Phase 2: NBA/NHL Odds Collector (Week 1-2)
+
+```
+# models/multisport_collector.py
+"""
+Multi-sport odds collector for NBA and NHL
+Uses The Odds API - same quota as soccer
+"""
+class MultiSportCollector:
+    """
+    Collects odds for non-soccer sports
+
+    Supported:
+    - basketball_nba: NBA games
+    - icehockey_nhl: NHL games
+    - basketball_euroleague: European basketball (future)
+    """
+
+    SPORT_CONFIGS = {
+        'basketball_nba': {
+            'name': 'NBA',
+            'markets': ['h2h', 'spreads', 'totals'],
+            'regions': 'us',
+            'outcome_type': '2way',  # No draws
+            'typical_games_per_day': 8,
+            'season': 'Oct-Jun'
+        },
+        'icehockey_nhl': {
+            'name': 'NHL',
+            'markets': ['h2h', 'spreads', 'totals'],
+            'regions': 'us',
+            'outcome_type': '2way',  # Moneyline is regulation only
+            'typical_games_per_day': 10,
+            'season': 'Oct-Jun'
+        }
+    }
+
+    def __init__(self):
+        self.api_key = os.getenv('ODDS_API_KEY')
+        self.base_url = "https://api.the-odds-api.com/v4"
+
+```
+
+---
+
+Phase 3: V2-Style Models for NBA/NHL (Week 3-4)
+
+**Strategy**: Use odds-only features (like V2 Soccer) since we don't have team stats APIs yet.
+
+3.1 NBA V2 Features (12 features)
+
+| Feature | Description |
+| --- | --- |
+| `prob_home` | Consensus implied probability |
+| `prob_away` | Consensus implied probability |
+| `spread_home` | Point spread line |
+| `total_line` | Over/under line |
+| `overround` | Market margin |
+| `n_books` | Number of bookmakers |
+| `book_dispersion_h` | Odds variance across books |
+| `book_dispersion_a` | Odds variance across books |
+| `prob_drift_24h_h` | Line movement |
+| `prob_drift_24h_a` | Line movement |
+| `spread_vs_ml_consistency` | Spread/moneyline alignment |
+| `pinnacle_vs_soft_div` | Sharp/soft divergence |
+
+3.2 NHL V2 Features (12 features)
+
+Same structure as NBA, with sport-specific adjustments:
+
+- Puck line instead of point spread (typically ±1.5)
+- Lower scoring = different total ranges
+
+---
+
+Phase 4: Scheduler Integration (Week 2)
+
+```
+# utils/scheduler.py additions
+# NBA/NHL collection - every 5 minutes during game days
+schedule.every(5).minutes.do(
+    lambda: run_job_with_timeout(
+        "multisport_odds_collection",
+        multisport_collector.collect_all,
+        timeout=120
+    )
+)
+# NBA/NHL results collection - hourly
+schedule.every().hour.do(
+    lambda: run_job_with_timeout(
+        "multisport_results",
+        multisport_collector.collect_results,
+        timeout=60
+    )
+)
+
+```
+
+---
+
+NBA/NHL Roadmap Timeline
+
+```
+Week 1: Database & Schema
+├── Day 1-2: Create multisport tables
+├── Day 3-4: Update fixtures table with sport column
+└── Day 5-7: Create migration scripts
+Week 2: Odds Collection
+├── Day 1-3: Build MultiSportCollector class
+├── Day 4-5: Add to scheduler
+├── Day 6-7: Test collection for NBA + NHL
+└── Ongoing: Collect 2 weeks of odds data
+Week 3: Results & Training Data
+├── Day 1-3: Build results collector (The Odds API scores endpoint)
+├── Day 4-5: Create training data pipeline
+└── Day 6-7: Verify data quality
+Week 4: V2-Style Model Training
+├── Day 1-2: Build NBA/NHL feature builder (odds-only)
+├── Day 3-4: Train NBA V2 LightGBM
+├── Day 5-6: Train NHL V2 LightGBM
+└── Day 7: Initial accuracy evaluation
+Week 5-6: API Endpoints
+├── Day 1-3: Create /predict-nba and /predict-nhl endpoints
+├── Day 4-5: Add to /market board with sport filter
+└── Day 6-7: Testing and documentation
+
+```
+
+---
+
+Summary: Combined Roadmap
+
+6-Week Implementation Plan
+
+| Week | V3 Soccer | NBA/NHL | Key Deliverable |
+| --- | --- | --- | --- |
+| **1** | Sharp book schema + collector | Multi-sport schema | Database ready |
+| **2** | League ECE calculator | NBA/NHL odds collector | Collection running |
+| **3** | Injury collector | Results + training pipeline | Data accumulating |
+| **4** | Market timing features | V2 model training | First NBA/NHL models |
+| **5** | V3 feature builder | API endpoints | Multi-sport predictions |
+| **6** | V3 model training + A/B test | Integration testing | Production ready |
+
+API Quota Impact
+
+| Activity | Calls/Day | Current Quota | Impact |
+| --- | --- | --- | --- |
+| Soccer (existing) | ~2,000 | 100,000 | 2% |
+| +Sharp book (Pinnacle filter) | +500 |  | +0.5% |
+| +NBA odds (9 games × 12 snapshots) | +108 |  | +0.1% |
+| +NHL odds (15 games × 12 snapshots) | +180 |  | +0.2% |
+| **Total** | ~2,800 | 100,000 | **2.8%** |
+
+**Verdict**: Plenty of API quota headroom for expansion.
+
+---
+
+Cost Considerations
+
+| Item | Monthly Cost | Priority |
+| --- | --- | --- |
+| The Odds API (existing) | $0 (current plan) | ✅ Using |
+| API-Football (existing) | $0 (current plan) | ✅ Using |
+| API-Basketball (new) | +$19/month | ⏳ Future (V3-NBA) |
+| API-Hockey (new) | +$19/month | ⏳ Future (V3-NHL) |
+
+**Recommendation**:
+
+1. Start with odds-only models (V2-style) using existing APIs
+2. Add API-Basketball/Hockey once models show promise (~$38/month)
+
+---
+
+Would you like me to start implementing Phase 1 of either roadmap? I can begin with:
+
+1. **V3 Sharp Book Intelligence** - Create tables and Pinnacle collector
+2. **NBA/NHL Collection** - Create multi-sport schema and collector
