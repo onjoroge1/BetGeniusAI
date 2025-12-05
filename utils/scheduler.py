@@ -106,6 +106,8 @@ class BackgroundScheduler:
         logger.info("🔄 Fixtures→Matches Sync enabled - runs every 15 minutes to sync finished fixtures")
         logger.info("🤖 Auto-Retrain enabled - runs daily at 03:00 UTC (triggers: 50+ new matches, 14-day staleness, accuracy drift)")
         logger.info("🎯 V3 Sharp Book Collection enabled - runs every 5 minutes to track Pinnacle odds")
+        logger.info("📊 V3 League ECE Calculator enabled - runs weekly Sunday 02:00 UTC")
+        logger.info("🏥 V3 Injury Collection enabled - runs every 6 hours for player context")
         logger.info("🏀🏒 Multi-Sport Odds Collection enabled - runs every 5 minutes for NBA/NHL/MLB")
         logger.info("📊 Multi-Sport Results enabled - runs every hour to fetch completed scores")
         logger.info("🏀⚾ API-Sports Data Collection enabled - runs every hour for team/player data")
@@ -390,6 +392,15 @@ class BackgroundScheduler:
                 # 🏀⚾ API-Sports Data - runs every hour to sync team data
                 if "api_sports" not in self.last_run or (now - self.last_run["api_sports"]).total_seconds() >= 3600:
                     await self._spawn("api_sports", self._run_api_sports_collection, timeout=180)
+                
+                # 📊 V3: League ECE Calculator - runs weekly on Sunday at 02:00 UTC
+                if now.weekday() == 6 and now.hour == 2:  # Sunday 02:00 UTC
+                    if "league_ece" not in self.last_run or (now - self.last_run["league_ece"]).total_seconds() >= 86400:
+                        await self._spawn("league_ece", self._run_league_ece_calculation, timeout=300)
+                
+                # 🏥 V3: Injury Collection - runs every 6 hours
+                if "injury_collection" not in self.last_run or (now - self.last_run["injury_collection"]).total_seconds() >= 21600:
+                    await self._spawn("injury_collection", self._run_injury_collection, timeout=300)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -1289,6 +1300,45 @@ class BackgroundScheduler:
             logger.warning("⚠️ API-SPORTS: api_sports_collector module not found - skipping")
         except Exception as e:
             logger.error(f"❌ API-SPORTS: Data collection failed - {e}", exc_info=True)
+
+    async def _run_league_ece_calculation(self):
+        """
+        📊 V3: League ECE Calculator
+        Calculates Expected Calibration Error per league for prediction weighting.
+        Runs weekly on Sunday at 02:00 UTC.
+        """
+        try:
+            from jobs.league_ece_calculator import run_league_ece_calculation
+            logger.info("📊 ECE: Starting league calibration calculation...")
+            results = run_league_ece_calculation()
+            if 'error' not in results:
+                logger.info(f"✅ ECE: {results.get('leagues_updated', 0)} leagues updated")
+            else:
+                logger.warning(f"⚠️ ECE: {results.get('error')}")
+        except ImportError:
+            logger.warning("⚠️ ECE: league_ece_calculator module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ ECE: Calculation failed - {e}", exc_info=True)
+
+    async def _run_injury_collection(self):
+        """
+        🏥 V3: Injury Collection
+        Collects injury/suspension data from API-Football.
+        Runs every 6 hours.
+        """
+        try:
+            from jobs.injury_collector import run_injury_collection
+            logger.info("🏥 INJURY: Starting injury collection...")
+            results = run_injury_collection()
+            if 'error' not in results:
+                logger.info(f"✅ INJURY: {results.get('injuries_stored', 0)} injuries, "
+                           f"{results.get('summaries_updated', 0)} summaries")
+            else:
+                logger.warning(f"⚠️ INJURY: {results.get('error')}")
+        except ImportError:
+            logger.warning("⚠️ INJURY: injury_collector module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ INJURY: Collection failed - {e}", exc_info=True)
 
 
 # Global scheduler instance
