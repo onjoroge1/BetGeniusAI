@@ -73,12 +73,13 @@ class LeagueECECalculator:
             leagues = self._get_eligible_leagues(cursor)
             logger.info(f"  Found {len(leagues)} leagues with sufficient data")
             
-            for league_id, league_name in leagues:
+            for league_id, league_name, match_count in leagues:
                 try:
                     metrics = self._calculate_league_metrics(cursor, league_id)
                     
                     if metrics:
                         self._store_calibration(cursor, league_id, league_name, metrics)
+                        conn.commit()  # Commit per league to prevent cascade failures
                         results['leagues_updated'] += 1
                     else:
                         results['leagues_skipped'] += 1
@@ -86,6 +87,7 @@ class LeagueECECalculator:
                     results['leagues_processed'] += 1
                     
                 except Exception as e:
+                    conn.rollback()  # Rollback on error to prevent cascade
                     logger.error(f"  Error processing league {league_id}: {e}")
                     results['errors'].append(f"{league_id}: {str(e)}")
             
@@ -136,18 +138,18 @@ class LeagueECECalculator:
                 p.consensus_d,
                 p.consensus_a,
                 CASE 
-                    WHEN m.home_score > m.away_score THEN 'H'
-                    WHEN m.home_score < m.away_score THEN 'A'
+                    WHEN m.home_goals > m.away_goals THEN 'H'
+                    WHEN m.home_goals < m.away_goals THEN 'A'
                     ELSE 'D'
                 END as outcome
             FROM consensus_predictions p
             JOIN fixtures f ON p.match_id = f.match_id
-            LEFT JOIN matches m ON f.match_id = m.id
+            LEFT JOIN matches m ON f.match_id = m.match_id
             WHERE f.league_id = %s
               AND f.status = 'finished'
               AND f.kickoff_at >= %s
               AND p.consensus_h > 0 AND p.consensus_a > 0
-              AND m.home_score IS NOT NULL
+              AND m.home_goals IS NOT NULL
         """, (league_id, window_start))
         
         rows = cursor.fetchall()
