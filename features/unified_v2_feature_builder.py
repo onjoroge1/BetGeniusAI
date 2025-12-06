@@ -299,54 +299,57 @@ class UnifiedV2FeatureBuilder:
         
         features = {name: 0.0 for name in self.ODDS_FEATURES}
         
-        cursor.execute("""
-            SELECT 
-                ph_cons, pd_cons, pa_cons,
-                n_books, market_margin_avg,
-                disph, dispd, dispa, ts_effective
-            FROM odds_real_consensus
-            WHERE match_id = %s AND ts_effective <= %s
-            ORDER BY ts_effective DESC
-            LIMIT 1
-        """, (match_id, cutoff_time))
-        row = cursor.fetchone()
-        
         p_last_h, p_last_d, p_last_a = 0.0, 0.0, 0.0
         n_books = 0.0
         
-        if row and row[0] is not None:
-            p_last_h = float(row[0]) if row[0] else 0.0
-            p_last_d = float(row[1]) if row[1] else 0.0
-            p_last_a = float(row[2]) if row[2] else 0.0
-            n_books = float(row[3]) if row[3] else 0.0
-            features['market_overround'] = float(row[4]) if row[4] else 0.0
-            features['dispersion_home'] = float(row[5]) if row[5] else 0.0
-            features['dispersion_draw'] = float(row[6]) if row[6] else 0.0
-            features['dispersion_away'] = float(row[7]) if row[7] else 0.0
+        cursor.execute("""
+            SELECT 
+                outcome, 
+                AVG(implied_prob) as avg_prob,
+                STDDEV(implied_prob) as disp,
+                COUNT(DISTINCT book_id) as n_books,
+                AVG(market_margin) as margin,
+                MAX(ts_snapshot) as latest_ts
+            FROM odds_snapshots
+            WHERE match_id = %s 
+              AND ts_snapshot <= %s
+            GROUP BY outcome
+        """, (match_id, cutoff_time))
+        
+        rows = cursor.fetchall()
+        
+        if rows:
+            max_books = 0
+            avg_margin = 0.0
+            latest_ts = None
             
-            if row[8] and cutoff_time:
-                hours_before = (cutoff_time - row[8]).total_seconds() / 3600
-                features['hours_before_ko'] = max(0.0, hours_before)
-        else:
-            cursor.execute("""
-                SELECT 
-                    outcome, implied_prob
-                FROM odds_snapshots
-                WHERE match_id = %s AND ts_snapshot <= %s
-                ORDER BY ts_snapshot DESC
-                LIMIT 3
-            """, (match_id, cutoff_time))
+            for row in rows:
+                outcome, avg_prob, disp, books, margin, ts = row
+                if outcome == 'H':
+                    p_last_h = float(avg_prob) if avg_prob else 0.0
+                    features['dispersion_home'] = float(disp) if disp else 0.0
+                elif outcome == 'D':
+                    p_last_d = float(avg_prob) if avg_prob else 0.0
+                    features['dispersion_draw'] = float(disp) if disp else 0.0
+                elif outcome == 'A':
+                    p_last_a = float(avg_prob) if avg_prob else 0.0
+                    features['dispersion_away'] = float(disp) if disp else 0.0
+                
+                max_books = max(max_books, int(books) if books else 0)
+                if margin:
+                    avg_margin = float(margin)
+                if ts and (latest_ts is None or ts > latest_ts):
+                    latest_ts = ts
             
-            snapshot_rows = cursor.fetchall()
-            prob_map = {'H': 0.0, 'D': 0.0, 'A': 0.0}
-            for sr in snapshot_rows:
-                if sr[0] in prob_map and prob_map[sr[0]] == 0.0:
-                    prob_map[sr[0]] = float(sr[1]) if sr[1] else 0.0
+            n_books = float(max_books)
+            features['market_overround'] = avg_margin
             
-            p_last_h = prob_map['H']
-            p_last_d = prob_map['D']
-            p_last_a = prob_map['A']
-            n_books = len([v for v in prob_map.values() if v > 0])
+            if latest_ts and cutoff_time:
+                try:
+                    hours_before = (cutoff_time - latest_ts).total_seconds() / 3600
+                    features['hours_before_ko'] = max(0.0, hours_before)
+                except:
+                    pass
         
         prob_sum = p_last_h + p_last_d + p_last_a
         if prob_sum > 0.9:
@@ -571,30 +574,36 @@ class UnifiedV2FeatureBuilder:
         }
     
     def _get_venue_wins(self, cursor, team_id: int, cutoff_time: datetime, venue: str, n_matches: int = 10) -> float:
-        """Get wins at specific venue"""
+        """Get wins at specific venue from last N matches at that venue"""
         
         if not team_id:
             return 0.0
         
         if venue == 'home':
             cursor.execute("""
-                SELECT COUNT(*) as wins
-                FROM training_matches
-                WHERE home_team_id = %s
-                    AND match_date < %s
-                    AND outcome = 'H'
-                ORDER BY match_date DESC
-                LIMIT %s
+                SELECT COUNT(*) as wins FROM (
+                    SELECT outcome
+                    FROM training_matches
+                    WHERE home_team_id = %s
+                        AND match_date < %s
+                        AND outcome IS NOT NULL
+                    ORDER BY match_date DESC
+                    LIMIT %s
+                ) recent
+                WHERE outcome = 'H'
             """, (team_id, cutoff_time, n_matches))
         else:
             cursor.execute("""
-                SELECT COUNT(*) as wins
-                FROM training_matches
-                WHERE away_team_id = %s
-                    AND match_date < %s
-                    AND outcome = 'A'
-                ORDER BY match_date DESC
-                LIMIT %s
+                SELECT COUNT(*) as wins FROM (
+                    SELECT outcome
+                    FROM training_matches
+                    WHERE away_team_id = %s
+                        AND match_date < %s
+                        AND outcome IS NOT NULL
+                    ORDER BY match_date DESC
+                    LIMIT %s
+                ) recent
+                WHERE outcome = 'A'
             """, (team_id, cutoff_time, n_matches))
         
         row = cursor.fetchone()
