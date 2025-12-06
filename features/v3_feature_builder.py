@@ -73,6 +73,12 @@ class V3FeatureBuilder:
         
         logger.info("✅ V3FeatureBuilder initialized")
     
+    def get_all_feature_names(self) -> List[str]:
+        """Get list of all 34 V3 feature names"""
+        return (self.V2_FEATURE_NAMES + self.SHARP_FEATURE_NAMES + 
+                self.ECE_FEATURE_NAMES + self.INJURY_FEATURE_NAMES + 
+                self.TIMING_FEATURE_NAMES)
+    
     def build_features(self, match_id: int, cutoff_time: Optional[datetime] = None) -> Dict[str, float]:
         """
         Build all 34 V3 features for a match

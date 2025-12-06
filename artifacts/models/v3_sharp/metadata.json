@@ -1,0 +1,149 @@
+{
+  "model_type": "V3_Sharp_LightGBM",
+  "trained_at": "2025-12-06T00:08:59.594976+00:00",
+  "n_features": 34,
+  "oof_metrics": {
+    "accuracy_3way": 0.46846846846846846,
+    "logloss": 1.0897029786384795,
+    "n_samples": 111,
+    "n_folds": 3
+  },
+  "feature_importance": [
+    {
+      "feature": "odds_volatility_away",
+      "importance": 33.48473481585582
+    },
+    {
+      "feature": "odds_volatility_draw",
+      "importance": 25.297439434876043
+    },
+    {
+      "feature": "odds_volatility_home",
+      "importance": 15.303246055729687
+    },
+    {
+      "feature": "book_dispersion_away",
+      "importance": 15.176507910092672
+    },
+    {
+      "feature": "league_ece",
+      "importance": 15.160145878791809
+    },
+    {
+      "feature": "book_dispersion_draw",
+      "importance": 9.021326541900635
+    },
+    {
+      "feature": "league_historical_edge",
+      "importance": 7.970587099591891
+    },
+    {
+      "feature": "book_dispersion_home",
+      "importance": 5.861286560694377
+    },
+    {
+      "feature": "prob_home",
+      "importance": 4.344490011533101
+    },
+    {
+      "feature": "league_tier_weight",
+      "importance": 4.305157500008742
+    },
+    {
+      "feature": "prob_away",
+      "importance": 3.4656916658083596
+    },
+    {
+      "feature": "book_coverage",
+      "importance": 3.0668266216913858
+    },
+    {
+      "feature": "prob_draw",
+      "importance": 2.4103233019510903
+    },
+    {
+      "feature": "market_overround",
+      "importance": 2.06495996316274
+    },
+    {
+      "feature": "drift_magnitude",
+      "importance": 0.0
+    },
+    {
+      "feature": "prob_drift_home",
+      "importance": 0.0
+    },
+    {
+      "feature": "prob_drift_draw",
+      "importance": 0.0
+    },
+    {
+      "feature": "prob_drift_away",
+      "importance": 0.0
+    },
+    {
+      "feature": "sharp_prob_home",
+      "importance": 0.0
+    },
+    {
+      "feature": "closing_line_captured",
+      "importance": 0.0
+    },
+    {
+      "feature": "time_decay_weight",
+      "importance": 0.0
+    },
+    {
+      "feature": "sharp_prob_draw",
+      "importance": 0.0
+    },
+    {
+      "feature": "soft_vs_sharp_divergence",
+      "importance": 0.0
+    },
+    {
+      "feature": "sharp_prob_away",
+      "importance": 0.0
+    },
+    {
+      "feature": "home_injury_impact",
+      "importance": 0.0
+    },
+    {
+      "feature": "away_injury_impact",
+      "importance": 0.0
+    },
+    {
+      "feature": "home_key_players_out",
+      "importance": 0.0
+    },
+    {
+      "feature": "away_key_players_out",
+      "importance": 0.0
+    },
+    {
+      "feature": "injury_advantage",
+      "importance": 0.0
+    },
+    {
+      "feature": "total_squad_impact",
+      "importance": 0.0
+    },
+    {
+      "feature": "movement_velocity_24h",
+      "importance": 0.0
+    },
+    {
+      "feature": "steam_move_detected",
+      "importance": 0.0
+    },
+    {
+      "feature": "reverse_line_movement",
+      "importance": 0.0
+    },
+    {
+      "feature": "time_to_kickoff_bucket",
+      "importance": 0.0
+    }
+  ]
+}
