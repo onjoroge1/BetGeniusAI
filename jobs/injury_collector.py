@@ -18,8 +18,9 @@ import os
 import logging
 import requests
 import psycopg2
+from psycopg2.extras import execute_values
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,7 @@ class InjuryCollector:
         """
         Collect injuries by league - more efficient than fixture-by-fixture.
         Returns all injuries for players in specified leagues this season.
+        Uses batch inserts with execute_values for optimal performance.
         """
         
         if league_ids is None:
@@ -143,14 +145,27 @@ class InjuryCollector:
                     injuries = self._fetch_league_injuries(league_id, season)
                     logger.info(f"  League {league_id}: {len(injuries)} injuries found")
                     
-                    for injury in injuries:
-                        self._store_league_injury(cursor, injury)
+                    if injuries:
+                        seen_keys = set()
+                        batch_tuples = []
+                        for injury in injuries:
+                            row_tuple = self._build_injury_tuple(injury)
+                            if row_tuple:
+                                key = (row_tuple[0], row_tuple[8])
+                                if key not in seen_keys:
+                                    seen_keys.add(key)
+                                    batch_tuples.append(row_tuple)
+                        
+                        if batch_tuples:
+                            self._batch_insert_injuries(cursor, batch_tuples)
+                            conn.commit()
+                            logger.info(f"  League {league_id}: {len(batch_tuples)} unique injuries inserted")
                     
                 except Exception as e:
                     logger.error(f"  Error for league {league_id}: {e}")
+                    conn.rollback()
                     self.metrics['errors'] += 1
             
-            conn.commit()
             cursor.close()
             conn.close()
             
@@ -161,6 +176,69 @@ class InjuryCollector:
             self.metrics['errors'] += 1
         
         return self.metrics
+    
+    def _build_injury_tuple(self, injury: Dict) -> Optional[Tuple]:
+        """Convert API injury dict to insert tuple"""
+        player = injury.get('player', {})
+        team = injury.get('team', {})
+        fixture = injury.get('fixture', {})
+        league = injury.get('league', {})
+        
+        player_id = player.get('id')
+        if not player_id:
+            return None
+            
+        player_name = player.get('name', 'Unknown')
+        team_id = team.get('id')
+        team_name = team.get('name')
+        league_id = league.get('id')
+        
+        injury_type = player.get('type', 'Unknown')
+        injury_reason = player.get('reason', '')
+        
+        fixture_id = fixture.get('id')
+        fixture_date = self._parse_fixture_date(fixture.get('date'))
+        
+        base_rating = 6.0
+        if 'Questionable' in str(injury_type) or 'Doubt' in str(injury_type):
+            rating_multiplier = 0.5
+        else:
+            rating_multiplier = 1.0
+        
+        player_rating = base_rating * rating_multiplier
+        
+        return (
+            player_id, player_name, team_id, team_name, league_id,
+            injury_type, injury_reason, player_rating,
+            fixture_id, fixture_date
+        )
+    
+    def _batch_insert_injuries(self, cursor, tuples: List[Tuple], chunk_size: int = 500):
+        """Batch insert injuries using execute_values for optimal performance"""
+        insert_sql = """
+            INSERT INTO player_injuries (
+                player_id, player_name, team_id, team_name, league_id,
+                injury_type, injury_reason, player_value_rating,
+                fixture_id, fixture_date, source, ts_recorded
+            ) VALUES %s
+            ON CONFLICT (player_id, fixture_id) 
+            DO UPDATE SET
+                injury_type = EXCLUDED.injury_type,
+                injury_reason = EXCLUDED.injury_reason,
+                player_value_rating = EXCLUDED.player_value_rating,
+                ts_recorded = NOW()
+        """
+        
+        for i in range(0, len(tuples), chunk_size):
+            chunk = tuples[i:i + chunk_size]
+            values = [(
+                t[0], t[1], t[2], t[3], t[4],
+                t[5], t[6], t[7], t[8], t[9],
+                'api-football', datetime.now(timezone.utc)
+            ) for t in chunk]
+            
+            execute_values(cursor, insert_sql, values, page_size=chunk_size)
+            self.metrics['injuries_stored'] += len(chunk)
     
     def _fetch_league_injuries(self, league_id: int, season: int) -> List[Dict]:
         """Fetch all injuries for a league/season from API-Football"""
