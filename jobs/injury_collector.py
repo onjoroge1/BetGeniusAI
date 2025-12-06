@@ -58,10 +58,10 @@ class InjuryCollector:
         if not self.db_url:
             raise ValueError("DATABASE_URL not set")
         
-        self.base_url = "https://v3.football.api-sports.io"
+        self.base_url = "https://api-football-v1.p.rapidapi.com/v3"
         self.headers = {
             'x-rapidapi-key': self.api_key,
-            'x-rapidapi-host': 'v3.football.api-sports.io'
+            'x-rapidapi-host': 'api-football-v1.p.rapidapi.com'
         }
         
         self.metrics = {
@@ -70,6 +70,19 @@ class InjuryCollector:
             'summaries_updated': 0,
             'errors': 0
         }
+    
+    TRACKED_LEAGUES = [
+        39,   # Premier League
+        140,  # La Liga
+        78,   # Bundesliga
+        135,  # Serie A
+        61,   # Ligue 1
+        2,    # Champions League
+        3,    # Europa League
+        848,  # Conference League
+        88,   # Eredivisie
+        94,   # Primeira Liga (Portugal)
+    ]
     
     def collect_upcoming_injuries(self, days_ahead: int = 7) -> Dict:
         """Collect injuries for matches in the next N days"""
@@ -109,6 +122,130 @@ class InjuryCollector:
             self.metrics['errors'] += 1
         
         return self.metrics
+    
+    def collect_league_injuries(self, league_ids: List[int] = None, season: int = 2024) -> Dict:
+        """
+        Collect injuries by league - more efficient than fixture-by-fixture.
+        Returns all injuries for players in specified leagues this season.
+        """
+        
+        if league_ids is None:
+            league_ids = self.TRACKED_LEAGUES
+        
+        logger.info(f"🏥 Starting league-based injury collection for {len(league_ids)} leagues...")
+        
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cursor = conn.cursor()
+            
+            for league_id in league_ids:
+                try:
+                    injuries = self._fetch_league_injuries(league_id, season)
+                    logger.info(f"  League {league_id}: {len(injuries)} injuries found")
+                    
+                    for injury in injuries:
+                        self._store_league_injury(cursor, injury)
+                    
+                except Exception as e:
+                    logger.error(f"  Error for league {league_id}: {e}")
+                    self.metrics['errors'] += 1
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            logger.info(f"✅ League injury collection complete: {self.metrics['injuries_stored']} injuries stored")
+            
+        except Exception as e:
+            logger.error(f"❌ League injury collection failed: {e}")
+            self.metrics['errors'] += 1
+        
+        return self.metrics
+    
+    def _fetch_league_injuries(self, league_id: int, season: int) -> List[Dict]:
+        """Fetch all injuries for a league/season from API-Football"""
+        
+        url = f"{self.base_url}/injuries"
+        params = {'league': league_id, 'season': season}
+        
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            self.metrics['api_calls'] += 1
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('response', [])
+            else:
+                logger.warning(f"  API returned {response.status_code} for league {league_id}")
+                return []
+                
+        except requests.RequestException as e:
+            logger.error(f"  API request failed: {e}")
+            return []
+    
+    def _parse_fixture_date(self, date_str: str) -> Optional[datetime]:
+        """Parse ISO date string from API to date object"""
+        if not date_str:
+            return None
+        try:
+            return datetime.fromisoformat(date_str.replace('+00:00', '').replace('Z', '')).date()
+        except (ValueError, TypeError):
+            return None
+    
+    def _store_league_injury(self, cursor, injury: Dict):
+        """Store a single injury record from league-based collection"""
+        
+        player = injury.get('player', {})
+        team = injury.get('team', {})
+        fixture = injury.get('fixture', {})
+        league = injury.get('league', {})
+        
+        player_id = player.get('id')
+        player_name = player.get('name', 'Unknown')
+        team_id = team.get('id')
+        team_name = team.get('name')
+        league_id = league.get('id')
+        
+        injury_type = player.get('type', 'Unknown')
+        injury_reason = player.get('reason', '')
+        
+        fixture_id = fixture.get('id')
+        fixture_date = self._parse_fixture_date(fixture.get('date'))
+        
+        base_rating = 6.0
+        if 'Questionable' in str(injury_type) or 'Doubt' in str(injury_type):
+            rating_multiplier = 0.5
+        else:
+            rating_multiplier = 1.0
+        
+        player_rating = base_rating * rating_multiplier
+        
+        try:
+            cursor.execute("""
+                INSERT INTO player_injuries (
+                    player_id, player_name, team_id, team_name, league_id,
+                    injury_type, injury_reason, player_value_rating,
+                    fixture_id, fixture_date, source, ts_recorded
+                ) VALUES (
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, 'api-football', NOW()
+                )
+                ON CONFLICT (player_id, fixture_id) 
+                DO UPDATE SET
+                    injury_type = EXCLUDED.injury_type,
+                    injury_reason = EXCLUDED.injury_reason,
+                    player_value_rating = EXCLUDED.player_value_rating,
+                    ts_recorded = NOW()
+            """, (
+                player_id, player_name, team_id, team_name, league_id,
+                injury_type, injury_reason, player_rating,
+                fixture_id, fixture_date
+            ))
+            self.metrics['injuries_stored'] += 1
+            
+        except Exception as e:
+            logger.debug(f"  Insert error: {e}")
     
     def _get_upcoming_fixtures(self, cursor, days_ahead: int) -> List:
         """Get upcoming fixtures from database"""
