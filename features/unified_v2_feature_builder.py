@@ -150,6 +150,7 @@ class UnifiedV2FeatureBuilder:
             raise ValueError("DATABASE_URL not provided")
         
         self.initial_elo = 1500.0
+        self._historical_features_cache = {}
         feature_count = len(
             self.ODDS_FEATURES + self.DRIFT_FEATURES + self.ELO_FEATURES +
             self.FORM_FEATURES + self.H2H_FEATURES + self.ADVANCED_STATS_FEATURES +
@@ -157,6 +158,69 @@ class UnifiedV2FeatureBuilder:
             self.TIMING_FEATURES + self.HISTORICAL_FLAGS
         )
         logger.info(f"✅ UnifiedV2FeatureBuilder initialized ({feature_count} features)")
+    
+    def _get_historical_features(self, cursor, match_id: int) -> Optional[Dict]:
+        """Get historical features from historical_features table
+        
+        Returns cached or queried features for H2H, form, and advanced stats.
+        Uses caching to avoid repeated queries for the same match_id.
+        """
+        if not match_id:
+            return None
+            
+        if match_id in self._historical_features_cache:
+            return self._historical_features_cache[match_id]
+        
+        cursor.execute("""
+            SELECT 
+                h2h_home_wins, h2h_draws, h2h_away_wins, h2h_matches_used,
+                home_form_points, home_form_goals_scored, home_form_goals_conceded,
+                away_form_points, away_form_goals_scored, away_form_goals_conceded,
+                home_last10_home_wins, away_last10_away_wins,
+                home_shots_avg, away_shots_avg,
+                home_shots_target_avg, away_shots_target_avg,
+                home_corners_avg, away_corners_avg,
+                home_yellows_avg, away_yellows_avg
+            FROM historical_features
+            WHERE match_id = %s AND feature_type = 'combined'
+            LIMIT 1
+        """, (match_id,))
+        
+        row = cursor.fetchone()
+        
+        if not row:
+            self._historical_features_cache[match_id] = None
+            return None
+        
+        result = {
+            'h2h_home_wins': row[0],
+            'h2h_draws': row[1],
+            'h2h_away_wins': row[2],
+            'h2h_matches_used': row[3],
+            'home_form_points': row[4],
+            'home_form_goals_scored': row[5],
+            'home_form_goals_conceded': row[6],
+            'away_form_points': row[7],
+            'away_form_goals_scored': row[8],
+            'away_form_goals_conceded': row[9],
+            'home_last10_home_wins': row[10],
+            'away_last10_away_wins': row[11],
+            'home_shots_avg': row[12],
+            'away_shots_avg': row[13],
+            'home_shots_target_avg': row[14],
+            'away_shots_target_avg': row[15],
+            'home_corners_avg': row[16],
+            'away_corners_avg': row[17],
+            'home_yellows_avg': row[18],
+            'away_yellows_avg': row[19]
+        }
+        
+        self._historical_features_cache[match_id] = result
+        return result
+    
+    def clear_cache(self):
+        """Clear the historical features cache"""
+        self._historical_features_cache = {}
     
     def get_all_feature_names(self) -> List[str]:
         """Get list of all 61 feature names"""
@@ -517,9 +581,34 @@ class UnifiedV2FeatureBuilder:
         return float(elo)
     
     def _build_form_features(self, cursor, match_info: Dict, cutoff_time: datetime) -> Dict[str, float]:
-        """Build form-based features (8 features)"""
+        """Build form-based features (8 features)
+        
+        Primary: Uses historical_features table (backfilled from historical_odds)
+        Fallback: Uses training_matches table
+        """
         
         features = {name: 0.0 for name in self.FORM_FEATURES}
+        match_id = match_info.get('match_id')
+        
+        hf = self._get_historical_features(cursor, match_id)
+        if hf and hf.get('home_form_points') is not None:
+            n_matches = 5  # Standard form window
+            home_pts = float(hf['home_form_points'] or 0)
+            away_pts = float(hf['away_form_points'] or 0)
+            home_gs = float(hf['home_form_goals_scored'] or 0)
+            home_gc = float(hf['home_form_goals_conceded'] or 0)
+            away_gs = float(hf['away_form_goals_scored'] or 0)
+            away_gc = float(hf['away_form_goals_conceded'] or 0)
+            
+            features['home_form_points'] = (home_pts / n_matches) * 3
+            features['home_form_goals_scored'] = home_gs / n_matches
+            features['home_form_goals_conceded'] = home_gc / n_matches
+            features['away_form_points'] = (away_pts / n_matches) * 3
+            features['away_form_goals_scored'] = away_gs / n_matches
+            features['away_form_goals_conceded'] = away_gc / n_matches
+            features['home_last10_home_wins'] = float(hf['home_last10_home_wins'] or 0)
+            features['away_last10_away_wins'] = float(hf['away_last10_away_wins'] or 0)
+            return features
         
         home_form = self._get_team_form(cursor, match_info['home_team_id'], cutoff_time)
         away_form = self._get_team_form(cursor, match_info['away_team_id'], cutoff_time)
@@ -610,9 +699,21 @@ class UnifiedV2FeatureBuilder:
         return float(row[0]) if row else 0.0
     
     def _build_h2h_features(self, cursor, match_info: Dict, cutoff_time: datetime) -> Dict[str, float]:
-        """Build head-to-head features (3 features)"""
+        """Build head-to-head features (3 features)
+        
+        Primary: Uses historical_features table (backfilled from historical_odds)
+        Fallback: Uses training_matches table
+        """
         
         features = {name: 0.0 for name in self.H2H_FEATURES}
+        match_id = match_info.get('match_id')
+        
+        hf = self._get_historical_features(cursor, match_id)
+        if hf and hf.get('h2h_matches_used') and int(hf['h2h_matches_used']) > 0:
+            features['h2h_home_wins'] = float(hf['h2h_home_wins'] or 0)
+            features['h2h_draws'] = float(hf['h2h_draws'] or 0)
+            features['h2h_away_wins'] = float(hf['h2h_away_wins'] or 0)
+            return features
         
         home_id = match_info.get('home_team_id')
         away_id = match_info.get('away_team_id')
@@ -641,9 +742,26 @@ class UnifiedV2FeatureBuilder:
         return features
     
     def _build_advanced_stats_features(self, cursor, match_info: Dict, cutoff_time: datetime) -> Dict[str, float]:
-        """Build advanced stats features (8 features) from historical_odds"""
+        """Build advanced stats features (8 features) from historical_odds
+        
+        Primary: Uses historical_features table (backfilled from historical_odds)
+        Fallback: Uses historical_odds table directly
+        """
         
         features = {name: 0.0 for name in self.ADVANCED_STATS_FEATURES}
+        match_id = match_info.get('match_id')
+        
+        hf = self._get_historical_features(cursor, match_id)
+        if hf and hf.get('home_shots_avg') is not None:
+            features['home_shots_avg'] = float(hf['home_shots_avg'])
+            features['home_shots_target_avg'] = float(hf['home_shots_target_avg'] or 0)
+            features['home_corners_avg'] = float(hf['home_corners_avg'] or 0)
+            features['home_yellows_avg'] = float(hf['home_yellows_avg'] or 0)
+            features['away_shots_avg'] = float(hf['away_shots_avg'] or 0)
+            features['away_shots_target_avg'] = float(hf['away_shots_target_avg'] or 0)
+            features['away_corners_avg'] = float(hf['away_corners_avg'] or 0)
+            features['away_yellows_avg'] = float(hf['away_yellows_avg'] or 0)
+            return features
         
         home_stats = self._get_team_stats(cursor, match_info.get('home_team'), cutoff_time)
         away_stats = self._get_team_stats(cursor, match_info.get('away_team'), cutoff_time)
