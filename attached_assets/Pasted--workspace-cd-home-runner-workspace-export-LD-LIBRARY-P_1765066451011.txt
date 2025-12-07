@@ -1,0 +1,172 @@
+~/workspace$ cd /home/runner/workspace
+export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+python training/train_unified_v2.py
+2025-12-06 23:33:54,309 - INFO - ============================================================
+2025-12-06 23:33:54,310 - INFO - UNIFIED V2 TRAINING - 61 FEATURES
+2025-12-06 23:33:54,310 - INFO - ============================================================
+2025-12-06 23:33:54,937 - INFO - Found 1104 trainable matches
+2025-12-06 23:33:54,937 - INFO - ✅ UnifiedV2FeatureBuilder initialized (61 features)
+2025-12-06 23:33:54,938 - INFO - Building features for 1104 matches...
+2025-12-06 23:35:17,626 - INFO -   Progress: 50/1104 matches (50 built, 0 skipped)
+2025-12-06 23:36:40,831 - INFO -   Progress: 100/1104 matches (100 built, 0 skipped)
+2025-12-06 23:38:04,472 - INFO -   Progress: 150/1104 matches (150 built, 0 skipped)
+2025-12-06 23:39:27,666 - INFO -   Progress: 200/1104 matches (200 built, 0 skipped)
+2025-12-06 23:40:51,208 - INFO -   Progress: 250/1104 matches (250 built, 0 skipped)
+2025-12-06 23:40:58,527 - ERROR - Error building unified features for match 1379589: connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b40a:533d:22ad:38c2:f393), port 5432 failed: Network is unreachable
+        Is the server running on that host and accepting TCP/IP connections?
+connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b424:fdaf:6c84:8d6e:429f), port 5432 failed: Network is unreachable
+        Is the server running on that host and accepting TCP/IP connections?
+connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b416:3645:2f59:5554:9b89), port 5432 failed: Network is unreachable
+        Is the server running on that host and accepting TCP/IP connections?
+
+2025-12-06 23:40:58,527 - ERROR -   Error match 1379589: connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b40a:533d:22ad:38c2:f393), port 5432 failed: Network is unreachable
+        Is the server running on that host and accepting TCP/IP connections?
+connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b424:fdaf:6c84:8d6e:429f), port 5432 failed: Network is unreachable
+        Is the server running on that host and accepting TCP/IP connections?
+connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b416:3645:2f59:5554:9b89), port 5432 failed: Network is unreachable
+        Is the server running on that host and accepting TCP/IP connections?
+
+2025-12-06 23:42:16,425 - INFO -   Progress: 300/1104 matches (299 built, 1 skipped)
+2025-12-06 23:43:39,777 - INFO -   Progress: 350/1104 matches (349 built, 1 skipped)
+2025-12-06 23:45:02,887 - INFO -   Progress: 400/1104 matches (399 built, 1 skipped)
+ 2025-12-06 23:46:26,200 - INFO -   Progress: 450/1104 matches (449 built, 1 skipped)
+2025-12-06 23:47:49,230 - INFO -   Progress: 500/1104 matches (499 built, 1 skipped)
+2025-12-06 23:49:12,094 - INFO -   Progress: 550/1104 matches (549 built, 1 skipped)
+2025-12-06 23:50:34,653 - INFO -   Progress: 600/1104 matches (599 built, 1 skipped)
+2025-12-06 23:51:57,684 - INFO -   Progress: 650/1104 matches (649 built, 1 skipped)
+2025-12-06 23:53:19,566 - INFO -   Progress: 700/1104 matches (699 built, 1 skipped)
+2025-12-06 23:54:42,094 - INFO -   Progress: 750/1104 matches (749 built, 1 skipped)
+2025-12-06 23:56:05,020 - INFO -   Progress: 800/1104 matches (799 built, 1 skipped)
+2025-12-06 23:57:27,523 - INFO -   Progress: 850/1104 matches (849 built, 1 skipped)
+2025-12-06 23:58:48,233 - INFO -   Progress: 900/1104 matches (899 built, 1 skipped)
+2025-12-07 00:00:08,264 - INFO -   Progress: 950/1104 matches (949 built, 1 skipped)
+2025-12-07 00:01:30,657 - INFO -   Progress: 1000/1104 matches (999 built, 1 skipped)
+2025-12-07 00:02:50,124 - INFO -   Progress: 1050/1104 matches (1049 built, 1 skipped)
+2025-12-07 00:03:50,194 - INFO -   Progress: 1100/1104 matches (1099 built, 1 skipped)
+2025-12-07 00:03:55,039 - INFO - Built 1103 training samples with 64 columns (skipped 1)
+2025-12-07 00:03:55,045 - INFO - 
+Feature coverage (non-zero values):
+2025-12-07 00:03:55,046 - INFO -   ⚠️ away_corners_avg: 38.4%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ away_form_goals_conceded: 40.7%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ away_form_goals_scored: 40.0%
+2025-12-07 00:03:55,046 - INFO -   ❌ away_form_points: 0.0%
+2025-12-07 00:03:55,046 - INFO -   ❌ away_last10_away_wins: 0.0%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ away_shots_avg: 38.4%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ away_shots_target_avg: 38.4%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ away_yellows_avg: 38.4%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ congestion_away_7d: 35.1%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ congestion_home_7d: 32.3%
+2025-12-07 00:03:55,046 - INFO -   ✓ drift_magnitude: 58.6%
+2025-12-07 00:03:55,046 - INFO -   ❌ elo_diff: 2.8%
+2025-12-07 00:03:55,046 - INFO -   ❌ h2h_away_wins: 0.0%
+2025-12-07 00:03:55,046 - INFO -   ❌ h2h_draws: 0.0%
+2025-12-07 00:03:55,046 - INFO -   ❌ h2h_home_wins: 0.0%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ historical_form_available: 38.2%
+2025-12-07 00:03:55,046 - INFO -   ❌ historical_h2h_available: 4.7%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ home_corners_avg: 38.2%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ home_form_goals_conceded: 41.7%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ home_form_goals_scored: 40.7%
+2025-12-07 00:03:55,046 - INFO -   ❌ home_form_points: 0.0%
+2025-12-07 00:03:55,046 - INFO -   ❌ home_last10_home_wins: 0.0%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ home_shots_avg: 38.2%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ home_shots_target_avg: 38.2%
+2025-12-07 00:03:55,046 - INFO -   ⚠️ home_yellows_avg: 38.2%
+2025-12-07 00:03:55,046 - INFO -   ✓ league_ece: 81.6%
+2025-12-07 00:03:55,046 - INFO -   ✓ league_historical_edge: 81.6%
+2025-12-07 00:03:55,046 - INFO -   ❌ movement_velocity_24h: 0.0%
+2025-12-07 00:03:55,046 - INFO -   ✓ p_open_away: 99.5%
+2025-12-07 00:03:55,046 - INFO -   ✓ prob_drift_away: 55.2%
+2025-12-07 00:03:55,046 - INFO -   ✓ prob_drift_draw: 54.7%
+2025-12-07 00:03:55,046 - INFO -   ✓ prob_drift_home: 55.4%
+2025-12-07 00:03:55,046 - INFO -   ✓ rest_days_away: 89.8%
+2025-12-07 00:03:55,047 - INFO -   ✓ rest_days_home: 89.8%
+2025-12-07 00:03:55,047 - INFO -   ❌ reverse_line_movement: 0.0%
+2025-12-07 00:03:55,047 - INFO -   ❌ sharp_prob_away: 1.5%
+2025-12-07 00:03:55,047 - INFO -   ❌ sharp_prob_draw: 1.5%
+2025-12-07 00:03:55,047 - INFO -   ❌ sharp_prob_home: 1.5%
+2025-12-07 00:03:55,047 - INFO -   ❌ soft_vs_sharp_divergence: 1.5%
+2025-12-07 00:03:55,047 - INFO -   ❌ steam_move_detected: 0.0%
+2025-12-07 00:03:55,050 - INFO - 
+Training unified V2 with 61 features, 1103 samples
+2025-12-07 00:03:55,051 - INFO - Class distribution: H=512, D=276, A=315
+2025-12-07 00:03:55,051 - INFO - Using TimeSeriesSplit with gap=22 for embargo period
+2025-12-07 00:03:55,051 - INFO - 
+--- Fold 1/5 ---
+2025-12-07 00:03:55,051 - INFO - Train: 166 samples, Val: 183 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[36]    train's multi_logloss: 0.801821 valid's multi_logloss: 1.02652
+2025-12-07 00:03:55,229 - INFO - Fold 1: Accuracy=0.475, LogLoss=1.0265
+2025-12-07 00:03:55,229 - INFO - 
+--- Fold 2/5 ---
+2025-12-07 00:03:55,229 - INFO - Train: 349 samples, Val: 183 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[41]    train's multi_logloss: 0.755227 valid's multi_logloss: 0.986149
+2025-12-07 00:04:10,295 - INFO - Fold 2: Accuracy=0.514, LogLoss=0.9861
+2025-12-07 00:04:10,295 - INFO - 
+--- Fold 3/5 ---
+2025-12-07 00:04:10,295 - INFO - Train: 532 samples, Val: 183 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[50]    train's multi_logloss: 0.703041 valid's multi_logloss: 0.981416
+2025-12-07 00:04:20,481 - INFO - Fold 3: Accuracy=0.536, LogLoss=0.9814
+2025-12-07 00:04:20,481 - INFO - 
+--- Fold 4/5 ---
+2025-12-07 00:04:20,481 - INFO - Train: 715 samples, Val: 183 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[31]    train's multi_logloss: 0.797485 valid's multi_logloss: 1.04742
+2025-12-07 00:04:35,304 - INFO - Fold 4: Accuracy=0.475, LogLoss=1.0474
+2025-12-07 00:04:35,304 - INFO - 
+--- Fold 5/5 ---
+2025-12-07 00:04:35,304 - INFO - Train: 898 samples, Val: 183 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[31]    train's multi_logloss: 0.81823  valid's multi_logloss: 1.02848
+2025-12-07 00:06:03,019 - INFO - Fold 5: Accuracy=0.475, LogLoss=1.0285
+2025-12-07 00:06:03,021 - INFO - 
+==================================================
+2025-12-07 00:06:03,022 - INFO - UNIFIED V2 OOF METRICS:
+2025-12-07 00:06:03,022 - INFO -   3-Way Accuracy: 0.495 (49.5%)
+2025-12-07 00:06:03,022 - INFO -   LogLoss: 1.0140
+2025-12-07 00:06:03,023 - INFO -   Brier Score: 0.2017
+2025-12-07 00:06:03,023 - INFO -   Validated Samples: 915/1103
+2025-12-07 00:06:03,023 - INFO - ==================================================
+2025-12-07 00:06:03,028 - INFO - 
+Top 15 Feature Importance:
+2025-12-07 00:06:03,028 - INFO -   dispersion_draw: 71.40
+2025-12-07 00:06:03,029 - INFO -   hours_before_ko: 66.20
+2025-12-07 00:06:03,029 - INFO -   dispersion_away: 63.20
+2025-12-07 00:06:03,029 - INFO -   p_open_home: 62.40
+2025-12-07 00:06:03,029 - INFO -   p_last_away: 58.40
+2025-12-07 00:06:03,029 - INFO -   rest_days_away: 57.80
+2025-12-07 00:06:03,029 - INFO -   p_open_draw: 57.60
+2025-12-07 00:06:03,029 - INFO -   market_overround: 54.60
+2025-12-07 00:06:03,029 - INFO -   book_dispersion: 52.40
+2025-12-07 00:06:03,030 - INFO -   dispersion_home: 52.00
+2025-12-07 00:06:03,030 - INFO -   p_last_home: 51.60
+2025-12-07 00:06:03,030 - INFO -   market_entropy: 50.60
+2025-12-07 00:06:03,030 - INFO -   p_last_draw: 48.60
+2025-12-07 00:06:03,030 - INFO -   drift_magnitude: 43.00
+2025-12-07 00:06:03,030 - INFO -   p_open_away: 38.40
+2025-12-07 00:06:03,031 - INFO - 
+--- RANDOM LABEL SANITY CHECK ---
+2025-12-07 00:07:01,455 - INFO - Random Label Accuracy: 0.393
+2025-12-07 00:07:01,455 - INFO - Threshold: 0.514 (majority baseline 0.464 + 0.05)
+2025-12-07 00:07:01,455 - INFO - Status: PASS
+2025-12-07 00:07:01,497 - INFO - 
+Model saved to artifacts/models/unified_v2/
+2025-12-07 00:07:01,498 - INFO -   - lgbm_ensemble.pkl (5 models)
+2025-12-07 00:07:01,498 - INFO -   - features.json (61 features)
+2025-12-07 00:07:01,498 - INFO -   - metadata.json
+2025-12-07 00:07:01,498 - INFO - 
+============================================================
+2025-12-07 00:07:01,498 - INFO - TRAINING COMPLETE - UNIFIED V2 MODEL
+2025-12-07 00:07:01,498 - INFO - ============================================================
+2025-12-07 00:07:01,498 - INFO - Accuracy: 49.5%
+2025-12-07 00:07:01,498 - INFO - LogLoss: 1.0140
+2025-12-07 00:07:01,498 - INFO - Features: 61
+2025-12-07 00:07:01,498 - INFO - Samples: 915
+2025-12-07 00:07:01,498 - INFO - Sanity Check: PASS
+~/workspace$  
