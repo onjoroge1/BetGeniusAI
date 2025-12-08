@@ -1,126 +1,126 @@
 {
   "model_type": "Unified_V2_LightGBM",
-  "trained_at": "2025-12-08T14:52:52.312272+00:00",
-  "n_features": 61,
+  "trained_at": "2025-12-08T19:28:01.854329+00:00",
+  "n_features": 62,
   "oof_metrics": {
-    "accuracy_3way": 0.5005464480874317,
-    "logloss": 1.0146479174122924,
-    "brier_score": 0.20182560003851532,
-    "n_samples": 915,
+    "accuracy_3way": 0.47683741648106903,
+    "logloss": 1.037462301675798,
+    "brier_score": 0.2076855936765194,
+    "n_samples": 8980,
     "n_folds": 5
   },
   "fold_metrics": [
     {
       "fold": 1,
-      "accuracy": 0.45901639344262296,
-      "logloss": 1.023818615723032,
-      "best_iteration": 15
+      "accuracy": 0.46993318485523383,
+      "logloss": 1.0405918622666352,
+      "best_iteration": 27
     },
     {
       "fold": 2,
-      "accuracy": 0.5191256830601093,
-      "logloss": 1.0154584693476933,
-      "best_iteration": 36
+      "accuracy": 0.49498886414253895,
+      "logloss": 1.0267161947189574,
+      "best_iteration": 53
     },
     {
       "fold": 3,
-      "accuracy": 0.5355191256830601,
-      "logloss": 0.9754291679135152,
-      "best_iteration": 26
+      "accuracy": 0.46770601336302897,
+      "logloss": 1.042715379641109,
+      "best_iteration": 8
     },
     {
       "fold": 4,
-      "accuracy": 0.4972677595628415,
-      "logloss": 1.0423349197302894,
-      "best_iteration": 26
+      "accuracy": 0.44320712694877507,
+      "logloss": 1.0728288541241844,
+      "best_iteration": 2
     },
     {
       "fold": 5,
-      "accuracy": 0.4918032786885246,
-      "logloss": 1.0161984143469323,
-      "best_iteration": 28
+      "accuracy": 0.5083518930957683,
+      "logloss": 1.0044592176281033,
+      "best_iteration": 60
     }
   ],
   "feature_importance": [
     {
-      "feature": "dispersion_home",
-      "importance": 50.8
+      "feature": "rest_days_home",
+      "importance": 171.4
     },
     {
-      "feature": "p_open_home",
-      "importance": 48.4
-    },
-    {
-      "feature": "dispersion_draw",
-      "importance": 47.0
-    },
-    {
-      "feature": "dispersion_away",
-      "importance": 44.2
-    },
-    {
-      "feature": "p_open_away",
-      "importance": 42.6
-    },
-    {
-      "feature": "hours_before_ko",
-      "importance": 41.4
-    },
-    {
-      "feature": "p_last_away",
-      "importance": 38.6
-    },
-    {
-      "feature": "market_entropy",
-      "importance": 38.4
-    },
-    {
-      "feature": "p_open_draw",
-      "importance": 37.0
-    },
-    {
-      "feature": "market_overround",
-      "importance": 36.0
-    },
-    {
-      "feature": "p_last_draw",
-      "importance": 35.0
+      "feature": "home_shots_avg",
+      "importance": 161.6
     },
     {
       "feature": "rest_days_away",
-      "importance": 33.8
+      "importance": 153.6
     },
     {
-      "feature": "book_dispersion",
-      "importance": 31.8
+      "feature": "away_shots_avg",
+      "importance": 140.4
     },
     {
-      "feature": "favorite_margin",
-      "importance": 31.8
+      "feature": "h2h_away_wins",
+      "importance": 127.4
     },
     {
-      "feature": "league_historical_edge",
-      "importance": 31.8
+      "feature": "h2h_home_wins",
+      "importance": 126.6
     },
     {
-      "feature": "p_last_home",
-      "importance": 31.0
+      "feature": "away_shots_target_avg",
+      "importance": 125.4
     },
     {
-      "feature": "prob_drift_away",
-      "importance": 30.8
+      "feature": "home_corners_avg",
+      "importance": 125.4
     },
     {
-      "feature": "league_ece",
-      "importance": 30.8
+      "feature": "home_shots_target_avg",
+      "importance": 114.0
     },
     {
-      "feature": "drift_magnitude",
-      "importance": 26.8
+      "feature": "away_corners_avg",
+      "importance": 108.6
     },
     {
-      "feature": "prob_drift_home",
-      "importance": 22.8
+      "feature": "home_yellows_avg",
+      "importance": 106.4
+    },
+    {
+      "feature": "away_form_goals_scored",
+      "importance": 105.4
+    },
+    {
+      "feature": "away_form_goals_conceded",
+      "importance": 99.2
+    },
+    {
+      "feature": "home_form_goals_conceded",
+      "importance": 94.8
+    },
+    {
+      "feature": "away_yellows_avg",
+      "importance": 91.6
+    },
+    {
+      "feature": "home_last10_home_wins",
+      "importance": 91.2
+    },
+    {
+      "feature": "h2h_draws",
+      "importance": 90.0
+    },
+    {
+      "feature": "home_form_goals_scored",
+      "importance": 81.4
+    },
+    {
+      "feature": "away_form_points",
+      "importance": 68.6
+    },
+    {
+      "feature": "home_form_points",
+      "importance": 60.6
     }
   ],
   "params": {

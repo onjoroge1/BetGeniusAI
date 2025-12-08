@@ -17,6 +17,7 @@
   "favorite_margin",
   "market_overround",
   "hours_before_ko",
+  "has_odds",
   "prob_drift_home",
   "prob_drift_draw",
   "prob_drift_away",
