@@ -571,15 +571,21 @@ class UnifiedV2FeatureBuilder:
         return features
     
     def _build_elo_features(self, cursor, match_info: Dict, cutoff_time: datetime) -> Dict[str, float]:
-        """Build ELO-based features (3 features)"""
+        """Build ELO-based features (3 features)
+        
+        Uses team names as primary lookup (100% coverage) instead of team_id (65% coverage)
+        """
         
         features = {name: self.initial_elo for name in self.ELO_FEATURES}
         features['elo_diff'] = 0.0
         
-        home_elo = self._get_team_elo(cursor, match_info['home_team_id'], 
-                                       match_info['league_id'], cutoff_time)
-        away_elo = self._get_team_elo(cursor, match_info['away_team_id'],
-                                       match_info['league_id'], cutoff_time)
+        # Use team names for better coverage
+        home_team = match_info.get('home_team')
+        away_team = match_info.get('away_team')
+        league_id = match_info.get('league_id')
+        
+        home_elo = self._get_team_elo_by_name(cursor, home_team, league_id, cutoff_time)
+        away_elo = self._get_team_elo_by_name(cursor, away_team, league_id, cutoff_time)
         
         features['home_elo'] = home_elo
         features['away_elo'] = away_elo
@@ -587,28 +593,28 @@ class UnifiedV2FeatureBuilder:
         
         return features
     
-    def _get_team_elo(self, cursor, team_id: int, league_id: int, cutoff_time: datetime) -> float:
-        """Calculate team ELO from recent form"""
+    def _get_team_elo_by_name(self, cursor, team_name: str, league_id: int, cutoff_time: datetime) -> float:
+        """Calculate team ELO from recent form using team name"""
         
-        if not team_id:
+        if not team_name:
             return self.initial_elo
         
+        # Query using team name directly (100% coverage in training_matches)
         cursor.execute("""
             SELECT 
                 CASE 
-                    WHEN home_team_id = %s THEN
+                    WHEN home_team = %s THEN
                         CASE outcome WHEN 'H' THEN 3 WHEN 'D' THEN 1 ELSE 0 END
                     ELSE
                         CASE outcome WHEN 'A' THEN 3 WHEN 'D' THEN 1 ELSE 0 END
                 END as points
             FROM training_matches
-            WHERE (home_team_id = %s OR away_team_id = %s)
-                AND league_id = %s
+            WHERE (home_team = %s OR away_team = %s)
                 AND match_date < %s
                 AND outcome IS NOT NULL
             ORDER BY match_date DESC
             LIMIT 10
-        """, (team_id, team_id, team_id, league_id, cutoff_time))
+        """, (team_name, team_name, team_name, cutoff_time))
         
         results = cursor.fetchall()
         

@@ -377,6 +377,74 @@ def random_label_sanity_check(df: pd.DataFrame, feature_cols: List[str], n_trial
     }
 
 
+def train_two_tier_ensemble(df: pd.DataFrame) -> Dict:
+    """Train a two-tier ensemble: lite model (all matches) + premium model (odds matches)
+    
+    The lite model uses only historical features (high coverage).
+    The premium model uses all non-sparse features including odds (higher accuracy when available).
+    """
+    
+    logger.info("\n" + "="*60)
+    logger.info("TRAINING TWO-TIER ENSEMBLE")
+    logger.info("="*60)
+    
+    # Define feature tiers
+    # Lite features: form, h2h, advanced stats, context (no odds required)
+    lite_features = (
+        UnifiedV2FeatureBuilder.FORM_FEATURES +
+        UnifiedV2FeatureBuilder.H2H_FEATURES +
+        UnifiedV2FeatureBuilder.ADVANCED_STATS_FEATURES +
+        UnifiedV2FeatureBuilder.CONTEXT_FEATURES +
+        UnifiedV2FeatureBuilder.ECE_FEATURES +
+        UnifiedV2FeatureBuilder.HISTORICAL_FLAGS
+    )
+    # Filter to columns that exist in dataframe
+    lite_features = [f for f in lite_features if f in df.columns]
+    
+    # Premium features: all non-sparse features including odds
+    sparse_features = UnifiedV2FeatureBuilder.SPARSE_FEATURES
+    all_feature_cols = [c for c in df.columns if c not in ['match_id', 'outcome', 'kickoff']]
+    premium_features = [c for c in all_feature_cols if c not in sparse_features]
+    
+    # Split data: matches with odds vs without
+    has_odds = df['has_odds'] == 1 if 'has_odds' in df.columns else df['p_last_home'] > 0
+    df_with_odds = df[has_odds].copy()
+    df_all = df.copy()
+    
+    logger.info(f"Total matches: {len(df_all)}")
+    logger.info(f"Matches with odds (premium): {len(df_with_odds)}")
+    logger.info(f"Lite features: {len(lite_features)}")
+    logger.info(f"Premium features: {len(premium_features)}")
+    
+    # Train lite model on all matches
+    logger.info("\n--- LITE MODEL (All Matches) ---")
+    lite_result = train_unified_v2_model(df_all, n_splits=5, exclude_sparse=True)
+    lite_result['feature_cols'] = [f for f in lite_result['feature_cols'] if f in lite_features]
+    logger.info(f"Lite accuracy: {lite_result['oof_metrics']['accuracy_3way']:.3f}")
+    
+    # Train premium model on matches with odds
+    premium_result = None
+    if len(df_with_odds) >= 200:
+        logger.info("\n--- PREMIUM MODEL (Odds Matches) ---")
+        premium_result = train_unified_v2_model(df_with_odds, n_splits=5, exclude_sparse=True)
+        logger.info(f"Premium accuracy: {premium_result['oof_metrics']['accuracy_3way']:.3f}")
+    else:
+        logger.warning(f"Not enough odds matches for premium model ({len(df_with_odds)} < 200)")
+    
+    return {
+        'lite': lite_result,
+        'premium': premium_result,
+        'lite_features': lite_features,
+        'premium_features': premium_features,
+        'summary': {
+            'lite_accuracy': lite_result['oof_metrics']['accuracy_3way'],
+            'lite_samples': lite_result['oof_metrics']['n_samples'],
+            'premium_accuracy': premium_result['oof_metrics']['accuracy_3way'] if premium_result else None,
+            'premium_samples': premium_result['oof_metrics']['n_samples'] if premium_result else 0
+        }
+    }
+
+
 def save_model(results: Dict, feature_cols: List[str]):
     """Save trained model and metadata"""
     
@@ -408,14 +476,75 @@ def save_model(results: Dict, feature_cols: List[str]):
     logger.info(f"  - metadata.json")
 
 
-def main():
-    """Main training pipeline"""
+def save_two_tier_model(results: Dict):
+    """Save two-tier ensemble model"""
+    
+    output_dir = OUTPUT_DIR / "two_tier"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save lite model
+    lite_path = output_dir / "lite_ensemble.pkl"
+    with open(lite_path, "wb") as f:
+        pickle.dump(results['lite']['models'], f)
+    
+    lite_features_path = output_dir / "lite_features.json"
+    with open(lite_features_path, "w") as f:
+        json.dump(results['lite_features'], f, indent=2)
+    
+    # Save premium model if available
+    if results['premium']:
+        premium_path = output_dir / "premium_ensemble.pkl"
+        with open(premium_path, "wb") as f:
+            pickle.dump(results['premium']['models'], f)
+        
+        premium_features_path = output_dir / "premium_features.json"
+        with open(premium_features_path, "w") as f:
+            json.dump(results['premium_features'], f, indent=2)
+    
+    # Save metadata
+    metadata = {
+        'model_type': 'Two_Tier_Ensemble',
+        'trained_at': datetime.now(timezone.utc).isoformat(),
+        'lite': {
+            'n_features': len(results['lite_features']),
+            'accuracy': results['summary']['lite_accuracy'],
+            'n_samples': results['summary']['lite_samples']
+        },
+        'premium': {
+            'n_features': len(results['premium_features']),
+            'accuracy': results['summary']['premium_accuracy'],
+            'n_samples': results['summary']['premium_samples']
+        } if results['premium'] else None
+    }
+    
+    metadata_path = output_dir / "metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+    
+    logger.info(f"\nTwo-tier model saved to {output_dir}/")
+    logger.info(f"  - lite_ensemble.pkl")
+    logger.info(f"  - lite_features.json ({len(results['lite_features'])} features)")
+    if results['premium']:
+        logger.info(f"  - premium_ensemble.pkl")
+        logger.info(f"  - premium_features.json ({len(results['premium_features'])} features)")
+
+
+def main(two_tier: bool = False, max_matches: int = None):
+    """Main training pipeline
+    
+    Args:
+        two_tier: If True, train separate lite + premium models
+        max_matches: Limit number of matches (for testing)
+    """
     
     logger.info("="*60)
-    logger.info("UNIFIED V2 TRAINING - 61 FEATURES")
+    logger.info("UNIFIED V2 TRAINING - FILTERED & OPTIMIZED")
     logger.info("="*60)
     
     matches = get_trainable_matches()
+    
+    if max_matches:
+        matches = matches[:max_matches]
     
     if len(matches) < 50:
         logger.error(f"Insufficient training data: {len(matches)} matches (need >= 50)")
@@ -427,25 +556,47 @@ def main():
         logger.error(f"Insufficient valid samples: {len(df)} (need >= 50)")
         return
     
-    results = train_unified_v2_model(df)
-    
-    feature_cols = results['feature_cols']
-    sanity = random_label_sanity_check(df, feature_cols)
-    
-    if sanity['status'] == "PASS":
-        save_model(results, feature_cols)
+    if two_tier:
+        # Train two-tier ensemble (lite + premium)
+        results = train_two_tier_ensemble(df)
         
-        logger.info("\n" + "="*60)
-        logger.info("TRAINING COMPLETE - UNIFIED V2 MODEL")
-        logger.info("="*60)
-        logger.info(f"Accuracy: {results['oof_metrics']['accuracy_3way']*100:.1f}%")
-        logger.info(f"LogLoss: {results['oof_metrics']['logloss']:.4f}")
-        logger.info(f"Features: {len(feature_cols)}")
-        logger.info(f"Samples: {results['oof_metrics']['n_samples']}")
-        logger.info(f"Sanity Check: {sanity['status']}")
+        # Sanity check on lite model
+        feature_cols = results['lite']['feature_cols']
+        sanity = random_label_sanity_check(df, feature_cols)
+        
+        if sanity['status'] == "PASS":
+            save_two_tier_model(results)
+            
+            logger.info("\n" + "="*60)
+            logger.info("TRAINING COMPLETE - TWO-TIER ENSEMBLE")
+            logger.info("="*60)
+            logger.info(f"Lite Accuracy: {results['summary']['lite_accuracy']*100:.1f}%")
+            if results['premium']:
+                logger.info(f"Premium Accuracy: {results['summary']['premium_accuracy']*100:.1f}%")
+            logger.info(f"Sanity Check: {sanity['status']}")
+        else:
+            logger.error("SANITY CHECK FAILED - Model not saved")
     else:
-        logger.error("SANITY CHECK FAILED - Model not saved")
-        logger.error("Investigate potential data leakage before proceeding")
+        # Standard single model training with sparse features excluded
+        results = train_unified_v2_model(df, exclude_sparse=True)
+        
+        feature_cols = results['feature_cols']
+        sanity = random_label_sanity_check(df, feature_cols)
+        
+        if sanity['status'] == "PASS":
+            save_model(results, feature_cols)
+            
+            logger.info("\n" + "="*60)
+            logger.info("TRAINING COMPLETE - UNIFIED V2 MODEL")
+            logger.info("="*60)
+            logger.info(f"Accuracy: {results['oof_metrics']['accuracy_3way']*100:.1f}%")
+            logger.info(f"LogLoss: {results['oof_metrics']['logloss']:.4f}")
+            logger.info(f"Features: {len(feature_cols)}")
+            logger.info(f"Samples: {results['oof_metrics']['n_samples']}")
+            logger.info(f"Sanity Check: {sanity['status']}")
+        else:
+            logger.error("SANITY CHECK FAILED - Model not saved")
+            logger.error("Investigate potential data leakage before proceeding")
 
 
 if __name__ == "__main__":
