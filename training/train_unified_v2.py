@@ -380,7 +380,7 @@ def random_label_sanity_check(df: pd.DataFrame, feature_cols: List[str], n_trial
 def train_two_tier_ensemble(df: pd.DataFrame) -> Dict:
     """Train a two-tier ensemble: lite model (all matches) + premium model (odds matches)
     
-    The lite model uses only historical features (high coverage).
+    The lite model uses only historical features (high coverage, no odds required).
     The premium model uses all non-sparse features including odds (higher accuracy when available).
     """
     
@@ -389,8 +389,8 @@ def train_two_tier_ensemble(df: pd.DataFrame) -> Dict:
     logger.info("="*60)
     
     # Define feature tiers
-    # Lite features: form, h2h, advanced stats, context (no odds required)
-    lite_features = (
+    # Lite features: form, h2h, advanced stats, context (NO ODDS - must work without odds data)
+    lite_feature_names = (
         UnifiedV2FeatureBuilder.FORM_FEATURES +
         UnifiedV2FeatureBuilder.H2H_FEATURES +
         UnifiedV2FeatureBuilder.ADVANCED_STATS_FEATURES +
@@ -398,11 +398,11 @@ def train_two_tier_ensemble(df: pd.DataFrame) -> Dict:
         UnifiedV2FeatureBuilder.ECE_FEATURES +
         UnifiedV2FeatureBuilder.HISTORICAL_FLAGS
     )
-    # Filter to columns that exist in dataframe
-    lite_features = [f for f in lite_features if f in df.columns]
+    # Filter to columns that exist in dataframe and are not sparse
+    sparse_features = UnifiedV2FeatureBuilder.SPARSE_FEATURES
+    lite_features = [f for f in lite_feature_names if f in df.columns and f not in sparse_features]
     
     # Premium features: all non-sparse features including odds
-    sparse_features = UnifiedV2FeatureBuilder.SPARSE_FEATURES
     all_feature_cols = [c for c in df.columns if c not in ['match_id', 'outcome', 'kickoff']]
     premium_features = [c for c in all_feature_cols if c not in sparse_features]
     
@@ -416,17 +416,18 @@ def train_two_tier_ensemble(df: pd.DataFrame) -> Dict:
     logger.info(f"Lite features: {len(lite_features)}")
     logger.info(f"Premium features: {len(premium_features)}")
     
-    # Train lite model on all matches
-    logger.info("\n--- LITE MODEL (All Matches) ---")
-    lite_result = train_unified_v2_model(df_all, n_splits=5, exclude_sparse=True)
-    lite_result['feature_cols'] = [f for f in lite_result['feature_cols'] if f in lite_features]
+    # Train lite model on all matches using ONLY lite features (no odds)
+    logger.info("\n--- LITE MODEL (All Matches, No Odds Features) ---")
+    df_lite = df_all[['match_id', 'outcome', 'kickoff'] + lite_features].copy()
+    lite_result = _train_model_on_features(df_lite, lite_features, n_splits=5)
     logger.info(f"Lite accuracy: {lite_result['oof_metrics']['accuracy_3way']:.3f}")
     
-    # Train premium model on matches with odds
+    # Train premium model on matches WITH odds using all premium features
     premium_result = None
     if len(df_with_odds) >= 200:
-        logger.info("\n--- PREMIUM MODEL (Odds Matches) ---")
-        premium_result = train_unified_v2_model(df_with_odds, n_splits=5, exclude_sparse=True)
+        logger.info("\n--- PREMIUM MODEL (Odds Matches, All Features) ---")
+        df_premium = df_with_odds[['match_id', 'outcome', 'kickoff'] + premium_features].copy()
+        premium_result = _train_model_on_features(df_premium, premium_features, n_splits=5)
         logger.info(f"Premium accuracy: {premium_result['oof_metrics']['accuracy_3way']:.3f}")
     else:
         logger.warning(f"Not enough odds matches for premium model ({len(df_with_odds)} < 200)")
@@ -442,6 +443,125 @@ def train_two_tier_ensemble(df: pd.DataFrame) -> Dict:
             'premium_accuracy': premium_result['oof_metrics']['accuracy_3way'] if premium_result else None,
             'premium_samples': premium_result['oof_metrics']['n_samples'] if premium_result else 0
         }
+    }
+
+
+def _train_model_on_features(df: pd.DataFrame, feature_cols: List[str], n_splits: int = 5) -> Dict:
+    """Train LightGBM model on specific feature columns
+    
+    This ensures exact feature order is preserved for inference.
+    """
+    
+    X = df[feature_cols].fillna(0).values
+    
+    outcome_map = {'H': 0, 'D': 1, 'A': 2}
+    y = df['outcome'].map(outcome_map).values
+    
+    logger.info(f"Training with {len(feature_cols)} features, {len(y)} samples")
+    logger.info(f"Class distribution: H={sum(y==0)}, D={sum(y==1)}, A={sum(y==2)}")
+    
+    params = {
+        'objective': 'multiclass',
+        'num_class': 3,
+        'metric': 'multi_logloss',
+        'boosting_type': 'gbdt',
+        'learning_rate': 0.03,
+        'num_leaves': 31,
+        'max_depth': 6,
+        'min_data_in_leaf': 20,
+        'feature_fraction': 0.8,
+        'bagging_fraction': 0.8,
+        'bagging_freq': 5,
+        'lambda_l1': 0.1,
+        'lambda_l2': 0.1,
+        'verbose': -1,
+        'force_row_wise': True,
+        'seed': 42
+    }
+    
+    n_splits = min(n_splits, len(y) // 50)
+    if n_splits < 2:
+        n_splits = 2
+    
+    gap_size = max(20, len(y) // 50)
+    tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap_size)
+    
+    models = []
+    oof_preds = np.zeros((len(y), 3))
+    oof_mask = np.zeros(len(y), dtype=bool)
+    fold_metrics = []
+    
+    for fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
+        logger.info(f"--- Fold {fold + 1}/{n_splits} ---")
+        
+        X_train, X_val = X[train_idx], X[val_idx]
+        y_train, y_val = y[train_idx], y[val_idx]
+        
+        train_data = lgb.Dataset(X_train, label=y_train)
+        val_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
+        
+        model = lgb.train(
+            params,
+            train_data,
+            num_boost_round=2000,
+            valid_sets=[train_data, val_data],
+            valid_names=['train', 'valid'],
+            callbacks=[
+                lgb.early_stopping(stopping_rounds=100),
+                lgb.log_evaluation(period=200)
+            ]
+        )
+        
+        val_preds = model.predict(X_val, num_iteration=model.best_iteration)
+        oof_preds[val_idx] = val_preds
+        oof_mask[val_idx] = True
+        
+        val_pred_labels = np.argmax(val_preds, axis=1)
+        fold_acc = accuracy_score(y_val, val_pred_labels)
+        fold_logloss = log_loss(y_val, val_preds)
+        
+        fold_metrics.append({
+            'fold': fold + 1,
+            'accuracy': fold_acc,
+            'logloss': fold_logloss
+        })
+        
+        logger.info(f"Fold {fold + 1}: Accuracy={fold_acc:.3f}, LogLoss={fold_logloss:.4f}")
+        models.append(model)
+    
+    y_valid = y[oof_mask]
+    preds_valid = oof_preds[oof_mask]
+    
+    oof_accuracy = accuracy_score(y_valid, np.argmax(preds_valid, axis=1))
+    oof_logloss = log_loss(y_valid, preds_valid)
+    
+    brier_components = []
+    for i, cls in enumerate([0, 1, 2]):
+        y_binary = (y_valid == cls).astype(float)
+        pred_probs = preds_valid[:, i]
+        brier_components.append(np.mean((y_binary - pred_probs) ** 2))
+    oof_brier = np.mean(brier_components)
+    
+    # Feature importance
+    feature_importance = []
+    for i, col in enumerate(feature_cols):
+        avg_importance = np.mean([m.feature_importance()[i] for m in models])
+        feature_importance.append({'feature': col, 'importance': avg_importance})
+    feature_importance.sort(key=lambda x: x['importance'], reverse=True)
+    
+    return {
+        'models': models,
+        'feature_cols': feature_cols,  # Exact order preserved for inference
+        'oof_metrics': {
+            'accuracy_3way': oof_accuracy,
+            'logloss': oof_logloss,
+            'brier_score': oof_brier,
+            'n_samples': len(y_valid),
+            'n_folds': n_splits
+        },
+        'fold_metrics': fold_metrics,
+        'feature_importance': feature_importance,
+        'params': params
     }
 
 
