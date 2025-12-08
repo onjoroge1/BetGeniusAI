@@ -76,6 +76,7 @@ def get_trainable_matches() -> List[Tuple[int, str, datetime]]:
         logger.info("Few matches from fixtures, trying training_matches...")
         # Use tm.id as match_id (historical_features uses training_matches.id)
         # Also need tm.match_id for odds_snapshots which uses API football match_id
+        # FILTER: Only include matches that have odds OR historical_features
         cursor.execute("""
             SELECT DISTINCT ON (tm.id)
                 tm.id as match_id,
@@ -90,6 +91,13 @@ def get_trainable_matches() -> List[Tuple[int, str, datetime]]:
             FROM training_matches tm
             WHERE tm.outcome IS NOT NULL
               AND tm.match_date >= '2020-01-01'
+              AND (
+                  -- Has odds data (via API football match_id)
+                  EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = tm.match_id)
+                  OR
+                  -- Has historical features (via training_matches.id)
+                  EXISTS (SELECT 1 FROM historical_features hf WHERE hf.match_id = tm.id)
+              )
             ORDER BY tm.id, tm.match_date
         """)
         matches = cursor.fetchall()

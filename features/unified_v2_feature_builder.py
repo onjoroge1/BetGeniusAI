@@ -143,6 +143,15 @@ class UnifiedV2FeatureBuilder:
         'historical_h2h_available', 'historical_form_available'
     ]
     
+    # Sparse features to exclude from training (< 5% coverage)
+    SPARSE_FEATURES = [
+        'sharp_prob_home', 'sharp_prob_draw', 'sharp_prob_away',
+        'soft_vs_sharp_divergence',
+        'steam_move_detected', 'reverse_line_movement', 'movement_velocity_24h',
+        'hours_before_ko', 'time_to_kickoff_bucket',
+        'elo_diff', 'home_elo', 'away_elo'  # ELO has low coverage, use form instead
+    ]
+    
     def __init__(self, database_url: Optional[str] = None):
         """Initialize unified feature builder"""
         self.db_url = database_url or os.getenv('DATABASE_URL')
@@ -157,7 +166,29 @@ class UnifiedV2FeatureBuilder:
             self.CONTEXT_FEATURES + self.SHARP_FEATURES + self.ECE_FEATURES +
             self.TIMING_FEATURES + self.HISTORICAL_FLAGS
         )
-        logger.info(f"✅ UnifiedV2FeatureBuilder initialized ({feature_count} features)")
+        self.non_sparse_features = self._get_non_sparse_features()
+        logger.info(f"✅ UnifiedV2FeatureBuilder initialized ({feature_count} features, {len(self.non_sparse_features)} non-sparse)")
+    
+    def _get_non_sparse_features(self) -> List[str]:
+        """Get list of features excluding sparse ones"""
+        all_features = (
+            self.ODDS_FEATURES + self.DRIFT_FEATURES + self.ELO_FEATURES +
+            self.FORM_FEATURES + self.H2H_FEATURES + self.ADVANCED_STATS_FEATURES +
+            self.CONTEXT_FEATURES + self.SHARP_FEATURES + self.ECE_FEATURES +
+            self.TIMING_FEATURES + self.HISTORICAL_FLAGS
+        )
+        return [f for f in all_features if f not in self.SPARSE_FEATURES]
+    
+    def get_feature_names(self, include_sparse: bool = False) -> List[str]:
+        """Get list of feature names for training"""
+        if include_sparse:
+            return (
+                self.ODDS_FEATURES + self.DRIFT_FEATURES + self.ELO_FEATURES +
+                self.FORM_FEATURES + self.H2H_FEATURES + self.ADVANCED_STATS_FEATURES +
+                self.CONTEXT_FEATURES + self.SHARP_FEATURES + self.ECE_FEATURES +
+                self.TIMING_FEATURES + self.HISTORICAL_FLAGS
+            )
+        return self.non_sparse_features
     
     def _get_historical_features(self, cursor, match_id: int) -> Optional[Dict]:
         """Get historical features from historical_features table
