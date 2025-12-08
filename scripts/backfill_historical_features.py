@@ -38,9 +38,11 @@ class HistoricalFeaturesBackfill:
     def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
         self.conn = None
-        self.team_mapping = {}  # historical_name -> api_football_team_id
-        self.reverse_mapping = {}  # api_football_team_id -> historical_name
+        self.team_mapping = {}  # (historical_name, league) -> api_football_team_id
+        self.reverse_mapping = {}  # api_football_team_id -> (historical_name, league_code)
+        self.name_to_historical = {}  # (api_football_name, league_id) -> historical_name
         self.league_mapping = {}  # api_football_league_id -> historical_code
+        self.reverse_league = {}  # historical_code -> api_football_league_id
         
     def connect(self):
         """Establish database connection."""
@@ -55,31 +57,43 @@ class HistoricalFeaturesBackfill:
     def load_mappings(self):
         """Load team and league mappings from mapping tables."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Load team mappings
-            cur.execute("""
-                SELECT historical_name, historical_league, api_football_team_id, api_football_name
-                FROM team_name_mapping
-            """)
-            for row in cur.fetchall():
-                key = (row['historical_name'], row['historical_league'])
-                self.team_mapping[key] = row['api_football_team_id']
-                # Reverse mapping: team_id -> (historical_name, league_code)
-                self.reverse_mapping[row['api_football_team_id']] = (row['historical_name'], row['historical_league'])
-            
-            # Load league mappings
+            # Load league mappings first (needed for team mappings)
             cur.execute("""
                 SELECT historical_code, api_football_league_id
                 FROM league_code_mapping
             """)
             for row in cur.fetchall():
                 self.league_mapping[row['api_football_league_id']] = row['historical_code']
+                self.reverse_league[row['historical_code']] = row['api_football_league_id']
+            
+            # Load team mappings
+            cur.execute("""
+                SELECT historical_name, historical_league, api_football_team_id, api_football_name
+                FROM team_name_mapping
+            """)
+            for row in cur.fetchall():
+                hist_name = row['historical_name']
+                hist_league = row['historical_league']
+                api_name = row['api_football_name']
+                team_id = row['api_football_team_id']
+                
+                key = (hist_name, hist_league)
+                self.team_mapping[key] = team_id
+                
+                # Reverse mapping: team_id -> (historical_name, league_code)
+                self.reverse_mapping[team_id] = (hist_name, hist_league)
+                
+                # Name-based mapping: (api_football_name, league_id) -> historical_name
+                league_id = self.reverse_league.get(hist_league)
+                if league_id and api_name:
+                    self.name_to_historical[(api_name, league_id)] = hist_name
                 
         logger.info(f"Loaded {len(self.team_mapping)} team mappings, {len(self.league_mapping)} league mappings")
         
     def get_fixtures_to_process(self, league_code: Optional[str] = None) -> List[Dict]:
-        """Get fixtures from major leagues that need historical features."""
+        """Get training_matches from major leagues that need historical features."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Get fixtures from mapped leagues
+            # Get league IDs from mapped leagues
             league_ids = list(self.league_mapping.keys())
             
             if league_code:
@@ -87,20 +101,22 @@ class HistoricalFeaturesBackfill:
                 league_ids = [lid for lid, code in self.league_mapping.items() if code == league_code]
                 
             placeholders = ','.join(['%s'] * len(league_ids))
+            
+            # Query training_matches with team name mappings
             cur.execute(f"""
-                SELECT f.match_id, f.home_team_id, f.away_team_id, f.league_id, 
-                       f.kickoff_at, f.home_team, f.away_team,
-                       th.name as home_name, ta.name as away_name
-                FROM fixtures f
-                LEFT JOIN teams th ON f.home_team_id = th.team_id
-                LEFT JOIN teams ta ON f.away_team_id = ta.team_id
-                WHERE f.league_id IN ({placeholders})
-                  AND f.kickoff_at >= '2020-01-01'
+                SELECT tm.id as match_id, tm.home_team_id, tm.away_team_id, tm.league_id, 
+                       tm.match_date as kickoff_at, tm.home_team, tm.away_team,
+                       tm.home_team as home_name, tm.away_team as away_name
+                FROM training_matches tm
+                JOIN team_name_mapping th ON th.api_football_name = tm.home_team
+                JOIN team_name_mapping ta ON ta.api_football_name = tm.away_team
+                WHERE tm.league_id IN ({placeholders})
+                  AND tm.match_date >= '2020-01-01'
                   AND NOT EXISTS (
                       SELECT 1 FROM historical_features hf 
-                      WHERE hf.match_id = f.match_id AND hf.feature_type = 'combined'
+                      WHERE hf.match_id = tm.id AND hf.feature_type = 'combined'
                   )
-                ORDER BY f.kickoff_at
+                ORDER BY tm.match_date
             """, league_ids)
             
             fixtures = cur.fetchall()
@@ -330,25 +346,32 @@ class HistoricalFeaturesBackfill:
         away_team_id = fixture['away_team_id']
         league_id = fixture['league_id']
         kickoff_at = fixture['kickoff_at']
+        home_team = fixture['home_team']
+        away_team = fixture['away_team']
         
         # Map to historical team names
         league_code = self.league_mapping.get(league_id)
         if not league_code:
             return None
-            
-        home_hist = self.lookup_historical_team(home_team_id, league_id)
-        away_hist = self.lookup_historical_team(away_team_id, league_id)
+        
+        # Try name-based mapping first (for training_matches)
+        home_hist = self.name_to_historical.get((home_team, league_id))
+        away_hist = self.name_to_historical.get((away_team, league_id))
+        
+        # Fallback to team_id-based lookup
+        if not home_hist:
+            home_hist = self.lookup_historical_team(home_team_id, league_id)
+        if not away_hist:
+            away_hist = self.lookup_historical_team(away_team_id, league_id)
         
         if not home_hist or not away_hist:
-            # Try direct team name match
-            if fixture['home_team']:
-                # Check if fixture home_team matches any historical name
-                for (hist_name, hist_league), team_id in self.team_mapping.items():
-                    if hist_league == league_code:
-                        if hist_name.lower() == fixture['home_team'].lower():
-                            home_hist = hist_name
-                        if hist_name.lower() == fixture['away_team'].lower():
-                            away_hist = hist_name
+            # Try direct team name match (case-insensitive)
+            for (hist_name, hist_league), team_id in self.team_mapping.items():
+                if hist_league == league_code:
+                    if home_team and hist_name.lower() == home_team.lower():
+                        home_hist = hist_name
+                    if away_team and hist_name.lower() == away_team.lower():
+                        away_hist = hist_name
                             
         if not home_hist or not away_hist:
             return None
@@ -386,6 +409,13 @@ class HistoricalFeaturesBackfill:
         """Batch insert features into historical_features table."""
         if not features_list or self.dry_run:
             return
+        
+        # Deduplicate by (match_id, feature_type) - keep last occurrence
+        unique_features = {}
+        for f in features_list:
+            key = (f['match_id'], f['feature_type'])
+            unique_features[key] = f
+        features_list = list(unique_features.values())
             
         with self.conn.cursor() as cur:
             columns = [
