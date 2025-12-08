@@ -168,10 +168,27 @@ def build_training_dataset(matches: List[Tuple], max_matches: int = None) -> pd.
     return df
 
 
-def train_unified_v2_model(df: pd.DataFrame, n_splits: int = 5) -> Dict:
-    """Train unified V2 LightGBM with time-series cross-validation"""
+def train_unified_v2_model(df: pd.DataFrame, n_splits: int = 5, exclude_sparse: bool = True) -> Dict:
+    """Train unified V2 LightGBM with time-series cross-validation
     
-    feature_cols = [c for c in df.columns if c not in ['match_id', 'outcome', 'kickoff']]
+    Args:
+        df: Training dataframe with features
+        n_splits: Number of CV folds
+        exclude_sparse: If True, exclude features with <5% coverage (default True)
+    """
+    
+    # Get feature columns, optionally excluding sparse ones
+    all_feature_cols = [c for c in df.columns if c not in ['match_id', 'outcome', 'kickoff']]
+    
+    if exclude_sparse:
+        # Use the sparse features list from feature builder
+        sparse_features = UnifiedV2FeatureBuilder.SPARSE_FEATURES
+        feature_cols = [c for c in all_feature_cols if c not in sparse_features]
+        excluded = [c for c in all_feature_cols if c in sparse_features]
+        logger.info(f"\nExcluding {len(excluded)} sparse features: {excluded}")
+    else:
+        feature_cols = all_feature_cols
+    
     X = df[feature_cols].fillna(0).values
     
     outcome_map = {'H': 0, 'D': 1, 'A': 2}
