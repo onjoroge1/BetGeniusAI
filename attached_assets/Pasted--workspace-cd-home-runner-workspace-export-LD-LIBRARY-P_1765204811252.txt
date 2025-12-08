@@ -1,0 +1,25 @@
+~/workspace$ cd /home/runner/workspace
+export LD_LIBRARY_PATH="$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+python training/train_unified_v2.pyt-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH"
+2025-12-08 14:22:18,240 - INFO - ============================================================
+2025-12-08 14:22:18,240 - INFO - UNIFIED V2 TRAINING - 61 FEATURES
+2025-12-08 14:22:18,240 - INFO - ============================================================
+2025-12-08 14:22:18,875 - INFO - Found 1104 trainable matches
+2025-12-08 14:22:18,876 - INFO - ✅ UnifiedV2FeatureBuilder initialized (61 features)
+2025-12-08 14:22:18,876 - INFO - Building features for 1104 matches...
+2025-12-08 14:22:54,120 - ERROR - Error building unified features for match 1379036: connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b424:fdaf:6c84:8d6e:429f), port 5432 failed: Network is unreachable
+    Is the server running on that host and accepting TCP/IP connections?
+connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b40a:533d:22ad:38c2:f393), port 5432 failed: Network is unreachable
+    Is the server running on that host and accepting TCP/IP connections?
+connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b416:3645:2f59:5554:9b89), port 5432 failed: Network is unreachable
+    Is the server running on that host and accepting TCP/IP connections?
+
+2025-12-08 14:22:54,120 - ERROR -   Error match 1379036: connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b424:fdaf:6c84:8d6e:429f), port 5432 failed: Network is unreachable
+    Is the server running on that host and accepting TCP/IP connections?
+connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b40a:533d:22ad:38c2:f393), port 5432 failed: Network is unreachable
+    Is the server running on that host and accepting TCP/IP connections?
+connection to server at "ep-polished-salad-a5mqp3kz.us-east-2.aws.neon.tech" (2600:1f16:12b2:b416:3645:2f59:5554:9b89), port 5432 failed: Network is unreachable
+    Is the server running on that host and accepting TCP/IP connections?
+
+2025-12-08 14:23:35,952 - INFO -   Progress: 50/1104 matches (49 built, 1 skipped)
+2025-12-08 14:24:52,817 - INFO -   Progress: 100/1104 matches (99 built, 1 skipped)

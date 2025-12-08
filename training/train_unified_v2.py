@@ -72,18 +72,25 @@ def get_trainable_matches() -> List[Tuple[int, str, datetime]]:
     
     matches = cursor.fetchall()
     
-    if len(matches) < 100:
+    if len(matches) < 2000:
         logger.info("Few matches from fixtures, trying training_matches...")
+        # Use tm.id as match_id (historical_features uses training_matches.id)
+        # Also need tm.match_id for odds_snapshots which uses API football match_id
         cursor.execute("""
-            SELECT DISTINCT ON (tm.fixture_id)
-                tm.fixture_id as match_id,
-                tm.outcome,
+            SELECT DISTINCT ON (tm.id)
+                tm.id as match_id,
+                tm.match_id as api_match_id,
+                CASE 
+                    WHEN tm.outcome IN ('H', 'Home') THEN 'H'
+                    WHEN tm.outcome IN ('A', 'Away') THEN 'A'
+                    WHEN tm.outcome IN ('D', 'Draw') THEN 'D'
+                    ELSE tm.outcome
+                END as outcome,
                 tm.match_date as kickoff_at
             FROM training_matches tm
             WHERE tm.outcome IS NOT NULL
-              AND tm.fixture_id IS NOT NULL
-              AND tm.match_date >= '2024-01-01'
-            ORDER BY tm.fixture_id, tm.match_date
+              AND tm.match_date >= '2020-01-01'
+            ORDER BY tm.id, tm.match_date
         """)
         matches = cursor.fetchall()
     
@@ -106,7 +113,14 @@ def build_training_dataset(matches: List[Tuple], max_matches: int = None) -> pd.
     
     logger.info(f"Building features for {len(matches)} matches...")
     
-    for i, (match_id, outcome, kickoff) in enumerate(matches):
+    for i, row in enumerate(matches):
+        # Handle both 3-column (fixtures) and 4-column (training_matches) formats
+        if len(row) == 4:
+            match_id, api_match_id, outcome, kickoff = row
+        else:
+            match_id, outcome, kickoff = row
+            api_match_id = None
+            
         try:
             features = builder.build_features(match_id, cutoff_time=kickoff)
             features['match_id'] = match_id

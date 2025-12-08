@@ -271,16 +271,20 @@ class UnifiedV2FeatureBuilder:
             if cutoff_time is None:
                 cutoff_time = match_info['kickoff_time']
             
-            odds_features = self._build_odds_features(cursor, match_id, cutoff_time)
-            drift_features = self._build_drift_features(cursor, match_id, cutoff_time)
+            # Use API football match_id for odds lookups, training_match_id for historical_features
+            api_match_id = match_info.get('match_id', match_id)
+            training_match_id = match_info.get('training_match_id', match_id)
+            
+            odds_features = self._build_odds_features(cursor, api_match_id, cutoff_time)
+            drift_features = self._build_drift_features(cursor, api_match_id, cutoff_time)
             elo_features = self._build_elo_features(cursor, match_info, cutoff_time)
-            form_features = self._build_form_features(cursor, match_info, cutoff_time)
-            h2h_features = self._build_h2h_features(cursor, match_info, cutoff_time)
-            advanced_features = self._build_advanced_stats_features(cursor, match_info, cutoff_time)
-            context_features = self._build_context_features(cursor, match_id)
-            sharp_features = self._build_sharp_features(cursor, match_id, cutoff_time)
+            form_features = self._build_form_features(cursor, match_info, cutoff_time, training_match_id)
+            h2h_features = self._build_h2h_features(cursor, match_info, cutoff_time, training_match_id)
+            advanced_features = self._build_advanced_stats_features(cursor, match_info, cutoff_time, training_match_id)
+            context_features = self._build_context_features(cursor, api_match_id)
+            sharp_features = self._build_sharp_features(cursor, api_match_id, cutoff_time)
             ece_features = self._build_ece_features(cursor, match_info['league_id'])
-            timing_features = self._build_timing_features(cursor, match_id, cutoff_time, match_info)
+            timing_features = self._build_timing_features(cursor, api_match_id, cutoff_time, match_info)
             historical_flags = self._build_historical_flags(cursor, match_info)
             
             cursor.close()
@@ -330,23 +334,24 @@ class UnifiedV2FeatureBuilder:
         
         cursor.execute("""
             SELECT 
-                match_id, home_team_id, away_team_id, league_id,
+                id, match_id, home_team_id, away_team_id, league_id,
                 match_date, home_team, away_team
             FROM training_matches
-            WHERE match_id = %s OR fixture_id = %s
+            WHERE id = %s OR match_id = %s OR fixture_id = %s
             LIMIT 1
-        """, (match_id, match_id))
+        """, (match_id, match_id, match_id))
         
         row = cursor.fetchone()
         if row:
             return {
-                'match_id': row[0],
-                'home_team_id': row[1],
-                'away_team_id': row[2],
-                'league_id': row[3],
-                'kickoff_time': row[4],
-                'home_team': row[5],
-                'away_team': row[6]
+                'training_match_id': row[0],  # training_matches.id (row id) - for historical_features
+                'match_id': row[1],           # training_matches.match_id (API football id) - for odds_snapshots
+                'home_team_id': row[2],
+                'away_team_id': row[3],
+                'league_id': row[4],
+                'kickoff_time': row[5],
+                'home_team': row[6],
+                'away_team': row[7]
             }
         
         return None
@@ -477,7 +482,11 @@ class UnifiedV2FeatureBuilder:
             features['favorite_margin'] = max(probs_norm) - min(probs_norm)
         
         if prob_sum < 0.9:
-            raise ValueError(f"No valid leak-safe odds for match {match_id}")
+            # No valid odds - set flag but don't raise error
+            # Matches can still train with historical_features (form, h2h, advanced stats)
+            features['has_odds'] = 0.0
+        else:
+            features['has_odds'] = 1.0
         
         return features
     
@@ -580,7 +589,7 @@ class UnifiedV2FeatureBuilder:
         
         return float(elo)
     
-    def _build_form_features(self, cursor, match_info: Dict, cutoff_time: datetime) -> Dict[str, float]:
+    def _build_form_features(self, cursor, match_info: Dict, cutoff_time: datetime, training_match_id: int = None) -> Dict[str, float]:
         """Build form-based features (8 features)
         
         Primary: Uses historical_features table (backfilled from historical_odds)
@@ -588,9 +597,10 @@ class UnifiedV2FeatureBuilder:
         """
         
         features = {name: 0.0 for name in self.FORM_FEATURES}
-        match_id = match_info.get('match_id')
+        # Use training_match_id for historical_features lookup
+        hf_match_id = training_match_id or match_info.get('training_match_id') or match_info.get('match_id')
         
-        hf = self._get_historical_features(cursor, match_id)
+        hf = self._get_historical_features(cursor, hf_match_id)
         if hf and hf.get('home_form_points') is not None:
             n_matches = 5  # Standard form window
             home_pts = float(hf['home_form_points'] or 0)
@@ -698,7 +708,7 @@ class UnifiedV2FeatureBuilder:
         row = cursor.fetchone()
         return float(row[0]) if row else 0.0
     
-    def _build_h2h_features(self, cursor, match_info: Dict, cutoff_time: datetime) -> Dict[str, float]:
+    def _build_h2h_features(self, cursor, match_info: Dict, cutoff_time: datetime, training_match_id: int = None) -> Dict[str, float]:
         """Build head-to-head features (3 features)
         
         Primary: Uses historical_features table (backfilled from historical_odds)
@@ -706,9 +716,10 @@ class UnifiedV2FeatureBuilder:
         """
         
         features = {name: 0.0 for name in self.H2H_FEATURES}
-        match_id = match_info.get('match_id')
+        # Use training_match_id for historical_features lookup
+        hf_match_id = training_match_id or match_info.get('training_match_id') or match_info.get('match_id')
         
-        hf = self._get_historical_features(cursor, match_id)
+        hf = self._get_historical_features(cursor, hf_match_id)
         if hf and hf.get('h2h_matches_used') and int(hf['h2h_matches_used']) > 0:
             features['h2h_home_wins'] = float(hf['h2h_home_wins'] or 0)
             features['h2h_draws'] = float(hf['h2h_draws'] or 0)
@@ -741,7 +752,7 @@ class UnifiedV2FeatureBuilder:
         
         return features
     
-    def _build_advanced_stats_features(self, cursor, match_info: Dict, cutoff_time: datetime) -> Dict[str, float]:
+    def _build_advanced_stats_features(self, cursor, match_info: Dict, cutoff_time: datetime, training_match_id: int = None) -> Dict[str, float]:
         """Build advanced stats features (8 features) from historical_odds
         
         Primary: Uses historical_features table (backfilled from historical_odds)
@@ -749,9 +760,10 @@ class UnifiedV2FeatureBuilder:
         """
         
         features = {name: 0.0 for name in self.ADVANCED_STATS_FEATURES}
-        match_id = match_info.get('match_id')
+        # Use training_match_id for historical_features lookup
+        hf_match_id = training_match_id or match_info.get('training_match_id') or match_info.get('match_id')
         
-        hf = self._get_historical_features(cursor, match_id)
+        hf = self._get_historical_features(cursor, hf_match_id)
         if hf and hf.get('home_shots_avg') is not None:
             features['home_shots_avg'] = float(hf['home_shots_avg'])
             features['home_shots_target_avg'] = float(hf['home_shots_target_avg'] or 0)

@@ -1,0 +1,37 @@
+2025-12-08 14:50:47,844 - INFO - Train: 715 samples, Val: 183 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[26]    train's multi_logloss: 0.822129 valid's multi_logloss: 1.04233
+2025-12-08 14:51:04,625 - INFO - Fold 4: Accuracy=0.497, LogLoss=1.0423
+2025-12-08 14:51:04,625 - INFO - 
+--- Fold 5/5 ---
+2025-12-08 14:51:04,625 - INFO - Train: 898 samples, Val: 183 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[28]    train's multi_logloss: 0.825846 valid's multi_logloss: 1.0162
+2025-12-08 14:51:28,407 - INFO - Fold 5: Accuracy=0.492, LogLoss=1.0162
+2025-12-08 14:51:28,410 - INFO - 
+==================================================
+2025-12-08 14:51:28,412 - INFO - UNIFIED V2 OOF METRICS:
+2025-12-08 14:51:28,412 - INFO -   3-Way Accuracy: 0.501 (50.1%)
+2025-12-08 14:51:28,412 - INFO -   LogLoss: 1.0146
+2025-12-08 14:51:28,412 - INFO -   Brier Score: 0.2018
+2025-12-08 14:51:28,412 - INFO -   Validated Samples: 915/1103
+2025-12-08 14:51:28,412 - INFO - ==================================================
+2025-12-08 14:51:28,415 - INFO - 
+Top 15 Feature Importance:
+2025-12-08 14:51:28,415 - INFO -   dispersion_home: 50.80
+2025-12-08 14:51:28,415 - INFO -   p_open_home: 48.40
+2025-12-08 14:51:28,415 - INFO -   dispersion_draw: 47.00
+2025-12-08 14:51:28,415 - INFO -   dispersion_away: 44.20
+2025-12-08 14:51:28,415 - INFO -   p_open_away: 42.60
+2025-12-08 14:51:28,415 - INFO -   hours_before_ko: 41.40
+2025-12-08 14:51:28,415 - INFO -   p_last_away: 38.60
+2025-12-08 14:51:28,415 - INFO -   market_entropy: 38.40
+2025-12-08 14:51:28,415 - INFO -   p_open_draw: 37.00
+2025-12-08 14:51:28,415 - INFO -   market_overround: 36.00
+2025-12-08 14:51:28,415 - INFO -   p_last_draw: 35.00
+2025-12-08 14:51:28,415 - INFO -   rest_days_away: 33.80
+2025-12-08 14:51:28,416 - INFO -   book_dispersion: 31.80
+2025-12-08 14:51:28,416 - INFO -   favorite_margin: 31.80
+2025-12-08 14:51:28,416 - INFO -   league_historical_edge: 31.80
