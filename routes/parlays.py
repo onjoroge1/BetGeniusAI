@@ -15,6 +15,7 @@ from sqlalchemy import create_engine, text
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/parlays", tags=["parlays"])
+router_v2 = APIRouter(prefix="/api/v2/parlays", tags=["parlays-v2"])
 
 try:
     db_url = os.getenv("DATABASE_URL")
@@ -50,6 +51,7 @@ class CustomParlayRequest(BaseModel):
 
 
 @router.get("")
+@router_v2.get("")
 async def list_parlays(
     status: str = Query("active", description="Filter by status: active, settled, expired"),
     confidence_tier: Optional[str] = Query(None, description="Filter by tier: high, medium, low"),
@@ -152,6 +154,7 @@ async def list_parlays(
 
 
 @router.get("/recommended")
+@router_v2.get("/recommended")
 async def get_recommended_parlays(
     min_edge: float = Query(0.05, description="Minimum edge percentage"),
     max_parlays: int = Query(10, ge=1, le=20),
@@ -252,6 +255,7 @@ async def get_recommended_parlays(
 
 
 @router.post("/build")
+@router_v2.post("/build")
 async def build_custom_parlay(request: CustomParlayRequest) -> Dict[str, Any]:
     """
     Build a custom parlay from user-selected matches.
@@ -319,6 +323,7 @@ async def build_custom_parlay(request: CustomParlayRequest) -> Dict[str, Any]:
 
 
 @router.get("/status")
+@router_v2.get("/status")
 async def get_parlay_status() -> Dict[str, Any]:
     """
     Get parlay system status and statistics.
@@ -359,6 +364,7 @@ async def get_parlay_status() -> Dict[str, Any]:
 
 
 @router.get("/performance")
+@router_v2.get("/performance")
 async def get_parlay_performance() -> Dict[str, Any]:
     """
     Get parlay performance statistics and ROI tracking.

@@ -1,0 +1,36 @@
+INFO:jobs.compute_trending_scores:📊 Loading live data...
+INFO:jobs.compute_trending_scores:✅ Loaded 0 matches with momentum data
+WARNING:jobs.compute_trending_scores:⚠️ No matches with momentum data - skipping computation
+WARNING:utils.scheduler:⚠️ TRENDING: Scores computation completed with warnings
+INFO:utils.scheduler:🎰 PARLAY: Starting parlay generation...
+ERROR:models.parlay_builder:Failed to save parlay: (psycopg2.errors.NotNullViolation) null value in column "leg_id" of relation "parlay_legs" violates not-null constraint
+DETAIL:  Failing row contains (null, ca4ac34a-7644-47d7-8863-19a613e3327f, 1451120, TBD, TBD, null, 2025-12-10 17:45:00, H, 2.2, 0.481, null, null, null).
+
+[SQL: 
+                        INSERT INTO parlay_legs (
+                            parlay_id, match_id, home_team, away_team,
+                            league_name, kickoff_at, outcome, decimal_odds, model_prob
+                        ) VALUES (
+                            %(parlay_id)s, %(match_id)s, %(home_team)s, %(away_team)s,
+                            %(league_name)s, %(kickoff_at)s, %(outcome)s, %(decimal_odds)s, %(model_prob)s
+                        )
+                    ]
+[parameters: {'parlay_id': 'ca4ac34a-7644-47d7-8863-19a613e3327f', 'match_id': 1451120, 'home_team': 'TBD', 'away_team': 'TBD', 'league_name': None, 'kickoff_at': datetime.datetime(2025, 12, 10, 17, 45, tzinfo=datetime.timezone.utc), 'outcome': 'H', 'decimal_odds': 2.2, 'model_prob': 0.481}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+ERROR:models.parlay_builder:Failed to save parlay: (psycopg2.errors.NotNullViolation) null value in column "leg_id" of relation "parlay_legs" violates not-null constraint
+DETAIL:  Failing row contains (null, ff32f751-30e8-4fee-9ed8-e319225eaec7, 1451121, Real Madrid, Manchester City, null, 2025-12-10 19:59:59.473065, H, 2.88, 0.386, null, null, null).
+
+[SQL: 
+                        INSERT INTO parlay_legs (
+                            parlay_id, match_id, home_team, away_team,
+                            league_name, kickoff_at, outcome, decimal_odds, model_prob
+                        ) VALUES (
+                            %(parlay_id)s, %(match_id)s, %(home_team)s, %(away_team)s,
+                            %(league_name)s, %(kickoff_at)s, %(outcome)s, %(decimal_odds)s, %(model_prob)s
+                        )
+                    ]
+[parameters: {'parlay_id': 'ff32f751-30e8-4fee-9ed8-e319225eaec7', 'match_id': 1451121, 'home_team': 'Real Madrid', 'away_team': 'Manchester City', 'league_name': None, 'kickoff_at': datetime.datetime(2025, 12, 10, 19, 59, 59, 473065, tzinfo=datetime.timezone.utc), 'outcome': 'H', 'decimal_odds': 2.88, 'model_prob': 0.386}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+INFO:models.parlay_builder:🎰 Refreshed parlays: 0 saved
+INFO:utils.scheduler:🎯 SHARP: Starting sharp book collection...
+INFO:models.sharp_book_collector:🎯 Sharp Book Collector: Starting soccer collection...

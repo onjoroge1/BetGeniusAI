@@ -203,8 +203,9 @@ app.include_router(realtime_router, tags=["Phase 2 - Real-time"])
 from routes.trending import router as trending_router
 app.include_router(trending_router, tags=["PHASE 1 - Trending & Hot Matches"])
 
-from routes.parlays import router as parlays_router
+from routes.parlays import router as parlays_router, router_v2 as parlays_router_v2
 app.include_router(parlays_router, tags=["Parlay Recommendations"])
+app.include_router(parlays_router_v2, tags=["Parlay Recommendations V2"])
 
 # Add CORS middleware
 app.add_middleware(
