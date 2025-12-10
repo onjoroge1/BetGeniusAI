@@ -372,6 +372,10 @@ class BackgroundScheduler:
                 if "parlay_generation" not in self.last_run or (now - self.last_run["parlay_generation"]).total_seconds() >= 300:
                     await self._spawn("parlay_generation", self._run_parlay_generation, timeout=60)
                 
+                # 🎰 Parlay Settlement - runs every 15 minutes to settle finished parlays
+                if "parlay_settlement" not in self.last_run or (now - self.last_run["parlay_settlement"]).total_seconds() >= 900:
+                    await self._spawn("parlay_settlement", self._run_parlay_settlement, timeout=60)
+                
                 # 🔄 Fixtures→Matches Sync - runs every 15 minutes to sync finished fixtures
                 if "fixtures_sync" not in self.last_run or (now - self.last_run["fixtures_sync"]).total_seconds() >= 900:
                     await self._spawn("fixtures_sync", self._run_fixtures_to_matches_sync, timeout=120)
@@ -1189,6 +1193,26 @@ class BackgroundScheduler:
             logger.warning("⚠️ PARLAY: parlay_builder module not found - skipping")
         except Exception as e:
             logger.error(f"❌ PARLAY: Parlay generation failed - {e}", exc_info=True)
+
+    async def _run_parlay_settlement(self):
+        """
+        🎰 Parlay Settlement Job
+        Settles finished parlays and tracks performance.
+        Runs every 15 minutes.
+        """
+        try:
+            from jobs.settle_parlays import settle_parlays_job
+            logger.info("🎰 SETTLEMENT: Starting parlay settlement...")
+            result = await settle_parlays_job()
+            settled = result.get('settled', 0)
+            if settled > 0:
+                logger.info(f"✅ SETTLEMENT: Settled {settled} parlays (Won: {result.get('won', 0)}, Lost: {result.get('lost', 0)})")
+            else:
+                logger.debug("🎰 SETTLEMENT: No parlays to settle")
+        except ImportError:
+            logger.warning("⚠️ SETTLEMENT: settle_parlays module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ SETTLEMENT: Parlay settlement failed - {e}", exc_info=True)
 
     async def _run_fixtures_to_matches_sync(self):
         """

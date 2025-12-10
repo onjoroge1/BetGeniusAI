@@ -358,6 +358,23 @@ async def get_parlay_status() -> Dict[str, Any]:
         return {'status': 'error', 'message': str(e)}
 
 
+@router.get("/performance")
+async def get_parlay_performance() -> Dict[str, Any]:
+    """
+    Get parlay performance statistics and ROI tracking.
+    
+    Returns overall and per-tier performance metrics for settled parlays.
+    """
+    try:
+        from jobs.settle_parlays import get_parlay_performance_summary
+        return get_parlay_performance_summary()
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Performance module not available")
+    except Exception as e:
+        logger.error(f"Error getting performance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def _get_parlay_recommendation(edge_pct: float, correlation_penalty: float) -> str:
     """Generate a recommendation based on edge and correlation"""
     if edge_pct >= 0.08 and correlation_penalty <= 0.15:
