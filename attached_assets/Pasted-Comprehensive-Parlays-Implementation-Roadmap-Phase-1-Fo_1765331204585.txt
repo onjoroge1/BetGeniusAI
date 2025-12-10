@@ -1,0 +1,113 @@
+Comprehensive Parlays Implementation Roadmap
+Phase 1: Foundation (Week 1)
+Database Schema & Core Logic
+
+Task	Description	Priority
+1.1	Create parlay_consensus table for storing generated parlays	High
+1.2	Create parlay_legs table for individual leg tracking	High
+1.3	Create parlay_performance table for historical tracking	Medium
+1.4	Build parlay probability calculator with correlation adjustments	High
+1.5	Create parlay builder service that reads from odds_consensus	High
+Phase 2: Parlay Generation Engine (Week 2)
+Automated Parlay Creation
+
+Task	Description	Priority
+2.1	Same-day parlay generator (matches on same date)	High
+2.2	League-based parlay generator (same competition)	High
+2.3	Correlation penalty engine (same-league discount)	High
+2.4	Edge calculator (model prob vs market implied prob)	High
+2.5	Confidence tier assignment (High/Medium/Low)	Medium
+2.6	Scheduler job to refresh parlays every 5 minutes	Medium
+Phase 3: API & Filtering (Week 3)
+User-Facing Endpoints
+
+Task	Description	Priority
+3.1	GET /api/v1/parlays - List all generated parlays	High
+3.2	GET /api/v1/parlays/recommended - Curated high-edge parlays	High
+3.3	POST /api/v1/parlays/build - Custom parlay builder	Medium
+3.4	Filtering by leg count, confidence, league, kickoff window	Medium
+3.5	Parlay odds calculation endpoint	Medium
+Phase 4: Performance Tracking (Week 4)
+Results & Analytics
+
+Task	Description	Priority
+4.1	Automated parlay settlement when matches finish	High
+4.2	ROI tracking by parlay type/size	Medium
+4.3	Best performing parlay strategy identification	Medium
+4.4	User parlay history (if auth enabled)	Low
+Strategic Recommendation: Hybrid Approach
+I recommend a hybrid model that offers both curated recommendations AND user flexibility:
+
+Tier 1: AI-Curated "Smart Parlays" (Highlighted)
+These are pre-built parlays that meet strict criteria:
+
+Criteria	Threshold
+Minimum edge	> 5% vs implied odds
+Confidence	High or Medium tier only
+Leg correlation	< 0.3 (low correlation)
+Book coverage	≥ 15 bookmakers contributing
+Kickoff window	Same day or 24-hour span
+Leg count	2-4 legs (optimal risk/reward)
+Benefits:
+
+Builds user trust with quality-first approach
+Matches your premium positioning
+Easier to track and prove performance
+Tier 2: "Build Your Own" Parlay Tool
+Let users pick any matches and see:
+
+Combined odds calculation
+Our model's probability estimate
+Edge percentage (positive/negative)
+Correlation warning if same-league
+Benefits:
+
+User engagement and flexibility
+Users learn which combos have edge
+No liability if they pick bad parlays
+Recommended Display Structure
+🔥 SMART PARLAYS (AI-Curated)
+├── Today's Best (3 parlays, 5%+ edge each)
+├── Champions League Special (2-3 leg CL combos)
+└── Weekend Accumulators (Sat/Sun groupings)
+🛠️ BUILD YOUR OWN
+├── Pick matches from the market board
+├── See live odds calculation
+├── Edge indicator (green/yellow/red)
+└── Correlation warnings
+
+Why This Approach Works
+Factor	Curated Only	All Combos Only	Hybrid ✅
+User trust	High	Low	High
+Engagement	Medium	High	High
+Trackable ROI	Easy	Hard	Easy (for curated)
+User flexibility	Low	High	High
+Liability	Low	Medium	Low
+Differentiator	Yes	No	Yes
+Technical Architecture
+┌─────────────────────────────────────────────────────┐
+│                   Parlay System                      │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  ┌──────────────┐    ┌──────────────────────────┐   │
+│  │ odds_consensus│───▶│ Parlay Builder Service   │   │
+│  │ (source)      │    │ - Generate combinations  │   │
+│  └──────────────┘    │ - Calculate correlations │   │
+│                      │ - Compute edge           │   │
+│  ┌──────────────┐    └──────────┬───────────────┘   │
+│  │ fixtures     │               │                    │
+│  │ (metadata)   │───────────────┤                    │
+│  └──────────────┘               ▼                    │
+│                      ┌──────────────────────────┐   │
+│                      │   parlay_consensus       │   │
+│                      │   (storage)              │   │
+│                      └──────────┬───────────────┘   │
+│                                 │                    │
+│                      ┌──────────▼───────────────┐   │
+│                      │     API Endpoints        │   │
+│                      │ /parlays                 │   │
+│                      │ /parlays/recommended     │   │
+│                      │ /parlays/build           │   │
+│                      └──────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+

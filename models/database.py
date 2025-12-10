@@ -260,6 +260,140 @@ class CLVRealized(Base):
             'closing_window_sec': self.closing_window_sec
         }
 
+class ParlayConsensus(Base):
+    """Generated parlay combinations with calculated odds and edge"""
+    __tablename__ = 'parlay_consensus'
+    
+    parlay_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    leg_count = Column(Integer, nullable=False)  # 2, 3, 4, etc.
+    legs = Column(JSONB, nullable=False)  # [{match_id, outcome, prob, odds, team_home, team_away}]
+    
+    # Probability calculations
+    combined_prob = Column(Float, nullable=False)  # Product of individual leg probabilities
+    correlation_penalty = Column(Float, default=0.0)  # Discount for correlated legs
+    adjusted_prob = Column(Float, nullable=False)  # combined_prob * (1 - correlation_penalty)
+    
+    # Odds and edge
+    implied_odds = Column(Float, nullable=False)  # Combined decimal odds
+    market_implied_prob = Column(Float, nullable=False)  # 1/implied_odds
+    edge_pct = Column(Float, nullable=False)  # (adjusted_prob - market_implied_prob) / market_implied_prob
+    
+    # Classification
+    confidence_tier = Column(String(20), nullable=False)  # 'high', 'medium', 'low'
+    parlay_type = Column(String(50), nullable=False)  # 'same_day', 'same_league', 'mixed'
+    league_group = Column(String(100), nullable=True)  # e.g., "UEFA Champions League"
+    
+    # Timing
+    earliest_kickoff = Column(DateTime, nullable=False)
+    latest_kickoff = Column(DateTime, nullable=False)
+    kickoff_window = Column(String(20), nullable=False)  # 'today', 'tomorrow', 'weekend'
+    
+    # Metadata
+    status = Column(String(20), default='active')  # 'active', 'settled', 'expired'
+    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=True)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'parlay_id': str(self.parlay_id),
+            'leg_count': self.leg_count,
+            'legs': self.legs,
+            'combined_prob': self.combined_prob,
+            'correlation_penalty': self.correlation_penalty,
+            'adjusted_prob': self.adjusted_prob,
+            'implied_odds': self.implied_odds,
+            'edge_pct': self.edge_pct,
+            'confidence_tier': self.confidence_tier,
+            'parlay_type': self.parlay_type,
+            'league_group': self.league_group,
+            'earliest_kickoff': self.earliest_kickoff.isoformat() if self.earliest_kickoff else None,
+            'latest_kickoff': self.latest_kickoff.isoformat() if self.latest_kickoff else None,
+            'kickoff_window': self.kickoff_window,
+            'status': self.status,
+            'created_at': self.created_at.isoformat()
+        }
+
+
+class ParlayLeg(Base):
+    """Individual legs within a parlay for tracking"""
+    __tablename__ = 'parlay_legs'
+    
+    leg_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parlay_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    match_id = Column(Integer, nullable=False, index=True)
+    
+    # Match info
+    home_team = Column(String(100), nullable=False)
+    away_team = Column(String(100), nullable=False)
+    league_name = Column(String(100), nullable=True)
+    kickoff_at = Column(DateTime, nullable=False)
+    
+    # Selection
+    outcome = Column(String(1), nullable=False)  # 'H', 'D', 'A'
+    decimal_odds = Column(Float, nullable=False)
+    model_prob = Column(Float, nullable=False)
+    
+    # Result (populated after settlement)
+    actual_outcome = Column(String(1), nullable=True)
+    won = Column(Boolean, nullable=True)
+    settled_at = Column(DateTime, nullable=True)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'leg_id': str(self.leg_id),
+            'parlay_id': str(self.parlay_id),
+            'match_id': self.match_id,
+            'home_team': self.home_team,
+            'away_team': self.away_team,
+            'league_name': self.league_name,
+            'kickoff_at': self.kickoff_at.isoformat(),
+            'outcome': self.outcome,
+            'decimal_odds': self.decimal_odds,
+            'model_prob': self.model_prob,
+            'actual_outcome': self.actual_outcome,
+            'won': self.won
+        }
+
+
+class ParlayPerformance(Base):
+    """Historical parlay performance tracking"""
+    __tablename__ = 'parlay_performance'
+    
+    performance_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parlay_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    
+    # Settlement
+    settled_at = Column(DateTime, nullable=False, default=datetime.now(timezone.utc))
+    won = Column(Boolean, nullable=False)
+    legs_won = Column(Integer, nullable=False)
+    legs_lost = Column(Integer, nullable=False)
+    
+    # Performance metrics
+    stake = Column(Float, default=1.0)  # Notional stake for ROI calculation
+    payout = Column(Float, nullable=False)  # stake * odds if won, else 0
+    profit = Column(Float, nullable=False)  # payout - stake
+    
+    # Pre-bet metrics (for analysis)
+    pre_edge_pct = Column(Float, nullable=False)
+    pre_confidence_tier = Column(String(20), nullable=False)
+    pre_adjusted_prob = Column(Float, nullable=False)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'performance_id': str(self.performance_id),
+            'parlay_id': str(self.parlay_id),
+            'settled_at': self.settled_at.isoformat(),
+            'won': self.won,
+            'legs_won': self.legs_won,
+            'legs_lost': self.legs_lost,
+            'stake': self.stake,
+            'payout': self.payout,
+            'profit': self.profit,
+            'pre_edge_pct': self.pre_edge_pct,
+            'pre_confidence_tier': self.pre_confidence_tier
+        }
+
+
 class DatabaseManager:
     """Database operations for training data"""
     
