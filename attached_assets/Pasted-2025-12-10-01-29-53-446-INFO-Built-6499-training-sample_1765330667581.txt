@@ -1,0 +1,128 @@
+2025-12-10 01:29:53,446 - INFO - Built 6499 training samples with 65 columns (skipped 1)
+2025-12-10 01:29:53,450 - INFO - 
+Feature coverage (non-zero values):
+2025-12-10 01:29:53,450 - INFO -   ✓ away_corners_avg: 78.6%
+2025-12-10 01:29:53,450 - INFO -   ✓ away_form_goals_conceded: 87.4%
+2025-12-10 01:29:53,450 - INFO -   ✓ away_form_goals_scored: 87.9%
+2025-12-10 01:29:53,450 - INFO -   ✓ away_form_points: 73.2%
+2025-12-10 01:29:53,450 - INFO -   ✓ away_last10_away_wins: 69.5%
+2025-12-10 01:29:53,450 - INFO -   ✓ away_shots_avg: 78.6%
+2025-12-10 01:29:53,450 - INFO -   ✓ away_shots_target_avg: 78.6%
+2025-12-10 01:29:53,450 - INFO -   ✓ away_yellows_avg: 78.6%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ book_dispersion: 36.9%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ congestion_away_7d: 36.1%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ congestion_home_7d: 35.9%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ dispersion_away: 36.9%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ dispersion_draw: 36.9%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ dispersion_home: 36.9%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ drift_magnitude: 18.7%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ elo_diff: 27.3%
+2025-12-10 01:29:53,450 - INFO -   ⚠️ favorite_margin: 36.9%
+2025-12-10 01:29:53,450 - INFO -   ✓ h2h_away_wins: 63.8%
+2025-12-10 01:29:53,451 - INFO -   ✓ h2h_draws: 61.4%
+2025-12-10 01:29:53,451 - INFO -   ✓ h2h_home_wins: 63.1%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ has_odds: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ✓ historical_form_available: 57.8%
+2025-12-10 01:29:53,451 - INFO -   ✓ historical_h2h_available: 92.1%
+2025-12-10 01:29:53,451 - INFO -   ✓ home_corners_avg: 78.6%
+2025-12-10 01:29:53,451 - INFO -   ✓ home_form_goals_conceded: 87.4%
+2025-12-10 01:29:53,451 - INFO -   ✓ home_form_goals_scored: 87.6%
+2025-12-10 01:29:53,451 - INFO -   ✓ home_form_points: 73.0%
+2025-12-10 01:29:53,451 - INFO -   ✓ home_last10_home_wins: 73.3%
+2025-12-10 01:29:53,451 - INFO -   ✓ home_shots_avg: 78.6%
+2025-12-10 01:29:53,451 - INFO -   ✓ home_shots_target_avg: 78.6%
+2025-12-10 01:29:53,451 - INFO -   ✓ home_yellows_avg: 78.6%
+2025-12-10 01:29:53,451 - INFO -   ❌ hours_before_ko: 0.0%
+2025-12-10 01:29:53,451 - INFO -   ✓ league_ece: 92.6%
+2025-12-10 01:29:53,451 - INFO -   ✓ league_historical_edge: 92.6%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ market_entropy: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ market_overround: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ❌ movement_velocity_24h: 0.0%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ num_books_last: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ p_last_away: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ p_last_draw: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ p_last_home: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ p_open_away: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ p_open_draw: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ p_open_home: 36.9%
+2025-12-10 01:29:53,451 - INFO -   ⚠️ prob_drift_away: 17.3%
+2025-12-10 01:29:53,452 - INFO -   ⚠️ prob_drift_draw: 17.4%
+2025-12-10 01:29:53,452 - INFO -   ⚠️ prob_drift_home: 17.1%
+2025-12-10 01:29:53,452 - INFO -   ✓ rest_days_away: 89.1%
+2025-12-10 01:29:53,452 - INFO -   ✓ rest_days_home: 89.1%
+2025-12-10 01:29:53,452 - INFO -   ❌ reverse_line_movement: 0.0%
+2025-12-10 01:29:53,452 - INFO -   ❌ sharp_prob_away: 0.6%
+2025-12-10 01:29:53,452 - INFO -   ❌ sharp_prob_draw: 0.6%
+2025-12-10 01:29:53,452 - INFO -   ❌ sharp_prob_home: 0.6%
+2025-12-10 01:29:53,452 - INFO -   ❌ soft_vs_sharp_divergence: 0.6%
+2025-12-10 01:29:53,452 - INFO -   ❌ steam_move_detected: 0.0%
+2025-12-10 01:29:53,452 - INFO -   ⚠️ volatility_away: 36.9%
+2025-12-10 01:29:53,452 - INFO -   ⚠️ volatility_draw: 36.9%
+2025-12-10 01:29:53,452 - INFO -   ⚠️ volatility_home: 36.9%
+2025-12-10 01:29:53,459 - INFO - 
+Excluding 12 sparse features: ['hours_before_ko', 'home_elo', 'away_elo', 'elo_diff', 'sharp_prob_home', 'sharp_prob_draw', 'sharp_prob_away', 'soft_vs_sharp_divergence', 'movement_velocity_24h', 'steam_move_detected', 'reverse_line_movement', 'time_to_kickoff_bucket']
+2025-12-10 01:29:53,463 - INFO - 
+Training unified V2 with 50 features, 6499 samples
+2025-12-10 01:29:53,464 - INFO - Class distribution: H=2903, D=1592, A=2004
+2025-12-10 01:29:53,464 - INFO - Using TimeSeriesSplit with gap=129 for embargo period
+2025-12-10 01:29:53,464 - INFO - 
+--- Fold 1/5 ---
+2025-12-10 01:29:53,464 - INFO - Train: 955 samples, Val: 1083 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[21]    train's multi_logloss: 0.872071 valid's multi_logloss: 1.01624
+2025-12-10 01:31:36,364 - INFO - Fold 1: Accuracy=0.512, LogLoss=1.0162
+2025-12-10 01:31:36,364 - INFO - 
+--- Fold 2/5 ---
+2025-12-10 01:31:36,365 - INFO - Train: 2038 samples, Val: 1083 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[65]    train's multi_logloss: 0.748106 valid's multi_logloss: 1.02424
+2025-12-10 01:32:52,057 - INFO - Fold 2: Accuracy=0.501, LogLoss=1.0242
+2025-12-10 01:32:52,057 - INFO - 
+--- Fold 3/5 ---
+2025-12-10 01:32:52,057 - INFO - Train: 3121 samples, Val: 1083 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[41]    train's multi_logloss: 0.870092 valid's multi_logloss: 1.02731
+2025-12-10 01:34:15,084 - INFO - Fold 3: Accuracy=0.486, LogLoss=1.0273
+2025-12-10 01:34:15,084 - INFO - 
+--- Fold 4/5 ---
+2025-12-10 01:34:15,085 - INFO - Train: 4204 samples, Val: 1083 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[84]    train's multi_logloss: 0.822584 valid's multi_logloss: 1.02812
+2025-12-10 01:34:44,346 - INFO - Fold 4: Accuracy=0.488, LogLoss=1.0281
+2025-12-10 01:34:44,346 - INFO - 
+--- Fold 5/5 ---
+2025-12-10 01:34:44,347 - INFO - Train: 5287 samples, Val: 1083 samples
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[45]    train's multi_logloss: 0.911334 valid's multi_logloss: 0.990639
+2025-12-10 01:35:43,086 - INFO - Fold 5: Accuracy=0.523, LogLoss=0.9906
+2025-12-10 01:35:43,088 - INFO - 
+==================================================
+2025-12-10 01:35:43,088 - INFO - UNIFIED V2 OOF METRICS:
+2025-12-10 01:35:43,088 - INFO -   3-Way Accuracy: 0.502 (50.2%)
+2025-12-10 01:35:43,088 - INFO -   LogLoss: 1.0173
+2025-12-10 01:35:43,088 - INFO -   Brier Score: 0.2027
+2025-12-10 01:35:43,088 - INFO -   Validated Samples: 5415/6499
+2025-12-10 01:35:43,088 - INFO - ==================================================
+2025-12-10 01:35:43,092 - INFO - 
+Top 15 Feature Importance:
+2025-12-10 01:35:43,092 - INFO -   rest_days_away: 275.00
+2025-12-10 01:35:43,092 - INFO -   rest_days_home: 259.60
+2025-12-10 01:35:43,092 - INFO -   home_shots_avg: 253.40
+2025-12-10 01:35:43,092 - INFO -   h2h_home_wins: 241.60
+2025-12-10 01:35:43,092 - INFO -   away_shots_avg: 240.20
+2025-12-10 01:35:43,092 - INFO -   home_corners_avg: 217.60
+2025-12-10 01:35:43,092 - INFO -   away_corners_avg: 212.40
+2025-12-10 01:35:43,092 - INFO -   h2h_away_wins: 202.00
+2025-12-10 01:35:43,092 - INFO -   away_shots_target_avg: 199.60
+2025-12-10 01:35:43,092 - INFO -   home_yellows_avg: 197.40
+2025-12-10 01:35:43,092 - INFO -   home_shots_target_avg: 195.20
+2025-12-10 01:35:43,092 - INFO -   away_yellows_avg: 174.60
+2025-12-10 01:35:43,092 - INFO -   h2h_draws: 164.80
+2025-12-10 01:35:43,092 - INFO -   away_form_goals_scored: 151.60
+2025-12-10 01:35:43,092 - INFO -   home_last10_home_wins: 147.00
+2025-12-10 01:35:43,092 - INFO - 
