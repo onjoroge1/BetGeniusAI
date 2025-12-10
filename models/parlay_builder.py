@@ -292,7 +292,8 @@ class ParlayBuilder:
         legs: List[Dict],
         parlay_type: str,
         kickoff_window: str,
-        league_group: str = None
+        league_group: str = None,
+        allow_negative_edge: bool = False
     ) -> Optional[Dict]:
         """Build a complete parlay object from legs"""
         if not legs:
@@ -320,6 +321,8 @@ class ParlayBuilder:
             confidence_tier = 'medium'
         elif edge_pct >= CONFIDENCE_THRESHOLDS['low']['min_edge']:
             confidence_tier = 'low'
+        elif allow_negative_edge:
+            confidence_tier = 'negative'
         else:
             return None
         
@@ -400,9 +403,11 @@ class ParlayBuilder:
         selections: List of {match_id: int, outcome: str} dicts
         """
         if len(selections) < 2:
+            logger.warning(f"build_custom_parlay: Not enough selections ({len(selections)})")
             return None
         
         match_ids = [s['match_id'] for s in selections]
+        logger.info(f"build_custom_parlay: Building parlay for match_ids={match_ids}")
         
         with self.engine.connect() as conn:
             placeholders = ','.join([f':id{i}' for i in range(len(match_ids))])
@@ -436,7 +441,9 @@ class ParlayBuilder:
             """), params)
             
             matches_by_id = {}
+            rows_found = 0
             for row in result:
+                rows_found += 1
                 matches_by_id[row.match_id] = {
                     'match_id': row.match_id,
                     'home_team': row.home_team,
@@ -455,6 +462,8 @@ class ParlayBuilder:
                         'A': row.pa_cons or 0.33
                     }
                 }
+            
+            logger.info(f"build_custom_parlay: Found {rows_found} matches from DB")
         
         legs = []
         for sel in selections:
@@ -482,9 +491,11 @@ class ParlayBuilder:
             })
         
         if len(legs) < 2:
+            logger.warning(f"build_custom_parlay: Not enough valid legs ({len(legs)})")
             return None
         
-        parlay = self._build_parlay(legs, 'custom', 'custom')
+        logger.info(f"build_custom_parlay: Built parlay with {len(legs)} legs")
+        parlay = self._build_parlay(legs, 'custom', 'custom', allow_negative_edge=True)
         if parlay:
             parlay['confidence_tier'] = parlay.get('confidence_tier', 'low')
         
