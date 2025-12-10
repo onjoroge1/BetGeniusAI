@@ -111,6 +111,7 @@ class BackgroundScheduler:
         logger.info("🏀🏒 Multi-Sport Odds Collection enabled - runs every 5 minutes for NBA/NHL/MLB")
         logger.info("📊 Multi-Sport Results enabled - runs every hour to fetch completed scores")
         logger.info("🏀⚾ API-Sports Data Collection enabled - runs every hour for team/player data")
+        logger.info("🎰 Parlay Generation enabled - runs every 5 minutes to generate AI-curated parlays")
     
     def stop_scheduler(self):
         """Stop the background scheduler"""
@@ -366,6 +367,10 @@ class BackgroundScheduler:
                 # 🔥 PHASE 1: Trending Scores Computation - runs every 5 minutes to pre-compute hot/trending scores
                 if "trending_scores" not in self.last_run or (now - self.last_run["trending_scores"]).total_seconds() >= 300:
                     await self._spawn("trending_scores", self._run_trending_scores_computation, timeout=120)
+                
+                # 🎰 Parlay Generation - runs every 5 minutes to generate AI-curated parlays
+                if "parlay_generation" not in self.last_run or (now - self.last_run["parlay_generation"]).total_seconds() >= 300:
+                    await self._spawn("parlay_generation", self._run_parlay_generation, timeout=60)
                 
                 # 🔄 Fixtures→Matches Sync - runs every 15 minutes to sync finished fixtures
                 if "fixtures_sync" not in self.last_run or (now - self.last_run["fixtures_sync"]).total_seconds() >= 900:
@@ -1164,6 +1169,26 @@ class BackgroundScheduler:
             logger.warning("⚠️ TRENDING: compute_trending_scores module not found - skipping")
         except Exception as e:
             logger.error(f"❌ TRENDING: Scores computation failed - {e}", exc_info=True)
+
+    async def _run_parlay_generation(self):
+        """
+        🎰 Parlay Generation Job
+        Generates AI-curated parlays with correlation adjustments and edge calculation.
+        Runs every 5 minutes.
+        """
+        try:
+            from models.parlay_builder import ParlayBuilder
+            logger.info("🎰 PARLAY: Starting parlay generation...")
+            builder = ParlayBuilder()
+            saved_count = builder.refresh_parlays()
+            if saved_count > 0:
+                logger.info(f"✅ PARLAY: Generated and saved {saved_count} parlays")
+            else:
+                logger.debug("🎰 PARLAY: No new parlays to generate")
+        except ImportError:
+            logger.warning("⚠️ PARLAY: parlay_builder module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ PARLAY: Parlay generation failed - {e}", exc_info=True)
 
     async def _run_fixtures_to_matches_sync(self):
         """

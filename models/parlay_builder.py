@@ -48,35 +48,35 @@ class ParlayBuilder:
         with self.engine.connect() as conn:
             result = conn.execute(text("""
                 SELECT 
-                    f.id as match_id,
+                    f.match_id as match_id,
                     f.home_team,
                     f.away_team,
                     f.league_name,
                     f.kickoff_at,
-                    oc.p_last_home,
-                    oc.p_last_draw,
-                    oc.p_last_away,
-                    oc.odds_h,
-                    oc.odds_d,
-                    oc.odds_a,
+                    oc.ph_cons,
+                    oc.pd_cons,
+                    oc.pa_cons,
+                    CASE WHEN oc.ph_cons > 0 THEN 1.0/oc.ph_cons ELSE NULL END as odds_h,
+                    CASE WHEN oc.pd_cons > 0 THEN 1.0/oc.pd_cons ELSE NULL END as odds_d,
+                    CASE WHEN oc.pa_cons > 0 THEN 1.0/oc.pa_cons ELSE NULL END as odds_a,
                     ps.probs_h as model_prob_h,
                     ps.probs_d as model_prob_d,
                     ps.probs_a as model_prob_a,
                     ps.confidence
                 FROM fixtures f
-                JOIN odds_consensus oc ON f.id = oc.match_id
+                JOIN odds_consensus oc ON f.match_id = oc.match_id
                 LEFT JOIN (
                     SELECT DISTINCT ON (match_id) 
                         match_id, probs_h, probs_d, probs_a, confidence
                     FROM prediction_snapshots
                     ORDER BY match_id, served_at DESC
-                ) ps ON f.id = ps.match_id
+                ) ps ON f.match_id = ps.match_id
                 WHERE f.kickoff_at > NOW()
-                AND f.kickoff_at < NOW() + INTERVAL :hours HOUR
+                AND f.kickoff_at < NOW() + (:hours || ' hours')::interval
                 AND f.status = 'scheduled'
-                AND oc.odds_h IS NOT NULL
-                AND oc.odds_d IS NOT NULL
-                AND oc.odds_a IS NOT NULL
+                AND oc.ph_cons IS NOT NULL
+                AND oc.pd_cons IS NOT NULL
+                AND oc.pa_cons IS NOT NULL
                 ORDER BY f.kickoff_at ASC
             """), {'hours': hours_ahead})
             
@@ -90,14 +90,14 @@ class ParlayBuilder:
                     'kickoff_at': row.kickoff_at,
                     'odds': {'H': row.odds_h, 'D': row.odds_d, 'A': row.odds_a},
                     'market_prob': {
-                        'H': row.p_last_home or (1/row.odds_h if row.odds_h else 0),
-                        'D': row.p_last_draw or (1/row.odds_d if row.odds_d else 0),
-                        'A': row.p_last_away or (1/row.odds_a if row.odds_a else 0)
+                        'H': row.ph_cons or 0.33,
+                        'D': row.pd_cons or 0.33,
+                        'A': row.pa_cons or 0.33
                     },
                     'model_prob': {
-                        'H': row.model_prob_h or row.p_last_home or 0.33,
-                        'D': row.model_prob_d or row.p_last_draw or 0.33,
-                        'A': row.model_prob_a or row.p_last_away or 0.33
+                        'H': row.model_prob_h or row.ph_cons or 0.33,
+                        'D': row.model_prob_d or row.pd_cons or 0.33,
+                        'A': row.model_prob_a or row.pa_cons or 0.33
                     },
                     'confidence': row.confidence or 0.0
                 })
@@ -410,29 +410,29 @@ class ParlayBuilder:
             
             result = conn.execute(text(f"""
                 SELECT 
-                    f.id as match_id,
+                    f.match_id as match_id,
                     f.home_team,
                     f.away_team,
                     f.league_name,
                     f.kickoff_at,
-                    oc.odds_h,
-                    oc.odds_d,
-                    oc.odds_a,
-                    oc.p_last_home,
-                    oc.p_last_draw,
-                    oc.p_last_away,
+                    CASE WHEN oc.ph_cons > 0 THEN 1.0/oc.ph_cons ELSE NULL END as odds_h,
+                    CASE WHEN oc.pd_cons > 0 THEN 1.0/oc.pd_cons ELSE NULL END as odds_d,
+                    CASE WHEN oc.pa_cons > 0 THEN 1.0/oc.pa_cons ELSE NULL END as odds_a,
+                    oc.ph_cons,
+                    oc.pd_cons,
+                    oc.pa_cons,
                     ps.probs_h,
                     ps.probs_d,
                     ps.probs_a
                 FROM fixtures f
-                JOIN odds_consensus oc ON f.id = oc.match_id
+                JOIN odds_consensus oc ON f.match_id = oc.match_id
                 LEFT JOIN (
                     SELECT DISTINCT ON (match_id) 
                         match_id, probs_h, probs_d, probs_a
                     FROM prediction_snapshots
                     ORDER BY match_id, served_at DESC
-                ) ps ON f.id = ps.match_id
-                WHERE f.id IN ({placeholders})
+                ) ps ON f.match_id = ps.match_id
+                WHERE f.match_id IN ({placeholders})
             """), params)
             
             matches_by_id = {}
@@ -445,14 +445,14 @@ class ParlayBuilder:
                     'kickoff_at': row.kickoff_at,
                     'odds': {'H': row.odds_h, 'D': row.odds_d, 'A': row.odds_a},
                     'model_prob': {
-                        'H': row.probs_h or row.p_last_home or 0.33,
-                        'D': row.probs_d or row.p_last_draw or 0.33,
-                        'A': row.probs_a or row.p_last_away or 0.33
+                        'H': row.probs_h or row.ph_cons or 0.33,
+                        'D': row.probs_d or row.pd_cons or 0.33,
+                        'A': row.probs_a or row.pa_cons or 0.33
                     },
                     'market_prob': {
-                        'H': row.p_last_home or 0.33,
-                        'D': row.p_last_draw or 0.33,
-                        'A': row.p_last_away or 0.33
+                        'H': row.ph_cons or 0.33,
+                        'D': row.pd_cons or 0.33,
+                        'A': row.pa_cons or 0.33
                     }
                 }
         
