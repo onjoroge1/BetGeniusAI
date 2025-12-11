@@ -54,7 +54,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Historical Features Table**: Stores pre-computed H2H, form, and advanced stats from historical data.
 
 ### API Endpoints
-- **Prediction API**: `/predict` (V1 consensus), `/predict-v2` (premium V2 SELECT), `/predict-v3` (premium V3), `/market` (market board).
+- **Prediction API**: `/predict` (V1 consensus with model transparency - includes V1/V2 models array and final_decision), `/predict-v2` (premium V2 SELECT), `/predict-v3` (premium V3), `/market` (market board).
 - **Betting Intelligence API**: `/betting-intelligence/{match_id}` (per-match CLV, edge, Kelly sizing), `/betting-intelligence` (curated opportunities).
 - **WebSocket Streaming**: `/ws/live/{match_id}` for real-time updates.
 - **Trending API**: `/api/v1/trending/hot`, `/api/v1/trending/trending`, `/api/v1/trending/status`.
