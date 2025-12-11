@@ -6065,7 +6065,7 @@ async def predict_v2_select(
         
         # Step 3: V2 prediction
         v2_predictor = get_v2_lgbm_predictor()
-        v2_result = v2_predictor.predict(market_probs)
+        v2_result = v2_predictor.predict(match_id=request.match_id, market_probs=market_probs)
         
         if not v2_result:
             raise HTTPException(500, "V2 prediction failed")
@@ -7433,7 +7433,7 @@ async def get_betting_opportunities(
                     # Try V2 if available and requested
                     if v2_predictor and model in ["v2", "best"]:
                         try:
-                            v2_result = v2_predictor.predict(market_probs)
+                            v2_result = v2_predictor.predict(match_id=match_id, market_probs=market_probs)
                             if v2_result:
                                 v2_probs = v2_result['probabilities']
                                 v2_conf = v2_result['confidence']
@@ -7654,7 +7654,7 @@ async def get_match_betting_intelligence(
             if model in ["v2", "best"] and market_probs:
                 try:
                     v2_predictor = get_v2_lgbm_predictor()
-                    v2_result = v2_predictor.predict(market_probs)
+                    v2_result = v2_predictor.predict(match_id=match_id, market_probs=market_probs)
                     if v2_result and v2_result.get('probabilities'):
                         v2_probs = v2_result['probabilities']
                 except Exception as e:
