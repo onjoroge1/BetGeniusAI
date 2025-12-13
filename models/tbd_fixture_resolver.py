@@ -29,23 +29,29 @@ class TbdFixtureResolver:
         self.odds_api_base = "https://api.the-odds-api.com/v4"
         
         self.sport_mappings = {
-            39: "soccer_epl",  # Fixed: was soccer_england_epl (404 error)
-            46: "soccer_england_league2",
-            61: "soccer_france_ligue_one",
-            71: "soccer_brazil_campeonato",
-            78: "soccer_germany_bundesliga",
-            88: "soccer_netherlands_eredivisie",
-            94: "soccer_portugal_primeira_liga",
-            103: "soccer_norway_eliteserien",
-            113: "soccer_sweden_allsvenskan",
-            119: "soccer_denmark_superliga",
-            135: "soccer_italy_serie_a",
-            140: "soccer_spain_la_liga",
-            141: "soccer_spain_segunda_division",
-            144: "soccer_belgium_first_div",
-            179: "soccer_scotland_premiership",
-            203: "soccer_turkey_super_league",
-            253: "soccer_efl_champ",
+            39: "soccer_epl",  # English Premier League
+            45: "soccer_england_league1",  # League 1
+            46: "soccer_england_league2",  # League 2
+            47: "soccer_england_efl_cup",  # EFL Cup (Carabao Cup) - confirmed key
+            61: "soccer_france_ligue_one",  # Ligue 1
+            62: "soccer_france_ligue_two",  # Ligue 2
+            71: "soccer_argentina_primera_division",  # Argentina (corrected)
+            78: "soccer_germany_bundesliga",  # Bundesliga
+            79: "soccer_germany_bundesliga2",  # 2. Bundesliga
+            88: "soccer_netherlands_eredivisie",  # Eredivisie
+            94: "soccer_portugal_primeira_liga",  # Primeira Liga
+            119: "soccer_denmark_superliga",  # Denmark Superliga
+            135: "soccer_italy_serie_a",  # Serie A
+            136: "soccer_italy_serie_b",  # Serie B
+            140: "soccer_spain_la_liga",  # La Liga
+            141: "soccer_spain_segunda_division",  # La Liga 2
+            144: "soccer_belgium_first_div",  # Belgium First Div
+            179: "soccer_spl",  # Scottish Premiership - confirmed key
+            197: "soccer_greece_super_league",  # Greek Super League
+            203: "soccer_turkey_super_league",  # Turkey Super League
+            253: "soccer_efl_champ",  # EFL Championship
+            2: "soccer_uefa_champs_league",  # Champions League
+            3: "soccer_uefa_europa_conference_league",  # Conference League
         }
         
         self.league_cache: Dict[int, List[Dict]] = {}

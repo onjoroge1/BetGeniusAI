@@ -353,7 +353,7 @@ class LiveMarketEngine:
             conn.commit()
     
     def get_live_matches(self) -> List[Dict]:
-        """Get currently live matches"""
+        """Get currently live matches (excludes TBD fixtures)"""
         with psycopg2.connect(self.db_url) as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             
@@ -368,6 +368,8 @@ class LiveMarketEngine:
                 WHERE f.status = 'scheduled'
                   AND f.kickoff_at <= NOW()
                   AND f.kickoff_at > NOW() - INTERVAL '3 hours'
+                  AND f.home_team != 'TBD'
+                  AND f.away_team != 'TBD'
             """)
             
             return cursor.fetchall()
