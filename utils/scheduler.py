@@ -108,7 +108,7 @@ class BackgroundScheduler:
         logger.info("🎯 V3 Sharp Book Collection enabled - runs every 5 minutes to track Pinnacle odds")
         logger.info("📊 V3 League ECE Calculator enabled - runs weekly Sunday 02:00 UTC")
         logger.info("🏥 V3 Injury Collection enabled - runs every 6 hours for player context")
-        logger.info("🏀🏒 Multi-Sport Odds Collection enabled - runs every 5 minutes for NBA/NHL/MLB")
+        logger.info("🏀🏒 Multi-Sport Odds Collection enabled - runs every 60 minutes for NBA/NHL/MLB")
         logger.info("📊 Multi-Sport Results enabled - runs every hour to fetch completed scores")
         logger.info("🏀⚾ API-Sports Data Collection enabled - runs every hour for team/player data")
         logger.info("🎰 Parlay Generation enabled - runs every 5 minutes to generate AI-curated parlays")
@@ -390,8 +390,8 @@ class BackgroundScheduler:
                 if "sharp_book" not in self.last_run or (now - self.last_run["sharp_book"]).total_seconds() >= 300:
                     await self._spawn("sharp_book", self._run_sharp_book_collection, timeout=120)
                 
-                # 🏀🏒 Multi-Sport Odds Collection - runs every 5 minutes for NBA/NHL/MLB
-                if "multisport_odds" not in self.last_run or (now - self.last_run["multisport_odds"]).total_seconds() >= 300:
+                # 🏀🏒 Multi-Sport Odds Collection - runs every 60 minutes for NBA/NHL/MLB (reduced from 5min to slow DB growth)
+                if "multisport_odds" not in self.last_run or (now - self.last_run["multisport_odds"]).total_seconds() >= 3600:
                     await self._spawn("multisport_odds", self._run_multisport_odds_collection, timeout=120)
                 
                 # 📊 Multi-Sport Results - runs every hour to fetch completed game scores
@@ -1287,7 +1287,7 @@ class BackgroundScheduler:
         """
         🏀🏒 Multi-Sport Odds Collection
         Collects odds for NBA, NHL, and MLB from The Odds API.
-        Runs every 5 minutes.
+        Runs every 60 minutes (reduced from 5min to slow DB growth).
         """
         try:
             from models.multisport_collector import run_multisport_collection
