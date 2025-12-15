@@ -314,9 +314,10 @@ class MultiSportTrainingSync:
     def _count_training(self, cursor, sport: str) -> int:
         """Count total training records for a sport"""
         cursor.execute("""
-            SELECT COUNT(*) FROM multisport_training WHERE sport = %s
+            SELECT COUNT(*) as count FROM multisport_training WHERE sport = %s
         """, (sport,))
-        return cursor.fetchone()[0]
+        result = cursor.fetchone()
+        return int(result['count']) if result else 0
 
 
 def sync_training_data(sport: Optional[str] = None) -> Dict:

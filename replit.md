@@ -19,8 +19,9 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Redis**: Used for session caching.
 
 ### Machine Learning Pipeline
-- **Models**: Production V1 (weighted consensus), V2 (LightGBM ensemble), and a unified V2 model integrating V3 Sharp Intelligence with 61 features.
+- **Models**: Production V1 (weighted consensus), V2 (LightGBM ensemble), unified V2 with 61 features, V2-NBA (basketball), V2-NHL (hockey).
 - **Feature Engineering**: Automated pipeline generating features from various categories (Odds, Drift, ELO, Form, H2H, Advanced Stats, Context, Sharp Book, ECE, Timing, Historical Flags).
+- **Multi-Sport Models**: V2-Basketball (92.9% accuracy, 30 features) and V2-Hockey (75.0% accuracy, 30 features) for NBA/NHL predictions.
 - **Leak Elimination**: Strict pre-match odds filtering.
 - **Auto-Retraining System**: Models retrain automatically based on new match volume, staleness, or accuracy drift.
 - **Match Context Builder**: Automated scheduler service populates match context data.
