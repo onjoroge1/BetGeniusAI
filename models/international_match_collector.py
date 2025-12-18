@@ -216,6 +216,24 @@ class InternationalMatchCollector:
         match_date = fixture.get('date')
         venue_data = fixture.get('venue', {})
         
+        venue_country = league.get('country', 'World')
+        
+        league_info = self.INTERNATIONAL_LEAGUES.get(league_id, {})
+        is_tournament = league_info.get('is_tournament', True)
+        
+        if is_tournament:
+            is_neutral = True
+        else:
+            home_team = teams.get('home', {}).get('name', '')
+            venue_city = venue_data.get('city', '')
+            venue_name = venue_data.get('name', '')
+            
+            home_in_venue = any([
+                home_team.lower() in venue_city.lower() if venue_city else False,
+                home_team.lower() in venue_name.lower() if venue_name else False,
+            ])
+            is_neutral = not home_in_venue
+        
         conn = None
         try:
             conn = psycopg2.connect(self.db_url)
@@ -260,8 +278,8 @@ class InternationalMatchCollector:
                 penalty_score.get('away'),
                 venue_data.get('name'),
                 venue_data.get('city'),
-                fixture.get('venue', {}).get('city'),
-                True
+                venue_country,
+                is_neutral if is_neutral is not None else True
             ))
             
             conn.commit()

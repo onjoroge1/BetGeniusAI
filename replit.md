@@ -38,6 +38,15 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **CLV Monitoring**: Advanced system for detecting pricing inefficiencies.
 - **Multi-Sport Data**: NBA, NHL, MLB data collection for fixtures, odds, and training.
 - **Sharp Book Data**: Collection of Pinnacle and other sharp bookmaker odds for V3 features.
+- **International Match Collector**: World Cup and tournament data collection system for WC 2026 preparation.
+
+### World Cup 2026 Preparation
+- **International Leagues**: FIFA World Cup (ID 1), UEFA Euro (ID 4), AFCON (ID 6), Copa America (ID 9), WC Qualifiers (IDs 29-34).
+- **New Tables**: `international_matches`, `national_team_squads`, `player_international_stats`, `national_team_elo`, `tournament_features`, `penalty_shootout_history`.
+- **Tournament Stage Classification**: Automatic classification of group, r16, qf, sf, final stages.
+- **Historical Backfill**: World Cup (2002-2022), Euro (2004-2024), Copa America, AFCON tournaments.
+- **Penalty Shootout Tracking**: Psychology features for knockout stage predictions.
+- **Migration Script**: `migrations/world_cup_2026_tables.sql` for deployment.
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: For comprehensive match analysis and contextual insights.
@@ -53,6 +62,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Sharp Book Odds Table**: `sharp_book_odds` for tracking sharp bookmaker data.
 - **League Calibration Table**: `league_calibration` for tracking per-league Expected Calibration Error.
 - **Historical Features Table**: Stores pre-computed H2H, form, and advanced stats from historical data.
+- **International Match Tables**: 6 new tables for World Cup 2026 preparation (international_matches, national_team_squads, player_international_stats, national_team_elo, tournament_features, penalty_shootout_history).
 
 ### API Endpoints
 - **Prediction API**: `/predict` (V1 consensus with model transparency - includes V1/V2 models array and final_decision), `/predict-v2` (premium V2 SELECT), `/predict-v3` (premium V3), `/market` (market board).
