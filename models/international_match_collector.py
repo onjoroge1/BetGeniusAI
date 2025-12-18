@@ -55,14 +55,14 @@ class InternationalMatchCollector:
     def __init__(self):
         self.api_key = os.getenv('RAPIDAPI_KEY')
         self.db_url = os.getenv('DATABASE_URL')
-        self.base_url = "https://v3.football.api-sports.io"
+        self.base_url = "https://api-football-v1.p.rapidapi.com/v3"
         
         if not self.api_key:
             raise ValueError("RAPIDAPI_KEY not set")
         
         self.headers = {
             'x-rapidapi-key': self.api_key,
-            'x-rapidapi-host': 'v3.football.api-sports.io'
+            'x-rapidapi-host': 'api-football-v1.p.rapidapi.com'
         }
         
         self.metrics = {
@@ -76,7 +76,7 @@ class InternationalMatchCollector:
         self.rate_limit_remaining = 100
         self.rate_limit_reset = None
     
-    def _make_api_request(self, endpoint: str, params: dict = None) -> Optional[dict]:
+    def _make_api_request(self, endpoint: str, params: Optional[dict] = None) -> Optional[dict]:
         """Make API request with rate limiting."""
         url = f"{self.base_url}/{endpoint}"
         
@@ -492,10 +492,12 @@ class InternationalMatchCollector:
             stats = cur.fetchall()
             
             cur.execute("SELECT COUNT(*) as total FROM international_matches")
-            total = cur.fetchone()['total']
+            row = cur.fetchone()
+            total = row['total'] if row else 0
             
             cur.execute("SELECT COUNT(*) as total FROM penalty_shootout_history")
-            shootouts = cur.fetchone()['total']
+            row = cur.fetchone()
+            shootouts = row['total'] if row else 0
             
             return {
                 'total_matches': total,
