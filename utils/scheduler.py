@@ -78,6 +78,8 @@ class BackgroundScheduler:
         self.last_fixtures_sync_run: Optional[datetime] = None
         # Auto-retrain check (runs once per day at 03:00 UTC)
         self.last_retrain_check_run: Optional[datetime] = None
+        # WC 2026 Prep: International qualifier collection (runs daily at 04:00 UTC)
+        self.last_intl_qualifier_run: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -98,6 +100,7 @@ class BackgroundScheduler:
         logger.info("CLV Club alert producer enabled - runs every 60 seconds")
         logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
         logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
+        logger.info("🌍 WC 2026 Prep: International qualifier collection enabled - runs daily at 04:00 UTC")
         logger.info("📊 Phase 2 Momentum Engine enabled - runs every 60 seconds for live matches")
         logger.info("🎲 Phase 2 Live Market Engine enabled - runs every 60 seconds for in-play predictions")
         logger.info("🗑️  Phase 2 Stale Data Cleanup enabled - runs every 30 minutes to remove old live data")
@@ -410,6 +413,11 @@ class BackgroundScheduler:
                 # 🏥 V3: Injury Collection - runs every 6 hours
                 if "injury_collection" not in self.last_run or (now - self.last_run["injury_collection"]).total_seconds() >= 21600:
                     await self._spawn("injury_collection", self._run_injury_collection, timeout=300)
+                
+                # 🌍 WC 2026 Prep: International Qualifier Collection - runs daily at 04:00 UTC
+                if current_hour == 4:
+                    if "intl_qualifiers" not in self.last_run or (now - self.last_run["intl_qualifiers"]).total_seconds() >= 86400:
+                        await self._spawn("intl_qualifiers", self._run_intl_qualifier_collection, timeout=600)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -1388,6 +1396,32 @@ class BackgroundScheduler:
             logger.warning("⚠️ INJURY: injury_collector module not found - skipping")
         except Exception as e:
             logger.error(f"❌ INJURY: Collection failed - {e}", exc_info=True)
+
+    async def _run_intl_qualifier_collection(self):
+        """
+        🌍 WC 2026 Prep: International Qualifier Collection
+        Collects WC qualifier matches from all confederations.
+        Runs daily at 04:00 UTC.
+        """
+        try:
+            from models.international_match_collector import InternationalMatchCollector
+            logger.info("🌍 INTL: Starting WC qualifier collection...")
+            
+            collector = InternationalMatchCollector()
+            results = collector.collect_current_qualifiers()
+            
+            total_matches = sum(r.get('matches', 0) for r in results.values())
+            total_inserted = sum(r.get('inserted', 0) for r in results.values())
+            
+            if total_inserted > 0:
+                logger.info(f"✅ INTL: {total_matches} matches collected, {total_inserted} new")
+            else:
+                logger.info(f"✅ INTL: {total_matches} matches checked, no new data")
+                
+        except ImportError:
+            logger.warning("⚠️ INTL: international_match_collector module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ INTL: Qualifier collection failed - {e}", exc_info=True)
 
 
 # Global scheduler instance
