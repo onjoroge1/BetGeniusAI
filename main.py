@@ -207,6 +207,9 @@ from routes.parlays import router as parlays_router, router_v2 as parlays_router
 app.include_router(parlays_router, tags=["Parlay Recommendations"])
 app.include_router(parlays_router_v2, tags=["Parlay Recommendations V2"])
 
+from routes.team_comparison import router as team_comparison_router
+app.include_router(team_comparison_router, tags=["Team Comparison - Blog Content"])
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
