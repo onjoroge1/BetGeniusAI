@@ -1,0 +1,226 @@
+Below is a World Cup–specific data and model preparation blueprint tailored to SnapBet’s current V2 architecture, WhatsApp distribution strategy, and long-term valuation goals. This is not generic football analytics—this is what materially improves edge, confidence, and monetization for a World Cup environment.
+
+⸻
+
+Executive Summary (Why WC Is Different)
+
+The World Cup breaks most club-football assumptions:
+	•	Small sample sizes
+	•	Cross-league player combinations
+	•	Asymmetric information (injuries, politics, fatigue, weather, travel)
+	•	Heavy public money → distorted odds
+	•	Slower model correction cycles
+
+Your advantage will come from pre-tournament historical learning + fast in-tournament adaptation.
+
+⸻
+
+1️⃣ Core Historical Match Data (Mandatory)
+
+You should start ingesting international-only data, not club data repurposed.
+
+Scope
+	•	World Cups (2002–2022)
+	•	Continental tournaments:
+	•	AFCON
+	•	EURO
+	•	Copa América
+	•	Asian Cup
+	•	WC Qualifiers (last 3 cycles minimum)
+	•	International friendlies (weighted lower)
+
+Data Points
+	•	Final score
+	•	HT score
+	•	Goal timings
+	•	Cards
+	•	Penalties
+	•	Extra time / shootouts
+	•	Match stage (group, R16, QF, etc.)
+
+Why: Tournament dynamics are structurally different—late goals, risk tolerance, and game theory matter.
+
+⸻
+
+2️⃣ Player-Level International Context (Critical Upgrade)
+
+This is where most competitors fall short.
+
+Player Data (International Context Only)
+	•	Caps
+	•	Goals / assists for country
+	•	Minutes played in last 12 months
+	•	Tournament experience count
+	•	Club minutes (fatigue proxy)
+	•	Travel distance to host country
+	•	Injury history at international level
+
+Derived Signals
+	•	“National Team Chemistry Index”
+	•	% of starting XI who’ve played ≥10 matches together
+	•	Avg caps per starting XI
+	•	Club dispersion index (how many clubs represented)
+
+Why: Club form ≠ international cohesion.
+
+⸻
+
+3️⃣ Squad Stability & Call-Up Volatility
+
+Track who is called up and when.
+
+Features
+	•	Squad announcement date
+	•	Last-minute call-ups
+	•	Withdrawals due to injury/politics
+	•	Manager tenure length
+	•	% of squad new vs previous tournament
+
+Why: Stability is one of the strongest WC predictors.
+
+⸻
+
+4️⃣ Tournament-Specific Tactical Profiles
+
+You should create international tactical fingerprints, separate from club play.
+
+Team-Level Metrics
+	•	Avg possession (tournament-only)
+	•	Pressing intensity proxy (PPDA when available)
+	•	Shots conceded per match
+	•	Set-piece goal dependency
+	•	Defensive block depth
+
+Derived Features
+	•	“Tournament Pragmatism Score”
+	•	“Early-Goal Protection Index”
+	•	“Must-Win Aggression Multiplier”
+
+⸻
+
+5️⃣ Market & Odds Behavior (Massive Edge)
+
+This should already align with your CLV work.
+
+Collect
+	•	Opening odds
+	•	Closing odds
+	•	Line movement velocity
+	•	Volume proxies (when available)
+	•	Favorite vs underdog performance by stage
+
+Special Flags
+	•	Host nation bias
+	•	Big-name bias
+	•	Elimination match bias
+	•	Dead-rubber distortion (already qualified teams)
+
+Why: WC markets are emotional and slow to correct.
+
+⸻
+
+6️⃣ Environmental & Logistics Data (Underrated)
+
+World Cups are travel and climate tournaments.
+
+Track
+	•	Match city
+	•	Temperature
+	•	Humidity
+	•	Altitude
+	•	Rest days since last match
+	•	Travel distance between matches
+	•	Kickoff local time
+
+Derived Signals
+	•	Heat stress index
+	•	Altitude mismatch penalty
+	•	Recovery disadvantage score
+
+⸻
+
+7️⃣ Tournament Psychology Signals (Non-Obvious, High Value)
+
+You won’t find this cleanly in APIs.
+
+Data You Should Encode
+	•	Must-win vs can-draw classification
+	•	Rivalry matches
+	•	Historical WC elimination trauma
+	•	Penalty shootout history
+	•	Media pressure index (proxy via past knockouts)
+
+Why: WC matches are psychological contests.
+
+⸻
+
+8️⃣ Model Strategy: How to Train This Properly
+
+Phase 1 – Pre-Tournament
+	•	Train on:
+	•	Past WCs
+	•	Continental tournaments
+	•	Objective:
+	•	Outcome probabilities
+	•	Low-variance markets (BTTS, Under, Double Chance)
+
+Phase 2 – Early Group Stage
+	•	Rapid Bayesian updates
+	•	Downweight historical priors after Matchday 2
+	•	Introduce:
+	•	Tournament-specific form embeddings
+
+Phase 3 – Knockout Stage
+	•	Separate model head
+	•	Penalize:
+	•	Aggressive priors
+	•	Boost:
+	•	Draw probability
+	•	Extra-time likelihood
+	•	Unders
+
+⸻
+
+9️⃣ Markets to Prioritize for Monetization
+
+World Cups are not about 1X2 only.
+
+High-ROI Markets
+	•	Under 2.5 / Under 3.5
+	•	BTTS (No)
+	•	Double Chance
+	•	Draw No Bet
+	•	Correct score bands (0–0, 1–0, 1–1)
+	•	Qualification markets (to advance)
+
+Perfect for WhatsApp delivery.
+
+⸻
+
+🔟 Data You Should Start Collecting NOW (Action List)
+
+If you do nothing else, do these immediately:
+	1.	International match history (2002–present)
+	2.	Player caps + minutes by country
+	3.	Squad announcements + changes
+	4.	Odds open → close for all tournaments
+	5.	Match stage labels
+	6.	Rest days + travel distances
+	7.	Penalty shootout history
+
+⸻
+
+Strategic Outcome for SnapBet
+
+If done correctly, this enables:
+	•	WC-specific confidence messaging (“WC Model v1”)
+	•	Premium WhatsApp upsells during knockout rounds
+	•	Public proof of CLV superiority during high-liquidity events
+	•	Investor-grade narrative (“We outperform during global events”)
+
+If you want, next we can:
+	•	Design a World Cup–only model schema
+	•	Define WC WhatsApp command flows
+	•	Or build a WC confidence explainer UI for trust conversion
+
+Tell me which direction you want to go.
