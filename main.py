@@ -6347,9 +6347,10 @@ async def get_market_data(
             
             elif status == "upcoming":
                 # Get upcoming matches with odds (future kickoffs) + team logos
+                # Use EXISTS instead of JOIN to avoid row multiplication from odds_snapshots
                 if league_id:
                     query = """
-                        SELECT DISTINCT
+                        SELECT 
                             f.match_id,
                             f.home_team,
                             f.away_team,
@@ -6361,20 +6362,20 @@ async def get_market_data(
                             ht.logo_url as home_logo,
                             at.logo_url as away_logo
                         FROM fixtures f
-                        JOIN odds_snapshots os ON f.match_id = os.match_id
                         LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at > NOW()
                             AND f.status = 'scheduled'
                             AND f.league_id = %s
                             AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                            AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
                     """
                     cursor.execute(query, (league_id, limit))
                 else:
                     query = """
-                        SELECT DISTINCT
+                        SELECT 
                             f.match_id,
                             f.home_team,
                             f.away_team,
@@ -6386,12 +6387,12 @@ async def get_market_data(
                             ht.logo_url as home_logo,
                             at.logo_url as away_logo
                         FROM fixtures f
-                        JOIN odds_snapshots os ON f.match_id = os.match_id
                         LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at > NOW()
                             AND f.status = 'scheduled'
                             AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                            AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
                     """
@@ -6401,7 +6402,7 @@ async def get_market_data(
                 # Get live/in-progress matches with FRESH data (updated in last 10 min)
                 if league_id:
                     query = """
-                        SELECT DISTINCT
+                        SELECT 
                             f.match_id,
                             f.home_team,
                             f.away_team,
@@ -6413,7 +6414,6 @@ async def get_market_data(
                             ht.logo_url as home_logo,
                             at.logo_url as away_logo
                         FROM fixtures f
-                        JOIN odds_snapshots os ON f.match_id = os.match_id
                         LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at <= NOW()
@@ -6421,6 +6421,7 @@ async def get_market_data(
                             AND f.status = 'scheduled'
                             AND f.league_id = %s
                             AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                            AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                             AND EXISTS (
                                 SELECT 1 FROM live_match_stats lms
                                 WHERE lms.match_id = f.match_id
@@ -6432,7 +6433,7 @@ async def get_market_data(
                     cursor.execute(query, (league_id, limit))
                 else:
                     query = """
-                        SELECT DISTINCT
+                        SELECT 
                             f.match_id,
                             f.home_team,
                             f.away_team,
@@ -6444,13 +6445,13 @@ async def get_market_data(
                             ht.logo_url as home_logo,
                             at.logo_url as away_logo
                         FROM fixtures f
-                        JOIN odds_snapshots os ON f.match_id = os.match_id
                         LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                         LEFT JOIN teams at ON f.away_team_id = at.team_id
                         WHERE f.kickoff_at <= NOW()
                             AND f.kickoff_at > NOW() - INTERVAL '4 hours'
                             AND f.status = 'scheduled'
                             AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                            AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                             AND EXISTS (
                                 SELECT 1 FROM live_match_stats lms
                                 WHERE lms.match_id = f.match_id
@@ -6465,7 +6466,7 @@ async def get_market_data(
                 # Get completed matches with results
                 if league_id:
                     query = """
-                        SELECT DISTINCT
+                        SELECT 
                             f.match_id,
                             f.home_team,
                             f.away_team,
@@ -6488,7 +6489,7 @@ async def get_market_data(
                     cursor.execute(query, (league_id, limit))
                 else:
                     query = """
-                        SELECT DISTINCT
+                        SELECT 
                             f.match_id,
                             f.home_team,
                             f.away_team,
@@ -6519,36 +6520,36 @@ async def get_market_data(
                 if remaining_limit > 0:
                     if league_id:
                         cursor.execute("""
-                            SELECT DISTINCT
+                            SELECT 
                                 f.match_id, f.home_team, f.away_team,
                                 f.league_id, f.league_name, f.kickoff_at,
                                 f.home_team_id, f.away_team_id,
                                 ht.logo_url as home_logo, at.logo_url as away_logo
                             FROM fixtures f
-                            JOIN odds_snapshots os ON f.match_id = os.match_id
                             LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                             LEFT JOIN teams at ON f.away_team_id = at.team_id
                             WHERE f.kickoff_at > NOW()
                                 AND f.status = 'scheduled'
                                 AND f.league_id = %s
                                 AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                                AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                             ORDER BY f.kickoff_at ASC
                             LIMIT %s
                         """, (league_id, remaining_limit))
                     else:
                         cursor.execute("""
-                            SELECT DISTINCT
+                            SELECT 
                                 f.match_id, f.home_team, f.away_team,
                                 f.league_id, f.league_name, f.kickoff_at,
                                 f.home_team_id, f.away_team_id,
                                 ht.logo_url as home_logo, at.logo_url as away_logo
                             FROM fixtures f
-                            JOIN odds_snapshots os ON f.match_id = os.match_id
                             LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                             LEFT JOIN teams at ON f.away_team_id = at.team_id
                             WHERE f.kickoff_at > NOW()
                                 AND f.status = 'scheduled'
                                 AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                                AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                             ORDER BY f.kickoff_at ASC
                             LIMIT %s
                         """, (remaining_limit,))
@@ -6560,13 +6561,12 @@ async def get_market_data(
                 if remaining_limit > 0:
                     if league_id:
                         cursor.execute("""
-                            SELECT DISTINCT
+                            SELECT 
                                 f.match_id, f.home_team, f.away_team,
                                 f.league_id, f.league_name, f.kickoff_at,
                                 f.home_team_id, f.away_team_id,
                                 ht.logo_url as home_logo, at.logo_url as away_logo
                             FROM fixtures f
-                            JOIN odds_snapshots os ON f.match_id = os.match_id
                             LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                             LEFT JOIN teams at ON f.away_team_id = at.team_id
                             WHERE f.kickoff_at <= NOW()
@@ -6574,6 +6574,7 @@ async def get_market_data(
                                 AND f.status = 'scheduled'
                                 AND f.league_id = %s
                                 AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                                AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                                 AND EXISTS (
                                     SELECT 1 FROM live_match_stats lms
                                     WHERE lms.match_id = f.match_id
@@ -6584,19 +6585,19 @@ async def get_market_data(
                         """, (league_id, remaining_limit))
                     else:
                         cursor.execute("""
-                            SELECT DISTINCT
+                            SELECT 
                                 f.match_id, f.home_team, f.away_team,
                                 f.league_id, f.league_name, f.kickoff_at,
                                 f.home_team_id, f.away_team_id,
                                 ht.logo_url as home_logo, at.logo_url as away_logo
                             FROM fixtures f
-                            JOIN odds_snapshots os ON f.match_id = os.match_id
                             LEFT JOIN teams ht ON f.home_team_id = ht.team_id
                             LEFT JOIN teams at ON f.away_team_id = at.team_id
                             WHERE f.kickoff_at <= NOW()
                                 AND f.kickoff_at > NOW() - INTERVAL '4 hours'
                                 AND f.status = 'scheduled'
                                 AND f.home_team != 'TBD' AND f.away_team != 'TBD'
+                                AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                                 AND EXISTS (
                                     SELECT 1 FROM live_match_stats lms
                                     WHERE lms.match_id = f.match_id
@@ -6613,7 +6614,7 @@ async def get_market_data(
                 if remaining_limit > 0:
                     if league_id:
                         cursor.execute("""
-                            SELECT DISTINCT
+                            SELECT 
                                 f.match_id, f.home_team, f.away_team,
                                 f.league_id, f.league_name, f.kickoff_at,
                                 f.home_team_id, f.away_team_id,
@@ -6629,7 +6630,7 @@ async def get_market_data(
                         """, (league_id, remaining_limit))
                     else:
                         cursor.execute("""
-                            SELECT DISTINCT
+                            SELECT 
                                 f.match_id, f.home_team, f.away_team,
                                 f.league_id, f.league_name, f.kickoff_at,
                                 f.home_team_id, f.away_team_id,
