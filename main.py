@@ -39,62 +39,6 @@ logger = logging.getLogger(__name__)
 # Configure rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
-# ============ REDIS CACHING FOR /MARKET ENDPOINT ============
-# TTL Configuration:
-#   - status=finished: 1 hour (3600s) - static results
-#   - status=upcoming: 10 min (600s) - odds change slowly
-#   - status=live: 10 min (600s) - batch calls only
-#   - match_id parameter: 0 TTL - always fresh for individual detail pages
-
-# Initialize Redis client (graceful fallback if unavailable)
-market_redis_client = None
-try:
-    market_redis_client = redis.Redis(
-        host=os.getenv("REDIS_HOST", "localhost"),
-        port=int(os.getenv("REDIS_PORT", 6379)),
-        decode_responses=True,
-        socket_connect_timeout=2,
-        socket_keepalive=True
-    )
-    market_redis_client.ping()
-    logging.info("✅ Market Redis client connected")
-except Exception as e:
-    logging.warning(f"⚠️ Market Redis unavailable: {e} - caching disabled")
-    market_redis_client = None
-
-# Cache TTL configuration by status
-MARKET_CACHE_TTL = {
-    "finished": 3600,   # 1 hour for completed matches
-    "upcoming": 600,    # 10 minutes for upcoming matches
-    "live": 600,        # 10 minutes for live batch calls
-    "all": 300          # 5 minutes for composite view
-}
-
-def get_market_cache(cache_key: str):
-    """Get cached market data (returns None if cache miss or unavailable)"""
-    if not market_redis_client:
-        return None
-    try:
-        cached = market_redis_client.get(cache_key)
-        if cached:
-            logging.info(f"✅ Market cache HIT: {cache_key}")
-            return json.loads(cached)
-    except Exception as e:
-        logging.warning(f"Market cache get error: {e}")
-    return None
-
-def set_market_cache(cache_key: str, data: dict, ttl: int):
-    """Set market data in cache with specified TTL"""
-    if not market_redis_client:
-        return False
-    try:
-        market_redis_client.setex(cache_key, ttl, json.dumps(data, default=str))
-        logging.info(f"✅ Market cache SET: {cache_key} (TTL={ttl}s)")
-        return True
-    except Exception as e:
-        logging.warning(f"Market cache set error: {e}")
-    return False
-
 # ============ PERFORMANCE OPTIMIZATION: POISSON PMF CACHING ============
 # Cache for Poisson grids to eliminate repeated calculations
 # Significant latency reduction for lambda fitting and market generation
@@ -6349,17 +6293,6 @@ async def get_market_data(
     try:
         logger.info(f"📊 MARKET REQUEST | status={status}, league={league_id}, match={match_id}, limit={limit}, v2={include_v2}")
         
-        # CACHING LOGIC: Skip cache for individual match lookups (match_id parameter = 0 TTL)
-        # Cache batch status calls with status-specific TTLs
-        cache_enabled = not match_id  # No caching for individual match detail pages
-        cache_key = None
-        
-        if cache_enabled and status in MARKET_CACHE_TTL:
-            cache_key = f"market:{status}:league={league_id}:limit={limit}:v2={include_v2}"
-            cached_result = get_market_cache(cache_key)
-            if cached_result:
-                return cached_result
-        
         matches = []
         
         with psycopg2.connect(os.environ.get('DATABASE_URL')) as conn:
@@ -7241,11 +7174,6 @@ async def get_market_data(
             "total_count": len(matches),
             "timestamp": datetime.utcnow().isoformat()
         }
-        
-        # CACHE SET: Store in cache for batch status calls (NOT individual match lookups)
-        if cache_enabled and cache_key and status in MARKET_CACHE_TTL:
-            ttl = MARKET_CACHE_TTL[status]
-            set_market_cache(cache_key, response_data, ttl)
         
         return response_data
         
