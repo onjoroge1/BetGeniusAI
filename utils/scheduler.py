@@ -76,6 +76,8 @@ class BackgroundScheduler:
         self.last_context_builder_run: Optional[datetime] = None
         # Fixtures to matches sync (runs every 15 minutes to sync finished fixtures)
         self.last_fixtures_sync_run: Optional[datetime] = None
+        # Team linkage (runs every 15 minutes to link fixtures to teams for logos)
+        self.last_team_linkage_run: Optional[datetime] = None
         # Auto-retrain check (runs once per day at 03:00 UTC)
         self.last_retrain_check_run: Optional[datetime] = None
         # WC 2026 Prep: International qualifier collection (runs daily at 04:00 UTC)
@@ -107,6 +109,7 @@ class BackgroundScheduler:
         logger.info("🔨 Match Context Builder (V2) enabled - runs every 5 minutes to populate match_context_v2")
         logger.info("🔥 PHASE 1: Trending Scores enabled - runs every 5 minutes to pre-compute hot/trending scores")
         logger.info("🔄 Fixtures→Matches Sync enabled - runs every 15 minutes to sync finished fixtures")
+        logger.info("🔗 Team Linkage enabled - runs every 15 minutes to link fixtures for logos")
         logger.info("🤖 Auto-Retrain enabled - runs daily at 03:00 UTC (triggers: 50+ new matches, 14-day staleness, accuracy drift)")
         logger.info("🎯 V3 Sharp Book Collection enabled - runs every 5 minutes to track Pinnacle odds")
         logger.info("📊 V3 League ECE Calculator enabled - runs weekly Sunday 02:00 UTC")
@@ -382,6 +385,10 @@ class BackgroundScheduler:
                 # 🔄 Fixtures→Matches Sync - runs every 15 minutes to sync finished fixtures
                 if "fixtures_sync" not in self.last_run or (now - self.last_run["fixtures_sync"]).total_seconds() >= 900:
                     await self._spawn("fixtures_sync", self._run_fixtures_to_matches_sync, timeout=120)
+                
+                # 🔗 Team Linkage - runs every 15 minutes to link fixtures to teams for logos
+                if "team_linkage" not in self.last_run or (now - self.last_run["team_linkage"]).total_seconds() >= 900:
+                    await self._spawn("team_linkage", self._run_team_linkage, timeout=60)
                 
                 # 🤖 Auto-Retrain Check - runs once per day at 03:00 UTC
                 current_hour = now.hour
@@ -1243,6 +1250,50 @@ class BackgroundScheduler:
             logger.warning("⚠️ SYNC: sync_fixtures_to_matches module not found - skipping")
         except Exception as e:
             logger.error(f"❌ SYNC: Fixtures→matches sync failed - {e}", exc_info=True)
+
+    async def _run_team_linkage(self):
+        """
+        🔗 Team Linkage Job
+        Links fixtures to teams table by matching team names.
+        Populates home_team_id and away_team_id for logo URLs.
+        Runs every 15 minutes.
+        """
+        try:
+            from models.team_linkage import TeamLinkageService
+            
+            service = TeamLinkageService()
+            conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT match_id, home_team, away_team, league_id
+                FROM fixtures
+                WHERE kickoff_at > NOW() - INTERVAL '2 hours'
+                  AND home_team != 'TBD' AND away_team != 'TBD'
+                  AND (home_team_id IS NULL OR away_team_id IS NULL)
+                ORDER BY kickoff_at ASC
+                LIMIT 100
+            """)
+            fixtures = cursor.fetchall()
+            
+            if not fixtures:
+                logger.debug("🔗 LINKAGE: No fixtures to link")
+                conn.close()
+                return
+            
+            logger.info(f"🔗 LINKAGE: Starting team linkage for {len(fixtures)} fixtures...")
+            linked = 0
+            for match_id, home, away, league_id in fixtures:
+                result = service.link_fixture(match_id, home, away, league_id)
+                if result and result.get('success'):
+                    linked += 1
+            
+            conn.close()
+            logger.info(f"✅ LINKAGE: Linked {linked}/{len(fixtures)} fixtures to teams")
+        except ImportError:
+            logger.warning("⚠️ LINKAGE: team_linkage module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ LINKAGE: Team linkage failed - {e}", exc_info=True)
 
     async def _run_auto_retrain_check(self):
         """
