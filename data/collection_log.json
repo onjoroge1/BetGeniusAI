@@ -2532,5 +2532,179 @@
     "new_matches_collected": 7,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2025-12-25T14:21:26.207375",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 6,
+        "league_name": "League 6",
+        "matches_found": 11,
+        "matches_processed": 11,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 39,
+        "league_name": "Premier League",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 94,
+        "league_name": "League 94",
+        "matches_found": 3,
+        "matches_processed": 3,
+        "matches_saved": 1,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 1,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 140,
+        "league_name": "La Liga",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 188,
+        "league_name": "League 188",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 1,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 1,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 197,
+        "league_name": "League 197",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 203,
+        "league_name": "League 203",
+        "matches_found": 2,
+        "matches_processed": 2,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      }
+    ],
+    "new_matches_collected": 2,
+    "total_matches_in_db": 0,
+    "errors": []
+  },
+  {
+    "timestamp": "2025-12-26T14:59:53.261267",
+    "days_back": 3,
+    "leagues_processed": [
+      {
+        "league_id": 6,
+        "league_name": "League 6",
+        "matches_found": 9,
+        "matches_processed": 9,
+        "matches_saved": 1,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 1,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 40,
+        "league_name": "League 40",
+        "matches_found": 2,
+        "matches_processed": 2,
+        "matches_saved": 2,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 2,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 94,
+        "league_name": "League 94",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 144,
+        "league_name": "League 144",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 1,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 1,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 188,
+        "league_name": "League 188",
+        "matches_found": 2,
+        "matches_processed": 2,
+        "matches_saved": 1,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 1,
+        "consensus_saved": 0
+      }
+    ],
+    "new_matches_collected": 5,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]
