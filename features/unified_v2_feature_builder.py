@@ -898,39 +898,60 @@ class UnifiedV2FeatureBuilder:
         return features
     
     def _build_sharp_features(self, cursor, match_id: int, cutoff_time: datetime) -> Dict[str, float]:
-        """Build sharp book intelligence features (4 features)"""
+        """Build sharp book intelligence features (4 features)
+        
+        Uses Pinnacle and Betfair data from odds_snapshots table (book_id IN ('pinnacle', 'betfair_ex_eu'))
+        """
         
         features = {name: 0.0 for name in self.SHARP_FEATURES}
         
         cursor.execute("""
             SELECT 
-                AVG(prob_home) as sharp_prob_home,
-                AVG(prob_draw) as sharp_prob_draw,
-                AVG(prob_away) as sharp_prob_away
-            FROM sharp_book_odds
+                outcome,
+                AVG(implied_prob) as avg_prob
+            FROM odds_snapshots
             WHERE match_id = %s 
-              AND ts_recorded <= %s
-              AND hours_before_kickoff > 0
+              AND ts_snapshot <= %s
+              AND book_id IN ('pinnacle', 'betfair_ex_eu')
+            GROUP BY outcome
         """, (match_id, cutoff_time))
         
-        row = cursor.fetchone()
+        rows = cursor.fetchall()
         
-        if row and row[0] is not None:
-            features['sharp_prob_home'] = float(row[0])
-            features['sharp_prob_draw'] = float(row[1]) if row[1] else 0.0
-            features['sharp_prob_away'] = float(row[2]) if row[2] else 0.0
+        if rows:
+            sharp_probs = {'H': 0.0, 'D': 0.0, 'A': 0.0}
+            for row in rows:
+                if row[0] in sharp_probs:
+                    sharp_probs[row[0]] = float(row[1]) if row[1] else 0.0
             
-            cursor.execute("""
-                SELECT ph_cons FROM odds_consensus
-                WHERE match_id = %s AND ts_effective <= %s
-                ORDER BY ts_effective DESC LIMIT 1
-            """, (match_id, cutoff_time))
-            
-            soft_row = cursor.fetchone()
-            if soft_row and soft_row[0]:
-                soft_prob = float(soft_row[0])
-                sharp_prob = features['sharp_prob_home']
-                features['soft_vs_sharp_divergence'] = soft_prob - sharp_prob
+            prob_sum = sum(sharp_probs.values())
+            if prob_sum > 0.9:
+                features['sharp_prob_home'] = sharp_probs['H'] / prob_sum
+                features['sharp_prob_draw'] = sharp_probs['D'] / prob_sum
+                features['sharp_prob_away'] = sharp_probs['A'] / prob_sum
+                
+                cursor.execute("""
+                    SELECT 
+                        outcome,
+                        AVG(implied_prob) as avg_prob
+                    FROM odds_snapshots
+                    WHERE match_id = %s 
+                      AND ts_snapshot <= %s
+                      AND book_id NOT IN ('pinnacle', 'betfair_ex_eu')
+                    GROUP BY outcome
+                """, (match_id, cutoff_time))
+                
+                soft_rows = cursor.fetchall()
+                if soft_rows:
+                    soft_probs = {'H': 0.0, 'D': 0.0, 'A': 0.0}
+                    for sr in soft_rows:
+                        if sr[0] in soft_probs:
+                            soft_probs[sr[0]] = float(sr[1]) if sr[1] else 0.0
+                    
+                    soft_sum = sum(soft_probs.values())
+                    if soft_sum > 0.9:
+                        soft_home = soft_probs['H'] / soft_sum
+                        features['soft_vs_sharp_divergence'] = soft_home - features['sharp_prob_home']
         
         return features
     
