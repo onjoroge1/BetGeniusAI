@@ -42,11 +42,23 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### World Cup 2026 Preparation
 - **International Leagues**: FIFA World Cup (ID 1), UEFA Euro (ID 4), AFCON (ID 6), Copa America (ID 9), WC Qualifiers (IDs 29-34).
+- **Collected Data**: 3,376 international matches across all tournaments with 226 penalty shootouts tracked.
+- **National Team Logos**: 150+ countries mapped with correct API-Football national team IDs covering CAF, UEFA, CONMEBOL, CONCACAF, AFC, and OFC confederations.
+- **Tournament Coverage**:
+  - WC Qualifiers UEFA: 728 matches
+  - WC Qualifiers CAF: 540 matches  
+  - UEFA Euro: 477 matches (2008-2024)
+  - WC Qualifiers AFC: 456 matches
+  - Africa Cup of Nations: 366 matches (2015-2024)
+  - FIFA World Cup: 256 matches (2010-2022)
+  - WC Qualifiers CONCACAF: 230 matches
+  - WC Qualifiers CONMEBOL: 179 matches
+  - Copa America: 144 matches (2015-2024)
 - **New Tables**: `international_matches`, `national_team_squads`, `player_international_stats`, `national_team_elo`, `tournament_features`, `penalty_shootout_history`.
 - **Tournament Stage Classification**: Automatic classification of group, r16, qf, sf, final stages.
-- **Historical Backfill**: World Cup (2002-2022), Euro (2004-2024), Copa America, AFCON tournaments.
 - **Penalty Shootout Tracking**: Psychology features for knockout stage predictions.
-- **Migration Script**: `migrations/world_cup_2026_tables.sql` for deployment.
+- **Automated Collection**: Daily scheduler at 04:00 UTC collects new WC qualifier matches.
+- **Logo Fix Script**: `scripts/fix_international_team_logos.py` updates national team logos.
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: For comprehensive match analysis and contextual insights.
