@@ -59,7 +59,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Tournament Stage Classification**: Automatic classification of group, r16, qf, sf, final stages.
 - **Penalty Shootout Tracking**: Psychology features for knockout stage predictions.
 - **Automated Collection**: Daily scheduler at 04:00 UTC collects new WC qualifier matches.
-- **Logo Fix Script**: `scripts/fix_international_team_logos.py` updates national team logos.
+- **Logo Fix Script**: `scripts/fix_international_team_logos.py` with 180 API-verified country-to-team-ID mappings (Dec 2025). Fixed major mapping errors where countries like Tunisia showed wrong flags (was showing Kenya's flag due to ID confusion).
 
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: For comprehensive match analysis and contextual insights.
