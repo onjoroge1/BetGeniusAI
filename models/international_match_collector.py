@@ -43,6 +43,7 @@ class InternationalMatchCollector:
         30: {'name': 'WC Qualifiers - AFC', 'priority': 2, 'is_tournament': False},
         31: {'name': 'WC Qualifiers - CONCACAF', 'priority': 2, 'is_tournament': False},
         32: {'name': 'WC Qualifiers - UEFA', 'priority': 1, 'is_tournament': False},
+        33: {'name': 'WC Qualifiers - OFC', 'priority': 3, 'is_tournament': False},
         34: {'name': 'WC Qualifiers - CONMEBOL', 'priority': 1, 'is_tournament': False},
         10: {'name': 'International Friendlies', 'priority': 4, 'is_tournament': False},
     }
@@ -469,19 +470,31 @@ class InternationalMatchCollector:
         
         return summary
     
+    # API-Football uses different season years for WC 2026 qualifiers by confederation
+    WC_2026_QUALIFIER_SEASONS = {
+        29: 2023,  # CAF - uses 2023 season
+        30: 2026,  # AFC - uses 2026 season
+        31: 2026,  # CONCACAF - uses 2026 season
+        32: 2024,  # UEFA - uses 2024 season
+        33: 2026,  # OFC (Oceania) - uses 2026 season
+        34: 2026,  # CONMEBOL - uses 2026 season
+    }
+    
     def collect_current_qualifiers(self) -> Dict:
         """
         Collect recent WC qualifier matches (for scheduled collection).
+        Uses correct API season mapping for each confederation.
         """
         logger.info("📥 Collecting current WC qualifier matches...")
         
-        current_year = datetime.now().year
-        qualifier_leagues = [29, 30, 31, 32, 34]
+        qualifier_leagues = [29, 30, 31, 32, 33, 34]
         
         results = {}
         for league_id in qualifier_leagues:
-            league_name = self.INTERNATIONAL_LEAGUES[league_id]['name']
-            result = self.collect_league_season(league_id, current_year)
+            league_name = self.INTERNATIONAL_LEAGUES.get(league_id, {}).get('name', f'League {league_id}')
+            # Use correct API season for each confederation
+            season = self.WC_2026_QUALIFIER_SEASONS.get(league_id, 2026)
+            result = self.collect_league_season(league_id, season)
             results[league_name] = result
             time.sleep(0.5)
         
