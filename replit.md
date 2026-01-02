@@ -64,6 +64,12 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 ### AI Analysis Layer
 - **OpenAI GPT-4o Integration**: For comprehensive match analysis and contextual insights.
 
+### Multi-Sport Player Statistics
+- **Unified Tables**: `players_unified`, `player_season_stats`, `player_game_stats` for all sports.
+- **Stat Definitions**: 48 metrics across Soccer (14), NBA (18), NHL (16) with JSONB storage.
+- **Extensible Design**: Add new sports via `sports` and `stat_definitions` tables without schema changes.
+- **Collector Module**: `models/multisport_player_collector.py` handles Soccer, NBA, NHL player data.
+
 ### Database Layer
 - **PostgreSQL**: Primary database with optimized production indexes.
 - **Schema Bridge Views**: For streamlined analysis.
@@ -83,6 +89,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **WebSocket Streaming**: `/ws/live/{match_id}` for real-time updates.
 - **Trending API**: `/api/v1/trending/hot`, `/api/v1/trending/trending`, `/api/v1/trending/status`.
 - **Parlay API**: `/api/v1/parlays`, `/api/v1/parlays/recommended`, `/api/v1/parlays/build`, `/api/v1/parlays/status`, `/api/v1/parlays/performance`.
+- **Player Stats API**: `/api/v1/players/top-scorers/{sport}`, `/api/v1/players/search/{sport}`, `/api/v1/players/stats/{sport}/{season}`, `/api/v1/players/summary`.
 
 ### UI/UX Decisions
 - Focuses on delivering a superior user experience through confidence-calibrated predictions and uncertainty quantification.
