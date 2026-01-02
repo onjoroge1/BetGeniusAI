@@ -103,6 +103,7 @@ class BackgroundScheduler:
         logger.info("CLV Club Phase 2: Closing sampler + settler enabled - runs every 60 seconds")
         logger.info("CLV Daily Brief enabled - runs once per day at 00:05 UTC")
         logger.info("🌍 WC 2026 Prep: International qualifier collection enabled - runs daily at 04:00 UTC")
+        logger.info("⚽🏀 Player Stats Collection enabled - runs daily at 05:00 UTC for major leagues")
         logger.info("📊 Phase 2 Momentum Engine enabled - runs every 60 seconds for live matches")
         logger.info("🎲 Phase 2 Live Market Engine enabled - runs every 60 seconds for in-play predictions")
         logger.info("🗑️  Phase 2 Stale Data Cleanup enabled - runs every 30 minutes to remove old live data")
@@ -425,6 +426,11 @@ class BackgroundScheduler:
                 if current_hour == 4:
                     if "intl_qualifiers" not in self.last_run or (now - self.last_run["intl_qualifiers"]).total_seconds() >= 86400:
                         await self._spawn("intl_qualifiers", self._run_intl_qualifier_collection, timeout=600)
+                
+                # ⚽🏀 Player Stats Collection - runs daily at 05:00 UTC
+                if current_hour == 5:
+                    if "player_stats" not in self.last_run or (now - self.last_run["player_stats"]).total_seconds() >= 86400:
+                        await self._spawn("player_stats", self._run_player_stats_collection, timeout=900)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -1473,6 +1479,44 @@ class BackgroundScheduler:
             logger.warning("⚠️ INTL: international_match_collector module not found - skipping")
         except Exception as e:
             logger.error(f"❌ INTL: Qualifier collection failed - {e}", exc_info=True)
+
+    async def _run_player_stats_collection(self):
+        """
+        ⚽🏀 Multi-Sport Player Stats Collection
+        Collects player statistics from major leagues.
+        Runs daily at 05:00 UTC.
+        """
+        try:
+            from models.multisport_player_collector import MultiSportPlayerCollector
+            logger.info("⚽ PLAYER STATS: Starting daily collection...")
+            
+            collector = MultiSportPlayerCollector()
+            
+            major_leagues = [
+                (39, 2024),   # Premier League
+                (140, 2024),  # La Liga
+                (135, 2024),  # Serie A
+                (78, 2024),   # Bundesliga
+                (61, 2024),   # Ligue 1
+            ]
+            
+            total_players = 0
+            for league_id, season in major_leagues:
+                try:
+                    result = collector.collect_soccer_player_stats(league_id, season)
+                    players = result.get('players_processed', 0)
+                    total_players += players
+                    if players > 0:
+                        logger.info(f"✅ PLAYER STATS: League {league_id} - {players} players")
+                except Exception as e:
+                    logger.warning(f"⚠️ PLAYER STATS: League {league_id} failed - {e}")
+            
+            logger.info(f"✅ PLAYER STATS: Collection complete - {total_players} total players")
+            
+        except ImportError:
+            logger.warning("⚠️ PLAYER STATS: multisport_player_collector module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ PLAYER STATS: Collection failed - {e}", exc_info=True)
 
 
 # Global scheduler instance
