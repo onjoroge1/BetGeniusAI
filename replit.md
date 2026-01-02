@@ -70,6 +70,15 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Extensible Design**: Add new sports via `sports` and `stat_definitions` tables without schema changes.
 - **Collector Module**: `models/multisport_player_collector.py` handles Soccer, NBA, NHL player data.
 - **Automated Collection**: Daily scheduler at 05:00 UTC collects player stats from ALL leagues in league_map (51 soccer leagues) plus NBA and NHL.
+- **Game-by-Game Stats**: Per-match player stats via `/fixtures/players` endpoint with 20 metrics per game (goals, assists, shots, passes, tackles, etc.).
+
+### Player Performance Prediction (V2-Player)
+- **Feature Builder**: `features/player_v2_feature_builder.py` with ~45 features across 6 categories.
+- **Feature Categories**: Form (10), Season (8), Opponent (8), Match (8), Profile (6), Market (5).
+- **Training Script**: `training/train_player_v2.py` trains goal involvement (binary) and goals (regression) models.
+- **Model Architecture**: LightGBM with TimeSeriesSplit CV, leak-safe implementation.
+- **Target Metrics**: Goal involvement AUC 0.65-0.70, Goals RMSE < 0.8.
+- **API Endpoints**: `/api/v1/predict-player/` (POST), `/api/v1/predict-player/top-picks` (GET), `/api/v1/predict-player/model-status` (GET).
 
 ### Database Layer
 - **PostgreSQL**: Primary database with optimized production indexes.

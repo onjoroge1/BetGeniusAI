@@ -157,6 +157,9 @@ app.include_router(team_comparison_router, tags=["Team Comparison - Blog Content
 from routes.player_stats import router as player_stats_router
 app.include_router(player_stats_router, tags=["Multi-Sport Player Statistics"])
 
+from routes.predict_player import router as predict_player_router
+app.include_router(predict_player_router, tags=["Player Performance Predictions"])
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,

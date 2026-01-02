@@ -255,3 +255,110 @@ async def trigger_collection(
     except Exception as e:
         logger.error(f"Error triggering collection: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/collect-game-stats")
+async def collect_game_stats(
+    fixture_id: Optional[int] = Query(default=None, description="Specific fixture ID"),
+    batch: bool = Query(default=False, description="Batch collect recent fixtures"),
+    limit: int = Query(default=50, ge=1, le=200, description="Batch limit"),
+    days_back: int = Query(default=30, ge=1, le=365, description="Days to look back for batch")
+) -> dict:
+    """
+    Collect player game-by-game statistics for soccer matches.
+    
+    Either provide a specific fixture_id or set batch=True for bulk collection.
+    This data is essential for player form features in prediction models.
+    """
+    from models.multisport_player_collector import MultiSportPlayerCollector
+    
+    try:
+        collector = MultiSportPlayerCollector()
+        
+        if fixture_id:
+            result = collector.collect_soccer_game_stats(fixture_id)
+            return {
+                'status': 'success',
+                'mode': 'single',
+                'fixture_id': fixture_id,
+                'players_collected': result.get('players', 0)
+            }
+        elif batch:
+            result = collector.collect_soccer_game_stats_batch(limit=limit, days_back=days_back)
+            return {
+                'status': 'success',
+                'mode': 'batch',
+                'fixtures_processed': result.get('fixtures_processed', 0),
+                'players_collected': result.get('players_collected', 0)
+            }
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Provide fixture_id for single collection or set batch=True"
+            )
+        
+    except Exception as e:
+        logger.error(f"Error collecting game stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/game-history/{player_id}")
+async def get_player_game_history(
+    player_id: int,
+    sport: str = Query(default="soccer", description="Sport key"),
+    limit: int = Query(default=20, ge=1, le=100, description="Number of games")
+) -> dict:
+    """
+    Get a player's game-by-game statistics history.
+    
+    Returns recent games with detailed stats for form analysis.
+    """
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    import os
+    
+    try:
+        conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT 
+                pgs.game_id,
+                pgs.game_date,
+                pgs.team_name,
+                pgs.opponent_name,
+                pgs.is_home,
+                pgs.is_starter,
+                pgs.minutes_played,
+                pgs.rating,
+                pgs.stats
+            FROM player_game_stats pgs
+            WHERE pgs.player_id = %s AND pgs.sport_key = %s
+            ORDER BY pgs.game_date DESC
+            LIMIT %s
+        """, (player_id, sport, limit))
+        
+        games = cur.fetchall()
+        
+        cur.execute("""
+            SELECT player_name, position, team_name
+            FROM players_unified
+            WHERE player_id = %s
+        """, (player_id,))
+        
+        player = cur.fetchone()
+        
+        conn.close()
+        
+        return {
+            'player_id': player_id,
+            'player_name': player['player_name'] if player else None,
+            'position': player['position'] if player else None,
+            'current_team': player['team_name'] if player else None,
+            'games': [dict(g) for g in games],
+            'count': len(games)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching player game history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

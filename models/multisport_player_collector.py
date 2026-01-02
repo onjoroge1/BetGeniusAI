@@ -616,6 +616,204 @@ class MultiSportPlayerCollector:
         except:
             return 0
     
+    def collect_soccer_game_stats(self, fixture_id: int) -> Dict:
+        """
+        Collect player game-by-game statistics for a specific fixture.
+        Uses /fixtures/players endpoint from API-Football.
+        
+        Returns detailed per-game stats: goals, assists, shots, minutes, etc.
+        Essential for player form features in prediction models.
+        """
+        logger.info(f"Collecting player game stats for fixture {fixture_id}")
+        
+        data = self._make_request('soccer', '/fixtures/players', {'fixture': fixture_id})
+        
+        if not data or not data.get('response'):
+            return {'fixture_id': fixture_id, 'players': 0, 'error': 'No data'}
+        
+        players_collected = 0
+        conn = psycopg2.connect(self.db_url)
+        cur = conn.cursor()
+        
+        try:
+            cur.execute("""
+                SELECT league_id, home_team_id, away_team_id, 
+                       home_team, away_team, kickoff_at::date as game_date
+                FROM fixtures WHERE match_id = %s
+            """, (fixture_id,))
+            fixture_info = cur.fetchone()
+            
+            if not fixture_info:
+                logger.warning(f"Fixture {fixture_id} not found in fixtures table")
+                return {'fixture_id': fixture_id, 'players': 0, 'error': 'Fixture not found'}
+            
+            league_id, home_team_id, away_team_id, home_team_name, away_team_name, game_date = fixture_info
+            
+            for team_data in data['response']:
+                team = team_data.get('team', {})
+                team_id = team.get('id')
+                team_name = team.get('name')
+                
+                is_home = (team_id == home_team_id)
+                if is_home:
+                    opponent_team_id = away_team_id
+                    opponent_name = away_team_name
+                else:
+                    opponent_team_id = home_team_id
+                    opponent_name = home_team_name
+                
+                players = team_data.get('players', [])
+                for player_entry in players:
+                    player = player_entry.get('player', {})
+                    statistics = player_entry.get('statistics', [{}])[0]
+                    
+                    if not player.get('id'):
+                        continue
+                    
+                    games = statistics.get('games', {})
+                    goals_data = statistics.get('goals', {})
+                    shots_data = statistics.get('shots', {})
+                    passes_data = statistics.get('passes', {})
+                    tackles_data = statistics.get('tackles', {})
+                    duels_data = statistics.get('duels', {})
+                    fouls_data = statistics.get('fouls', {})
+                    cards_data = statistics.get('cards', {})
+                    dribbles_data = statistics.get('dribbles', {})
+                    
+                    minutes = self._parse_minutes(games.get('minutes'))
+                    
+                    stats_json = {
+                        'goals': goals_data.get('total') or 0,
+                        'assists': goals_data.get('assists') or 0,
+                        'shots': shots_data.get('total') or 0,
+                        'shots_on_target': shots_data.get('on') or 0,
+                        'passes': passes_data.get('total') or 0,
+                        'passes_accuracy': passes_data.get('accuracy') or 0,
+                        'key_passes': passes_data.get('key') or 0,
+                        'tackles': tackles_data.get('total') or 0,
+                        'interceptions': tackles_data.get('interceptions') or 0,
+                        'blocks': tackles_data.get('blocks') or 0,
+                        'duels_total': duels_data.get('total') or 0,
+                        'duels_won': duels_data.get('won') or 0,
+                        'fouls_drawn': fouls_data.get('drawn') or 0,
+                        'fouls_committed': fouls_data.get('committed') or 0,
+                        'yellow_cards': cards_data.get('yellow') or 0,
+                        'red_cards': cards_data.get('red') or 0,
+                        'dribbles_attempts': dribbles_data.get('attempts') or 0,
+                        'dribbles_success': dribbles_data.get('success') or 0,
+                        'saves': goals_data.get('saves') or 0,
+                        'conceded': goals_data.get('conceded') or 0
+                    }
+                    
+                    rating = None
+                    if games.get('rating'):
+                        try:
+                            rating = float(games.get('rating'))
+                        except:
+                            pass
+                    
+                    cur.execute("""
+                        INSERT INTO players_unified 
+                            (sport_key, external_id, player_name, position, photo_url)
+                        VALUES ('soccer', %s, %s, %s, %s)
+                        ON CONFLICT (sport_key, external_id) 
+                        DO UPDATE SET 
+                            player_name = EXCLUDED.player_name,
+                            position = COALESCE(EXCLUDED.position, players_unified.position),
+                            updated_at = NOW()
+                        RETURNING player_id
+                    """, (
+                        player.get('id'),
+                        player.get('name'),
+                        games.get('position'),
+                        player.get('photo')
+                    ))
+                    
+                    result = cur.fetchone()
+                    player_id = result[0] if result else None
+                    
+                    if player_id:
+                        cur.execute("""
+                            INSERT INTO player_game_stats
+                                (player_id, sport_key, game_id, league_id, team_id, team_name,
+                                 opponent_team_id, opponent_name, game_date, is_home, is_starter, 
+                                 minutes_played, stats, rating, source)
+                            VALUES (%s, 'soccer', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'api-football')
+                            ON CONFLICT (player_id, sport_key, game_id) 
+                            DO UPDATE SET
+                                opponent_team_id = EXCLUDED.opponent_team_id,
+                                opponent_name = EXCLUDED.opponent_name,
+                                is_home = EXCLUDED.is_home,
+                                minutes_played = EXCLUDED.minutes_played,
+                                stats = EXCLUDED.stats,
+                                rating = EXCLUDED.rating,
+                                collected_at = NOW()
+                        """, (
+                            player_id, fixture_id, league_id, team_id, team_name,
+                            opponent_team_id, opponent_name, game_date, is_home,
+                            games.get('captain') or (games.get('substitute') == False),
+                            minutes, Json(stats_json), rating
+                        ))
+                        players_collected += 1
+            
+            conn.commit()
+            logger.info(f"Collected {players_collected} player game stats for fixture {fixture_id}")
+            
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error collecting game stats for fixture {fixture_id}: {e}")
+            return {'fixture_id': fixture_id, 'players': 0, 'error': str(e)}
+        finally:
+            conn.close()
+        
+        self.metrics['stats_collected'] += players_collected
+        return {'fixture_id': fixture_id, 'players': players_collected}
+    
+    def collect_soccer_game_stats_batch(self, limit: int = 100, days_back: int = 30) -> Dict:
+        """
+        Batch collect player game stats for recent finished fixtures.
+        Skips fixtures that already have player game stats collected.
+        """
+        logger.info(f"Batch collecting player game stats (limit={limit}, days_back={days_back})")
+        
+        conn = psycopg2.connect(self.db_url)
+        cur = conn.cursor()
+        
+        try:
+            cur.execute("""
+                SELECT f.match_id
+                FROM fixtures f
+                WHERE f.status = 'finished'
+                  AND f.kickoff_at >= NOW() - INTERVAL '%s days'
+                  AND f.match_id IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM player_game_stats pgs 
+                      WHERE pgs.game_id = f.match_id AND pgs.sport_key = 'soccer'
+                  )
+                ORDER BY f.kickoff_at DESC
+                LIMIT %s
+            """, (days_back, limit))
+            
+            fixtures = [row[0] for row in cur.fetchall()]
+            
+        finally:
+            conn.close()
+        
+        total_players = 0
+        fixtures_processed = 0
+        
+        for fixture_id in fixtures:
+            result = self.collect_soccer_game_stats(fixture_id)
+            total_players += result.get('players', 0)
+            fixtures_processed += 1
+            time.sleep(0.3)
+        
+        logger.info(f"Batch complete: {fixtures_processed} fixtures, {total_players} player stats")
+        return {
+            'fixtures_processed': fixtures_processed,
+            'players_collected': total_players
+        }
+
     def get_collection_summary(self) -> Dict:
         """Get summary of collected player data."""
         conn = psycopg2.connect(self.db_url)
