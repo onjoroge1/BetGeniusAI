@@ -69,7 +69,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Stat Definitions**: 48 metrics across Soccer (14), NBA (18), NHL (16) with JSONB storage.
 - **Extensible Design**: Add new sports via `sports` and `stat_definitions` tables without schema changes.
 - **Collector Module**: `models/multisport_player_collector.py` handles Soccer, NBA, NHL player data.
-- **Automated Collection**: Daily scheduler at 05:00 UTC collects player stats from Top 5 European leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1).
+- **Automated Collection**: Daily scheduler at 05:00 UTC collects player stats from ALL leagues in league_map (51 soccer leagues) plus NBA and NHL.
 
 ### Database Layer
 - **PostgreSQL**: Primary database with optimized production indexes.

@@ -338,6 +338,7 @@ class MultiSportPlayerCollector:
             
             if player_id:
                 minutes = self._parse_minutes(player_stat.get('min'))
+                game_id = game.get('id')
                 
                 cur.execute("""
                     INSERT INTO player_season_stats
@@ -346,14 +347,45 @@ class MultiSportPlayerCollector:
                     VALUES (%s, 'nba', %s, %s, %s, %s, 1, %s, %s, 'api-basketball')
                     ON CONFLICT (player_id, sport_key, league_id, season)
                     DO UPDATE SET
-                        games_played = player_season_stats.games_played + 1,
-                        minutes_played = player_season_stats.minutes_played + EXCLUDED.minutes_played,
-                        stats = player_season_stats.stats || EXCLUDED.stats,
+                        games_played = EXCLUDED.games_played,
+                        minutes_played = EXCLUDED.minutes_played,
+                        stats = jsonb_build_object(
+                            'points', COALESCE((player_season_stats.stats->>'points')::int, 0) + COALESCE((%s->>'points')::int, 0),
+                            'rebounds', COALESCE((player_season_stats.stats->>'rebounds')::int, 0) + COALESCE((%s->>'rebounds')::int, 0),
+                            'assists', COALESCE((player_season_stats.stats->>'assists')::int, 0) + COALESCE((%s->>'assists')::int, 0),
+                            'steals', COALESCE((player_season_stats.stats->>'steals')::int, 0) + COALESCE((%s->>'steals')::int, 0),
+                            'blocks', COALESCE((player_season_stats.stats->>'blocks')::int, 0) + COALESCE((%s->>'blocks')::int, 0),
+                            'turnovers', COALESCE((player_season_stats.stats->>'turnovers')::int, 0) + COALESCE((%s->>'turnovers')::int, 0),
+                            'fg_made', COALESCE((player_season_stats.stats->>'fg_made')::int, 0) + COALESCE((%s->>'fg_made')::int, 0),
+                            'fg_attempted', COALESCE((player_season_stats.stats->>'fg_attempted')::int, 0) + COALESCE((%s->>'fg_attempted')::int, 0),
+                            'three_made', COALESCE((player_season_stats.stats->>'three_made')::int, 0) + COALESCE((%s->>'three_made')::int, 0),
+                            'ft_made', COALESCE((player_season_stats.stats->>'ft_made')::int, 0) + COALESCE((%s->>'ft_made')::int, 0),
+                            'fouls', COALESCE((player_season_stats.stats->>'fouls')::int, 0) + COALESCE((%s->>'fouls')::int, 0),
+                            'games_tracked', COALESCE((player_season_stats.stats->>'games_tracked')::int, 0) + 1
+                        ),
                         last_updated = NOW()
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM player_game_stats 
+                        WHERE player_id = %s AND sport_key = 'nba' AND game_id = %s
+                    )
                 """, (
                     player_id, league_id, team.get('id'), team.get('name'),
-                    season_year, minutes, psycopg2.extras.Json(stats_json)
+                    season_year, minutes, psycopg2.extras.Json(stats_json),
+                    psycopg2.extras.Json(stats_json), psycopg2.extras.Json(stats_json),
+                    psycopg2.extras.Json(stats_json), psycopg2.extras.Json(stats_json),
+                    psycopg2.extras.Json(stats_json), psycopg2.extras.Json(stats_json),
+                    psycopg2.extras.Json(stats_json), psycopg2.extras.Json(stats_json),
+                    psycopg2.extras.Json(stats_json), psycopg2.extras.Json(stats_json),
+                    psycopg2.extras.Json(stats_json),
+                    player_id, game_id
                 ))
+                
+                if game_id:
+                    cur.execute("""
+                        INSERT INTO player_game_stats (player_id, sport_key, game_id, stats, source)
+                        VALUES (%s, 'nba', %s, %s, 'api-basketball')
+                        ON CONFLICT (player_id, sport_key, game_id) DO NOTHING
+                    """, (player_id, game_id, psycopg2.extras.Json(stats_json)))
             
             conn.commit()
             self.metrics['players_collected'] += 1

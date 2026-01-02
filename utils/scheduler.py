@@ -1482,36 +1482,69 @@ class BackgroundScheduler:
 
     async def _run_player_stats_collection(self):
         """
-        ⚽🏀 Multi-Sport Player Stats Collection
-        Collects player statistics from major leagues.
+        ⚽🏀🏒 Multi-Sport Player Stats Collection
+        Collects player statistics from ALL leagues in league_map plus NBA/NHL.
         Runs daily at 05:00 UTC.
         """
         try:
             from models.multisport_player_collector import MultiSportPlayerCollector
-            logger.info("⚽ PLAYER STATS: Starting daily collection...")
+            import psycopg2
+            
+            logger.info("⚽🏀🏒 PLAYER STATS: Starting comprehensive daily collection...")
             
             collector = MultiSportPlayerCollector()
-            
-            major_leagues = [
-                (39, 2024),   # Premier League
-                (140, 2024),  # La Liga
-                (135, 2024),  # Serie A
-                (78, 2024),   # Bundesliga
-                (61, 2024),   # Ligue 1
-            ]
-            
             total_players = 0
-            for league_id, season in major_leagues:
-                try:
-                    result = collector.collect_soccer_player_stats(league_id, season)
-                    players = result.get('players_processed', 0)
-                    total_players += players
-                    if players > 0:
-                        logger.info(f"✅ PLAYER STATS: League {league_id} - {players} players")
-                except Exception as e:
-                    logger.warning(f"⚠️ PLAYER STATS: League {league_id} failed - {e}")
+            leagues_processed = 0
             
-            logger.info(f"✅ PLAYER STATS: Collection complete - {total_players} total players")
+            database_url = os.environ.get('DATABASE_URL')
+            if not database_url:
+                logger.error("❌ PLAYER STATS: DATABASE_URL not set")
+                return
+            
+            with psycopg2.connect(database_url) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT DISTINCT league_id, league_name 
+                        FROM league_map 
+                        WHERE theodds_sport_key LIKE 'soccer_%'
+                        ORDER BY league_id
+                    """)
+                    soccer_leagues = cur.fetchall()
+            
+            priority_leagues = {39, 140, 135, 78, 61, 2, 3}
+            
+            for league_id, league_name in soccer_leagues:
+                try:
+                    if league_id in priority_leagues or leagues_processed < 20:
+                        result = collector.collect_soccer_player_stats(league_id, 2024)
+                        players = result.get('players', 0)
+                        total_players += players
+                        leagues_processed += 1
+                        if players > 0:
+                            logger.info(f"✅ PLAYER STATS: {league_name} ({league_id}) - {players} players")
+                        time.sleep(0.5)
+                except Exception as e:
+                    logger.warning(f"⚠️ PLAYER STATS: {league_name} ({league_id}) failed - {e}")
+            
+            try:
+                logger.info("🏀 PLAYER STATS: Collecting NBA data...")
+                nba_result = collector.collect_nba_player_stats(league_id=12, season="2024-2025")
+                nba_players = nba_result.get('players', 0)
+                total_players += nba_players
+                logger.info(f"✅ PLAYER STATS: NBA - {nba_players} players")
+            except Exception as e:
+                logger.warning(f"⚠️ PLAYER STATS: NBA collection failed - {e}")
+            
+            try:
+                logger.info("🏒 PLAYER STATS: Collecting NHL data...")
+                nhl_result = collector.collect_nhl_player_stats(league_id=57, season=2024)
+                nhl_players = nhl_result.get('players', 0)
+                total_players += nhl_players
+                logger.info(f"✅ PLAYER STATS: NHL - {nhl_players} players")
+            except Exception as e:
+                logger.warning(f"⚠️ PLAYER STATS: NHL collection failed - {e}")
+            
+            logger.info(f"✅ PLAYER STATS: Collection complete - {total_players} players from {leagues_processed} soccer leagues + NBA + NHL")
             
         except ImportError:
             logger.warning("⚠️ PLAYER STATS: multisport_player_collector module not found - skipping")
