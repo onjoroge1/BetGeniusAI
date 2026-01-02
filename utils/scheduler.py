@@ -1546,6 +1546,15 @@ class BackgroundScheduler:
             
             logger.info(f"✅ PLAYER STATS: Collection complete - {total_players} players from {leagues_processed} soccer leagues + NBA + NHL")
             
+            try:
+                logger.info("📊 GAME STATS: Collecting player game-by-game stats from recent fixtures...")
+                game_result = collector.collect_player_game_stats_batch(days_back=7, limit=50)
+                games_collected = game_result.get('fixtures_processed', 0)
+                players_collected = game_result.get('players_collected', 0)
+                logger.info(f"✅ GAME STATS: {players_collected} player stats from {games_collected} fixtures")
+            except Exception as e:
+                logger.warning(f"⚠️ GAME STATS: Game-by-game collection failed - {e}")
+            
         except ImportError:
             logger.warning("⚠️ PLAYER STATS: multisport_player_collector module not found - skipping")
         except Exception as e:
