@@ -6270,6 +6270,7 @@ async def get_market_data(
     match_id: Optional[str] = None,
     limit: int = 100,
     include_v2: bool = True,
+    mode: str = "full",
     api_key: str = Depends(verify_api_key)
 ):
     """
@@ -6281,23 +6282,31 @@ async def get_market_data(
     - "live": In-progress matches with fresh data (<10 min old)
     - "finished": Completed matches with final results
     
+    Mode options (default: "full"):
+    - "full": Complete data with all predictions, odds, momentum, etc.
+    - "lite": Fast list view with minimal data (<500ms for 20+ matches)
+            Returns: team names/logos, league, kickoff, score, basic prediction, bookmaker names
+    
     OPTIMIZATIONS:
     - Single-match filter: ?match_id=X for instant detail page loads (<500ms)
     - Optional V2: ?include_v2=false for faster V1-only responses
     - Batch bookmaker resolution: All mappings loaded once (800 queries → 1)
+    - Lite mode: ?mode=lite for fast list views (skips ML inference, momentum, etc.)
     
     Data sources:
     - odds_snapshots: Latest raw odds per bookmaker (updated every 60s)
     - consensus_predictions: V1 probabilities (pre-computed by scheduler)
-    - V2 predictor: Generate V2 predictions on-demand (optional)
+    - V2 predictor: Generate V2 predictions on-demand (optional, skipped in lite mode)
     
     Free tier gets both models, premium gets AI analysis via /predict-v2
     """
     import psycopg2
     from models.v2_lgbm_predictor import get_v2_lgbm_predictor
     
+    is_lite_mode = mode.lower() == "lite"
+    
     try:
-        logger.info(f"📊 MARKET REQUEST | status={status}, league={league_id}, match={match_id}, limit={limit}, v2={include_v2}")
+        logger.info(f"📊 MARKET REQUEST | status={status}, league={league_id}, match={match_id}, limit={limit}, v2={include_v2}, mode={mode}")
         
         matches = []
         
@@ -6667,6 +6676,96 @@ async def get_market_data(
                     "timestamp": datetime.utcnow().isoformat()
                 }
             
+            # LITE MODE: Fast path with batch queries (no per-match loops)
+            if is_lite_mode:
+                match_ids = [row[0] for row in fixtures]
+                
+                # Batch fetch consensus predictions for all matches
+                cursor.execute("""
+                    SELECT DISTINCT ON (match_id) 
+                        match_id, consensus_h, consensus_d, consensus_a
+                    FROM consensus_predictions
+                    WHERE match_id = ANY(%s)
+                    ORDER BY match_id, created_at DESC
+                """, (match_ids,))
+                consensus_map = {row[0]: {'home': float(row[1]), 'draw': float(row[2]), 'away': float(row[3])} for row in cursor.fetchall()}
+                
+                # Batch fetch bookmaker names (not full odds) for all matches
+                cursor.execute("""
+                    SELECT DISTINCT match_id, book_id
+                    FROM odds_snapshots
+                    WHERE match_id = ANY(%s) AND market = 'h2h'
+                """, (match_ids,))
+                bookmakers_by_match = {}
+                for row in cursor.fetchall():
+                    mid, book_id = row
+                    if mid not in bookmakers_by_match:
+                        bookmakers_by_match[mid] = set()
+                    book_name = bookmaker_map.get(book_id, book_id)
+                    bookmakers_by_match[mid].add(book_name)
+                
+                # Batch fetch live scores for all matches (if any are live)
+                cursor.execute("""
+                    SELECT DISTINCT ON (match_id)
+                        match_id, home_score, away_score, minute, period
+                    FROM live_match_stats
+                    WHERE match_id = ANY(%s)
+                      AND timestamp > NOW() - INTERVAL '10 minutes'
+                    ORDER BY match_id, timestamp DESC
+                """, (match_ids,))
+                live_scores_map = {row[0]: {'home': row[1], 'away': row[2], 'minute': row[3], 'period': row[4]} for row in cursor.fetchall()}
+                
+                # Build lite response
+                lite_matches = []
+                now_utc = datetime.now(timezone.utc)
+                
+                for row in fixtures:
+                    mid, home_team, away_team, lid, league_name, kickoff_at, home_team_id, away_team_id, home_logo, away_logo = row
+                    
+                    # Determine status
+                    kickoff_utc = kickoff_at.replace(tzinfo=timezone.utc) if kickoff_at and kickoff_at.tzinfo is None else kickoff_at
+                    if mid in live_scores_map:
+                        match_status = "LIVE"
+                    elif kickoff_utc and kickoff_utc > now_utc:
+                        match_status = "UPCOMING"
+                    else:
+                        match_status = "FINISHED"
+                    
+                    # Get consensus prediction
+                    probs = consensus_map.get(mid)
+                    prediction = None
+                    if probs:
+                        pick = max(probs, key=probs.get)
+                        prediction = {"pick": pick, "confidence": round(probs[pick], 3)}
+                    
+                    lite_match = {
+                        "match_id": mid,
+                        "status": match_status,
+                        "kickoff_at": kickoff_at.isoformat() if kickoff_at else None,
+                        "league": {"id": lid, "name": league_name},
+                        "home": {"name": home_team, "logo_url": home_logo},
+                        "away": {"name": away_team, "logo_url": away_logo},
+                        "prediction": prediction,
+                        "bookmakers": list(bookmakers_by_match.get(mid, []))[:5]
+                    }
+                    
+                    # Add score and elapsed time for live matches
+                    if mid in live_scores_map:
+                        score_data = live_scores_map[mid]
+                        lite_match["score"] = {"home": score_data['home'], "away": score_data['away']}
+                        lite_match["elapsed"] = {"minute": score_data['minute'], "period": score_data['period']}
+                    
+                    lite_matches.append(lite_match)
+                
+                logger.info(f"✅ LITE MODE: Returned {len(lite_matches)} matches in fast path")
+                return {
+                    "matches": lite_matches,
+                    "total_count": len(lite_matches),
+                    "mode": "lite",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            
+            # FULL MODE: Per-match detailed processing
             # Step 2: For each fixture, get odds and predictions
             for row in fixtures:
                 match_id, home_team, away_team, league_id, league_name, kickoff_at, home_team_id, away_team_id, home_logo, away_logo = row
