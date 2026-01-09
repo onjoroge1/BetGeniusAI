@@ -176,14 +176,14 @@ class PlayerV2FeatureBuilder:
     def _get_match_info(self, cur, match_id: int) -> Optional[Dict]:
         """Get match info from fixtures."""
         cur.execute("""
-            SELECT f.match_id, f.api_football_id, f.league_id,
+            SELECT f.match_id, f.league_id,
                    f.home_team_id, f.away_team_id,
-                   f.home_team_name, f.away_team_name,
+                   f.home_team as home_team_name, f.away_team as away_team_name,
                    f.kickoff_at, f.status
             FROM fixtures f
-            WHERE f.match_id = %s OR f.api_football_id = %s
+            WHERE f.match_id = %s
             LIMIT 1
-        """, (match_id, match_id))
+        """, (match_id,))
         return cur.fetchone()
     
     def _build_form_features(self, cur, player_id: int, cutoff: datetime) -> Dict:
@@ -304,8 +304,8 @@ class PlayerV2FeatureBuilder:
                 home_team_id, away_team_id
             FROM matches
             WHERE (home_team_id = %s OR away_team_id = %s)
-              AND match_date < %s
-            ORDER BY match_date DESC
+              AND match_date_utc < %s
+            ORDER BY match_date_utc DESC
             LIMIT 10
         """, (opponent_id, opponent_id, cutoff.date()))
         
@@ -361,13 +361,13 @@ class PlayerV2FeatureBuilder:
         
         cur.execute("""
             SELECT 
-                match_date,
+                match_date_utc,
                 home_goals, away_goals,
                 home_team_id
             FROM matches
             WHERE (home_team_id = %s OR away_team_id = %s)
-              AND match_date < %s
-            ORDER BY match_date DESC
+              AND match_date_utc < %s
+            ORDER BY match_date_utc DESC
             LIMIT 7
         """, (team_id, team_id, cutoff.date()))
         
@@ -375,9 +375,9 @@ class PlayerV2FeatureBuilder:
         
         if matches:
             last_match = matches[0]
-            features['rest_days_since_last_game'] = (cutoff.date() - last_match['match_date']).days
+            features['rest_days_since_last_game'] = (cutoff.date() - last_match['match_date_utc']).days
             
-            games_in_week = sum(1 for m in matches if (cutoff.date() - m['match_date']).days <= 7)
+            games_in_week = sum(1 for m in matches if (cutoff.date() - m['match_date_utc']).days <= 7)
             features['congestion_7d'] = games_in_week
             
             points = 0
@@ -475,8 +475,8 @@ class PlayerV2FeatureBuilder:
         
         cur.execute("""
             SELECT 
-                p_last_home, p_last_draw, p_last_away
-            FROM odds_real_consensus
+                ph_cons, pd_cons, pa_cons
+            FROM odds_consensus
             WHERE match_id = %s
             ORDER BY ts_effective DESC
             LIMIT 1
@@ -485,9 +485,9 @@ class PlayerV2FeatureBuilder:
         odds = cur.fetchone()
         if odds:
             if is_home:
-                features['team_win_probability'] = odds.get('p_last_home') or 0.33
+                features['team_win_probability'] = odds.get('ph_cons') or 0.33
             else:
-                features['team_win_probability'] = odds.get('p_last_away') or 0.33
+                features['team_win_probability'] = odds.get('pa_cons') or 0.33
         
         cur.execute("""
             SELECT 
@@ -512,8 +512,8 @@ class PlayerV2FeatureBuilder:
                 ) as team_goals
                 FROM matches
                 WHERE (home_team_id = %s OR away_team_id = %s)
-                  AND match_date >= %s - INTERVAL '365 days'
-                  AND match_date < %s
+                  AND match_date_utc >= %s - INTERVAL '365 days'
+                  AND match_date_utc < %s
             """, (team['team_id'], team['team_id'], team['team_id'], 
                   team['team_id'], cutoff, cutoff))
             
