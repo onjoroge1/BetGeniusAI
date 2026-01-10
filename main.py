@@ -160,6 +160,10 @@ app.include_router(player_stats_router, tags=["Multi-Sport Player Statistics"])
 from routes.predict_player import router as predict_player_router
 app.include_router(predict_player_router, tags=["Player Performance Predictions"])
 
+from routes.enhanced_parlays import router as enhanced_parlays_router, router_v2 as enhanced_parlays_router_v2
+app.include_router(enhanced_parlays_router, tags=["Enhanced Parlays - Multi-Market"])
+app.include_router(enhanced_parlays_router_v2, tags=["Enhanced Parlays V2 - Multi-Market"])
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
