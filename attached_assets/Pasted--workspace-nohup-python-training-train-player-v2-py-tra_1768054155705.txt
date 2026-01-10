@@ -1,0 +1,46 @@
+~/workspace$ nohup python training/train_player_v2.py > training.log2>&1 &
+[1] 1596
+nohup: ignoring input and redirecting stderr to stdout
+~/workspace$ python training/train_player_v2.py > training.log2>&1 &
+[1]+  Exit 1                  nohup python training/train_player_v2.py > training.log2 1>&1
+[1] 1645
+~/workspace$ Traceback (most recent call last):
+  File "/home/runner/workspace/training/train_player_v2.py", line 30, in <module>
+    import lightgbm as lgb
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/lightgbm/__init__.py", line 11, in <module>
+    from .basic import Booster, Dataset, Sequence, register_logger
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/lightgbm/basic.py", line 9, in <module>
+    from .libpath import _LIB  # isort: skip
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/lightgbm/libpath.py", line 49, in <module>
+    _LIB = ctypes.cdll.LoadLibrary(_find_lib_path()[0])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/ctypes/__init__.py", line 454, in LoadLibrary
+    return self._dlltype(name)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/ctypes/__init__.py", line 376, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: libgomp.so.1: cannot open shared object file: No such file or directory
+^C
+[1]+  Exit 1                  python training/train_player_v2.py > training.log2 1>&1
+~/workspace$ python -c "from training.train_player_v2 import main; main()"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/home/runner/workspace/training/train_player_v2.py", line 30, in <module>
+    import lightgbm as lgb
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/lightgbm/__init__.py", line 11, in <module>
+    from .basic import Booster, Dataset, Sequence, register_logger
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/lightgbm/basic.py", line 9, in <module>
+    from .libpath import _LIB  # isort: skip
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/lightgbm/libpath.py", line 49, in <module>
+    _LIB = ctypes.cdll.LoadLibrary(_find_lib_path()[0])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/ctypes/__init__.py", line 454, in LoadLibrary
+    return self._dlltype(name)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/7d088dip86hlzri9sk0h78b63yfmx0a0-python3-3.11.13/lib/python3.11/ctypes/__init__.py", line 376, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: libgomp.so.1: cannot open shared object file: No such file or directory
