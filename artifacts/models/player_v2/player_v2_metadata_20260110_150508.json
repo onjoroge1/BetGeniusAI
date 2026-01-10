@@ -1,0 +1,100 @@
+{
+  "timestamp": "20260110_150508",
+  "goal_involvement": {
+    "metrics": {
+      "auc": 0.646125300270378,
+      "logloss": 0.442861817287339,
+      "accuracy": 0.8329004329004329,
+      "n_samples": 2310
+    },
+    "feature_importance": [
+      {
+        "feature": "team_win_probability",
+        "importance": 24.0
+      },
+      {
+        "feature": "career_goals_per_season",
+        "importance": 15.0
+      },
+      {
+        "feature": "rating_last_5_avg",
+        "importance": 11.4
+      },
+      {
+        "feature": "minutes_last_5_avg",
+        "importance": 11.2
+      },
+      {
+        "feature": "opponent_goals_conceded_avg",
+        "importance": 9.4
+      },
+      {
+        "feature": "opponent_form_points_last_5",
+        "importance": 8.0
+      },
+      {
+        "feature": "shots_last_5_avg",
+        "importance": 5.4
+      },
+      {
+        "feature": "position_encoded",
+        "importance": 5.0
+      },
+      {
+        "feature": "shots_on_target_last_5_avg",
+        "importance": 3.4
+      },
+      {
+        "feature": "opponent_clean_sheets_pct",
+        "importance": 3.4
+      },
+      {
+        "feature": "opponent_defensive_strength",
+        "importance": 3.4
+      },
+      {
+        "feature": "is_home_game",
+        "importance": 2.2
+      },
+      {
+        "feature": "goal_involvement_last_5",
+        "importance": 1.8
+      },
+      {
+        "feature": "goals_last_3",
+        "importance": 0.6
+      },
+      {
+        "feature": "assists_last_5",
+        "importance": 0.4
+      },
+      {
+        "feature": "goals_last_5",
+        "importance": 0.2
+      },
+      {
+        "feature": "assists_last_3",
+        "importance": 0.2
+      },
+      {
+        "feature": "form_trend",
+        "importance": 0.2
+      },
+      {
+        "feature": "season_goals",
+        "importance": 0.0
+      },
+      {
+        "feature": "season_assists",
+        "importance": 0.0
+      }
+    ]
+  },
+  "goals_regression": {
+    "metrics": {
+      "rmse": 0.3592595524043404,
+      "mae": 0.20420478626587016,
+      "n_samples": 2310
+    }
+  }
+}

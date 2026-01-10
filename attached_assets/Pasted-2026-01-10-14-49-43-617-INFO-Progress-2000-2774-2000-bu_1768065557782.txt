@@ -1,0 +1,108 @@
+2026-01-10 14:49:43,617 - INFO -   Progress: 2000/2774 (2000 built, 0 skipped)
+2026-01-10 14:51:35,369 - INFO -   Progress: 2100/2774 (2100 built, 0 skipped)
+2026-01-10 14:53:26,899 - INFO -   Progress: 2200/2774 (2200 built, 0 skipped)
+2026-01-10 14:55:18,197 - INFO -   Progress: 2300/2774 (2300 built, 0 skipped)
+2026-01-10 14:57:08,973 - INFO -   Progress: 2400/2774 (2400 built, 0 skipped)
+2026-01-10 14:58:59,262 - INFO -   Progress: 2500/2774 (2500 built, 0 skipped)
+2026-01-10 15:00:51,283 - INFO -   Progress: 2600/2774 (2600 built, 0 skipped)
+2026-01-10 15:02:43,000 - INFO -   Progress: 2700/2774 (2700 built, 0 skipped)
+2026-01-10 15:04:04,440 - INFO - Built 2774 training samples with 52 columns
+2026-01-10 15:04:04,442 - INFO - 
+Dataset built: 2774 samples
+2026-01-10 15:04:04,442 - INFO - Goal involvement rate: 16.7%
+2026-01-10 15:04:04,442 - INFO - Goals mean: 0.120
+2026-01-10 15:04:04,446 - INFO - 
+Training goal involvement model with 45 features
+2026-01-10 15:04:04,447 - INFO - Class distribution: Involved=464 (16.7%), Not=2310
+2026-01-10 15:04:04,447 - INFO - 
+--- Fold 1/5 ---
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[1] train's binary_logloss: 0.452941    valid's binary_logloss: 0.411565
+2026-01-10 15:04:21,101 - INFO - Fold 1: AUC=0.695, LogLoss=0.4116, Acc=0.857
+2026-01-10 15:04:21,101 - INFO - 
+--- Fold 2/5 ---
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[4] train's binary_logloss: 0.415907    valid's binary_logloss: 0.461199
+2026-01-10 15:04:32,507 - INFO - Fold 2: AUC=0.601, LogLoss=0.4612, Acc=0.823
+2026-01-10 15:04:32,507 - INFO - 
+--- Fold 3/5 ---
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[8] train's binary_logloss: 0.417154    valid's binary_logloss: 0.461948
+2026-01-10 15:04:32,731 - INFO - Fold 3: AUC=0.683, LogLoss=0.4619, Acc=0.814
+2026-01-10 15:04:32,731 - INFO - 
+--- Fold 4/5 ---
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[3] train's binary_logloss: 0.437653    valid's binary_logloss: 0.424043
+2026-01-10 15:04:48,766 - INFO - Fold 4: AUC=0.676, LogLoss=0.4240, Acc=0.846
+2026-01-10 15:04:48,766 - INFO - 
+--- Fold 5/5 ---
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[6] train's binary_logloss: 0.428902    valid's binary_logloss: 0.455554
+2026-01-10 15:04:48,886 - INFO - Fold 5: AUC=0.656, LogLoss=0.4556, Acc=0.825
+2026-01-10 15:04:48,889 - INFO - 
+==================================================
+2026-01-10 15:04:48,890 - INFO - GOAL INVOLVEMENT MODEL OOF METRICS:
+2026-01-10 15:04:48,890 - INFO -   AUC: 0.646
+2026-01-10 15:04:48,890 - INFO -   LogLoss: 0.4429
+2026-01-10 15:04:48,890 - INFO -   Accuracy: 0.833 (83.3%)
+2026-01-10 15:04:48,890 - INFO -   Validated Samples: 2310/2774
+2026-01-10 15:04:48,890 - INFO - ==================================================
+2026-01-10 15:04:48,894 - INFO - 
+Top 15 Feature Importance:
+2026-01-10 15:04:48,894 - INFO -   team_win_probability: 24.00
+2026-01-10 15:04:48,894 - INFO -   career_goals_per_season: 15.00
+2026-01-10 15:04:48,894 - INFO -   rating_last_5_avg: 11.40
+2026-01-10 15:04:48,894 - INFO -   minutes_last_5_avg: 11.20
+2026-01-10 15:04:48,894 - INFO -   opponent_goals_conceded_avg: 9.40
+2026-01-10 15:04:48,894 - INFO -   opponent_form_points_last_5: 8.00
+2026-01-10 15:04:48,894 - INFO -   shots_last_5_avg: 5.40
+2026-01-10 15:04:48,894 - INFO -   position_encoded: 5.00
+2026-01-10 15:04:48,894 - INFO -   shots_on_target_last_5_avg: 3.40
+2026-01-10 15:04:48,894 - INFO -   opponent_clean_sheets_pct: 3.40
+2026-01-10 15:04:48,894 - INFO -   opponent_defensive_strength: 3.40
+2026-01-10 15:04:48,894 - INFO -   is_home_game: 2.20
+2026-01-10 15:04:48,894 - INFO -   goal_involvement_last_5: 1.80
+2026-01-10 15:04:48,894 - INFO -   goals_last_3: 0.60
+2026-01-10 15:04:48,894 - INFO -   assists_last_5: 0.40
+2026-01-10 15:04:48,900 - INFO - 
+Training goals regression model
+2026-01-10 15:04:48,900 - INFO - Target distribution: Mean=0.120, Std=0.371
+Training until validation scores don't improve for 50 rounds
+[100]   train's rmse: 0.324906  valid's rmse: 0.362506
+Early stopping, best iteration is:
+[94]    train's rmse: 0.326489  valid's rmse: 0.36167
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[22]    train's rmse: 0.348299  valid's rmse: 0.357931
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[44]    train's rmse: 0.330482  valid's rmse: 0.349133
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[31]    train's rmse: 0.337517  valid's rmse: 0.357176
+Training until validation scores don't improve for 50 rounds
+[100]   train's rmse: 0.315301  valid's rmse: 0.37102
+Early stopping, best iteration is:
+[119]   train's rmse: 0.310848  valid's rmse: 0.370067
+2026-01-10 15:05:08,083 - INFO - 
+==================================================
+2026-01-10 15:05:08,083 - INFO - GOALS REGRESSION MODEL OOF METRICS:
+2026-01-10 15:05:08,083 - INFO -   RMSE: 0.3593
+2026-01-10 15:05:08,083 - INFO -   MAE: 0.2042
+2026-01-10 15:05:08,083 - INFO -   Mean baseline RMSE: 0.3920
+2026-01-10 15:05:08,084 - INFO - ==================================================
+2026-01-10 15:05:08,096 - INFO - 
+Models saved to artifacts/models/player_v2
+2026-01-10 15:05:08,096 - INFO - 
+============================================================
+2026-01-10 15:05:08,096 - INFO - TRAINING COMPLETE
+2026-01-10 15:05:08,096 - INFO - ============================================================
+2026-01-10 15:05:08,096 - INFO - Version: 20260110_150508
+2026-01-10 15:05:08,097 - INFO - Goal Involvement AUC: 0.646
+2026-01-10 15:05:08,097 - INFO - Goals RMSE: 0.3593
+~/workspace$ 
