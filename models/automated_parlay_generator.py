@@ -456,9 +456,9 @@ class AutomatedParlayGenerator:
                 SELECT DISTINCT pp.id, pp.parlay_hash, pp.payout_100
                 FROM parlay_precomputed pp
                 JOIN parlay_precomputed_legs ppl ON pp.id = ppl.parlay_id
-                JOIN fixtures f ON ppl.match_id = f.match_id
+                JOIN matches m ON ppl.match_id = m.match_id
                 WHERE pp.status = 'pending'
-                AND f.status = 'finished'
+                AND m.result IS NOT NULL
             """))
             
             parlays_to_settle = result.fetchall()
@@ -471,9 +471,9 @@ class AutomatedParlayGenerator:
                 
                 legs_result = session.execute(text("""
                     SELECT ppl.leg_type, ppl.market_code, ppl.player_id,
-                           f.home_score, f.away_score, f.result as match_result
+                           m.home_goals as home_score, m.away_goals as away_score, m.result as match_result
                     FROM parlay_precomputed_legs ppl
-                    JOIN fixtures f ON ppl.match_id = f.match_id
+                    JOIN matches m ON ppl.match_id = m.match_id
                     WHERE ppl.parlay_id = :parlay_id
                 """), {'parlay_id': parlay_id})
                 
