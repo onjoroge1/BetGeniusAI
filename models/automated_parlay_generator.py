@@ -36,7 +36,11 @@ class AutomatedParlayGenerator:
     }
     
     def __init__(self):
-        self.engine = create_engine(os.environ.get('DATABASE_URL'))
+        self.engine = create_engine(
+            os.environ.get('DATABASE_URL'),
+            pool_pre_ping=True,
+            pool_recycle=300
+        )
         self.Session = sessionmaker(bind=self.engine)
         
         try:
