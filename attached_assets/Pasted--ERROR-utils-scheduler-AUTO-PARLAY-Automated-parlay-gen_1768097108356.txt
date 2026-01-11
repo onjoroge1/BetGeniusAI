@@ -1,0 +1,63 @@
+
+ERROR:utils.scheduler:❌ AUTO-PARLAY: Automated parlay generation failed - (psycopg2.OperationalError) SSL connection has been closed unexpectedly
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1124, in _rollback_impl
+    self.engine.dialect.do_rollback(self.connection)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 703, in do_rollback
+    dbapi_connection.rollback()
+psycopg2.OperationalError: SSL connection has been closed unexpectedly
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/utils/scheduler.py", line 1222, in _run_parlay_generation
+    result = gen.generate_all_upcoming_parlays(hours_ahead=48)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/models/automated_parlay_generator.py", line 130, in generate_all_upcoming_parlays
+    session.close()
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2521, in close
+    self._close_impl(invalidate=False)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2590, in _close_impl
+    transaction.close(invalidate)
+  File "<string>", line 2, in close
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 1419, in close
+    transaction.close()
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2585, in close
+    self._do_close()
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2723, in _do_close
+    self._close_impl()
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2709, in _close_impl
+    self._connection_rollback_impl()
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2701, in _connection_rollback_impl
+    self.connection._rollback_impl()
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1126, in _rollback_impl
+    self._handle_dbapi_exception(e, None, None, None, None)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1124, in _rollback_impl
+    self.engine.dialect.do_rollback(self.connection)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 703, in do_rollback
+    dbapi_connection.rollback()
+sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) SSL connection has been closed unexpectedly
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+INFO:utils.scheduler:🎰 SETTLEMENT: Starting parlay settlement...
+INFO:jobs.settle_parlays:Settled 0 parlays (Won: 0, Lost: 0)
+INFO:utils.scheduler:🎰 AUTO-SETTLE: Starting automated parlay settlement...
+INFO:models.player_props_service:Loaded goal involvement model v20260110_150508
+INFO:models.player_props_service:Loaded goals regression model v20260110_150508
+INFO:models.automated_parlay_generator:AutomatedParlayGenerator initialized with predictors
+INFO:utils.scheduler:🔄 SYNC: Starting fixtures→matches sync...
+INFO:jobs.sync_fixtures_to_matches:🔄 SYNC: No fixtures to sync (all up to date)
+INFO:utils.scheduler:🎯 SHARP: Starting sharp book collection...
+INFO:models.sharp_book_collector:🎯 Sharp Book Collector: Starting soccer collection...
+INFO:models.sharp_book_collector:  ✅ soccer_epl: 37 sharp odds stored
+INFO:models.sharp_book_collector:  ✅ soccer_spain_la_liga: 32 sharp odds stored
+INFO:models.sharp_book_collector:  ✅ soccer_germany_bundesliga: 33 sharp odds stored
+INFO:models.sharp_book_co

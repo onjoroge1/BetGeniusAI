@@ -126,8 +126,14 @@ class AutomatedParlayGenerator:
                 'match_details': match_results
             }
             
+        except Exception as e:
+            logger.error(f"Error in generate_all_upcoming_parlays: {e}")
+            return {'matches_processed': 0, 'total_parlays_generated': 0, 'error': str(e)}
         finally:
-            session.close()
+            try:
+                session.close()
+            except Exception:
+                pass
     
     def _get_match_info(self, match_id: int) -> Optional[Dict]:
         """Get match information with odds"""
@@ -186,7 +192,10 @@ class AutomatedParlayGenerator:
                 }
             }
         finally:
-            session.close()
+            try:
+                session.close()
+            except Exception:
+                pass
     
     def _extract_all_legs(self, match_info: Dict) -> List[Dict]:
         """Extract all available legs for a match (match result, totals, player props)"""
@@ -427,11 +436,17 @@ class AutomatedParlayGenerator:
             return True
             
         except Exception as e:
-            session.rollback()
+            try:
+                session.rollback()
+            except Exception:
+                pass
             logger.error(f"Failed to save parlay: {e}")
             return False
         finally:
-            session.close()
+            try:
+                session.close()
+            except Exception:
+                pass
     
     def settle_parlays(self) -> Dict:
         """Settle completed parlays based on match results"""
@@ -496,11 +511,17 @@ class AutomatedParlayGenerator:
             }
             
         except Exception as e:
-            session.rollback()
+            try:
+                session.rollback()
+            except Exception:
+                pass
             logger.error(f"Failed to settle parlays: {e}")
             return {'error': str(e)}
         finally:
-            session.close()
+            try:
+                session.close()
+            except Exception:
+                pass
     
     def _check_leg_result(self, leg_type: str, market_code: str, player_id: int,
                           home_score: int, away_score: int, match_result: str) -> bool:
@@ -580,7 +601,10 @@ class AutomatedParlayGenerator:
         except Exception as e:
             logger.error(f"Cleanup failed: {e}")
         finally:
-            session.close()
+            try:
+                session.close()
+            except Exception:
+                pass
     
     def get_best_parlays(self, leg_count: int = None, confidence: str = None,
                          min_edge: float = 0, limit: int = 20) -> List[Dict]:
@@ -653,7 +677,10 @@ class AutomatedParlayGenerator:
             return parlays
             
         finally:
-            session.close()
+            try:
+                session.close()
+            except Exception:
+                pass
     
     def get_performance_stats(self) -> Dict:
         """Get overall parlay performance statistics"""
@@ -705,4 +732,7 @@ class AutomatedParlayGenerator:
             }
             
         finally:
-            session.close()
+            try:
+                session.close()
+            except Exception:
+                pass
