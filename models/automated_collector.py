@@ -421,8 +421,17 @@ class AutomatedCollector:
                 logger.warning("No leagues found in league_map table, skipping odds collection")
                 return odds_summary
             
+            # Limit to top priority leagues per cycle to prevent timeout (rotate through all)
+            # Priority leagues: Major European leagues first
+            priority_leagues = [39, 140, 78, 135, 61, 71, 88, 94, 2, 3, 1]  # EPL, La Liga, Bundesliga, Serie A, Ligue 1, etc.
+            other_leagues = [l for l in configured_leagues if l not in priority_leagues]
+            
+            # Process priority leagues + 10 other leagues per cycle (max ~20 leagues)
+            leagues_this_cycle = priority_leagues + other_leagues[:10]
+            logger.info(f"📋 Processing {len(leagues_this_cycle)} priority leagues this cycle (of {len(configured_leagues)} total)")
+            
             # Get upcoming matches in next 7 days
-            for league_id in configured_leagues:
+            for league_id in leagues_this_cycle:
                 try:
                     league_name = self._get_league_name(league_id)
                     logger.info(f"🔍 Checking upcoming matches for {league_name} (ID: {league_id})")
@@ -466,10 +475,10 @@ class AutomatedCollector:
                             "upcoming_matches": len(upcoming_matches)
                         })
                     else:
-                        logger.info(f"📭 No upcoming matches found for {league_name}")
+                        logger.debug(f"📭 No upcoming matches found for {league_name}")
                     
-                    # Rate limiting
-                    await asyncio.sleep(2)
+                    # Reduced rate limiting for faster collection
+                    await asyncio.sleep(0.5)
                     
                 except Exception as league_error:
                     error_msg = f"Failed to collect odds for league {league_id}: {league_error}"
@@ -523,13 +532,18 @@ class AutomatedCollector:
             conn = psycopg2.connect(db_url)
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT league_id FROM league_map ORDER BY league_id")
-            league_ids = [row[0] for row in cursor.fetchall()]
+            all_league_ids = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
             
-            logger.info(f"📋 Fetching upcoming matches from {len(league_ids)} leagues via /matches/upcoming")
+            # Limit to priority leagues per cycle to prevent timeout
+            priority_leagues = [39, 140, 78, 135, 61, 71, 88, 94, 2, 3, 1]
+            other_leagues = [l for l in all_league_ids if l not in priority_leagues]
+            league_ids = priority_leagues + other_leagues[:10]
             
-            # Get upcoming matches for each league
+            logger.info(f"📋 Fetching upcoming matches from {len(league_ids)} priority leagues (of {len(all_league_ids)} total)")
+            
+            # Get upcoming matches for priority leagues only
             for league_id in league_ids:
                 try:
                     league_matches = await self._get_upcoming_matches(league_id)
@@ -681,7 +695,9 @@ class AutomatedCollector:
                 'Authorization': 'Bearer betgenius_secure_key_2024'
             }
             
-            async with aiohttp.ClientSession() as session:
+            # Add timeout to prevent hanging requests
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url, params=params, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
