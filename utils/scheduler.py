@@ -1214,6 +1214,22 @@ class BackgroundScheduler:
             logger.warning("⚠️ PARLAY: parlay_builder module not found - skipping")
         except Exception as e:
             logger.error(f"❌ PARLAY: Parlay generation failed - {e}", exc_info=True)
+        
+        try:
+            from models.automated_parlay_generator import AutomatedParlayGenerator
+            logger.info("🎰 AUTO-PARLAY: Starting automated same-match parlay generation...")
+            gen = AutomatedParlayGenerator()
+            result = gen.generate_all_upcoming_parlays(hours_ahead=48)
+            total = result.get('total_parlays_generated', 0)
+            matches = result.get('matches_processed', 0)
+            if total > 0:
+                logger.info(f"✅ AUTO-PARLAY: Generated {total} parlays from {matches} matches")
+            else:
+                logger.debug("🎰 AUTO-PARLAY: No new automated parlays to generate")
+        except ImportError:
+            logger.debug("⚠️ AUTO-PARLAY: automated_parlay_generator module not ready - skipping")
+        except Exception as e:
+            logger.error(f"❌ AUTO-PARLAY: Automated parlay generation failed - {e}", exc_info=True)
 
     async def _run_parlay_settlement(self):
         """
@@ -1234,6 +1250,21 @@ class BackgroundScheduler:
             logger.warning("⚠️ SETTLEMENT: settle_parlays module not found - skipping")
         except Exception as e:
             logger.error(f"❌ SETTLEMENT: Parlay settlement failed - {e}", exc_info=True)
+        
+        try:
+            from models.automated_parlay_generator import AutomatedParlayGenerator
+            logger.info("🎰 AUTO-SETTLE: Starting automated parlay settlement...")
+            gen = AutomatedParlayGenerator()
+            result = gen.settle_parlays()
+            settled = result.get('settled', 0)
+            if settled > 0:
+                logger.info(f"✅ AUTO-SETTLE: Settled {settled} automated parlays (Won: {result.get('won', 0)}, Lost: {result.get('lost', 0)})")
+            else:
+                logger.debug("🎰 AUTO-SETTLE: No automated parlays to settle")
+        except ImportError:
+            logger.debug("⚠️ AUTO-SETTLE: automated_parlay_generator module not ready - skipping")
+        except Exception as e:
+            logger.error(f"❌ AUTO-SETTLE: Automated parlay settlement failed - {e}", exc_info=True)
 
     async def _run_fixtures_to_matches_sync(self):
         """

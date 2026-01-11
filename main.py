@@ -164,6 +164,9 @@ from routes.enhanced_parlays import router as enhanced_parlays_router, router_v2
 app.include_router(enhanced_parlays_router, tags=["Enhanced Parlays - Multi-Market"])
 app.include_router(enhanced_parlays_router_v2, tags=["Enhanced Parlays V2 - Multi-Market"])
 
+from routes.automated_parlays import router as automated_parlays_router
+app.include_router(automated_parlays_router, tags=["Automated Parlays - Pre-computed"])
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
