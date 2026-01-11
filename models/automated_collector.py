@@ -31,6 +31,7 @@ class AutomatedCollector:
         self.current_season = 2025  # Updated for current season
         self.collection_log_file = "data/collection_log.json"
         self.internal_api_base = "http://localhost:8000"  # Use internal API for upcoming matches
+        self._league_rotation_offset = 0  # Rotating offset for non-priority leagues
         
     def _get_db_manager(self):
         """Lazy-load database manager"""
@@ -421,14 +422,23 @@ class AutomatedCollector:
                 logger.warning("No leagues found in league_map table, skipping odds collection")
                 return odds_summary
             
-            # Limit to top priority leagues per cycle to prevent timeout (rotate through all)
-            # Priority leagues: Major European leagues first
+            # Rotating league selection to ensure all leagues get covered over time
+            # Priority leagues always included, rotate through others
             priority_leagues = [39, 140, 78, 135, 61, 71, 88, 94, 2, 3, 1]  # EPL, La Liga, Bundesliga, Serie A, Ligue 1, etc.
             other_leagues = [l for l in configured_leagues if l not in priority_leagues]
             
-            # Process priority leagues + 10 other leagues per cycle (max ~20 leagues)
-            leagues_this_cycle = priority_leagues + other_leagues[:10]
-            logger.info(f"📋 Processing {len(leagues_this_cycle)} priority leagues this cycle (of {len(configured_leagues)} total)")
+            # Rotate through other leagues - pick 10 starting from rotating offset
+            batch_size = 10
+            start_idx = self._league_rotation_offset % max(len(other_leagues), 1)
+            rotated_others = other_leagues[start_idx:start_idx + batch_size]
+            if len(rotated_others) < batch_size and other_leagues:
+                rotated_others += other_leagues[:batch_size - len(rotated_others)]
+            
+            # Update rotation offset for next cycle
+            self._league_rotation_offset = (self._league_rotation_offset + batch_size) % max(len(other_leagues), 1)
+            
+            leagues_this_cycle = priority_leagues + rotated_others
+            logger.info(f"📋 Processing {len(leagues_this_cycle)} leagues this cycle (priority: {len(priority_leagues)}, rotating batch: {len(rotated_others)}, total configured: {len(configured_leagues)})")
             
             # Get upcoming matches in next 7 days
             for league_id in leagues_this_cycle:
@@ -536,12 +546,19 @@ class AutomatedCollector:
             cursor.close()
             conn.close()
             
-            # Limit to priority leagues per cycle to prevent timeout
+            # Rotating league selection - same as collect_upcoming_odds_snapshots
             priority_leagues = [39, 140, 78, 135, 61, 71, 88, 94, 2, 3, 1]
             other_leagues = [l for l in all_league_ids if l not in priority_leagues]
-            league_ids = priority_leagues + other_leagues[:10]
             
-            logger.info(f"📋 Fetching upcoming matches from {len(league_ids)} priority leagues (of {len(all_league_ids)} total)")
+            batch_size = 10
+            start_idx = self._league_rotation_offset % max(len(other_leagues), 1)
+            rotated_others = other_leagues[start_idx:start_idx + batch_size]
+            if len(rotated_others) < batch_size and other_leagues:
+                rotated_others += other_leagues[:batch_size - len(rotated_others)]
+            
+            league_ids = priority_leagues + rotated_others
+            
+            logger.info(f"📋 Fetching upcoming matches from {len(league_ids)} leagues (priority: {len(priority_leagues)}, rotating batch: {len(rotated_others)}, total: {len(all_league_ids)})")
             
             # Get upcoming matches for priority leagues only
             for league_id in league_ids:
@@ -681,70 +698,73 @@ class AutomatedCollector:
             }
     
     async def _get_upcoming_matches(self, league_id: int, days_ahead: int = 7) -> List[Dict]:
-        """Get upcoming matches for a specific league using internal API"""
+        """Get upcoming matches for a specific league directly from database (fast, no external API calls)"""
+        conn = None
+        cursor = None
         try:
-            # Use internal API endpoint that already has upcoming matches
-            url = f"{self.internal_api_base}/matches/upcoming"
-            params = {
-                "league_id": league_id,
-                "limit": 50  # Get more matches to check timing windows
-            }
+            db_url = os.environ.get('DATABASE_URL')
+            if not db_url:
+                logger.error("DATABASE_URL not set")
+                return []
             
-            # Add authorization for internal API
-            headers = {
-                'Authorization': 'Bearer betgenius_secure_key_2024'
-            }
+            conn = psycopg2.connect(db_url, connect_timeout=10)
+            cursor = conn.cursor()
             
-            # Add timeout to prevent hanging requests
-            timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url, params=params, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        matches = data.get('matches', [])
-                        
-                        # Filter matches in optimal timing windows
-                        upcoming_matches = []
-                        current_time = datetime.utcnow()
-                        
-                        for match in matches:
-                            try:
-                                # Parse match date
-                                match_date = datetime.fromisoformat(
-                                    match['date'].replace('Z', '+00:00')
-                                ).replace(tzinfo=None)
-                                
-                                # Calculate hours until match
-                                hours_until_match = (match_date - current_time).total_seconds() / 3600
-                                
-                                # Include matches within practical timing windows for T-72h/T-48h/T-24h collection
-                                # Expand to include closer matches for testing (2h-168h ahead) 
-                                if 2 <= hours_until_match <= 168:  # 2 hours to 7 days ahead
-                                    match_data = {
-                                        'match_id': match['match_id'],
-                                        'date': match['date'],
-                                        'home_team': match['home_team'],
-                                        'away_team': match['away_team'],
-                                        'venue': match.get('venue', ''),
-                                        'league_id': league_id,
-                                        'hours_until_match': round(hours_until_match, 1),
-                                        'status': match.get('status', 'NS'),
-                                        'prediction_ready': match.get('prediction_ready', False)
-                                    }
-                                    upcoming_matches.append(match_data)
-                                    
-                            except Exception as date_error:
-                                logger.warning(f"Failed to parse date for match {match.get('match_id', 'unknown')}: {date_error}")
-                        
-                        logger.info(f"Found {len(upcoming_matches)} upcoming matches for league {league_id} in optimal timing windows (24h-168h ahead)")
-                        return upcoming_matches
-                    else:
-                        logger.warning(f"Internal API returned status {response.status} for upcoming matches in league {league_id}")
-                        return []
+            # Query fixtures table directly - much faster than API calls
+            cursor.execute("""
+                SELECT match_id, kickoff_at, home_team, away_team, status
+                FROM fixtures
+                WHERE league_id = %s
+                  AND kickoff_at > NOW()
+                  AND kickoff_at < NOW() + INTERVAL '%s days'
+                  AND status IN ('scheduled', 'NS')
+                  AND home_team != 'TBD' AND away_team != 'TBD'
+                ORDER BY kickoff_at
+                LIMIT 50
+            """, (league_id, days_ahead))
+            
+            rows = cursor.fetchall()
+            
+            upcoming_matches = []
+            current_time = datetime.utcnow()
+            
+            for row in rows:
+                match_id, kickoff_at, home_team, away_team, status = row
+                
+                # Handle timezone-aware kickoff_at
+                if kickoff_at.tzinfo is not None:
+                    kickoff_naive = kickoff_at.replace(tzinfo=None)
+                else:
+                    kickoff_naive = kickoff_at
+                
+                hours_until_match = (kickoff_naive - current_time).total_seconds() / 3600
+                
+                if 2 <= hours_until_match <= 168:
+                    upcoming_matches.append({
+                        'match_id': match_id,
+                        'date': kickoff_at.isoformat(),
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'league_id': league_id,
+                        'hours_until_match': round(hours_until_match, 1),
+                        'status': status
+                    })
+            
+            if upcoming_matches:
+                logger.debug(f"Found {len(upcoming_matches)} upcoming matches for league {league_id}")
+            return upcoming_matches
                         
         except Exception as e:
             logger.error(f"Failed to get upcoming matches for league {league_id}: {e}")
             return []
+        finally:
+            try:
+                if cursor:
+                    cursor.close()
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
     
     async def _collect_and_save_odds(self, match: Dict, league_id: int, timing_window: int) -> bool:
         """Collect and save odds snapshot for a specific match and timing"""
