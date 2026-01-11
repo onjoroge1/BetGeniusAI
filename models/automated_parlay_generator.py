@@ -458,7 +458,7 @@ class AutomatedParlayGenerator:
                 JOIN parlay_precomputed_legs ppl ON pp.id = ppl.parlay_id
                 JOIN matches m ON ppl.match_id = m.match_id
                 WHERE pp.status = 'pending'
-                AND m.result IS NOT NULL
+                AND m.outcome IS NOT NULL
             """))
             
             parlays_to_settle = result.fetchall()
@@ -471,7 +471,7 @@ class AutomatedParlayGenerator:
                 
                 legs_result = session.execute(text("""
                     SELECT ppl.leg_type, ppl.market_code, ppl.player_id,
-                           m.home_goals as home_score, m.away_goals as away_score, m.result as match_result
+                           m.home_goals as home_score, m.away_goals as away_score, m.outcome as match_result
                     FROM parlay_precomputed_legs ppl
                     JOIN matches m ON ppl.match_id = m.match_id
                     WHERE ppl.parlay_id = :parlay_id
