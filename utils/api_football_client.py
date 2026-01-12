@@ -173,6 +173,34 @@ class ApiFootballClient:
             return data['response']
         return []
     
+    def get_upcoming_fixtures_by_league(
+        self,
+        league_id: int,
+        season: int,
+        next_count: int = 20
+    ) -> List[Dict]:
+        """
+        Get upcoming fixtures for a league with status NS (Not Started).
+        
+        Args:
+            league_id: API-Football league ID
+            season: Season year (e.g., 2025)
+            next_count: Number of upcoming fixtures to fetch (max 50)
+        
+        Returns:
+            List of fixture dictionaries
+        """
+        params = {
+            'league': league_id,
+            'season': season,
+            'next': min(next_count, 50)
+        }
+        
+        data = self._make_request('fixtures', params)
+        if data and 'response' in data:
+            return data['response']
+        return []
+    
     def search_fixtures_by_teams(
         self,
         home_team: str,

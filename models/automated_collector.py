@@ -766,6 +766,131 @@ class AutomatedCollector:
             except Exception:
                 pass
     
+    async def seed_upcoming_fixtures(self) -> Dict[str, Any]:
+        """
+        Seed the fixtures table with upcoming matches from API-Football.
+        This prevents the circular dependency where odds collection requires fixtures to exist.
+        
+        Fetches fixtures with status NS (Not Started) for priority leagues and inserts them
+        into the fixtures table so they can be used by odds collection.
+        """
+        try:
+            from utils.api_football_client import ApiFootballClient
+            
+            logger.info("🌱 Starting fixture seeding for upcoming matches...")
+            
+            seed_summary = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "leagues_processed": 0,
+                "fixtures_found": 0,
+                "fixtures_inserted": 0,
+                "fixtures_updated": 0,
+                "errors": []
+            }
+            
+            client = ApiFootballClient()
+            db_url = os.environ.get('DATABASE_URL')
+            if not db_url:
+                logger.error("DATABASE_URL not set")
+                return seed_summary
+            
+            priority_leagues = [39, 140, 78, 135, 61, 71, 88, 94, 2, 3, 1]
+            current_season = 2025
+            
+            conn = psycopg2.connect(db_url)
+            cursor = conn.cursor()
+            
+            for league_id in priority_leagues:
+                try:
+                    fixtures = client.get_upcoming_fixtures_by_league(
+                        league_id=league_id,
+                        season=current_season,
+                        next_count=20
+                    )
+                    
+                    if not fixtures:
+                        logger.debug(f"No upcoming fixtures found for league {league_id}")
+                        continue
+                    
+                    seed_summary["leagues_processed"] += 1
+                    seed_summary["fixtures_found"] += len(fixtures)
+                    
+                    for fixture in fixtures:
+                        try:
+                            fixture_id = fixture['fixture']['id']
+                            home_team = fixture['teams']['home']['name']
+                            away_team = fixture['teams']['away']['name']
+                            kickoff_str = fixture['fixture']['date']
+                            league_name = fixture['league']['name']
+                            
+                            kickoff_at = datetime.fromisoformat(kickoff_str.replace('Z', '+00:00'))
+                            
+                            cursor.execute("""
+                                INSERT INTO fixtures (
+                                    match_id, league_id, league_name, home_team, away_team,
+                                    kickoff_at, season, status, created_at, updated_at
+                                )
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now(), now())
+                                ON CONFLICT (match_id) DO UPDATE SET
+                                    home_team = CASE 
+                                        WHEN fixtures.home_team LIKE 'TBD%%' THEN EXCLUDED.home_team
+                                        ELSE fixtures.home_team
+                                    END,
+                                    away_team = CASE 
+                                        WHEN fixtures.away_team LIKE 'TBD%%' THEN EXCLUDED.away_team
+                                        ELSE fixtures.away_team
+                                    END,
+                                    kickoff_at = EXCLUDED.kickoff_at,
+                                    status = CASE
+                                        WHEN EXCLUDED.kickoff_at < now() THEN 'finished'
+                                        ELSE 'scheduled'
+                                    END,
+                                    updated_at = now()
+                            """, (
+                                fixture_id,
+                                league_id,
+                                league_name,
+                                home_team,
+                                away_team,
+                                kickoff_at,
+                                current_season,
+                                'scheduled'
+                            ))
+                            
+                            if cursor.rowcount > 0:
+                                seed_summary["fixtures_inserted"] += 1
+                            
+                        except Exception as fixture_err:
+                            logger.warning(f"Failed to upsert fixture {fixture.get('fixture', {}).get('id')}: {fixture_err}")
+                            conn.rollback()
+                            seed_summary["errors"].append(str(fixture_err))
+                    
+                    await asyncio.sleep(0.5)
+                    
+                except Exception as league_err:
+                    error_msg = f"Failed to seed fixtures for league {league_id}: {league_err}"
+                    logger.error(error_msg)
+                    seed_summary["errors"].append(error_msg)
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            logger.info(
+                f"🌱 Fixture seeding complete: {seed_summary['fixtures_found']} found, "
+                f"{seed_summary['fixtures_inserted']} inserted/updated from {seed_summary['leagues_processed']} leagues"
+            )
+            
+            return seed_summary
+            
+        except Exception as e:
+            logger.error(f"❌ Fixture seeding failed: {e}")
+            return {
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e),
+                "fixtures_inserted": 0
+            }
+    
     async def _collect_and_save_odds(self, match: Dict, league_id: int, timing_window: int) -> bool:
         """Collect and save odds snapshot for a specific match and timing"""
         try:

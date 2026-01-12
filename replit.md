@@ -32,6 +32,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 
 ### Data Collection
 - **Canonical Fixtures Table**: Single source of truth for match metadata.
+- **Fixture Seeding System**: Auto-discovers upcoming matches from API-Football using `seed_upcoming_fixtures()`. Runs every 4 hours plus emergency triggers when <10 upcoming fixtures detected. Excludes team_id columns (nullable) to avoid FK constraint violations.
 - **Multi-Source Real-Time Odds**: Parallel collection from The Odds API and API-Football.
 - **Fixture ID Resolver**: Advanced system for cross-source data linkage.
 - **Historical Match Data**: Extensive dataset of matches with results, odds, and in-game statistics.

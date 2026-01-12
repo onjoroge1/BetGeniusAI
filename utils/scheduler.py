@@ -82,6 +82,8 @@ class BackgroundScheduler:
         self.last_retrain_check_run: Optional[datetime] = None
         # WC 2026 Prep: International qualifier collection (runs daily at 04:00 UTC)
         self.last_intl_qualifier_run: Optional[datetime] = None
+        # Fixture seeding (runs every 4 hours to discover new upcoming matches)
+        self.last_fixture_seed: Optional[datetime] = None
         
     def start_scheduler(self):
         """Start the background scheduler"""
@@ -432,6 +434,10 @@ class BackgroundScheduler:
                     if "player_stats" not in self.last_run or (now - self.last_run["player_stats"]).total_seconds() >= 86400:
                         await self._spawn("player_stats", self._run_player_stats_collection, timeout=900)
                 
+                # 🌱 Fixture Seeding - runs every 4 hours to discover new upcoming matches
+                if "fixture_seeding" not in self.last_run or (now - self.last_run["fixture_seeding"]).total_seconds() >= 14400:
+                    await self._spawn("fixture_seeding", self._run_fixture_seeding, timeout=300)
+                
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
                 
@@ -456,14 +462,32 @@ class BackgroundScheduler:
             if not database_url:
                 return
             
-            # Check if there are fresh odds in the 10-min window
             with psycopg2.connect(database_url) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT COUNT(*) FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes'")
                     result = cursor.fetchone()
                     odds_10m_count = result[0] if result else 0
+                    
+                    cursor.execute("SELECT COUNT(*) FROM fixtures WHERE kickoff_at > NOW() AND kickoff_at < NOW() + INTERVAL '7 days'")
+                    result = cursor.fetchone()
+                    upcoming_fixtures_count = result[0] if result else 0
             
             now = datetime.utcnow()
+            
+            if upcoming_fixtures_count < 10:
+                logger.warning(f"🌱 FIXTURE STARVATION: Only {upcoming_fixtures_count} upcoming fixtures - triggering fixture seeding")
+                if not hasattr(self, 'last_fixture_seed') or not self.last_fixture_seed or (now - self.last_fixture_seed).total_seconds() >= 7200:
+                    async def run_fixture_seed():
+                        try:
+                            results = await self.collector.seed_upcoming_fixtures()
+                            logger.info(f"🌱 Fixture seeding completed: {results.get('fixtures_inserted', 0)} fixtures inserted")
+                            self.last_fixture_seed = datetime.utcnow()
+                        except Exception as e:
+                            logger.error(f"🌱 Fixture seeding failed: {e}")
+                    
+                    await self._spawn("fixture_seeding", run_fixture_seed, timeout=300)
+                else:
+                    logger.info(f"🌱 Fixtures low ({upcoming_fixtures_count}) but seeding ran recently")
             
             if odds_10m_count == 0:
                 # 10-min window is empty - increment counter
@@ -499,6 +523,21 @@ class BackgroundScheduler:
                 
         except Exception as e:
             logger.error(f"🌱 Seed check error: {e}")
+    
+    async def _run_fixture_seeding(self):
+        """Run fixture seeding to discover and insert new upcoming matches from API-Football"""
+        try:
+            logger.info("🌱 Running scheduled fixture seeding...")
+            
+            results = await self.collector.seed_upcoming_fixtures()
+            
+            if results.get('fixtures_inserted', 0) > 0:
+                logger.info(f"🌱 Fixture seeding: {results['fixtures_inserted']} fixtures inserted from {results.get('leagues_processed', 0)} leagues")
+            else:
+                logger.info(f"🌱 Fixture seeding: No new fixtures found (checked {results.get('leagues_processed', 0)} leagues)")
+                
+        except Exception as e:
+            logger.error(f"🌱 Fixture seeding error: {e}")
     
     async def _run_safety_net(self):
         """Run the 15-minute safety net to fill missing buckets"""
