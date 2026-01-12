@@ -42,6 +42,7 @@ class AutomatedParlayGenerator:
             pool_recycle=300
         )
         self.Session = sessionmaker(bind=self.engine)
+        self.v2_predictor = None
         
         try:
             from models.totals_predictor import TotalsPredictor
@@ -53,6 +54,13 @@ class AutomatedParlayGenerator:
             logger.error(f"Failed to initialize predictors: {e}")
             self.totals_predictor = None
             self.player_props = None
+        
+        try:
+            from models.v2_lgbm_predictor import V2LightGBMPredictor
+            self.v2_predictor = V2LightGBMPredictor()
+            logger.info("AutomatedParlayGenerator: V2 LightGBM predictor initialized")
+        except Exception as e:
+            logger.warning(f"V2 predictor not available: {e}")
     
     def generate_parlays_for_match(self, match_id: int) -> Dict:
         """Generate all same-match parlay combinations for a single match"""
@@ -166,6 +174,18 @@ class AutomatedParlayGenerator:
             draw_odds = 1 / pd if pd > 0 else 3.5
             away_odds = 1 / pa if pa > 0 else 2.5
             
+            model_h, model_d, model_a = ph, pd, pa
+            if self.v2_predictor:
+                try:
+                    v2_pred = self.v2_predictor.predict(match_id=row.match_id)
+                    if v2_pred and 'probabilities' in v2_pred:
+                        model_h = v2_pred['probabilities'].get('home', ph)
+                        model_d = v2_pred['probabilities'].get('draw', pd)
+                        model_a = v2_pred['probabilities'].get('away', pa)
+                        logger.debug(f"Match {row.match_id}: V2 model probs H={model_h:.3f} D={model_d:.3f} A={model_a:.3f}")
+                except Exception as e:
+                    logger.warning(f"V2 prediction failed for match {row.match_id}: {e}")
+            
             return {
                 'match_id': row.match_id,
                 'home_team': row.home_team,
@@ -181,9 +201,9 @@ class AutomatedParlayGenerator:
                     'A': pa
                 },
                 'model_prob': {
-                    'H': ph,
-                    'D': pd,
-                    'A': pa
+                    'H': model_h,
+                    'D': model_d,
+                    'A': model_a
                 },
                 'odds': {
                     'H': round(home_odds, 2),
@@ -230,16 +250,21 @@ class AutomatedParlayGenerator:
             try:
                 totals = self.totals_predictor.predict_match(match_info['match_id'])
                 if totals and totals.get('status') == 'available':
-                    default_market_probs = {
-                        'over_2.5': 0.52, 'under_2.5': 0.48,
-                        'over_1.5': 0.70, 'under_1.5': 0.30,
-                        'over_3.5': 0.32, 'under_3.5': 0.68
-                    }
+                    expected_total = totals.get('expected_goals', {}).get('total', 2.5)
                     
                     for market_key in ['over_2.5', 'under_2.5', 'over_1.5', 'under_1.5']:
                         if market_key in totals['over_under']:
                             model_prob = float(totals['over_under'][market_key])
-                            market_prob = float(default_market_probs.get(market_key, 0.5))
+                            
+                            market_margin = 0.06
+                            fair_prob = model_prob
+                            opposite_key = market_key.replace('over', 'under') if 'over' in market_key else market_key.replace('under', 'over')
+                            opposite_prob = float(totals['over_under'].get(opposite_key, 1 - fair_prob))
+                            
+                            total_with_margin = fair_prob + opposite_prob + market_margin
+                            market_prob = fair_prob * (1 + market_margin / 2) / total_with_margin if total_with_margin > 0 else 0.5
+                            market_prob = max(0.15, min(0.85, market_prob))
+                            
                             decimal_odds = 1 / market_prob if market_prob > 0 else 2.0
                             edge = (model_prob - market_prob) / market_prob if market_prob > 0 else 0
                             

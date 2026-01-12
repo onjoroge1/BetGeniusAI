@@ -28,7 +28,7 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Market System**: Poisson-based approach for generating mathematically consistent markets.
 - **Live Betting Intelligence**: Momentum Engine and Live Market Engine for in-play predictions.
 - **Trending Scores System**: Pre-computes and caches `hot_score` and `trending_score`.
-- **Parlay System**: AI-curated parlay recommendations with correlation-adjusted probability calculations, edge detection, and confidence tiers.
+- **Parlay System**: AI-curated parlay recommendations with correlation-adjusted probability calculations, edge detection, and confidence tiers. Uses V2 LightGBM model for match result predictions and Poisson-based totals predictor with market margin adjustments.
 
 ### Data Collection
 - **Canonical Fixtures Table**: Single source of truth for match metadata.
