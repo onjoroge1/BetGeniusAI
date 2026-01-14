@@ -77,11 +77,13 @@ class PlayerPropsService:
                     AVG((stats->>'rating')::float) as avg_rating,
                     SUM((stats->>'goals')::int) as total_goals,
                     SUM((stats->>'assists')::int) as total_assists
-                FROM player_game_stats
-                WHERE player_id = :player_id
-                AND sport_key = 'soccer'
-                ORDER BY game_date DESC
-                LIMIT :limit
+                FROM (
+                    SELECT * FROM player_game_stats
+                    WHERE player_id = :player_id
+                    AND sport_key = 'soccer'
+                    ORDER BY game_date DESC
+                    LIMIT :limit
+                ) recent_games
             """), {'player_id': player_id, 'limit': lookback_games})
             
             row = result.fetchone()

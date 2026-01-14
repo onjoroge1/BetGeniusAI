@@ -106,9 +106,9 @@ async def predict_player_performance(request: PlayerPredictionRequest) -> Player
         
         cur.execute("""
             SELECT kickoff_at FROM fixtures 
-            WHERE match_id = %s OR api_football_id = %s
+            WHERE match_id = %s
             LIMIT 1
-        """, (request.match_id, request.match_id))
+        """, (request.match_id,))
         match = cur.fetchone()
         
         conn.close()
@@ -222,13 +222,13 @@ async def get_top_player_picks(
                 FROM player_game_stats pgs
                 JOIN players_unified p ON pgs.player_id = p.player_id
                 WHERE pgs.team_id IN (
-                    SELECT home_team_id FROM fixtures WHERE match_id = %s OR api_football_id = %s
+                    SELECT home_team_id FROM fixtures WHERE match_id = %s
                     UNION
-                    SELECT away_team_id FROM fixtures WHERE match_id = %s OR api_football_id = %s
+                    SELECT away_team_id FROM fixtures WHERE match_id = %s
                 )
                 AND p.position NOT ILIKE '%%G%%'
                 LIMIT %s
-            """, (match_id, match_id, match_id, match_id, limit * 2))
+            """, (match_id, match_id, limit * 2))
         else:
             cur.execute("""
                 SELECT DISTINCT p.player_id, p.player_name, p.position, p.team_name,
