@@ -1269,6 +1269,22 @@ class BackgroundScheduler:
             logger.debug("⚠️ AUTO-PARLAY: automated_parlay_generator module not ready - skipping")
         except Exception as e:
             logger.error(f"❌ AUTO-PARLAY: Automated parlay generation failed - {e}", exc_info=True)
+        
+        try:
+            from models.player_parlay_generator import PlayerParlayGenerator
+            logger.info("⚽ PLAYER-PARLAY: Starting player scorer parlay generation...")
+            gen = PlayerParlayGenerator()
+            result = gen.generate_all_player_parlays(hours_ahead=72)
+            total = result.get('parlays_generated', 0)
+            legs = result.get('legs_generated', 0)
+            if total > 0:
+                logger.info(f"✅ PLAYER-PARLAY: Generated {total} player parlays from {legs} scorer picks")
+            else:
+                logger.debug(f"⚽ PLAYER-PARLAY: {result.get('status', 'no parlays')}")
+        except ImportError:
+            logger.debug("⚠️ PLAYER-PARLAY: player_parlay_generator module not ready - skipping")
+        except Exception as e:
+            logger.error(f"❌ PLAYER-PARLAY: Player parlay generation failed - {e}", exc_info=True)
 
     async def _run_parlay_settlement(self):
         """
