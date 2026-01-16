@@ -1,0 +1,145 @@
+{
+  "model_type": "Premium_V2_LightGBM",
+  "trained_at": "2026-01-16T23:42:02.623500+00:00",
+  "n_features": 50,
+  "training_data": "odds_rich_matches_only",
+  "oof_metrics": {
+    "accuracy_3way": 0.501219512195122,
+    "logloss": 1.0132793403162625,
+    "brier_score": 0.20167548616999445,
+    "n_samples": 2460,
+    "n_folds": 5
+  },
+  "fold_metrics": [
+    {
+      "fold": 1,
+      "accuracy": 0.5020325203252033,
+      "logloss": 1.0453931504545377,
+      "best_iteration": 16
+    },
+    {
+      "fold": 2,
+      "accuracy": 0.5,
+      "logloss": 1.013365638459467,
+      "best_iteration": 32
+    },
+    {
+      "fold": 3,
+      "accuracy": 0.516260162601626,
+      "logloss": 0.9798119484649979,
+      "best_iteration": 39
+    },
+    {
+      "fold": 4,
+      "accuracy": 0.483739837398374,
+      "logloss": 1.0163876850039917,
+      "best_iteration": 30
+    },
+    {
+      "fold": 5,
+      "accuracy": 0.5040650406504065,
+      "logloss": 1.0114382791983194,
+      "best_iteration": 59
+    }
+  ],
+  "feature_importance": [
+    {
+      "feature": "dispersion_home",
+      "importance": 130.8
+    },
+    {
+      "feature": "p_open_draw",
+      "importance": 123.0
+    },
+    {
+      "feature": "dispersion_away",
+      "importance": 115.0
+    },
+    {
+      "feature": "dispersion_draw",
+      "importance": 106.0
+    },
+    {
+      "feature": "p_open_home",
+      "importance": 103.8
+    },
+    {
+      "feature": "p_last_draw",
+      "importance": 100.2
+    },
+    {
+      "feature": "book_dispersion",
+      "importance": 99.8
+    },
+    {
+      "feature": "p_last_home",
+      "importance": 95.0
+    },
+    {
+      "feature": "p_last_away",
+      "importance": 94.4
+    },
+    {
+      "feature": "market_overround",
+      "importance": 91.2
+    },
+    {
+      "feature": "p_open_away",
+      "importance": 71.4
+    },
+    {
+      "feature": "favorite_margin",
+      "importance": 71.4
+    },
+    {
+      "feature": "prob_drift_away",
+      "importance": 68.6
+    },
+    {
+      "feature": "num_books_last",
+      "importance": 66.0
+    },
+    {
+      "feature": "market_entropy",
+      "importance": 63.4
+    },
+    {
+      "feature": "rest_days_home",
+      "importance": 62.8
+    },
+    {
+      "feature": "rest_days_away",
+      "importance": 58.8
+    },
+    {
+      "feature": "league_historical_edge",
+      "importance": 57.0
+    },
+    {
+      "feature": "home_form_goals_conceded",
+      "importance": 55.8
+    },
+    {
+      "feature": "prob_drift_draw",
+      "importance": 52.0
+    }
+  ],
+  "params": {
+    "objective": "multiclass",
+    "num_class": 3,
+    "metric": "multi_logloss",
+    "boosting_type": "gbdt",
+    "learning_rate": 0.03,
+    "num_leaves": 31,
+    "max_depth": 6,
+    "min_data_in_leaf": 20,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "lambda_l1": 0.1,
+    "lambda_l2": 0.1,
+    "verbose": -1,
+    "force_row_wise": true,
+    "seed": 42
+  }
+}
