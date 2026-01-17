@@ -1,0 +1,262 @@
+{
+  "version": "v3_full",
+  "trained_at": "2026-01-17T17:35:34.232977",
+  "total_samples": 22290,
+  "train_samples": 17832,
+  "val_samples": 4458,
+  "features": {
+    "base": [
+      "p_b365_h",
+      "p_b365_d",
+      "p_b365_a",
+      "p_ps_h",
+      "p_ps_d",
+      "p_ps_a",
+      "p_avg_h",
+      "p_avg_d",
+      "p_avg_a",
+      "favorite_strength",
+      "underdog_value",
+      "draw_tendency",
+      "market_overround",
+      "sharp_soft_divergence",
+      "max_vs_avg_edge_h",
+      "max_vs_avg_edge_d",
+      "max_vs_avg_edge_a",
+      "league_home_win_rate",
+      "league_draw_rate",
+      "league_goals_avg",
+      "season_month",
+      "expected_total_goals",
+      "home_goals_expected",
+      "away_goals_expected",
+      "goal_diff_expected",
+      "home_value_score",
+      "draw_value_score",
+      "away_value_score",
+      "home_advantage_signal",
+      "draw_vs_away_ratio",
+      "favorite_confidence",
+      "upset_potential",
+      "book_agreement_score",
+      "implied_competitiveness"
+    ],
+    "expert": [
+      "expert_home_prob",
+      "expert_away_prob",
+      "expert_draw_prob",
+      "expert_home_away_diff",
+      "expert_draw_confidence",
+      "expert_favorite_spread",
+      "expert_norm_home",
+      "expert_norm_away",
+      "expert_norm_draw"
+    ],
+    "regime": [
+      "league_draw_regime",
+      "league_goals_regime",
+      "regime_home_stability",
+      "regime_draw_volatility",
+      "odds_skewness",
+      "favorite_dominance",
+      "draw_compression",
+      "home_favorite_fragility",
+      "sharp_draw_signal",
+      "sharp_away_signal",
+      "early_season",
+      "late_season",
+      "winter_period",
+      "draw_season_bias"
+    ],
+    "all": [
+      "p_b365_h",
+      "p_b365_d",
+      "p_b365_a",
+      "p_ps_h",
+      "p_ps_d",
+      "p_ps_a",
+      "p_avg_h",
+      "p_avg_d",
+      "p_avg_a",
+      "favorite_strength",
+      "underdog_value",
+      "draw_tendency",
+      "market_overround",
+      "sharp_soft_divergence",
+      "max_vs_avg_edge_h",
+      "max_vs_avg_edge_d",
+      "max_vs_avg_edge_a",
+      "league_home_win_rate",
+      "league_draw_rate",
+      "league_goals_avg",
+      "season_month",
+      "expected_total_goals",
+      "home_goals_expected",
+      "away_goals_expected",
+      "goal_diff_expected",
+      "home_value_score",
+      "draw_value_score",
+      "away_value_score",
+      "home_advantage_signal",
+      "draw_vs_away_ratio",
+      "favorite_confidence",
+      "upset_potential",
+      "book_agreement_score",
+      "implied_competitiveness",
+      "expert_home_prob",
+      "expert_away_prob",
+      "expert_draw_prob",
+      "expert_home_away_diff",
+      "expert_draw_confidence",
+      "expert_favorite_spread",
+      "expert_norm_home",
+      "expert_norm_away",
+      "expert_norm_draw",
+      "league_draw_regime",
+      "league_goals_regime",
+      "regime_home_stability",
+      "regime_draw_volatility",
+      "odds_skewness",
+      "favorite_dominance",
+      "draw_compression",
+      "home_favorite_fragility",
+      "sharp_draw_signal",
+      "sharp_away_signal",
+      "early_season",
+      "late_season",
+      "winter_period",
+      "draw_season_bias"
+    ]
+  },
+  "feature_counts": {
+    "base": 34,
+    "expert": 9,
+    "regime": 14,
+    "total": 57
+  },
+  "params": {
+    "objective": "multiclass",
+    "num_class": 3,
+    "metric": "multi_logloss",
+    "boosting_type": "gbdt",
+    "num_leaves": 31,
+    "max_depth": 5,
+    "learning_rate": 0.025,
+    "min_data_in_leaf": 200,
+    "feature_fraction": 0.75,
+    "bagging_fraction": 0.75,
+    "bagging_freq": 5,
+    "lambda_l1": 0.7,
+    "lambda_l2": 0.7,
+    "verbosity": -1,
+    "seed": 42,
+    "n_jobs": -1
+  },
+  "metrics": {
+    "accuracy": 0.5201884253028264,
+    "logloss": 0.9823399764418145,
+    "best_iteration": 65
+  },
+  "feature_importance": [
+    {
+      "feature": "expert_home_prob",
+      "importance": 321
+    },
+    {
+      "feature": "expert_norm_away",
+      "importance": 301
+    },
+    {
+      "feature": "expert_norm_draw",
+      "importance": 297
+    },
+    {
+      "feature": "expert_away_prob",
+      "importance": 225
+    },
+    {
+      "feature": "expert_home_away_diff",
+      "importance": 210
+    },
+    {
+      "feature": "expert_norm_home",
+      "importance": 198
+    },
+    {
+      "feature": "p_ps_a",
+      "importance": 156
+    },
+    {
+      "feature": "expert_favorite_spread",
+      "importance": 142
+    },
+    {
+      "feature": "p_ps_h",
+      "importance": 120
+    },
+    {
+      "feature": "sharp_away_signal",
+      "importance": 108
+    },
+    {
+      "feature": "sharp_draw_signal",
+      "importance": 107
+    },
+    {
+      "feature": "p_avg_a",
+      "importance": 101
+    },
+    {
+      "feature": "away_value_score",
+      "importance": 86
+    },
+    {
+      "feature": "p_ps_d",
+      "importance": 85
+    },
+    {
+      "feature": "p_avg_d",
+      "importance": 84
+    },
+    {
+      "feature": "expert_draw_confidence",
+      "importance": 79
+    },
+    {
+      "feature": "draw_vs_away_ratio",
+      "importance": 75
+    },
+    {
+      "feature": "max_vs_avg_edge_a",
+      "importance": 73
+    },
+    {
+      "feature": "market_overround",
+      "importance": 70
+    },
+    {
+      "feature": "p_avg_h",
+      "importance": 68
+    },
+    {
+      "feature": "max_vs_avg_edge_h",
+      "importance": 68
+    },
+    {
+      "feature": "sharp_soft_divergence",
+      "importance": 65
+    },
+    {
+      "feature": "book_agreement_score",
+      "importance": 65
+    },
+    {
+      "feature": "home_goals_expected",
+      "importance": 62
+    },
+    {
+      "feature": "draw_value_score",
+      "importance": 61
+    }
+  ]
+}

@@ -1,0 +1,319 @@
+{
+  "version": "binary_experts_v1",
+  "trained_at": "2026-01-17T17:24:19.998412",
+  "total_samples": 22290,
+  "features": [
+    "p_b365_h",
+    "p_b365_d",
+    "p_b365_a",
+    "p_ps_h",
+    "p_ps_d",
+    "p_ps_a",
+    "p_avg_h",
+    "p_avg_d",
+    "p_avg_a",
+    "favorite_strength",
+    "underdog_value",
+    "draw_tendency",
+    "market_overround",
+    "sharp_soft_divergence",
+    "max_vs_avg_edge_h",
+    "max_vs_avg_edge_d",
+    "max_vs_avg_edge_a",
+    "league_home_win_rate",
+    "league_draw_rate",
+    "league_goals_avg",
+    "season_month",
+    "expected_total_goals",
+    "home_goals_expected",
+    "away_goals_expected",
+    "goal_diff_expected",
+    "home_value_score",
+    "draw_value_score",
+    "away_value_score",
+    "home_advantage_signal",
+    "draw_vs_away_ratio",
+    "favorite_confidence",
+    "upset_potential",
+    "book_agreement_score",
+    "implied_competitiveness"
+  ],
+  "experts": {
+    "home": {
+      "expert_type": "home",
+      "name": "Home Expert",
+      "description": "Home Win vs (Draw + Away)",
+      "target_class": "H",
+      "train_samples": 17832,
+      "val_samples": 4458,
+      "positive_rate": 0.42995737999102734,
+      "best_iteration": 79,
+      "raw_metrics": {
+        "accuracy": 0.6655450874831763,
+        "logloss": 0.6073784383151994,
+        "auc": 0.7172834429684016,
+        "precision": 0.6354556803995006,
+        "recall": 0.5288311688311689,
+        "f1": 0.5772611284377658,
+        "brier": 0.210162403875873
+      },
+      "calibrated_metrics": {
+        "accuracy": 0.6675639300134589,
+        "logloss": 0.6012696268650619,
+        "auc": 0.7212922411185341,
+        "precision": 0.6526533425223984,
+        "recall": 0.49194805194805197,
+        "f1": 0.5610189573459715,
+        "brier": 0.20802724231362726
+      },
+      "feature_importance": [
+        {
+          "feature": "draw_value_score",
+          "importance": 139
+        },
+        {
+          "feature": "max_vs_avg_edge_a",
+          "importance": 100
+        },
+        {
+          "feature": "market_overround",
+          "importance": 97
+        },
+        {
+          "feature": "max_vs_avg_edge_h",
+          "importance": 88
+        },
+        {
+          "feature": "book_agreement_score",
+          "importance": 82
+        },
+        {
+          "feature": "sharp_soft_divergence",
+          "importance": 71
+        },
+        {
+          "feature": "max_vs_avg_edge_d",
+          "importance": 68
+        },
+        {
+          "feature": "p_ps_a",
+          "importance": 58
+        },
+        {
+          "feature": "implied_competitiveness",
+          "importance": 55
+        },
+        {
+          "feature": "draw_vs_away_ratio",
+          "importance": 55
+        },
+        {
+          "feature": "p_ps_h",
+          "importance": 55
+        },
+        {
+          "feature": "p_ps_d",
+          "importance": 53
+        },
+        {
+          "feature": "away_value_score",
+          "importance": 48
+        },
+        {
+          "feature": "home_value_score",
+          "importance": 43
+        },
+        {
+          "feature": "home_goals_expected",
+          "importance": 42
+        }
+      ],
+      "model_path": "artifacts/models/binary_experts/home_expert.pkl",
+      "calibrator_path": "artifacts/models/binary_experts/home_calibrator.pkl"
+    },
+    "away": {
+      "expert_type": "away",
+      "name": "Away Expert",
+      "description": "Away Win vs (Home + Draw)",
+      "target_class": "A",
+      "train_samples": 17832,
+      "val_samples": 4458,
+      "positive_rate": 0.3069201435621355,
+      "best_iteration": 70,
+      "raw_metrics": {
+        "accuracy": 0.7323912068192014,
+        "logloss": 0.5379426214462328,
+        "auc": 0.7288622183752375,
+        "precision": 0.6182108626198083,
+        "recall": 0.28859060402684567,
+        "f1": 0.3934926283680732,
+        "brier": 0.17981512933692415
+      },
+      "calibrated_metrics": {
+        "accuracy": 0.7375504710632571,
+        "logloss": 0.5323069970769115,
+        "auc": 0.7336788442394633,
+        "precision": 0.6699801192842942,
+        "recall": 0.2513049962714392,
+        "f1": 0.36550976138828634,
+        "brier": 0.1778649366217426
+      },
+      "feature_importance": [
+        {
+          "feature": "market_overround",
+          "importance": 96
+        },
+        {
+          "feature": "max_vs_avg_edge_d",
+          "importance": 84
+        },
+        {
+          "feature": "p_ps_a",
+          "importance": 81
+        },
+        {
+          "feature": "book_agreement_score",
+          "importance": 80
+        },
+        {
+          "feature": "max_vs_avg_edge_h",
+          "importance": 76
+        },
+        {
+          "feature": "max_vs_avg_edge_a",
+          "importance": 70
+        },
+        {
+          "feature": "p_avg_a",
+          "importance": 68
+        },
+        {
+          "feature": "favorite_confidence",
+          "importance": 65
+        },
+        {
+          "feature": "draw_vs_away_ratio",
+          "importance": 60
+        },
+        {
+          "feature": "p_ps_d",
+          "importance": 59
+        },
+        {
+          "feature": "sharp_soft_divergence",
+          "importance": 58
+        },
+        {
+          "feature": "away_value_score",
+          "importance": 55
+        },
+        {
+          "feature": "draw_value_score",
+          "importance": 49
+        },
+        {
+          "feature": "p_avg_d",
+          "importance": 47
+        },
+        {
+          "feature": "season_month",
+          "importance": 47
+        }
+      ],
+      "model_path": "artifacts/models/binary_experts/away_expert.pkl",
+      "calibrator_path": "artifacts/models/binary_experts/away_calibrator.pkl"
+    },
+    "draw": {
+      "expert_type": "draw",
+      "name": "Draw Expert",
+      "description": "Draw vs (Home + Away)",
+      "target_class": "D",
+      "train_samples": 17832,
+      "val_samples": 4458,
+      "positive_rate": 0.2631224764468372,
+      "best_iteration": 4,
+      "raw_metrics": {
+        "accuracy": 0.7326155226558995,
+        "logloss": 0.578777274772455,
+        "auc": 0.5786371276976127,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "brier": 0.19514330042685588
+      },
+      "calibrated_metrics": {
+        "accuracy": 0.7326155226558995,
+        "logloss": 0.5698794749258875,
+        "auc": 0.5828571883592186,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "brier": 0.19208436104364568
+      },
+      "feature_importance": [
+        {
+          "feature": "p_ps_d",
+          "importance": 13
+        },
+        {
+          "feature": "sharp_soft_divergence",
+          "importance": 7
+        },
+        {
+          "feature": "favorite_confidence",
+          "importance": 6
+        },
+        {
+          "feature": "market_overround",
+          "importance": 5
+        },
+        {
+          "feature": "book_agreement_score",
+          "importance": 4
+        },
+        {
+          "feature": "max_vs_avg_edge_d",
+          "importance": 4
+        },
+        {
+          "feature": "p_avg_a",
+          "importance": 2
+        },
+        {
+          "feature": "away_value_score",
+          "importance": 2
+        },
+        {
+          "feature": "home_value_score",
+          "importance": 1
+        },
+        {
+          "feature": "p_b365_d",
+          "importance": 1
+        },
+        {
+          "feature": "p_ps_a",
+          "importance": 1
+        },
+        {
+          "feature": "max_vs_avg_edge_h",
+          "importance": 1
+        },
+        {
+          "feature": "upset_potential",
+          "importance": 1
+        },
+        {
+          "feature": "home_advantage_signal",
+          "importance": 1
+        },
+        {
+          "feature": "league_home_win_rate",
+          "importance": 1
+        }
+      ],
+      "model_path": "artifacts/models/binary_experts/draw_expert.pkl",
+      "calibrator_path": "artifacts/models/binary_experts/draw_calibrator.pkl"
+    }
+  }
+}
