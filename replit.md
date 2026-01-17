@@ -41,6 +41,13 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Live Betting Intelligence**: Momentum Engine and Live Market Engine for in-play predictions.
 - **Trending Scores System**: Pre-computes and caches `hot_score` and `trending_score`.
 - **Parlay System**: AI-curated parlay recommendations with correlation-adjusted probability calculations, edge detection, and confidence tiers. Uses V2 LightGBM model for match result predictions and Poisson-based totals predictor with market margin adjustments.
+- **Quality Parlay Generator (V2 Jan 2026)**: High-quality parlay construction with proper constraints:
+  - **Leg Quality Score (LQS)**: EV-based ranking with longshot/probability penalties
+  - **Single outcome per match**: Only best EV outcome selected (no H/D/A contradictions)
+  - **Probability-based confidence**: Trust (>=18% parlay prob), Value (12-18%)
+  - **Exposure caps**: Max 2 parlays per match across feed
+  - **Narrative-coherent SGPs**: Home+Over, Draw+Under templates only
+  - **Parlay Types**: Trust (high-quality, 2 legs, ~20-30% win prob), Value (good quality, 12-18% prob), SGP (same-game, coherent templates)
 
 ### Data Collection
 - **Canonical Fixtures Table**: Single source of truth for match metadata.
