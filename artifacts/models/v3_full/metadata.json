@@ -1,9 +1,10 @@
 {
-  "version": "v3_full",
-  "trained_at": "2026-01-17T17:35:34.232977",
+  "version": "v3_full_leakfree",
+  "trained_at": "2026-01-17T17:53:06.733436",
   "total_samples": 22290,
-  "train_samples": 17832,
+  "train_samples": 6687,
   "val_samples": 4458,
+  "training_method": "out-of-fold stacking with time-based splits",
   "features": {
     "base": [
       "p_b365_h",
@@ -153,110 +154,110 @@
     "n_jobs": -1
   },
   "metrics": {
-    "accuracy": 0.5201884253028264,
-    "logloss": 0.9823399764418145,
-    "best_iteration": 65
+    "accuracy": 0.5280394795872588,
+    "logloss": 0.9787843281672345,
+    "best_iteration": 100
   },
   "feature_importance": [
     {
-      "feature": "expert_home_prob",
-      "importance": 321
+      "feature": "max_vs_avg_edge_h",
+      "importance": 221
     },
     {
-      "feature": "expert_norm_away",
-      "importance": 301
-    },
-    {
-      "feature": "expert_norm_draw",
-      "importance": 297
-    },
-    {
-      "feature": "expert_away_prob",
-      "importance": 225
-    },
-    {
-      "feature": "expert_home_away_diff",
-      "importance": 210
-    },
-    {
-      "feature": "expert_norm_home",
-      "importance": 198
-    },
-    {
-      "feature": "p_ps_a",
-      "importance": 156
-    },
-    {
-      "feature": "expert_favorite_spread",
-      "importance": 142
-    },
-    {
-      "feature": "p_ps_h",
-      "importance": 120
-    },
-    {
-      "feature": "sharp_away_signal",
-      "importance": 108
+      "feature": "max_vs_avg_edge_d",
+      "importance": 211
     },
     {
       "feature": "sharp_draw_signal",
-      "importance": 107
+      "importance": 203
     },
     {
-      "feature": "p_avg_a",
-      "importance": 101
+      "feature": "sharp_away_signal",
+      "importance": 183
     },
     {
-      "feature": "away_value_score",
-      "importance": 86
-    },
-    {
-      "feature": "p_ps_d",
-      "importance": 85
-    },
-    {
-      "feature": "p_avg_d",
-      "importance": 84
-    },
-    {
-      "feature": "expert_draw_confidence",
-      "importance": 79
-    },
-    {
-      "feature": "draw_vs_away_ratio",
-      "importance": 75
-    },
-    {
-      "feature": "max_vs_avg_edge_a",
-      "importance": 73
+      "feature": "expert_norm_draw",
+      "importance": 182
     },
     {
       "feature": "market_overround",
-      "importance": 70
+      "importance": 170
     },
     {
-      "feature": "p_avg_h",
-      "importance": 68
+      "feature": "expert_draw_confidence",
+      "importance": 158
     },
     {
-      "feature": "max_vs_avg_edge_h",
-      "importance": 68
-    },
-    {
-      "feature": "sharp_soft_divergence",
-      "importance": 65
+      "feature": "max_vs_avg_edge_a",
+      "importance": 142
     },
     {
       "feature": "book_agreement_score",
-      "importance": 65
+      "importance": 140
     },
     {
-      "feature": "home_goals_expected",
-      "importance": 62
+      "feature": "expert_norm_home",
+      "importance": 135
+    },
+    {
+      "feature": "expert_norm_away",
+      "importance": 129
     },
     {
       "feature": "draw_value_score",
-      "importance": 61
+      "importance": 128
+    },
+    {
+      "feature": "sharp_soft_divergence",
+      "importance": 128
+    },
+    {
+      "feature": "draw_vs_away_ratio",
+      "importance": 112
+    },
+    {
+      "feature": "expert_home_away_diff",
+      "importance": 98
+    },
+    {
+      "feature": "season_month",
+      "importance": 97
+    },
+    {
+      "feature": "p_ps_d",
+      "importance": 97
+    },
+    {
+      "feature": "away_value_score",
+      "importance": 95
+    },
+    {
+      "feature": "p_avg_d",
+      "importance": 77
+    },
+    {
+      "feature": "expert_favorite_spread",
+      "importance": 76
+    },
+    {
+      "feature": "p_ps_h",
+      "importance": 73
+    },
+    {
+      "feature": "p_avg_a",
+      "importance": 71
+    },
+    {
+      "feature": "p_ps_a",
+      "importance": 69
+    },
+    {
+      "feature": "home_advantage_signal",
+      "importance": 67
+    },
+    {
+      "feature": "league_home_win_rate",
+      "importance": 65
     }
   ]
 }

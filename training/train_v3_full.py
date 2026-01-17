@@ -168,14 +168,41 @@ def add_regime_features(df: pd.DataFrame, regime_builder: RegimeFeatureBuilder) 
     return result_df
 
 
+def train_binary_expert_fold(X_train, y_train, expert_type, config):
+    """Train a binary expert on a fold and return calibrated model"""
+    train_data = lgb.Dataset(X_train, label=y_train)
+    
+    params = {
+        'objective': 'binary',
+        'metric': 'binary_logloss',
+        'boosting_type': 'gbdt',
+        'num_leaves': 31 if expert_type != 'draw' else 25,
+        'max_depth': 5 if expert_type != 'draw' else 4,
+        'learning_rate': 0.05 if expert_type != 'draw' else 0.03,
+        'min_data_in_leaf': 200 if expert_type != 'draw' else 300,
+        'feature_fraction': 0.8 if expert_type != 'draw' else 0.7,
+        'bagging_fraction': 0.8 if expert_type != 'draw' else 0.7,
+        'bagging_freq': 5,
+        'lambda_l1': 0.5 if expert_type != 'draw' else 1.0,
+        'lambda_l2': 0.5 if expert_type != 'draw' else 1.0,
+        'verbosity': -1,
+        'seed': 42,
+        'n_jobs': -1
+    }
+    
+    if expert_type == 'draw':
+        params['scale_pos_weight'] = 2.5
+    
+    model = lgb.train(params, train_data, num_boost_round=100)
+    return model
+
+
 def main():
     logger.info("=" * 60)
-    logger.info("V3 FULL MODEL TRAINING")
+    logger.info("V3 FULL MODEL TRAINING (LEAK-FREE)")
     logger.info("Binary Experts + Stacked Meta-Model + Regime Features")
+    logger.info("Out-of-fold predictions to prevent stacking leakage")
     logger.info("=" * 60)
-    
-    experts = load_binary_experts()
-    logger.info("Loaded 3 binary experts")
     
     regime_builder = RegimeFeatureBuilder()
     
@@ -192,10 +219,68 @@ def main():
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     
-    df = generate_expert_predictions(df, experts)
-    logger.info("Added expert predictions")
+    logger.info("Generating out-of-fold expert predictions...")
     
-    logger.info("Adding regime features (this may take a moment)...")
+    split1 = int(len(df) * 0.5)
+    split2 = int(len(df) * 0.8)
+    
+    fold1 = df.iloc[:split1]
+    fold2 = df.iloc[split1:split2]
+    val_df = df.iloc[split2:]
+    
+    logger.info(f"Fold 1 (train experts): {len(fold1)}")
+    logger.info(f"Fold 2 (train meta): {len(fold2)}")
+    logger.info(f"Validation: {len(val_df)}")
+    
+    for col in EXPERT_FEATURES:
+        df[col] = 0.0
+    
+    X_fold1 = fold1[BASE_FEATURES]
+    
+    experts = {}
+    for expert_type in ['home', 'away', 'draw']:
+        target_map = {'home': 'H', 'away': 'A', 'draw': 'D'}
+        y_fold1 = (fold1['outcome'] == target_map[expert_type]).astype(int)
+        model = train_binary_expert_fold(X_fold1, y_fold1, expert_type, {})
+        experts[expert_type] = model
+        logger.info(f"Trained {expert_type} expert on fold 1")
+    
+    X_fold2 = fold2[BASE_FEATURES]
+    X_val = val_df[BASE_FEATURES]
+    
+    from sklearn.isotonic import IsotonicRegression
+    calibrators = {}
+    
+    for expert_type, model in experts.items():
+        raw_proba = model.predict(X_fold2)
+        target_map = {'home': 'H', 'away': 'A', 'draw': 'D'}
+        y_fold2 = (fold2['outcome'] == target_map[expert_type]).astype(int)
+        
+        calibrator = IsotonicRegression(out_of_bounds='clip')
+        calibrator.fit(raw_proba, y_fold2)
+        calibrators[expert_type] = calibrator
+        
+        cal_proba = calibrator.predict(raw_proba)
+        df.loc[fold2.index, f'expert_{expert_type}_prob'] = np.clip(cal_proba, 0.01, 0.99)
+        
+        val_raw = model.predict(X_val)
+        val_cal = calibrator.predict(val_raw)
+        df.loc[val_df.index, f'expert_{expert_type}_prob'] = np.clip(val_cal, 0.01, 0.99)
+    
+    for idx_set in [fold2.index, val_df.index]:
+        subset = df.loc[idx_set]
+        df.loc[idx_set, 'expert_home_away_diff'] = subset['expert_home_prob'] - subset['expert_away_prob']
+        df.loc[idx_set, 'expert_draw_confidence'] = subset['expert_draw_prob'] * subset['implied_competitiveness']
+        df.loc[idx_set, 'expert_favorite_spread'] = abs(subset['expert_home_prob'] - subset['expert_away_prob'])
+        
+        total = subset['expert_home_prob'] + subset['expert_away_prob'] + subset['expert_draw_prob'] * 1.1
+        df.loc[idx_set, 'expert_norm_home'] = subset['expert_home_prob'] / total
+        df.loc[idx_set, 'expert_norm_away'] = subset['expert_away_prob'] / total
+        df.loc[idx_set, 'expert_norm_draw'] = (subset['expert_draw_prob'] * 1.1) / total
+    
+    logger.info("Generated out-of-fold expert predictions")
+    
+    logger.info("Adding regime features...")
     df = add_regime_features(df, regime_builder)
     logger.info("Added regime features")
     
@@ -205,16 +290,15 @@ def main():
     outcome_map = {'H': 0, 'D': 1, 'A': 2}
     df['target'] = df['outcome'].map(outcome_map)
     
-    split_idx = int(len(df) * 0.8)
-    train_df = df.iloc[:split_idx]
-    val_df = df.iloc[split_idx:]
+    train_df_final = df.loc[fold2.index]
+    val_df_final = df.iloc[split2:]
     
-    X_train = train_df[all_features]
-    y_train = train_df['target']
-    X_val = val_df[all_features]
-    y_val = val_df['target']
+    X_train = train_df_final[all_features]
+    y_train = train_df_final['target']
+    X_val = val_df_final[all_features]
+    y_val = val_df_final['target']
     
-    logger.info(f"Train: {len(train_df)}, Val: {len(val_df)}")
+    logger.info(f"Train: {len(train_df_final)}, Val: {len(val_df_final)}")
     
     params = {
         'objective': 'multiclass',
@@ -277,18 +361,19 @@ def main():
     with open(OUTPUT_DIR / 'model.pkl', 'wb') as f:
         pickle.dump(model, f)
     
-    for expert_type, expert in experts.items():
+    for expert_type in experts.keys():
         with open(OUTPUT_DIR / f'{expert_type}_expert.pkl', 'wb') as f:
-            pickle.dump(expert['model'], f)
+            pickle.dump(experts[expert_type], f)
         with open(OUTPUT_DIR / f'{expert_type}_calibrator.pkl', 'wb') as f:
-            pickle.dump(expert['calibrator'], f)
+            pickle.dump(calibrators[expert_type], f)
     
     metadata = {
-        'version': 'v3_full',
+        'version': 'v3_full_leakfree',
         'trained_at': datetime.now().isoformat(),
         'total_samples': len(df),
-        'train_samples': len(train_df),
-        'val_samples': len(val_df),
+        'train_samples': len(train_df_final),
+        'val_samples': len(val_df_final),
+        'training_method': 'out-of-fold stacking with time-based splits',
         'features': {
             'base': BASE_FEATURES,
             'expert': EXPERT_FEATURES,

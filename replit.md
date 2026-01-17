@@ -19,10 +19,16 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Redis**: Used for session caching.
 
 ### Machine Learning Pipeline
-- **Models**: Production V1 (weighted consensus), V2 (LightGBM ensemble), unified V2 with 61 features, V2-NBA (basketball), V2-NHL (hockey).
+- **Models**: Production V1 (weighted consensus), V2 (LightGBM ensemble), unified V2 with 61 features, V2-NBA (basketball), V2-NHL (hockey), **V3 Binary Expert Ensemble** (52.02% accuracy, 0.9823 LogLoss).
+- **V3 Architecture (Jan 2026)**: Binary expert stacked ensemble with 3 calibrated binary classifiers (Home/Away/Draw) + stacked meta-model + 14 regime features.
+  - Home Expert: AUC 0.7213, predicts H vs (D+A)
+  - Away Expert: AUC 0.7337, predicts A vs (H+D)
+  - Draw Expert: AUC 0.5829, predicts D vs (H+A)
+  - Stacked Meta-Model: Uses expert probabilities as features (57 total features)
 - **Feature Engineering**: Automated pipeline generating features from various categories (Odds, Drift, ELO, Form, H2H, Advanced Stats, Context, Sharp Book, ECE, Timing, Historical Flags).
+- **Regime Features (V3)**: League draw regime, goals regime, home stability, draw volatility, odds skewness, favorite dominance, draw compression, sharp signals.
 - **Multi-Sport Models**: V2-Basketball (92.9% accuracy, 30 features) and V2-Hockey (75.0% accuracy, 30 features) for NBA/NHL predictions.
-- **Leak Elimination**: Strict pre-match odds filtering.
+- **Leak Elimination**: Strict pre-match odds filtering + league stats computed from pre-2022 data only.
 - **Auto-Retraining System**: Models retrain automatically based on new match volume, staleness, or accuracy drift.
 - **Match Context Builder**: Automated scheduler service populates match context data.
 - **Market System**: Poisson-based approach for generating mathematically consistent markets.
