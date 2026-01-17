@@ -1,0 +1,17 @@
+{
+  "v3_hard_timeblock": {
+    "accuracy": 0.5847953216374269,
+    "logloss": 0.9303539778095673,
+    "brier": 0.5475947638843034,
+    "test_samples": 171,
+    "train_samples": 22119
+  },
+  "book_only_baseline": {
+    "accuracy": 0.5178555406011665,
+    "logloss": 0.9860080164380709,
+    "brier": 0.5879316226422805,
+    "samples": 22290
+  },
+  "per_league": {},
+  "validation_date": "2026-01-17T18:34:22.549563"
+}
