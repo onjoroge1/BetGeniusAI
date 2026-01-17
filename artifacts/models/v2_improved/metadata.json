@@ -1,0 +1,229 @@
+{
+  "version": "v2_improved_fast",
+  "trained_at": "2026-01-17T01:50:59.326977",
+  "samples": 22290,
+  "train_samples": 17832,
+  "val_samples": 4458,
+  "features": [
+    "p_b365_h",
+    "p_b365_d",
+    "p_b365_a",
+    "p_ps_h",
+    "p_ps_d",
+    "p_ps_a",
+    "p_avg_h",
+    "p_avg_d",
+    "p_avg_a",
+    "favorite_strength",
+    "underdog_value",
+    "draw_tendency",
+    "market_overround",
+    "sharp_soft_divergence",
+    "max_vs_avg_edge_h",
+    "max_vs_avg_edge_d",
+    "max_vs_avg_edge_a",
+    "ou_line",
+    "over_implied_prob",
+    "under_implied_prob",
+    "ah_home_prob",
+    "ah_away_prob",
+    "league_home_win_rate",
+    "league_draw_rate",
+    "league_goals_avg",
+    "season_month",
+    "expected_total_goals",
+    "home_goals_expected",
+    "away_goals_expected",
+    "goal_diff_expected",
+    "home_value_score",
+    "draw_value_score",
+    "away_value_score",
+    "home_advantage_signal",
+    "draw_vs_away_ratio",
+    "favorite_confidence",
+    "upset_potential",
+    "book_agreement_score",
+    "implied_competitiveness"
+  ],
+  "params": {
+    "objective": "multiclass",
+    "num_class": 3,
+    "metric": "multi_logloss",
+    "boosting_type": "gbdt",
+    "num_leaves": 31,
+    "max_depth": 5,
+    "learning_rate": 0.05,
+    "min_data_in_leaf": 200,
+    "feature_fraction": 0.8,
+    "bagging_fraction": 0.8,
+    "bagging_freq": 5,
+    "lambda_l1": 0.5,
+    "lambda_l2": 0.5,
+    "verbosity": -1,
+    "seed": 42,
+    "n_jobs": -1
+  },
+  "metrics": {
+    "accuracy": 0.5033647375504711,
+    "logloss": 0.9912155463279598,
+    "best_iteration": 63
+  },
+  "feature_importance": [
+    {
+      "feature": "p_ps_a",
+      "importance": 7497.929574728012
+    },
+    {
+      "feature": "home_goals_expected",
+      "importance": 3800.8116780519485
+    },
+    {
+      "feature": "p_ps_h",
+      "importance": 3369.0491815805435
+    },
+    {
+      "feature": "p_b365_a",
+      "importance": 2310.827758908272
+    },
+    {
+      "feature": "p_avg_a",
+      "importance": 1971.1550883948803
+    },
+    {
+      "feature": "draw_vs_away_ratio",
+      "importance": 1554.5359191298485
+    },
+    {
+      "feature": "p_ps_d",
+      "importance": 1523.551232099533
+    },
+    {
+      "feature": "p_avg_h",
+      "importance": 1081.1606101989746
+    },
+    {
+      "feature": "away_value_score",
+      "importance": 1015.9183397889137
+    },
+    {
+      "feature": "market_overround",
+      "importance": 977.9014927446842
+    },
+    {
+      "feature": "draw_value_score",
+      "importance": 928.5278039723635
+    },
+    {
+      "feature": "p_avg_d",
+      "importance": 876.383169054985
+    },
+    {
+      "feature": "max_vs_avg_edge_a",
+      "importance": 851.667994722724
+    },
+    {
+      "feature": "book_agreement_score",
+      "importance": 838.7188342958689
+    },
+    {
+      "feature": "max_vs_avg_edge_h",
+      "importance": 818.792936578393
+    },
+    {
+      "feature": "home_value_score",
+      "importance": 760.4618312120438
+    },
+    {
+      "feature": "favorite_confidence",
+      "importance": 759.2158486545086
+    },
+    {
+      "feature": "max_vs_avg_edge_d",
+      "importance": 758.9270342588425
+    },
+    {
+      "feature": "goal_diff_expected",
+      "importance": 758.2253801822662
+    },
+    {
+      "feature": "home_advantage_signal",
+      "importance": 662.9619497060776
+    },
+    {
+      "feature": "implied_competitiveness",
+      "importance": 619.8546812534332
+    },
+    {
+      "feature": "sharp_soft_divergence",
+      "importance": 599.2602715790272
+    },
+    {
+      "feature": "season_month",
+      "importance": 375.0938057601452
+    },
+    {
+      "feature": "league_home_win_rate",
+      "importance": 261.67886555194855
+    },
+    {
+      "feature": "favorite_strength",
+      "importance": 212.66908955574036
+    },
+    {
+      "feature": "away_goals_expected",
+      "importance": 202.37556958198547
+    },
+    {
+      "feature": "league_goals_avg",
+      "importance": 196.62726962566376
+    },
+    {
+      "feature": "league_draw_rate",
+      "importance": 171.28351366519928
+    },
+    {
+      "feature": "draw_tendency",
+      "importance": 166.48388481140137
+    },
+    {
+      "feature": "underdog_value",
+      "importance": 158.3501627445221
+    },
+    {
+      "feature": "upset_potential",
+      "importance": 148.8514107465744
+    },
+    {
+      "feature": "ah_home_prob",
+      "importance": 109.687180519104
+    },
+    {
+      "feature": "p_b365_d",
+      "importance": 104.59657001495361
+    },
+    {
+      "feature": "p_b365_h",
+      "importance": 87.11383056640625
+    },
+    {
+      "feature": "under_implied_prob",
+      "importance": 49.573490142822266
+    },
+    {
+      "feature": "over_implied_prob",
+      "importance": 8.759140014648438
+    },
+    {
+      "feature": "ah_away_prob",
+      "importance": 2.893620014190674
+    },
+    {
+      "feature": "ou_line",
+      "importance": 0.0
+    },
+    {
+      "feature": "expected_total_goals",
+      "importance": 0.0
+    }
+  ]
+}
