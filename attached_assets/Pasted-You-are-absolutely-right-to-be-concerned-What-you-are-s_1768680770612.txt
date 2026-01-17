@@ -1,0 +1,238 @@
+You are absolutely right to be concerned. What you are seeing here is not a “small tuning issue” — it is a **structural flaw in the parlay construction logic**, not the underlying model. I’ll break this down cleanly and then give you concrete rules to fix it.
+
+---
+
+## Executive summary (plain truth)
+
+Your **model probabilities are fine**, but your **parlay assembler is behaving like an odds-maximizer instead of a conviction-maximizer**.
+
+As a result:
+
+* You are **mixing mutually exclusive outcomes** (home win + away win, draw + away win).
+* You are **reusing the same low-quality match** across many parlays instead of selecting the *best matches in the slate*.
+* You are **overweighting edge% driven by long odds**, not by true win likelihood.
+* “High confidence” is being assigned to bets with **4–15% true parlay win probability**, which will destroy user trust over time.
+
+This is exactly the kind of thing sharp bettors notice immediately.
+
+---
+
+## Critical issues (what’s objectively wrong)
+
+### 1. Mutually exclusive legs inside the same match (hard stop bug)
+
+Example:
+
+```json
+Atletico Madrid vs Alaves
+- Draw (D)
+- Away Win (A)
+```
+
+and later:
+
+```json
+Home Win (H)
+Away Win (A)
+```
+
+These outcomes **cannot coexist** across a single betting strategy set.
+
+**This is not diversification — it’s incoherence.**
+
+Even if they are in different parlays, your *system output as a whole* is contradicting itself.
+
+**Rule that must exist (non-negotiable):**
+
+> For a given match, only ONE of {H, D, A} may be eligible per generation cycle.
+
+---
+
+### 2. Edge% is being gamed by long odds
+
+You have legs like:
+
+```json
+Away Win
+model_prob: 0.2627
+odds: 9.4
+edge_pct: 146.9
+```
+
+Yes, mathematically the edge looks huge — **but the implied volatility is massive**.
+
+This creates parlays with:
+
+* 4–10% total win probability
+* labeled as `"confidence": "high"`
+
+That is fundamentally incorrect labeling.
+
+**High edge ≠ high quality**
+**High odds ≠ high conviction**
+
+---
+
+### 3. Same match spammed across the entire parlay set
+
+You are effectively doing:
+
+* Atletico vs Alaves → 6+ parlays
+* Wolves vs Newcastle → 4+ parlays
+
+This signals:
+
+* Weak match filtering
+* No global quality ranking
+* No exposure cap per fixture
+
+From a user perspective:
+
+> “Why is SnapBet obsessed with this one game?”
+
+---
+
+### 4. Totals are treated as filler, not conviction
+
+Every totals leg has:
+
+```json
+edge_pct: 2.9
+```
+
+This suggests:
+
+* You’re adding totals just to boost odds
+* Not because they materially improve EV
+
+Totals should **reinforce** the match narrative, not decorate it.
+
+---
+
+### 5. “High confidence” label is misleading
+
+Let’s be blunt:
+
+| Parlay     | Win Probability |
+| ---------- | --------------- |
+| 47.85 odds | 4.8%            |
+| 32.52 odds | 6.6%            |
+| 21.81 odds | 9.9%            |
+
+These are **lottery parlays**, not high confidence bets.
+
+If users lose repeatedly on “high confidence” parlays, your retention dies.
+
+---
+
+## What you *should* be doing instead (clear rules)
+
+### Rule 1: Global match quality filter (before any parlay logic)
+
+Only allow matches where **at least one outcome** meets:
+
+* `model_prob >= 0.50` (or your chosen bar)
+* `edge_pct > 0` (real edge, not cosmetic)
+* League quality filter (top leagues, no junk)
+
+If a match fails → **it cannot appear in any parlay**
+
+---
+
+### Rule 2: Single outcome per match (forced consistency)
+
+For each match:
+
+1. Compute EV for H, D, A
+2. Select **ONE winner**
+3. Lock the match to that outcome globally
+
+No exceptions.
+
+---
+
+### Rule 3: Confidence tiers must be probability-driven
+
+Redefine confidence as:
+
+| Tier   | Parlay Win Probability |
+| ------ | ---------------------- |
+| Low    | < 10%                  |
+| Medium | 10–20%                 |
+| High   | 20%+                   |
+
+Right now you are calling **5% parlays “high confidence”**, which is indefensible.
+
+---
+
+### Rule 4: Exposure caps per match
+
+Hard limits:
+
+* Max **1 parlay per match** in the main feed
+* Max **2 total legs per match across all parlays**
+* Prefer **different matches over different markets**
+
+---
+
+### Rule 5: Totals must agree with the match story
+
+Examples:
+
+* Home favorite → Over 1.5 or Over 2.5
+* Defensive matchup → Under 3.5
+* Draw → Under 2.5
+
+Never:
+
+* Home win + under 1.5 (contradictory)
+* Away upset + over/under chosen blindly
+
+---
+
+## What a *good* SnapBet parlay should look like
+
+**Target profile:**
+
+* 2 legs
+* Combined odds: 4.0 – 8.0
+* Win probability: 20–30%
+* Clear narrative (“Strong home side + goal expectation”)
+
+Example structure:
+
+```text
+Leg 1: Home Win (58% model prob, +6% edge)
+Leg 2: Over 1.5 Goals (72% model prob, +4% edge)
+
+Combined odds: ~5.2
+Parlay win prob: ~24%
+Confidence: HIGH
+```
+
+This is something users can *believe in*.
+
+---
+
+## Final verdict
+
+Your instinct is 100% correct.
+
+* ❌ Current output prioritizes **odds spectacle**
+* ❌ Contains **logical contradictions**
+* ❌ Overuses **low-quality matches**
+* ❌ Mislabels confidence
+* ❌ Risks long-term trust
+
+### The fix is NOT retraining the model
+
+### The fix is **constraining the parlay builder**
+
+If you want, next step I can:
+
+* Design a **parlay eligibility scoring function**
+* Write **pseudo-code for the new builder**
+* Define a **“SnapBet Safe Parlays” product tier**
+* Help you split **lotto parlays vs trust parlays**
+
+Just tell me which direction you want to go.
