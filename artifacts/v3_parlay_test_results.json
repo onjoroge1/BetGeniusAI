@@ -1,0 +1,182 @@
+{
+  "timestamp": "2026-01-17T19:44:14.824268",
+  "matches_tested": 9,
+  "results": [
+    {
+      "match_id": 1378065,
+      "match": "Cagliari vs Juventus",
+      "league": "League 135",
+      "v3_prediction": "A",
+      "v3_confidence": 0.3624,
+      "v3_probabilities": {
+        "home": 0.2125,
+        "draw": 0.2126,
+        "away": 0.575
+      },
+      "book_probabilities": {
+        "home": 0.1379,
+        "draw": 0.2386,
+        "away": 0.6235
+      },
+      "book_favorite": "Away",
+      "edge_pct": -4.85000000000001
+    },
+    {
+      "match_id": 1379179,
+      "match": "Aston Villa vs Everton",
+      "league": "League 39",
+      "v3_prediction": "H",
+      "v3_confidence": 0.2555,
+      "v3_probabilities": {
+        "home": 0.5302,
+        "draw": 0.2747,
+        "away": 0.1951
+      },
+      "book_probabilities": {
+        "home": 0.5812581258125813,
+        "draw": 0.243024302430243,
+        "away": 0.1757175717571757
+      },
+      "book_favorite": "Home",
+      "edge_pct": -5.105812581258129
+    },
+    {
+      "match_id": 1379188,
+      "match": "Wolves vs Newcastle",
+      "league": "League 39",
+      "v3_prediction": "A",
+      "v3_confidence": 0.2399,
+      "v3_probabilities": {
+        "home": 0.2575,
+        "draw": 0.245,
+        "away": 0.4974
+      },
+      "book_probabilities": {
+        "home": 0.2123281395116466,
+        "draw": 0.24290122191949615,
+        "away": 0.5447706385688572
+      },
+      "book_favorite": "Away",
+      "edge_pct": -4.737063856885721
+    },
+    {
+      "match_id": 1391009,
+      "match": "Atletico Madrid vs Alaves",
+      "league": "League 140",
+      "v3_prediction": "H",
+      "v3_confidence": 0.3628,
+      "v3_probabilities": {
+        "home": 0.5878,
+        "draw": 0.2249,
+        "away": 0.1873
+      },
+      "book_probabilities": {
+        "home": 0.7105524681476829,
+        "draw": 0.18776795396642407,
+        "away": 0.10167957788589307
+      },
+      "book_favorite": "Home",
+      "edge_pct": -12.275246814768293
+    },
+    {
+      "match_id": 1391010,
+      "match": "Real Betis vs Villarreal",
+      "league": "League 140",
+      "v3_prediction": "A",
+      "v3_confidence": 0.0178,
+      "v3_probabilities": {
+        "home": 0.3104,
+        "draw": 0.3359,
+        "away": 0.3537
+      },
+      "book_probabilities": {
+        "home": 0.3841,
+        "draw": 0.2689,
+        "away": 0.347
+      },
+      "book_favorite": "Home",
+      "edge_pct": 0.6700000000000039
+    },
+    {
+      "match_id": 1391011,
+      "match": "Celta Vigo vs Rayo Vallecano",
+      "league": "League 140",
+      "v3_prediction": "H",
+      "v3_confidence": 0.1194,
+      "v3_probabilities": {
+        "home": 0.4419,
+        "draw": 0.3225,
+        "away": 0.2357
+      },
+      "book_probabilities": {
+        "home": 0.49254925492549256,
+        "draw": 0.289028902890289,
+        "away": 0.21842184218421842
+      },
+      "book_favorite": "Home",
+      "edge_pct": -5.064925492549255
+    },
+    {
+      "match_id": 1391012,
+      "match": "Elche vs Sevilla",
+      "league": "League 140",
+      "v3_prediction": "D",
+      "v3_confidence": 0.021,
+      "v3_probabilities": {
+        "home": 0.3547,
+        "draw": 0.3757,
+        "away": 0.2696
+      },
+      "book_probabilities": {
+        "home": 0.4203112978635261,
+        "draw": 0.28229863289341306,
+        "away": 0.29739006924306094
+      },
+      "book_favorite": "Home",
+      "edge_pct": 9.340136710658692
+    },
+    {
+      "match_id": 1391014,
+      "match": "Getafe vs Valencia",
+      "league": "League 140",
+      "v3_prediction": "H",
+      "v3_confidence": 0.0727,
+      "v3_probabilities": {
+        "home": 0.4145,
+        "draw": 0.3418,
+        "away": 0.2437
+      },
+      "book_probabilities": {
+        "home": 0.3682,
+        "draw": 0.341,
+        "away": 0.2908
+      },
+      "book_favorite": "Home",
+      "edge_pct": 4.6299999999999955
+    },
+    {
+      "match_id": 1391018,
+      "match": "Real Sociedad vs Barcelona",
+      "league": "League 140",
+      "v3_prediction": "A",
+      "v3_confidence": 0.3276,
+      "v3_probabilities": {
+        "home": 0.2395,
+        "draw": 0.1934,
+        "away": 0.5671
+      },
+      "book_probabilities": {
+        "home": 0.1907809219078092,
+        "draw": 0.20327967203279673,
+        "away": 0.605939406059394
+      },
+      "book_favorite": "Away",
+      "edge_pct": -3.8839406059393955
+    }
+  ],
+  "summary": {
+    "positive_edge_count": 3,
+    "high_confidence_count": 0,
+    "sample_parlays_generated": 2
+  }
+}
