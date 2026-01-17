@@ -1,0 +1,227 @@
+Yes — there are several additional, proven ways to construct **high-quality** parlays beyond the constraints you listed. Your proposed fixes are the “must-have” baseline. What follows are higher-level construction approaches that will materially improve: (a) coherence, (b) hit rate, (c) user trust, and (d) product clarity.
+
+Below are **8 parlay construction frameworks** you can mix-and-match. In practice, I recommend implementing 2–3 of them as distinct “parlay types” (Trust Parlays, Edge Parlays, Narrative Parlays, etc.) so the feed feels intentional rather than random.
+
+---
+
+## 1) Slate-level “Best Bets First” + Parlay as Packaging
+
+**Concept:** Do not “build parlays.” Instead, **rank single legs** by quality, then package the top legs into 2-leg parlays.
+
+**Mechanics**
+
+* Compute a **Leg Quality Score** per candidate bet:
+
+  * Base: `EV = p*odds - 1`
+  * Penalize longshots: `- λ * max(0, odds - 3.0)`
+  * Penalize low probability: `- μ * max(0, p_min - p)`
+  * Penalize model uncertainty (if you have it): `- ν * σ`
+* Take the **top N legs across the slate** (from different matches)
+* Create parlays using best combinations subject to:
+
+  * different matches
+  * low correlation
+  * target win-prob band (e.g., 18–30%)
+
+**Why it’s high quality**
+
+* Forces diversity across matches
+* Eliminates “one match spam”
+* Ensures every parlay is composed of legs that would be good as singles
+
+---
+
+## 2) Probability-Banded Parlays (Product-grade “tiers”)
+
+**Concept:** Create parlays by **target hit rate**, not by odds.
+
+**Bands (example)**
+
+* **Safe 2-leg:** parlay win prob ≥ 25% and each leg p ≥ 60%
+* **Standard 2-leg:** parlay win prob 18–25% and each leg p ≥ 55%
+* **Value 2-leg:** parlay win prob 12–18% and each leg p ≥ 50%
+
+**Why it works**
+
+* This is the simplest way to align “confidence” with reality.
+* Users understand it immediately.
+* It prevents the model from pushing 5% parlays as “high.”
+
+---
+
+## 3) “Same-Game Parlay” Only When Correlation Is Positive and Modeled
+
+Right now you are applying a correlation penalty, but the construction still behaves like “SGP for fun.” A high-quality approach is:
+
+**Only allow same-match parlays when:**
+
+* you are intentionally exploiting **positive correlation**, AND
+* you have a correlation model / heuristic that is directionally correct.
+
+**Examples of coherent, positively correlated combos**
+
+* Home Win + Over 1.5 (home dominance + goals)
+* Draw + Under 2.5 (tight match)
+* Underdog + Under 3.5 (scrappy/low event)
+* BTTS Yes + Over 2.5 (goals environment)
+
+**What to avoid**
+
+* Home Win + Under 1.5 (rare scorelines, fragile)
+* Away longshot + random total added as filler
+
+**Implementation note**
+If you can’t properly model correlation yet, keep SGP as a distinct category and label it as such; do not mix it into “Trust Parlays.”
+
+---
+
+## 4) Portfolio Construction: Maximize Expected Log Utility Under Risk Constraints
+
+This is a professional approach.
+
+**Concept:** You treat each parlay as an “asset” with:
+
+* expected return (EV)
+* variance (from probability)
+* covariance (from match overlap / league / style correlation)
+
+Then you build a “portfolio” of parlays that maximizes expected utility subject to constraints:
+
+* exposure caps per match/team/league
+* probability floor
+* odds ceiling
+* diversity requirements
+
+**Practical lightweight version**
+
+* Use **greedy selection**:
+
+  * Start from best parlay score
+  * Add next only if it doesn’t violate exposure and doesn’t overlap too much
+  * Continue until you have the daily set
+
+This yields a feed that feels curated and “smart.”
+
+---
+
+## 5) “Consensus + Edge” Hybrid (Market-aware filtering)
+
+Right now you can get fake “edge” because of calibration quirks on long odds. A clean fix:
+
+**Require BOTH:**
+
+* model edge positive, AND
+* market sanity checks:
+
+  * de-vig implied prob not wildly far from model prob unless strong evidence
+  * exclude outcomes where the model disagrees by an extreme amount *and* the outcome is long-odds
+
+**Simple rule**
+
+* If `odds > 4.0`, require `p_model >= 0.30` AND `edge >= +5%`
+* If `odds > 8.0`, require `p_model >= 0.20` AND `edge >= +8%` AND `match_quality >= threshold`
+
+This prevents the “9.4 odds away win” from dominating the feed unless it truly qualifies.
+
+---
+
+## 6) “Team Strength Narrative Parlays” Using Match Archetypes
+
+Users trust parlays that “make sense.” Build archetypes:
+
+* **Heavy favorite archetype**
+
+  * Home win + over 1.5 / team total over 1.0
+* **Low-event archetype**
+
+  * Under 3.5 + BTTS No
+* **High-event archetype**
+
+  * Over 2.5 + BTTS Yes
+* **Underdog resilience archetype**
+
+  * Double chance + under 3.5
+
+You can implement this with rule templates and then score each candidate template by EV and probability.
+
+---
+
+## 7) Duplicate-outcome suppression across feed (global consistency)
+
+Even with “single outcome per match,” you should also implement:
+
+**Global contradiction control**
+
+* If match is selected as Home Win in any featured parlay, then:
+
+  * Draw and Away Win for that match are not allowed in the same feed cycle
+* Optionally, introduce “alternate feed modes”:
+
+  * “Main feed” = strict, consistent
+  * “Value board” = allows contrarian picks but clearly labeled
+
+This is a product trust lever more than a math lever.
+
+---
+
+## 8) “Two-leg only” default, and only allow 3+ legs as a separate product
+
+Right now your output behaves like it’s designed to sell excitement.
+
+For high-quality:
+
+* Default: **2 legs**
+* 3 legs: only if each leg p ≥ 65% and parlay p ≥ 18%
+* 4 legs: typically avoid unless it’s explicitly “fun/lotto”
+
+This ensures your best product stays credible.
+
+---
+
+# Recommended SnapBet Parlay System (what I’d implement)
+
+If you want the simplest, highest-impact structure:
+
+### A) Two primary parlay products
+
+1. **SnapBet Trust Parlays**
+
+* Different matches only
+* Each leg p ≥ 55–60%
+* Parlay p ≥ 18–25%
+* Odds cap (e.g., ≤ 8.0)
+
+2. **SnapBet Value Parlays**
+
+* Different matches
+* Each leg p ≥ 50%
+* Parlay p ≥ 12–18%
+* More tolerant on odds, still capped
+
+### B) Separate “Same Game Parlays” tab (optional)
+
+* Only correlation-approved templates
+
+### C) Separate “Longshot Board”
+
+* If you want it for marketing, label it honestly
+
+---
+
+# Key addition to your proposed fixes
+
+Your list is strong. The one major addition I’d insist on:
+
+## Implement a Leg Quality Score and parlay selection by slate ranking
+
+Without slate ranking, you can still end up overly concentrated in a few matches.
+
+---
+
+If you want, I can give you:
+
+1. A concrete **Leg Quality Score formula** (drop-in)
+2. A **greedy parlay selection algorithm** that respects exposure, probability bands, and contradiction suppression
+3. A “Parlay Types” schema so you can sell **Trust vs Value vs SGP vs Longshot** cleanly in the UI
+
+If you paste your current `_extract_all_legs()` and `_build_parlay()` signatures (inputs/outputs), I’ll write the updated version in the same structure and style as your existing codebase.

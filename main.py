@@ -170,6 +170,9 @@ app.include_router(automated_parlays_router, tags=["Automated Parlays - Pre-comp
 from routes.player_parlays import router as player_parlays_router
 app.include_router(player_parlays_router, tags=["Player Scorer Parlays - Automated"])
 
+from routes.quality_parlays import router as quality_parlays_router
+app.include_router(quality_parlays_router, tags=["Quality Parlays - V2"])
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
