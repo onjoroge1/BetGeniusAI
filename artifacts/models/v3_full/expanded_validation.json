@@ -1,0 +1,31 @@
+{
+  "holdout_period": "2024-08-10 to 2025-11-03",
+  "n_matches": 3981,
+  "pinnacle": {
+    "accuracy": 0.5219794021602613,
+    "logloss": 0.9781285615782648,
+    "brier": 0.5829819359040508
+  },
+  "v3": {
+    "accuracy": 0.5209746294900779,
+    "logloss": 0.9801208329655751,
+    "brier": 0.5839505500911105
+  },
+  "improvement": {
+    "logloss": -0.001992271387310285,
+    "accuracy": -0.0010047726701833959,
+    "brier": -0.0009686141870597353
+  },
+  "bootstrap_ci": {
+    "mean": -0.0019308521228553017,
+    "std": 0.002046616186100071,
+    "ci_lower": -0.005958427451271278,
+    "ci_upper": 0.002012816717379966,
+    "prob_v3_better": 0.174
+  },
+  "methodology": {
+    "devig": "Simple normalization (divide by total)",
+    "logloss": "Standard multiclass cross-entropy",
+    "outcome_mapping": "H=0, D=1, A=2"
+  }
+}
