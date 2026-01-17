@@ -1,0 +1,184 @@
+This is an excellent catch, and your interpretation is exactly right. You’ve done what very few teams actually do: **invalidate your own earlier conclusion when the sample size and methodology demanded it**. That’s the correct scientific outcome, not a failure.
+
+Let me be very clear and structured in the response.
+
+---
+
+## Short answer
+
+**Yes — you should absolutely retrain V3 using a strict temporal cutoff and then re-evaluate on Aug-2024 → Nov-2025 as a true, untouched holdout.**
+
+Until you do that, *no claim about beating Pinnacle (or not) is definitive*.
+
+---
+
+## Why your expanded validation changed the conclusion (and why that’s OK)
+
+Your expanded 3,981-match test tells us several important truths:
+
+### 1. Pinnacle is still the probability ceiling
+
+Your results:
+
+| Metric   | Pinnacle (de-vig) | V3     | Δ       |
+| -------- | ----------------- | ------ | ------- |
+| Accuracy | 52.20%            | 52.10% | −0.10%  |
+| LogLoss  | 0.9781            | 0.9801 | −0.0020 |
+| Brier    | 0.5830            | 0.5840 | −0.0010 |
+
+And bootstrap:
+
+* 95% CI includes 0
+* **P(V3 better) = 17.4%**
+
+This is exactly what we expect **if the model is strong but not informationally superior to the sharpest book**.
+
+### 2. The earlier “win vs Pinnacle” was almost certainly variance
+
+* 171 matches is too small
+* Football outcome entropy is high
+* The CI now confirms that earlier improvement was not robust
+
+This is the correct statistical reconciliation.
+
+---
+
+## The most important insight you surfaced (this matters more than the metric deltas)
+
+> **The model was trained on data that overlaps the holdout period**
+
+That means:
+
+* The 3,981-match evaluation is **not truly out-of-sample**
+* Even *matching* Pinnacle under that condition is not meaningful
+* You cannot yet answer the question: *“Does V3 generalize beyond its training window?”*
+
+You are 100% right to stop here and reset the validation.
+
+---
+
+## What the calibration results *do* tell us (this is still valuable)
+
+Your calibration table is actually very encouraging:
+
+| Class | Pred  | Actual | Error |
+| ----- | ----- | ------ | ----- |
+| Home  | 49.2% | 48.5%  | 0.7%  |
+| Draw  | 29.3% | 29.1%  | 0.2%  |
+| Away  | 48.2% | 50.6%  | 2.4%  |
+
+This implies:
+
+* The **binary-expert + stacking architecture is working**
+* The model is *well-behaved probabilistically*
+* You’ve largely solved **draw miscalibration**, which is non-trivial
+
+So even if V3 doesn’t beat Pinnacle, it is **good enough to be used as a calibrated probability engine**, which is valuable downstream.
+
+---
+
+## What the next validation *must* look like (non-negotiable)
+
+Here is the correct protocol. Anything weaker will not answer the question.
+
+### Step 1: Hard training cutoff
+
+* **Training data:** matches ≤ **July 31, 2024**
+* **No leakage** in:
+
+  * league rolling stats
+  * team priors
+  * market aggregates
+  * expert calibration
+  * stacking folds
+
+### Step 2: True out-of-sample test
+
+* **Test data:** Aug 1, 2024 → Nov 2025
+* No refitting, no recalibration, no hyperparameter changes
+
+### Step 3: Compare against
+
+* Pinnacle de-vig (same matches)
+* Same outcome mapping
+* Same metric definitions
+
+### Step 4: Report
+
+* Multiclass LogLoss (primary)
+* Brier
+* Accuracy (secondary)
+* Classwise calibration
+* Bootstrap CI
+
+Only *this* answers whether V3 generalizes.
+
+---
+
+## How to interpret outcomes *before* you run it
+
+Let me set expectations so there’s no emotional whiplash.
+
+### If V3 ≈ Pinnacle (within CI)
+
+That is still a **strong success**:
+
+* You’ve recreated sharp-book probability quality
+* Using only public odds + derived structure
+* With a transparent, controllable model
+
+Most commercial betting models never get here.
+
+### If V3 slightly underperforms Pinnacle
+
+That is the **most likely outcome** and still acceptable:
+
+* Pinnacle has informational advantages you don’t (bet flow, limits, insider action)
+* Matching calibration is already difficult
+
+### If V3 beats Pinnacle
+
+Then you have a **legitimate research result**, but it must hold across:
+
+* leagues
+* odds bands
+* time windows
+
+---
+
+## One strategic reframing (important for SnapBet)
+
+The goal should **not** be “beat Pinnacle on raw probability.”
+
+The goal should be:
+
+> “Use a Pinnacle-level probability engine to find *mispriced markets across softer books*.”
+
+That is where:
+
+* EV emerges
+* Monetization happens
+* Accuracy metrics become secondary
+
+Your architecture (binary experts + stacking + calibration) is exactly what you want for that.
+
+---
+
+## Direct answer to your question
+
+> *Want me to retrain V3 with a strict temporal split and run a true out-of-sample validation?*
+
+**Yes. That is the correct and necessary next step.**
+
+When you do, I recommend:
+
+* freezing the current V3 feature set
+* no tuning based on post-Aug-2024 data
+* treating this as a *publication-grade* evaluation
+
+Once you have those results, we can:
+
+* decide if V3 is “final”
+* or identify precisely *which regimes* (leagues, odds bands, markets) still leak edge to the book and why
+
+You’re doing this the right way.

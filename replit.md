@@ -26,6 +26,11 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
   - Draw Expert: Predicts D vs (H+A) with class weighting
   - Stacked Meta-Model: Uses expert probabilities as features (57 total features)
   - **V3 Results: 52.80% accuracy, 0.9788 LogLoss** (+2.46% acc vs V2)
+- **V3 Temporal Validation (Jan 2026)**: Strict temporal cutoff (train ≤ Jul 2024, test Aug 2024 → Nov 2025).
+  - True out-of-sample: 4,021 matches completely untouched during training
+  - **V3 Temporal: 52.60% accuracy, 0.9817 LogLoss** (matches Pinnacle probability quality)
+  - Bootstrap P(V3 better than Pinnacle): 5.1% - CI includes zero
+  - **Verdict: MATCHES PINNACLE** - recreates sharp-book quality with transparent model
 - **Feature Engineering**: Automated pipeline generating features from various categories (Odds, Drift, ELO, Form, H2H, Advanced Stats, Context, Sharp Book, ECE, Timing, Historical Flags).
 - **Regime Features (V3)**: League draw regime, goals regime, home stability, draw volatility, odds skewness, favorite dominance, draw compression, sharp signals.
 - **Multi-Sport Models**: V2-Basketball (92.9% accuracy, 30 features) and V2-Hockey (75.0% accuracy, 30 features) for NBA/NHL predictions.
