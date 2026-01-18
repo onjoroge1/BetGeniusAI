@@ -1,6 +1,7 @@
 """
 Automated Parlay API Routes
 Endpoints for viewing pre-computed parlays, filtering by edge/legs, and performance tracking
+Now uses QualityParlayGenerator (V2) for improved parlay construction
 """
 
 from fastapi import APIRouter, Query, HTTPException
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/auto-parlays", tags=["Automated Parlays"])
 
 generator = None
+quality_generator = None
 
 def get_generator():
     global generator
@@ -19,23 +21,94 @@ def get_generator():
         generator = AutomatedParlayGenerator()
     return generator
 
+def get_quality_generator():
+    global quality_generator
+    if quality_generator is None:
+        from models.quality_parlay_generator import QualityParlayGenerator
+        quality_generator = QualityParlayGenerator()
+    return quality_generator
+
+
+def _format_quality_parlays_for_frontend(raw_parlays: list) -> list:
+    """Convert QualityParlayGenerator output to frontend-compatible format"""
+    formatted = []
+    for p in raw_parlays:
+        confidence_map = {'trust': 'high', 'value': 'medium', 'sgp': 'medium'}
+        
+        formatted_legs = []
+        for leg in p.get('legs', []):
+            formatted_legs.append({
+                'match_id': leg.get('match_id'),
+                'home_team': leg.get('home_team'),
+                'away_team': leg.get('away_team'),
+                'market': leg.get('market_name'),
+                'market_type': leg.get('market_type', 'match_result'),
+                'outcome': leg.get('market_name'),
+                'odds': leg.get('decimal_odds'),
+                'model_prob': round(leg.get('model_prob', 0) * 100, 1),
+                'implied_prob': round(leg.get('implied_prob', 0) * 100, 1),
+                'edge_pct': round((leg.get('model_prob', 0) - leg.get('implied_prob', 0)) * 100, 1),
+                'kickoff_at': leg.get('kickoff_at'),
+                'home_logo': leg.get('home_logo'),
+                'away_logo': leg.get('away_logo'),
+                'leg_quality_score': round(leg.get('lqs', 0), 3)
+            })
+        
+        formatted.append({
+            'id': p.get('parlay_id'),
+            'parlay_hash': p.get('parlay_id'),
+            'leg_count': p.get('leg_count', 2),
+            'combined_odds': round(p.get('combined_odds', 0), 2),
+            'adjusted_prob_pct': round(p.get('raw_prob_pct', 0), 2),
+            'edge_pct': round(p.get('edge_pct', 0), 2),
+            'confidence_tier': confidence_map.get(p.get('parlay_type'), 'medium'),
+            'confidence': p.get('confidence_tier', 'medium'),
+            'payout_100': round(p.get('combined_odds', 0) * 100, 2),
+            'correlation_penalty_pct': 0,
+            'leg_types': ['match_result'] * p.get('leg_count', 2),
+            'status': 'pending',
+            'result': None,
+            'parlay_type': p.get('parlay_type'),
+            'legs': formatted_legs
+        })
+    
+    return formatted
+
 
 @router.get("/best")
 async def get_best_parlays(
     leg_count: Optional[int] = Query(None, description="Filter by number of legs (2, 3, 4, 5)"),
     confidence: Optional[str] = Query(None, description="Filter by confidence tier (high, medium, low)"),
     min_edge: float = Query(0, description="Minimum edge percentage"),
-    limit: int = Query(20, le=50, description="Max parlays to return")
+    limit: int = Query(20, le=50, description="Max parlays to return"),
+    use_quality: bool = Query(True, description="Use Quality Parlay Generator V2 (recommended)")
 ):
-    """Get best pre-computed parlays sorted by edge"""
+    """Get best parlays - now uses QualityParlayGenerator V2 by default"""
     try:
-        gen = get_generator()
-        parlays = gen.get_best_parlays(
-            leg_count=leg_count,
-            confidence=confidence,
-            min_edge=min_edge,
-            limit=limit
-        )
+        if use_quality:
+            qgen = get_quality_generator()
+            raw_parlays = qgen.get_best_parlays(limit=limit)
+            
+            if confidence:
+                confidence_map = {'high': 'trust', 'medium': 'value', 'low': 'value'}
+                target_type = confidence_map.get(confidence, confidence)
+                raw_parlays = [p for p in raw_parlays if p.get('parlay_type') == target_type]
+            
+            if leg_count:
+                raw_parlays = [p for p in raw_parlays if p.get('leg_count') == leg_count]
+            
+            if min_edge > 0:
+                raw_parlays = [p for p in raw_parlays if p.get('edge_pct', 0) >= min_edge]
+            
+            parlays = _format_quality_parlays_for_frontend(raw_parlays)
+        else:
+            gen = get_generator()
+            parlays = gen.get_best_parlays(
+                leg_count=leg_count,
+                confidence=confidence,
+                min_edge=min_edge,
+                limit=limit
+            )
         
         return {
             "count": len(parlays),
@@ -45,7 +118,8 @@ async def get_best_parlays(
                 "min_edge": min_edge
             },
             "default_bet": 100.0,
-            "parlays": parlays
+            "parlays": parlays,
+            "generator": "quality_v2" if use_quality else "legacy"
         }
     except Exception as e:
         logger.error(f"Failed to get best parlays: {e}")
@@ -56,21 +130,31 @@ async def get_best_parlays(
 async def get_parlays_by_leg_count(
     leg_count: int,
     min_edge: float = Query(0, description="Minimum edge percentage"),
-    limit: int = Query(20, le=50)
+    limit: int = Query(20, le=50),
+    use_quality: bool = Query(True, description="Use Quality Parlay Generator V2")
 ):
     """Get parlays filtered by leg count bucket"""
     if leg_count < 2 or leg_count > 10:
         raise HTTPException(status_code=400, detail="Leg count must be between 2 and 10")
     
     try:
-        gen = get_generator()
-        parlays = gen.get_best_parlays(leg_count=leg_count, min_edge=min_edge, limit=limit)
+        if use_quality:
+            qgen = get_quality_generator()
+            raw_parlays = qgen.get_best_parlays(limit=limit * 2)
+            raw_parlays = [p for p in raw_parlays if p.get('leg_count') == leg_count]
+            if min_edge > 0:
+                raw_parlays = [p for p in raw_parlays if p.get('edge_pct', 0) >= min_edge]
+            parlays = _format_quality_parlays_for_frontend(raw_parlays[:limit])
+        else:
+            gen = get_generator()
+            parlays = gen.get_best_parlays(leg_count=leg_count, min_edge=min_edge, limit=limit)
         
         return {
             "leg_count": leg_count,
             "count": len(parlays),
             "default_bet": 100.0,
-            "parlays": parlays
+            "parlays": parlays,
+            "generator": "quality_v2" if use_quality else "legacy"
         }
     except Exception as e:
         logger.error(f"Failed to get parlays by leg count: {e}")
@@ -80,19 +164,28 @@ async def get_parlays_by_leg_count(
 @router.get("/high-confidence")
 async def get_high_confidence_parlays(
     min_edge: float = Query(5.0, description="Minimum edge percentage"),
-    limit: int = Query(20, le=50)
+    limit: int = Query(20, le=50),
+    use_quality: bool = Query(True, description="Use Quality Parlay Generator V2")
 ):
-    """Get high-confidence parlays with positive edge"""
+    """Get high-confidence parlays with positive edge - now uses QualityParlayGenerator"""
     try:
-        gen = get_generator()
-        parlays = gen.get_best_parlays(confidence="high", min_edge=min_edge, limit=limit)
+        if use_quality:
+            qgen = get_quality_generator()
+            raw_parlays = qgen.generate_trust_parlays(max_parlays=limit)
+            if min_edge > 0:
+                raw_parlays = [p for p in raw_parlays if p.get('edge_pct', 0) >= min_edge]
+            parlays = _format_quality_parlays_for_frontend(raw_parlays)
+        else:
+            gen = get_generator()
+            parlays = gen.get_best_parlays(confidence="high", min_edge=min_edge, limit=limit)
         
         return {
             "confidence": "high",
             "min_edge": min_edge,
             "count": len(parlays),
             "default_bet": 100.0,
-            "parlays": parlays
+            "parlays": parlays,
+            "generator": "quality_v2" if use_quality else "legacy"
         }
     except Exception as e:
         logger.error(f"Failed to get high confidence parlays: {e}")
