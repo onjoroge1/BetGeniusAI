@@ -31,19 +31,27 @@ def get_quality_generator():
 
 def _format_quality_parlays_for_frontend(raw_parlays: list) -> list:
     """Convert QualityParlayGenerator output to frontend-compatible format"""
+    import hashlib
+    from datetime import datetime
+    
     formatted = []
     for p in raw_parlays:
         confidence_map = {'trust': 'high', 'value': 'medium', 'sgp': 'medium'}
         
         formatted_legs = []
+        leg_ids = []
         for leg in p.get('legs', []):
+            match_id = leg.get('match_id')
+            market = leg.get('market_name', '')
+            leg_ids.append(f"{match_id}_{market}")
+            
             formatted_legs.append({
-                'match_id': leg.get('match_id'),
+                'match_id': match_id,
                 'home_team': leg.get('home_team'),
                 'away_team': leg.get('away_team'),
-                'market': leg.get('market_name'),
+                'market': market,
                 'market_type': leg.get('market_type', 'match_result'),
-                'outcome': leg.get('market_name'),
+                'outcome': market,
                 'odds': leg.get('decimal_odds'),
                 'model_prob': round(leg.get('model_prob', 0) * 100, 1),
                 'implied_prob': round(leg.get('implied_prob', 0) * 100, 1),
@@ -54,21 +62,26 @@ def _format_quality_parlays_for_frontend(raw_parlays: list) -> list:
                 'leg_quality_score': round(leg.get('lqs', 0), 3)
             })
         
+        parlay_type = p.get('parlay_type', 'value')
+        hash_input = f"{'-'.join(sorted(leg_ids))}_{parlay_type}"
+        parlay_hash = hashlib.md5(hash_input.encode()).hexdigest()[:16]
+        parlay_id = f"qp_{parlay_hash}"
+        
         formatted.append({
-            'id': p.get('parlay_id'),
-            'parlay_hash': p.get('parlay_id'),
+            'id': parlay_id,
+            'parlay_hash': parlay_hash,
             'leg_count': p.get('leg_count', 2),
             'combined_odds': round(p.get('combined_odds', 0), 2),
             'adjusted_prob_pct': round(p.get('raw_prob_pct', 0), 2),
             'edge_pct': round(p.get('edge_pct', 0), 2),
-            'confidence_tier': confidence_map.get(p.get('parlay_type'), 'medium'),
+            'confidence_tier': confidence_map.get(parlay_type, 'medium'),
             'confidence': p.get('confidence_tier', 'medium'),
             'payout_100': round(p.get('combined_odds', 0) * 100, 2),
             'correlation_penalty_pct': 0,
             'leg_types': ['match_result'] * p.get('leg_count', 2),
             'status': 'pending',
             'result': None,
-            'parlay_type': p.get('parlay_type'),
+            'parlay_type': parlay_type,
             'legs': formatted_legs
         })
     
