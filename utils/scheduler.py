@@ -5,13 +5,14 @@ Background scheduler for automated data collection and model updates
 
 import asyncio
 import logging
-from datetime import datetime, time
+from datetime import datetime, time as dt_time
 from typing import Optional
 import threading
 import json
 import psycopg2
 import os
 import sys
+import time
 from models.automated_collector import AutomatedCollector
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
