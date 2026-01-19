@@ -173,6 +173,12 @@ app.include_router(player_parlays_router, tags=["Player Scorer Parlays - Automat
 from routes.quality_parlays import router as quality_parlays_router
 app.include_router(quality_parlays_router, tags=["Quality Parlays - V2"])
 
+try:
+    from routes.nba_predictions import router as nba_router
+    app.include_router(nba_router, tags=["NBA Predictions - V2"])
+except ImportError:
+    pass
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
