@@ -62,6 +62,15 @@ class MultiSportCollector:
             'outcome_type': '2way',
             'active_months': [4, 5, 6, 7, 8, 9, 10],
             'typical_games_per_day': 15
+        },
+        'americanfootball_nfl': {
+            'name': 'NFL',
+            'sport': 'american-football',
+            'markets': ['h2h', 'spreads', 'totals'],
+            'regions': 'us',
+            'outcome_type': '2way',
+            'active_months': [9, 10, 11, 12, 1, 2],  # Sept-Feb (regular + playoffs)
+            'typical_games_per_day': 14  # Mainly Sunday games
         }
     }
     

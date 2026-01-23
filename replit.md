@@ -56,7 +56,12 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Fixture ID Resolver**: Advanced system for cross-source data linkage.
 - **Historical Match Data**: Extensive dataset of matches with results, odds, and in-game statistics.
 - **CLV Monitoring**: Advanced system for detecting pricing inefficiencies.
-- **Multi-Sport Data**: NBA, NHL, MLB data collection for fixtures, odds, and training.
+- **Multi-Sport Data**: NBA, NHL, NFL data collection for fixtures, odds, results, and training.
+- **Multi-Sport Data Collector (Jan 2026)**: `models/multisport_data_collector.py` uses The Odds API /scores endpoint.
+  - Collects match results for NBA, NHL, NFL every 2 hours via scheduler
+  - Syncs completed games with odds to multisport_training table
+  - Training data: NBA (76 samples), NHL (100 samples), Euroleague (14 samples) as of Jan 2026
+  - New tables: `multisport_match_results`, `multisport_schedule`, `multisport_team_stats`, `multisport_injuries`
 - **Sharp Book Data**: Collection of Pinnacle and other sharp bookmaker odds for V3 features.
 - **International Match Collector**: World Cup and tournament data collection system for WC 2026 preparation.
 

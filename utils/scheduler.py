@@ -416,6 +416,10 @@ class BackgroundScheduler:
                 if "api_sports" not in self.last_run or (now - self.last_run["api_sports"]).total_seconds() >= 3600:
                     await self._spawn("api_sports", self._run_api_sports_collection, timeout=180)
                 
+                # 🏀🏒🏈 Multi-Sport Comprehensive Data - runs every 2 hours (matches, team stats, standings)
+                if "multisport_data" not in self.last_run or (now - self.last_run["multisport_data"]).total_seconds() >= 7200:
+                    await self._spawn("multisport_data", self._run_multisport_data_collection, timeout=300)
+                
                 # 📊 V3: League ECE Calculator - runs weekly on Sunday at 02:00 UTC
                 if now.weekday() == 6 and now.hour == 2:  # Sunday 02:00 UTC
                     if "league_ece" not in self.last_run or (now - self.last_run["league_ece"]).total_seconds() >= 86400:
@@ -1474,6 +1478,35 @@ class BackgroundScheduler:
             logger.warning("⚠️ MULTISPORT: multisport_collector module not found - skipping")
         except Exception as e:
             logger.error(f"❌ MULTISPORT: Results collection failed - {e}", exc_info=True)
+
+    async def _run_multisport_data_collection(self):
+        """
+        🏀🏒🏈 Multi-Sport Comprehensive Data Collection
+        Collects match results, team stats, standings for NBA, NHL, NFL.
+        Runs every 2 hours.
+        """
+        try:
+            from models.multisport_data_collector import run_multisport_collection
+            logger.info("🏀🏒🏈 MULTISPORT-DATA: Starting comprehensive collection...")
+            results = run_multisport_collection()
+            
+            for sport, data in results.items():
+                if isinstance(data, dict):
+                    if data.get('status') == 'off_season':
+                        logger.debug(f"  ⏸️ {sport}: off-season")
+                    elif 'error' in data:
+                        logger.warning(f"  ⚠️ {sport}: {data.get('error')}")
+                    else:
+                        games = data.get('games', {})
+                        standings = data.get('standings', {})
+                        stored = games.get('stored', 0)
+                        teams = standings.get('stored', 0)
+                        if stored > 0 or teams > 0:
+                            logger.info(f"  ✅ {sport}: {stored} games, {teams} team stats")
+        except ImportError:
+            logger.warning("⚠️ MULTISPORT-DATA: multisport_data_collector module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ MULTISPORT-DATA: Collection failed - {e}", exc_info=True)
 
     async def _run_api_sports_collection(self):
         """
