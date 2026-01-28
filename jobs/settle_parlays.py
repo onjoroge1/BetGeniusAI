@@ -48,19 +48,17 @@ async def settle_parlays_job() -> dict:
                 if not legs:
                     continue
                 
-                match_ids = [leg.get('match_id') for leg in legs if leg.get('match_id')]
+                match_ids = [int(leg.get('match_id')) for leg in legs if leg.get('match_id')]
                 if not match_ids:
                     continue
                 
-                placeholders = ','.join([str(mid) for mid in match_ids])
-                
-                results = conn.execute(text(f"""
+                results = conn.execute(text("""
                     SELECT 
                         match_id,
                         outcome
                     FROM match_results
-                    WHERE match_id IN ({placeholders})
-                """)).fetchall()
+                    WHERE match_id = ANY(:match_ids)
+                """), {'match_ids': match_ids}).fetchall()
                 
                 results_by_id = {r.match_id: r.outcome for r in results}
                 
@@ -268,7 +266,11 @@ async def settle_player_parlays_job() -> dict:
                 
                 all_won = True
                 for leg in legs:
-                    if leg.result != 'won':
+                    if leg.result == 'lost':
+                        all_won = False
+                    elif leg.result == 'won':
+                        pass
+                    else:
                         scorers = conn.execute(text("""
                             SELECT 1 FROM player_game_stats pgs
                             WHERE pgs.player_id = :player_id
@@ -290,8 +292,6 @@ async def settle_player_parlays_job() -> dict:
                         
                         if not won:
                             all_won = False
-                    elif leg.result == 'lost':
-                        all_won = False
                 
                 conn.execute(text("""
                     UPDATE player_parlays
