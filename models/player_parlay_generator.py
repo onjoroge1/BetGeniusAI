@@ -10,7 +10,6 @@ Features:
 """
 
 import os
-import random
 import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
@@ -188,6 +187,20 @@ class PlayerParlayGenerator:
         return players
     
     def _predict_player_scorer_prob(self, player_id: int, match_id: int, kickoff_at: datetime) -> Optional[float]:
+        """Use PlayerPropsService if available to get model prediction"""
+        if self.player_service is None:
+            return None
+        
+        try:
+            prediction = self.player_service.predict_player(
+                player_id=player_id,
+                match_id=match_id
+            )
+            if prediction and 'goal_involvement_prob' in prediction:
+                return prediction['goal_involvement_prob']
+        except Exception as e:
+            logger.debug(f"Player prediction failed for {player_id}: {e}")
+        
         return None
     
     def _generate_player_legs(self, fixtures: List[Dict]) -> List[Dict]:
@@ -213,9 +226,7 @@ class PlayerParlayGenerator:
                     games = max(player.get('games_played', 1), 1)
                     model_prob = min(0.6, max(0.05, (season_goals / games) * 0.8))
                 
-                variance = random.uniform(-0.12, 0.08)
-                base_market_prob = model_prob * (1 + self.MARKET_MARGIN)
-                market_prob = base_market_prob * (1 + variance)
+                market_prob = model_prob * (1 + self.MARKET_MARGIN)
                 market_prob = max(0.08, min(0.65, market_prob))
                 decimal_odds = 1 / market_prob if market_prob > 0 else 10.0
                 edge = (model_prob - market_prob) / market_prob * 100 if market_prob > 0 else 0

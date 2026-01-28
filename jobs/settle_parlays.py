@@ -33,8 +33,8 @@ async def settle_parlays_job() -> dict:
                     confidence_tier,
                     adjusted_prob
                 FROM parlay_consensus
-                WHERE status = 'active'
-                AND earliest_kickoff < NOW()
+                WHERE status IN ('active', 'pending')
+                AND latest_kickoff < NOW() - INTERVAL '3 hours'
             """)).fetchall()
             
             settled_count = 0
@@ -214,12 +214,124 @@ def get_parlay_performance_summary() -> dict:
         return {'error': str(e)}
 
 
+async def settle_player_parlays_job() -> dict:
+    """
+    Settle player parlays by checking goal scorers in completed matches.
+    """
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        return {'error': 'DATABASE_URL not set', 'settled': 0}
+    
+    engine = create_engine(db_url, pool_pre_ping=True)
+    
+    try:
+        with engine.connect() as conn:
+            pending_parlays = conn.execute(text("""
+                SELECT 
+                    pp.id,
+                    pp.match_ids,
+                    pp.combined_odds,
+                    pp.confidence_tier
+                FROM player_parlays pp
+                WHERE pp.status = 'pending'
+                AND pp.expires_at < NOW()
+            """)).fetchall()
+            
+            settled_count = 0
+            won_count = 0
+            lost_count = 0
+            
+            for parlay in pending_parlays:
+                parlay_id = parlay.id
+                match_ids = parlay.match_ids if parlay.match_ids else []
+                
+                if not match_ids:
+                    continue
+                
+                finished_matches = conn.execute(text("""
+                    SELECT COUNT(*) as cnt
+                    FROM match_results
+                    WHERE match_id = ANY(:match_ids)
+                """), {'match_ids': match_ids}).fetchone()
+                
+                if finished_matches.cnt < len(match_ids):
+                    continue
+                
+                legs = conn.execute(text("""
+                    SELECT 
+                        ppl.player_id,
+                        ppl.match_id,
+                        ppl.result
+                    FROM player_parlay_legs ppl
+                    WHERE ppl.parlay_id = :parlay_id
+                """), {'parlay_id': parlay_id}).fetchall()
+                
+                all_won = True
+                for leg in legs:
+                    if leg.result != 'won':
+                        scorers = conn.execute(text("""
+                            SELECT 1 FROM player_game_stats pgs
+                            WHERE pgs.player_id = :player_id
+                            AND pgs.match_id = :match_id
+                            AND (pgs.stats->>'goals')::int > 0
+                        """), {'player_id': leg.player_id, 'match_id': leg.match_id}).fetchone()
+                        
+                        won = scorers is not None
+                        conn.execute(text("""
+                            UPDATE player_parlay_legs
+                            SET result = :result
+                            WHERE parlay_id = :parlay_id AND player_id = :player_id AND match_id = :match_id
+                        """), {
+                            'result': 'won' if won else 'lost',
+                            'parlay_id': parlay_id,
+                            'player_id': leg.player_id,
+                            'match_id': leg.match_id
+                        })
+                        
+                        if not won:
+                            all_won = False
+                    elif leg.result == 'lost':
+                        all_won = False
+                
+                conn.execute(text("""
+                    UPDATE player_parlays
+                    SET status = 'settled', result = :result, settled_at = NOW()
+                    WHERE id = :parlay_id
+                """), {
+                    'parlay_id': parlay_id,
+                    'result': 'won' if all_won else 'lost'
+                })
+                
+                settled_count += 1
+                if all_won:
+                    won_count += 1
+                else:
+                    lost_count += 1
+            
+            conn.commit()
+            
+            logger.info(f"Settled {settled_count} player parlays (Won: {won_count}, Lost: {lost_count})")
+            
+            return {
+                'settled': settled_count,
+                'won': won_count,
+                'lost': lost_count
+            }
+            
+    except Exception as e:
+        logger.error(f"Player parlay settlement failed: {e}")
+        return {'error': str(e), 'settled': 0}
+
+
 if __name__ == "__main__":
     import asyncio
     logging.basicConfig(level=logging.INFO)
     
     result = asyncio.run(settle_parlays_job())
     print(f"Settlement result: {result}")
+    
+    player_result = asyncio.run(settle_player_parlays_job())
+    print(f"Player parlay settlement result: {player_result}")
     
     summary = get_parlay_performance_summary()
     print(f"Performance summary: {summary}")

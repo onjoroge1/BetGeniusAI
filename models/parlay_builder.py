@@ -180,7 +180,7 @@ class ParlayBuilder:
                 legs = []
                 for match in combo:
                     outcome, prob, odds, edge = self.calculate_best_selection(match)
-                    if edge > 0:
+                    if edge > -0.05 and prob >= 0.30:
                         legs.append({
                             'match_id': match['match_id'],
                             'home_team': match['home_team'],
@@ -253,7 +253,7 @@ class ParlayBuilder:
                 legs = []
                 for match in combo:
                     outcome, prob, odds, edge = self.calculate_best_selection(match)
-                    if edge > 0:
+                    if edge > -0.05 and prob >= 0.30:
                         legs.append({
                             'match_id': match['match_id'],
                             'home_team': match['home_team'],

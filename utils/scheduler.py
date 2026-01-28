@@ -1325,6 +1325,20 @@ class BackgroundScheduler:
             logger.debug("⚠️ AUTO-SETTLE: automated_parlay_generator module not ready - skipping")
         except Exception as e:
             logger.error(f"❌ AUTO-SETTLE: Automated parlay settlement failed - {e}", exc_info=True)
+        
+        try:
+            from jobs.settle_parlays import settle_player_parlays_job
+            logger.info("⚽ PLAYER-SETTLE: Starting player parlay settlement...")
+            result = await settle_player_parlays_job()
+            settled = result.get('settled', 0)
+            if settled > 0:
+                logger.info(f"✅ PLAYER-SETTLE: Settled {settled} player parlays (Won: {result.get('won', 0)}, Lost: {result.get('lost', 0)})")
+            else:
+                logger.debug("⚽ PLAYER-SETTLE: No player parlays to settle")
+        except ImportError:
+            logger.debug("⚠️ PLAYER-SETTLE: settle_player_parlays_job not available - skipping")
+        except Exception as e:
+            logger.error(f"❌ PLAYER-SETTLE: Player parlay settlement failed - {e}", exc_info=True)
 
     async def _run_fixtures_to_matches_sync(self):
         """
