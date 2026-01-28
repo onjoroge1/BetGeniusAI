@@ -439,6 +439,10 @@ class BackgroundScheduler:
                     if "player_stats" not in self.last_run or (now - self.last_run["player_stats"]).total_seconds() >= 86400:
                         await self._spawn("player_stats", self._run_player_stats_collection, timeout=900)
                 
+                # 🎰 Player Prop Odds Collection - runs every 2 hours for NBA/NHL
+                if "player_prop_odds" not in self.last_run or (now - self.last_run["player_prop_odds"]).total_seconds() >= 7200:
+                    await self._spawn("player_prop_odds", self._run_player_prop_odds_collection, timeout=300)
+                
                 # 🌱 Fixture Seeding - runs every 4 hours to discover new upcoming matches
                 if "fixture_seeding" not in self.last_run or (now - self.last_run["fixture_seeding"]).total_seconds() >= 14400:
                     await self._spawn("fixture_seeding", self._run_fixture_seeding, timeout=300)
@@ -1682,7 +1686,7 @@ class BackgroundScheduler:
             
             try:
                 logger.info("📊 GAME STATS: Collecting player game-by-game stats from recent fixtures...")
-                game_result = collector.collect_player_game_stats_batch(days_back=7, limit=50)
+                game_result = collector.collect_soccer_game_stats_batch(days_back=7, limit=50)
                 games_collected = game_result.get('fixtures_processed', 0)
                 players_collected = game_result.get('players_collected', 0)
                 logger.info(f"✅ GAME STATS: {players_collected} player stats from {games_collected} fixtures")
@@ -1693,6 +1697,28 @@ class BackgroundScheduler:
             logger.warning("⚠️ PLAYER STATS: multisport_player_collector module not found - skipping")
         except Exception as e:
             logger.error(f"❌ PLAYER STATS: Collection failed - {e}", exc_info=True)
+
+    async def _run_player_prop_odds_collection(self):
+        """
+        🎰 Player Prop Odds Collection Job
+        Collects player prop odds from The Odds API for NBA/NHL.
+        Runs every 2 hours.
+        """
+        try:
+            from models.player_prop_odds_collector import collect_player_props_job
+            logger.info("🎰 PLAYER PROPS: Starting odds collection for NBA/NHL...")
+            result = collect_player_props_job()
+            
+            if result.get('success'):
+                metrics = result.get('metrics', {})
+                logger.info(f"✅ PLAYER PROPS: Collected {metrics.get('props_collected', 0)} props from {metrics.get('events_processed', 0)} events")
+            else:
+                logger.warning(f"⚠️ PLAYER PROPS: Collection had issues - {result.get('error', 'unknown')}")
+                
+        except ImportError:
+            logger.debug("⚠️ PLAYER PROPS: player_prop_odds_collector module not ready - skipping")
+        except Exception as e:
+            logger.error(f"❌ PLAYER PROPS: Collection failed - {e}", exc_info=True)
 
 
 # Global scheduler instance

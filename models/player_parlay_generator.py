@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 class PlayerParlayGenerator:
     DEFAULT_BET = 100.0
     MARKET_MARGIN = 0.08
+    COOLDOWN_HOURS = 2
+    MAX_PARLAYS_PER_MATCH = 3
     
     def __init__(self):
         self.engine = create_engine(
@@ -130,6 +132,22 @@ class PlayerParlayGenerator:
             """))
             conn.commit()
             logger.info("PlayerParlayGenerator: Tables ensured")
+    
+    def _check_match_cooldown(self, match_ids: List[int]) -> bool:
+        """Check if match combination is on cooldown (recently generated)."""
+        with self.engine.connect() as conn:
+            for match_id in match_ids:
+                result = conn.execute(text("""
+                    SELECT COUNT(*) as cnt
+                    FROM player_parlays pp
+                    WHERE :match_id = ANY(pp.match_ids)
+                    AND pp.created_at > NOW() - INTERVAL ':hours hours'
+                    AND pp.status = 'pending'
+                """.replace(':hours', str(self.COOLDOWN_HOURS))), {'match_id': match_id}).fetchone()
+                
+                if result and result.cnt >= self.MAX_PARLAYS_PER_MATCH:
+                    return True
+        return False
     
     def _get_upcoming_fixtures(self, hours_ahead: int = 72) -> List[Dict]:
         with self.engine.connect() as conn:
@@ -402,8 +420,11 @@ class PlayerParlayGenerator:
                 
                 for combo in combos:
                     combo_list = list(combo)
-                    match_ids = set(leg['match_id'] for leg in combo_list)
+                    match_ids = list(set(leg['match_id'] for leg in combo_list))
                     if len(match_ids) < 2 and leg_count > 2:
+                        continue
+                    
+                    if self._check_match_cooldown(match_ids):
                         continue
                     
                     parlay = self._build_parlay(combo_list)
