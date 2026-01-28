@@ -226,9 +226,11 @@ class PlayerParlayGenerator:
                     games = max(player.get('games_played', 1), 1)
                     model_prob = min(0.6, max(0.05, (season_goals / games) * 0.8))
                 
-                market_prob = model_prob * (1 + self.MARKET_MARGIN)
-                market_prob = max(0.08, min(0.65, market_prob))
-                decimal_odds = 1 / market_prob if market_prob > 0 else 10.0
+                fair_odds = 1 / model_prob if model_prob > 0 else 10.0
+                market_odds = fair_odds * (1 + self.MARKET_MARGIN)
+                market_odds = max(1.54, min(12.5, market_odds))
+                market_prob = 1 / market_odds if market_odds > 0 else 0.08
+                decimal_odds = market_odds
                 edge = (model_prob - market_prob) / market_prob * 100 if market_prob > 0 else 0
                 
                 if model_prob >= 0.08:

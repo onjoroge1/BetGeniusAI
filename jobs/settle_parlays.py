@@ -33,7 +33,7 @@ async def settle_parlays_job() -> dict:
                     confidence_tier,
                     adjusted_prob
                 FROM parlay_consensus
-                WHERE status IN ('active', 'pending')
+                WHERE status IN ('active', 'pending', 'expired')
                 AND latest_kickoff < NOW() - INTERVAL '3 hours'
             """)).fetchall()
             
@@ -273,8 +273,9 @@ async def settle_player_parlays_job() -> dict:
                     else:
                         scorers = conn.execute(text("""
                             SELECT 1 FROM player_game_stats pgs
+                            JOIN fixtures f ON pgs.game_id = f.api_football_id
                             WHERE pgs.player_id = :player_id
-                            AND pgs.match_id = :match_id
+                            AND f.match_id = :match_id
                             AND (pgs.stats->>'goals')::int > 0
                         """), {'player_id': leg.player_id, 'match_id': leg.match_id}).fetchone()
                         
