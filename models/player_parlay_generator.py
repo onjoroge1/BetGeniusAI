@@ -134,16 +134,16 @@ class PlayerParlayGenerator:
             logger.info("PlayerParlayGenerator: Tables ensured")
     
     def _check_match_cooldown(self, match_ids: List[int]) -> bool:
-        """Check if match combination is on cooldown (recently generated)."""
+        """Check if any match in this combination has too many recent parlays."""
         with self.engine.connect() as conn:
             for match_id in match_ids:
                 result = conn.execute(text("""
                     SELECT COUNT(*) as cnt
                     FROM player_parlays pp
                     WHERE :match_id = ANY(pp.match_ids)
-                    AND pp.created_at > NOW() - INTERVAL ':hours hours'
-                    AND pp.status = 'pending'
-                """.replace(':hours', str(self.COOLDOWN_HOURS))), {'match_id': match_id}).fetchone()
+                    AND pp.created_at > NOW() - make_interval(hours => :hours)
+                    AND pp.status IN ('pending', 'active')
+                """), {'match_id': match_id, 'hours': self.COOLDOWN_HOURS}).fetchone()
                 
                 if result and result.cnt >= self.MAX_PARLAYS_PER_MATCH:
                     return True
