@@ -87,7 +87,7 @@ async def settle_parlays_job() -> dict:
                 conn.execute(text("""
                     UPDATE parlay_consensus
                     SET status = 'settled', won = :won
-                    WHERE parlay_id = :parlay_id::uuid
+                    WHERE parlay_id = CAST(:parlay_id AS uuid)
                 """), {'parlay_id': parlay_id, 'won': all_legs_won})
                 
                 conn.execute(text("""
@@ -96,7 +96,7 @@ async def settle_parlays_job() -> dict:
                         stake, payout, profit, pre_edge_pct, 
                         pre_confidence_tier, pre_adjusted_prob
                     ) VALUES (
-                        :parlay_id::uuid, NOW(), :won, :legs_won, :legs_lost,
+                        CAST(:parlay_id AS uuid), NOW(), :won, :legs_won, :legs_lost,
                         :stake, :payout, :profit, :pre_edge_pct,
                         :pre_confidence_tier, :pre_adjusted_prob
                     )
@@ -273,9 +273,8 @@ async def settle_player_parlays_job() -> dict:
                     else:
                         scorers = conn.execute(text("""
                             SELECT 1 FROM player_game_stats pgs
-                            JOIN fixtures f ON pgs.game_id = f.api_football_id
                             WHERE pgs.player_id = :player_id
-                            AND f.match_id = :match_id
+                            AND pgs.game_id = :match_id
                             AND (pgs.stats->>'goals')::int > 0
                         """), {'player_id': leg.player_id, 'match_id': leg.match_id}).fetchone()
                         
