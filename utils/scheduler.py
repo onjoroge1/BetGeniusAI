@@ -1693,6 +1693,15 @@ class BackgroundScheduler:
             except Exception as e:
                 logger.warning(f"⚠️ GAME STATS: Game-by-game collection failed - {e}")
             
+            try:
+                logger.info("🎰 PARLAY STATS: Collecting player stats for pending player parlays...")
+                parlay_result = collector.collect_stats_for_pending_player_parlays(limit=50)
+                parlay_fixtures = parlay_result.get('fixtures_processed', 0)
+                parlay_players = parlay_result.get('players_collected', 0)
+                logger.info(f"✅ PARLAY STATS: {parlay_players} player stats from {parlay_fixtures} parlay fixtures")
+            except Exception as e:
+                logger.warning(f"⚠️ PARLAY STATS: Collection failed - {e}")
+            
         except ImportError:
             logger.warning("⚠️ PLAYER STATS: multisport_player_collector module not found - skipping")
         except Exception as e:

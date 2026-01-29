@@ -265,12 +265,23 @@ async def settle_player_parlays_job() -> dict:
                 """), {'parlay_id': parlay_id}).fetchall()
                 
                 all_won = True
+                data_missing = False
                 for leg in legs:
                     if leg.result == 'lost':
                         all_won = False
                     elif leg.result == 'won':
                         pass
                     else:
+                        game_stats_exist = conn.execute(text("""
+                            SELECT 1 FROM player_game_stats pgs
+                            WHERE pgs.game_id = :match_id
+                            LIMIT 1
+                        """), {'match_id': leg.match_id}).fetchone()
+                        
+                        if not game_stats_exist:
+                            data_missing = True
+                            continue
+                        
                         scorers = conn.execute(text("""
                             SELECT 1 FROM player_game_stats pgs
                             WHERE pgs.player_id = :player_id
@@ -292,6 +303,9 @@ async def settle_player_parlays_job() -> dict:
                         
                         if not won:
                             all_won = False
+                
+                if data_missing:
+                    continue
                 
                 conn.execute(text("""
                     UPDATE player_parlays

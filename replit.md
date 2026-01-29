@@ -48,6 +48,13 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
   - **Exposure caps**: Max 2 parlays per match across feed
   - **Narrative-coherent SGPs**: Home+Over, Draw+Under templates only
   - **Parlay Types**: Trust (high-quality, 2 legs, ~20-30% win prob), Value (good quality, 12-18% prob), SGP (same-game, coherent templates)
+- **Parlay Optimizations (Jan 29, 2026)**:
+  - Auto parlays: 2-leg only, 4-15% edge range, high confidence tier, 20%+ probability per leg
+  - Player parlays: 2-leg only, 5-25% edge range (accounts for edge compounding), high confidence tier
+  - Edge clamping at ±50% to prevent extreme calculations
+  - Player parlay settlement: Skips settlement when game stats missing (instead of marking lost)
+  - Parlay stats collection: Collects player game stats specifically for pending player parlays
+  - Confidence thresholds adjusted: high ≥4% edge, medium ≥2%, low ≥1%
 
 ### Data Collection
 - **Canonical Fixtures Table**: Single source of truth for match metadata.

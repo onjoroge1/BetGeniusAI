@@ -814,6 +814,54 @@ class MultiSportPlayerCollector:
             'players_collected': total_players
         }
 
+    def collect_stats_for_pending_player_parlays(self, limit: int = 50) -> Dict:
+        """
+        Collect player game stats for matches with pending player parlays.
+        Prioritizes matches that have already finished but need settlement data.
+        """
+        logger.info("Collecting game stats for pending player parlays")
+        
+        conn = psycopg2.connect(self.db_url)
+        cur = conn.cursor()
+        
+        try:
+            cur.execute("""
+                SELECT DISTINCT ppl.match_id
+                FROM player_parlay_legs ppl
+                JOIN player_parlays pp ON ppl.parlay_id = pp.id
+                JOIN fixtures f ON ppl.match_id = f.match_id
+                WHERE pp.status = 'pending'
+                  AND f.status = 'finished'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM player_game_stats pgs 
+                      WHERE pgs.game_id = ppl.match_id AND pgs.sport_key = 'soccer'
+                  )
+                ORDER BY ppl.match_id DESC
+                LIMIT %s
+            """, (limit,))
+            
+            fixture_ids = [row[0] for row in cur.fetchall()]
+            
+        finally:
+            conn.close()
+        
+        logger.info(f"Found {len(fixture_ids)} matches needing game stats for parlays")
+        
+        total_players = 0
+        fixtures_processed = 0
+        
+        for fixture_id in fixture_ids:
+            result = self.collect_soccer_game_stats(fixture_id)
+            total_players += result.get('players', 0)
+            fixtures_processed += 1
+            time.sleep(0.3)
+        
+        logger.info(f"Parlay stats: {fixtures_processed} fixtures, {total_players} player stats")
+        return {
+            'fixtures_processed': fixtures_processed,
+            'players_collected': total_players
+        }
+
     def get_collection_summary(self) -> Dict:
         """Get summary of collected player data."""
         conn = psycopg2.connect(self.db_url)

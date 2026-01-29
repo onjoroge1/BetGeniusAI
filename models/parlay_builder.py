@@ -23,9 +23,9 @@ CORRELATION_PENALTIES = {
 }
 
 CONFIDENCE_THRESHOLDS = {
-    'high': {'min_edge': 0.08, 'max_correlation': 0.15},
-    'medium': {'min_edge': 0.05, 'max_correlation': 0.25},
-    'low': {'min_edge': 0.02, 'max_correlation': 0.40},
+    'high': {'min_edge': 0.04, 'max_correlation': 0.15},
+    'medium': {'min_edge': 0.02, 'max_correlation': 0.25},
+    'low': {'min_edge': 0.01, 'max_correlation': 0.40},
 }
 
 class ParlayBuilder:
@@ -180,7 +180,7 @@ class ParlayBuilder:
                 legs = []
                 for match in combo:
                     outcome, prob, odds, edge = self.calculate_best_selection(match)
-                    if edge > -0.05 and prob >= 0.30:
+                    if edge > -0.05 and prob >= 0.20:
                         legs.append({
                             'match_id': match['match_id'],
                             'home_team': match['home_team'],
@@ -253,7 +253,7 @@ class ParlayBuilder:
                 legs = []
                 for match in combo:
                     outcome, prob, odds, edge = self.calculate_best_selection(match)
-                    if edge > -0.05 and prob >= 0.30:
+                    if edge > -0.05 and prob >= 0.20:
                         legs.append({
                             'match_id': match['match_id'],
                             'home_team': match['home_team'],
@@ -318,7 +318,7 @@ class ParlayBuilder:
         else:
             edge_pct = 0.0
         
-        if edge_pct < 0.06 or edge_pct > 0.10:
+        if edge_pct < 0.04 or edge_pct > 0.15:
             return None
         
         if edge_pct >= CONFIDENCE_THRESHOLDS['high']['min_edge'] and correlation_penalty <= CONFIDENCE_THRESHOLDS['high']['max_correlation']:
@@ -361,8 +361,8 @@ class ParlayBuilder:
             'status': 'active'
         }
     
-    OPTIMAL_MIN_EDGE = 0.06
-    OPTIMAL_MAX_EDGE = 0.10
+    OPTIMAL_MIN_EDGE = 0.04
+    OPTIMAL_MAX_EDGE = 0.15
     
     def get_recommended_parlays(
         self,
