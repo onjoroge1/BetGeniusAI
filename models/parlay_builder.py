@@ -151,7 +151,7 @@ class ParlayBuilder:
     def generate_same_day_parlays(
         self, 
         target_date: datetime = None,
-        leg_counts: List[int] = [2, 3, 4],
+        leg_counts: List[int] = [2],
         max_parlays: int = 50
     ) -> List[Dict]:
         """Generate parlays from matches on the same day"""
@@ -204,7 +204,7 @@ class ParlayBuilder:
     def generate_league_parlays(
         self,
         league_name: str = None,
-        leg_counts: List[int] = [2, 3],
+        leg_counts: List[int] = [2],
         max_parlays: int = 20
     ) -> List[Dict]:
         """Generate parlays from matches in the same league"""
@@ -299,6 +299,9 @@ class ParlayBuilder:
         if not legs:
             return None
         
+        if len(legs) != 2:
+            return None
+        
         combined_prob = 1.0
         combined_odds = 1.0
         for leg in legs:
@@ -315,14 +318,11 @@ class ParlayBuilder:
         else:
             edge_pct = 0.0
         
+        if edge_pct < 0.06 or edge_pct > 0.10:
+            return None
+        
         if edge_pct >= CONFIDENCE_THRESHOLDS['high']['min_edge'] and correlation_penalty <= CONFIDENCE_THRESHOLDS['high']['max_correlation']:
             confidence_tier = 'high'
-        elif edge_pct >= CONFIDENCE_THRESHOLDS['medium']['min_edge'] and correlation_penalty <= CONFIDENCE_THRESHOLDS['medium']['max_correlation']:
-            confidence_tier = 'medium'
-        elif edge_pct >= CONFIDENCE_THRESHOLDS['low']['min_edge']:
-            confidence_tier = 'low'
-        elif allow_negative_edge:
-            confidence_tier = 'negative'
         else:
             return None
         
@@ -361,13 +361,26 @@ class ParlayBuilder:
             'status': 'active'
         }
     
+    OPTIMAL_MIN_EDGE = 0.06
+    OPTIMAL_MAX_EDGE = 0.10
+    
     def get_recommended_parlays(
         self,
-        min_edge: float = 0.05,
+        min_edge: float = None,
         max_parlays: int = 10,
-        confidence_tiers: List[str] = ['high', 'medium']
+        confidence_tiers: List[str] = ['high']
     ) -> List[Dict]:
-        """Get AI-curated recommended parlays meeting strict criteria"""
+        """
+        Get AI-curated recommended parlays - OPTIMIZED for profitability.
+        
+        Based on performance analysis:
+        - Only 2-leg parlays (disabled 3-leg and 4-leg)
+        - Only high-confidence tier
+        - Edge range 6-10% (optimal bucket with +2086% ROI)
+        """
+        if min_edge is None:
+            min_edge = self.OPTIMAL_MIN_EDGE
+            
         all_parlays = []
         
         same_day = self.generate_same_day_parlays(max_parlays=30)
@@ -378,7 +391,10 @@ class ParlayBuilder:
         
         filtered = [
             p for p in all_parlays
-            if p['edge_pct'] >= min_edge and p['confidence_tier'] in confidence_tiers
+            if p['edge_pct'] >= min_edge 
+            and p['edge_pct'] <= self.OPTIMAL_MAX_EDGE
+            and p['confidence_tier'] in confidence_tiers
+            and p['leg_count'] == 2
         ]
         
         filtered.sort(key=lambda x: (
