@@ -280,11 +280,12 @@ class PlayerParlayGenerator:
             combined_prob *= leg['model_prob']
         
         implied_prob = 1 / combined_odds if combined_odds > 0 else 0
-        edge_pct = ((combined_prob - implied_prob) / implied_prob * 100) if implied_prob > 0 else 0
+        edge_pct_raw = ((combined_prob - implied_prob) / implied_prob * 100) if implied_prob > 0 else 0
+        edge_pct = max(-50, min(50, edge_pct_raw))
         
-        if edge_pct >= 5:
+        if edge_pct >= 8:
             confidence = 'high'
-        elif edge_pct >= -5:
+        elif edge_pct >= 3:
             confidence = 'medium'
         else:
             confidence = 'low'
@@ -410,26 +411,24 @@ class PlayerParlayGenerator:
             }
         
         parlays_generated = 0
-        by_leg_count = {2: 0, 3: 0, 4: 0, 5: 0}
+        by_leg_count = {2: 0}
         
         all_legs_sorted = sorted(all_legs, key=lambda x: x['model_prob'], reverse=True)[:15]
         
-        for leg_count in [2, 3, 4, 5]:
+        for leg_count in [2]:
             if len(all_legs_sorted) >= leg_count:
-                combos = list(combinations(all_legs_sorted, leg_count))[:30]
+                combos = list(combinations(all_legs_sorted, leg_count))[:50]
                 
                 for combo in combos:
                     combo_list = list(combo)
                     match_ids = list(set(leg['match_id'] for leg in combo_list))
-                    if len(match_ids) < 2 and leg_count > 2:
-                        continue
                     
                     if self._check_match_cooldown(match_ids):
                         continue
                     
                     parlay = self._build_parlay(combo_list)
                     
-                    if parlay['edge_pct'] > -30:
+                    if 5 <= parlay['edge_pct'] <= 25 and parlay['confidence_tier'] == 'high':
                         saved = self._save_parlay(parlay)
                         if saved:
                             parlays_generated += 1
