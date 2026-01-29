@@ -245,13 +245,13 @@ class PlayerParlayGenerator:
                     model_prob = min(0.6, max(0.05, (season_goals / games) * 0.8))
                 
                 fair_odds = 1 / model_prob if model_prob > 0 else 10.0
-                market_odds = fair_odds * (1 + self.MARKET_MARGIN)
-                market_odds = max(1.54, min(12.5, market_odds))
-                market_prob = 1 / market_odds if market_odds > 0 else 0.08
-                decimal_odds = market_odds
-                edge = (model_prob - market_prob) / market_prob * 100 if market_prob > 0 else 0
+                margin_adjusted_odds = fair_odds * (1 + self.MARKET_MARGIN)
+                decimal_odds = max(1.54, min(12.5, margin_adjusted_odds))
+                implied_prob = 1 / decimal_odds if decimal_odds > 0 else 0.08
+                edge = (model_prob - implied_prob) / implied_prob * 100 if implied_prob > 0 else 0
+                market_prob = implied_prob
                 
-                if model_prob >= 0.08:
+                if model_prob >= 0.08 and edge > -5:
                     all_legs.append({
                         'match_id': fixture['match_id'],
                         'home_team': fixture['home_team'],
