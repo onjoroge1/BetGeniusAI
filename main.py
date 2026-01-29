@@ -456,6 +456,7 @@ class PredictionRequest(BaseModel):
     match_id: int = Field(..., description="Unique match identifier")
     include_analysis: bool = Field(True, description="Include AI explanation")
     include_additional_markets: bool = Field(True, description="Include additional betting markets")
+    include_sgp: bool = Field(False, description="Include Same-Game Parlay recommendation")
 
 class MatchInfo(BaseModel):
     match_id: int
@@ -2728,6 +2729,46 @@ async def predict_match(
                 response["additional_markets"] = {
                     "total_goals": {"over_2_5": 0.45, "under_2_5": 0.55},
                     "both_teams_score": {"yes": 0.50, "no": 0.50}
+                }
+        
+        # SGP (Same-Game Parlay) generation when requested
+        if request.include_sgp:
+            try:
+                from models.quality_parlay_generator import QualityParlayGenerator
+                sgp_generator = QualityParlayGenerator()
+                sgp = sgp_generator.get_sgp_for_match(request.match_id)
+                
+                if sgp:
+                    response["sgp"] = {
+                        "available": True,
+                        "parlay_type": sgp.get('parlay_type', 'sgp'),
+                        "leg_count": sgp.get('leg_count', 2),
+                        "combined_odds": sgp.get('combined_odds'),
+                        "win_probability_pct": sgp.get('raw_prob_pct'),
+                        "edge_pct": sgp.get('edge_pct'),
+                        "confidence_tier": sgp.get('confidence_tier'),
+                        "payout_on_100": sgp.get('payout_100'),
+                        "legs": [
+                            {
+                                "type": leg.get('leg_type'),
+                                "market": leg.get('market_name'),
+                                "odds": leg.get('decimal_odds'),
+                                "model_probability": round(leg.get('model_prob', 0) * 100, 1),
+                                "edge_pct": leg.get('edge_pct')
+                            }
+                            for leg in sgp.get('legs', [])
+                        ]
+                    }
+                else:
+                    response["sgp"] = {
+                        "available": False,
+                        "reason": "No quality SGP available for this match"
+                    }
+            except Exception as e:
+                logger.warning(f"SGP generation failed for match {request.match_id}: {e}")
+                response["sgp"] = {
+                    "available": False,
+                    "reason": "SGP generation temporarily unavailable"
                 }
         
         # ACCURACY TRACKING: Auto-log prediction snapshot (100% backend-driven)
@@ -6190,7 +6231,7 @@ async def predict_v3_sharp(
         
         processing_time = (datetime.now() - start_time).total_seconds()
         
-        return {
+        response = {
             "match_info": {
                 "match_id": request.match_id,
                 "home_team": match_data['match_details']['teams']['home']['name'],
@@ -6222,6 +6263,47 @@ async def predict_v3_sharp(
             "processing_time": round(processing_time, 3),
             "timestamp": datetime.now().isoformat()
         }
+        
+        if request.include_sgp:
+            try:
+                from models.quality_parlay_generator import QualityParlayGenerator
+                sgp_generator = QualityParlayGenerator()
+                sgp = sgp_generator.get_sgp_for_match(request.match_id)
+                
+                if sgp:
+                    response["sgp"] = {
+                        "available": True,
+                        "parlay_type": sgp.get('parlay_type', 'sgp'),
+                        "leg_count": sgp.get('leg_count', 2),
+                        "combined_odds": sgp.get('combined_odds'),
+                        "win_probability_pct": sgp.get('raw_prob_pct'),
+                        "edge_pct": sgp.get('edge_pct'),
+                        "confidence_tier": sgp.get('confidence_tier'),
+                        "payout_on_100": sgp.get('payout_100'),
+                        "legs": [
+                            {
+                                "type": leg.get('leg_type'),
+                                "market": leg.get('market_name'),
+                                "odds": leg.get('decimal_odds'),
+                                "model_probability": round(leg.get('model_prob', 0) * 100, 1),
+                                "edge_pct": leg.get('edge_pct')
+                            }
+                            for leg in sgp.get('legs', [])
+                        ]
+                    }
+                else:
+                    response["sgp"] = {
+                        "available": False,
+                        "reason": "No quality SGP available for this match"
+                    }
+            except Exception as e:
+                logger.warning(f"SGP generation failed for match {request.match_id}: {e}")
+                response["sgp"] = {
+                    "available": False,
+                    "reason": "SGP generation failed"
+                }
+        
+        return response
         
     except HTTPException:
         raise

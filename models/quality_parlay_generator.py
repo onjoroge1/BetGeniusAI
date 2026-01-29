@@ -477,6 +477,87 @@ class QualityParlayGenerator:
         
         return parlays
     
+    def get_sgp_for_match(self, match_id: int) -> Optional[Dict]:
+        """
+        Generate Same-Game Parlay for a specific match.
+        
+        Returns an SGP combining match result + totals if quality thresholds are met.
+        Returns None if no quality SGP can be constructed.
+        """
+        session = self.Session()
+        try:
+            result = session.execute(text("""
+                SELECT 
+                    f.match_id, f.home_team, f.away_team,
+                    f.home_team_id, f.away_team_id, f.league_id,
+                    COALESCE(lm.league_name, 'League ' || f.league_id::text) as league_name,
+                    f.kickoff_at,
+                    oc.ph_cons, oc.pd_cons, oc.pa_cons
+                FROM fixtures f
+                JOIN odds_consensus oc ON f.match_id = oc.match_id
+                LEFT JOIN league_map lm ON f.league_id = lm.league_id
+                WHERE f.match_id = :match_id
+                AND oc.ph_cons IS NOT NULL
+                LIMIT 1
+            """), {'match_id': match_id})
+            
+            row = result.fetchone()
+            if not row:
+                logger.debug(f"No match data found for SGP: {match_id}")
+                return None
+            
+            ph = float(row.ph_cons or 0.33)
+            pd = float(row.pd_cons or 0.33)
+            pa = float(row.pa_cons or 0.34)
+            
+            match = {
+                'match_id': row.match_id,
+                'home_team': row.home_team,
+                'away_team': row.away_team,
+                'home_team_id': row.home_team_id,
+                'away_team_id': row.away_team_id,
+                'league_id': row.league_id,
+                'league_name': row.league_name,
+                'kickoff_at': row.kickoff_at,
+                'book_probs': {'H': ph, 'D': pd, 'A': pa},
+                'book_odds': {
+                    'H': round(1/ph, 2) if ph > 0 else 3.0,
+                    'D': round(1/pd, 2) if pd > 0 else 3.5,
+                    'A': round(1/pa, 2) if pa > 0 else 2.5
+                }
+            }
+            
+            result_leg = self.get_best_outcome_for_match(match)
+            if not result_leg or result_leg['model_prob'] < 0.50:
+                logger.debug(f"No quality result leg for match {match_id}")
+                return None
+            
+            totals_leg = self.get_best_totals_for_match(match, result_leg['market_code'])
+            if not totals_leg or totals_leg['model_prob'] < 0.50:
+                logger.debug(f"No quality totals leg for match {match_id}")
+                return None
+            
+            correlation_bonus = 0.03
+            parlay_prob = result_leg['model_prob'] * totals_leg['model_prob'] * (1 + correlation_bonus)
+            
+            if parlay_prob < 0.10:
+                logger.debug(f"SGP probability too low for match {match_id}: {parlay_prob:.2%}")
+                return None
+            
+            parlay = self._build_parlay_from_legs([result_leg, totals_leg], 'sgp', same_match=True)
+            if parlay:
+                parlay['match_display'] = f"{match['home_team']} vs {match['away_team']}"
+                parlay['league_name'] = match['league_name']
+                return parlay
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error generating SGP for match {match_id}: {e}")
+            return None
+        finally:
+            session.close()
+    
     def _build_parlay_from_legs(self, legs: List[Dict], parlay_type: str, 
                                  same_match: bool = False) -> Optional[Dict]:
         """Build a parlay object from legs"""
