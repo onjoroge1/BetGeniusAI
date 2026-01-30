@@ -391,3 +391,199 @@ def _get_parlay_recommendation(edge_pct: float, correlation_penalty: float) -> s
         return "Fair odds - no significant edge but acceptable value"
     else:
         return "Negative edge detected - the market may be overpricing this combination"
+
+
+@router.get("/health")
+@router_v2.get("/health")
+async def get_parlay_health(
+    since_date: Optional[str] = Query("2026-01-29", description="Start date for analysis (YYYY-MM-DD)")
+) -> Dict[str, Any]:
+    """
+    Get parlay health dashboard with performance metrics across all parlay types.
+    
+    Returns summary statistics, P&L tracking, and recent parlay table.
+    """
+    if not db_engine:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    import re
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', since_date):
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    
+    try:
+        with db_engine.connect() as conn:
+            summary_query = """
+            WITH auto_parlays AS (
+                SELECT 
+                    'auto_parlay' as parlay_type,
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN result = 'won' THEN 1 END) as wins,
+                    COUNT(CASE WHEN result = 'lost' THEN 1 END) as losses,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+                    ROUND(AVG(combined_odds)::numeric, 2) as avg_odds,
+                    ROUND(AVG(edge_pct)::numeric, 2) as avg_edge,
+                    ROUND(SUM(CASE WHEN result = 'won' THEN (combined_odds - 1) * 100 ELSE 0 END)::numeric, 2) as won_amount,
+                    ROUND(SUM(CASE WHEN result = 'lost' THEN -100 ELSE 0 END)::numeric, 2) as lost_amount
+                FROM parlay_precomputed
+                WHERE created_at >= CAST(:since_date AS date)
+            ),
+            player_parlays_cte AS (
+                SELECT 
+                    'player_parlay' as parlay_type,
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN result = 'won' THEN 1 END) as wins,
+                    COUNT(CASE WHEN result = 'lost' THEN 1 END) as losses,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+                    ROUND(AVG(combined_odds)::numeric, 2) as avg_odds,
+                    ROUND(AVG(edge_pct)::numeric, 2) as avg_edge,
+                    ROUND(SUM(CASE WHEN result = 'won' THEN (combined_odds - 1) * 100 ELSE 0 END)::numeric, 2) as won_amount,
+                    ROUND(SUM(CASE WHEN result = 'lost' THEN -100 ELSE 0 END)::numeric, 2) as lost_amount
+                FROM player_parlays
+                WHERE created_at >= CAST(:since_date AS date)
+            ),
+            consensus_parlays AS (
+                SELECT 
+                    parlay_type,
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN won = true THEN 1 END) as wins,
+                    COUNT(CASE WHEN won = false THEN 1 END) as losses,
+                    COUNT(CASE WHEN won IS NULL AND status = 'active' THEN 1 END) as pending,
+                    ROUND(AVG(implied_odds)::numeric, 2) as avg_odds,
+                    ROUND(AVG(edge_pct)::numeric, 2) as avg_edge,
+                    ROUND(SUM(CASE WHEN won = true THEN (implied_odds - 1) * 100 ELSE 0 END)::numeric, 2) as won_amount,
+                    ROUND(SUM(CASE WHEN won = false THEN -100 ELSE 0 END)::numeric, 2) as lost_amount
+                FROM parlay_consensus
+                WHERE created_at >= CAST(:since_date AS date)
+                GROUP BY parlay_type
+            )
+            SELECT * FROM auto_parlays WHERE total > 0
+            UNION ALL
+            SELECT * FROM player_parlays_cte WHERE total > 0
+            UNION ALL
+            SELECT * FROM consensus_parlays WHERE total > 0
+            ORDER BY parlay_type
+            """
+            
+            result = conn.execute(text(summary_query), {"since_date": since_date})
+            rows = result.fetchall()
+            
+            summary_table = []
+            total_pnl = 0.0
+            total_settled = 0
+            total_wins = 0
+            
+            for row in rows:
+                net_pnl = float(row.won_amount or 0) + float(row.lost_amount or 0)
+                settled = int(row.wins or 0) + int(row.losses or 0)
+                accuracy = round(100.0 * row.wins / settled, 1) if settled > 0 else None
+                
+                summary_table.append({
+                    "parlay_type": row.parlay_type,
+                    "total": row.total,
+                    "wins": row.wins,
+                    "losses": row.losses,
+                    "pending": row.pending,
+                    "accuracy_pct": accuracy,
+                    "avg_odds": float(row.avg_odds) if row.avg_odds else None,
+                    "avg_edge_pct": float(row.avg_edge) if row.avg_edge else None,
+                    "won_amount": float(row.won_amount) if row.won_amount else 0,
+                    "lost_amount": float(row.lost_amount) if row.lost_amount else 0,
+                    "net_pnl": net_pnl
+                })
+                
+                total_pnl += net_pnl
+                total_settled += settled
+                total_wins += row.wins or 0
+            
+            recent_query = """
+            (
+                SELECT 
+                    'auto_parlay' as type,
+                    id::text as parlay_id,
+                    leg_count,
+                    ROUND(combined_odds::numeric, 2) as odds,
+                    ROUND(edge_pct::numeric, 2) as edge_pct,
+                    confidence_tier,
+                    status,
+                    result,
+                    created_at
+                FROM parlay_precomputed
+                WHERE created_at >= CAST(:since_date AS date)
+                ORDER BY created_at DESC
+                LIMIT 8
+            )
+            UNION ALL
+            (
+                SELECT 
+                    'player_parlay' as type,
+                    id::text as parlay_id,
+                    leg_count,
+                    ROUND(combined_odds::numeric, 2) as odds,
+                    ROUND(edge_pct::numeric, 2) as edge_pct,
+                    confidence_tier,
+                    status,
+                    result,
+                    created_at
+                FROM player_parlays
+                WHERE created_at >= CAST(:since_date AS date)
+                ORDER BY created_at DESC
+                LIMIT 8
+            )
+            UNION ALL
+            (
+                SELECT 
+                    parlay_type as type,
+                    parlay_id::text as parlay_id,
+                    leg_count,
+                    ROUND(implied_odds::numeric, 2) as odds,
+                    ROUND(edge_pct::numeric, 2) as edge_pct,
+                    confidence_tier,
+                    status,
+                    CASE WHEN won = true THEN 'won' WHEN won = false THEN 'lost' ELSE NULL END as result,
+                    created_at
+                FROM parlay_consensus
+                WHERE created_at >= CAST(:since_date AS date)
+                ORDER BY created_at DESC
+                LIMIT 8
+            )
+            ORDER BY created_at DESC
+            LIMIT 24
+            """
+            
+            result2 = conn.execute(text(recent_query), {"since_date": since_date})
+            recent_rows = result2.fetchall()
+            
+            recent_parlays = []
+            for row in recent_rows:
+                recent_parlays.append({
+                    "type": row.type,
+                    "parlay_id": row.parlay_id,
+                    "leg_count": row.leg_count,
+                    "odds": float(row.odds) if row.odds else None,
+                    "edge_pct": float(row.edge_pct) if row.edge_pct else None,
+                    "confidence_tier": row.confidence_tier,
+                    "status": row.status,
+                    "result": row.result,
+                    "created_at": row.created_at.isoformat() if row.created_at else None
+                })
+            
+            overall_accuracy = round(100.0 * total_wins / total_settled, 1) if total_settled > 0 else None
+            
+            return {
+                "status": "ok",
+                "since_date": since_date,
+                "overall_summary": {
+                    "total_settled": total_settled,
+                    "total_wins": total_wins,
+                    "total_losses": total_settled - total_wins,
+                    "accuracy_pct": overall_accuracy,
+                    "net_pnl_100_per_bet": round(total_pnl, 2),
+                    "roi_pct": round(100 * total_pnl / (total_settled * 100), 2) if total_settled > 0 else None
+                },
+                "by_type": summary_table,
+                "recent_parlays": recent_parlays
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting parlay health: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

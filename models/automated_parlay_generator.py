@@ -75,17 +75,24 @@ class AutomatedParlayGenerator:
         parlays_generated = 0
         parlays_by_leg_count = {2: 0, 3: 0, 4: 0, '5+': 0}
         
-        for leg_count in [2, 3, 4, 5]:
-            if len(legs) >= leg_count:
-                combos = list(combinations(legs, leg_count))
-                for combo in combos:
-                    parlay = self._build_parlay(list(combo), match_info)
-                    if parlay and parlay.get('edge_pct', -100) > -50:
+        MIN_EDGE_PCT = 4.0
+        MAX_EDGE_PCT = 15.0
+        TARGET_LEG_COUNT = 2
+        MIN_PARLAY_PROB = 0.20
+        
+        if len(legs) >= TARGET_LEG_COUNT:
+            combos = list(combinations(legs, TARGET_LEG_COUNT))
+            for combo in combos:
+                parlay = self._build_parlay(list(combo), match_info)
+                if parlay:
+                    edge = parlay.get('edge_pct', -100)
+                    adjusted_prob = parlay.get('adjusted_prob_pct', 0) / 100 if parlay.get('adjusted_prob_pct') else 0
+                    
+                    if MIN_EDGE_PCT <= edge <= MAX_EDGE_PCT and adjusted_prob >= MIN_PARLAY_PROB:
                         saved = self._save_parlay(parlay)
                         if saved:
                             parlays_generated += 1
-                            bucket = leg_count if leg_count <= 4 else '5+'
-                            parlays_by_leg_count[bucket] = parlays_by_leg_count.get(bucket, 0) + 1
+                            parlays_by_leg_count[TARGET_LEG_COUNT] = parlays_by_leg_count.get(TARGET_LEG_COUNT, 0) + 1
         
         return {
             'match_id': match_id,
