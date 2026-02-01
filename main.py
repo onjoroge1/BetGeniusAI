@@ -342,19 +342,21 @@ def get_v3_predictor_safe():
     return _v3_predictor
 
 async def check_sharp_book_availability(match_id: int) -> dict:
-    """Check if Pinnacle or Bet365 odds exist for a match"""
+    """Check if Pinnacle or Bet365 odds exist for a match (checks both odds_snapshots and sharp_book_odds)"""
     import psycopg2
-    sharp_books = ['pinnacle', 'bet365', 'betfair_ex_uk', 'betfair_ex_eu']
     
     try:
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         cursor = conn.cursor()
         
+        # Check both odds_snapshots and sharp_book_odds tables
         cursor.execute("""
-            SELECT DISTINCT book_id 
-            FROM odds_snapshots 
+            SELECT DISTINCT book_id FROM odds_snapshots 
             WHERE match_id = %s AND market = 'h2h'
-        """, (match_id,))
+            UNION
+            SELECT DISTINCT bookmaker FROM sharp_book_odds 
+            WHERE match_id = %s AND odds_home IS NOT NULL
+        """, (match_id, match_id))
         
         available_books = [row[0].lower() for row in cursor.fetchall()]
         cursor.close()
