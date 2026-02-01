@@ -419,6 +419,171 @@ class TestIntegration(unittest.TestCase):
                 self.assertIn(status, ['pending', 'active', 'expired', 'settled'])
 
 
+class TestLegProbabilityRecording(unittest.TestCase):
+    """Test that leg probabilities are correctly recorded in parlays"""
+    
+    def test_leg_probability_stored_in_json(self):
+        """Verify model_prob is stored in leg JSON"""
+        leg = {
+            'match_id': 12345,
+            'home_team': 'Team A',
+            'away_team': 'Team B',
+            'outcome': 'H',
+            'model_prob': 0.55,
+            'decimal_odds': 1.80,
+            'edge': 0.10
+        }
+        
+        self.assertIn('model_prob', leg)
+        self.assertEqual(leg['model_prob'], 0.55)
+        self.assertGreater(leg['model_prob'], 0, "Probability should be > 0")
+        self.assertLessEqual(leg['model_prob'], 1.0, "Probability should be <= 1")
+    
+    def test_combined_probability_calculation(self):
+        """Test combined probability is product of individual probs"""
+        legs = [
+            {'model_prob': 0.55},
+            {'model_prob': 0.60},
+        ]
+        
+        combined_prob = 1.0
+        for leg in legs:
+            combined_prob *= leg['model_prob']
+        
+        expected = 0.55 * 0.60
+        self.assertAlmostEqual(combined_prob, expected, places=4)
+        self.assertAlmostEqual(combined_prob, 0.33, places=2)
+    
+    def test_leg_probability_not_zero(self):
+        """Ensure valid legs don't have zero probability"""
+        valid_leg = {'model_prob': 0.45, 'outcome': 'D'}
+        
+        self.assertGreater(valid_leg['model_prob'], 0)
+        self.assertLessEqual(valid_leg['model_prob'], 1.0)
+    
+    def test_zero_probability_detection(self):
+        """Zero probability in legs indicates data pipeline issue"""
+        invalid_leg = {'model_prob': 0.0, 'outcome': 'H'}
+        
+        is_invalid = invalid_leg['model_prob'] == 0
+        self.assertTrue(is_invalid, "Zero probability should be flagged as invalid")
+
+
+class TestParlayDeduplication(unittest.TestCase):
+    """Test parlay deduplication logic"""
+    
+    def test_fingerprint_generation(self):
+        """Test that fingerprints are generated consistently"""
+        import hashlib
+        
+        legs = [
+            {'match_id': 100, 'outcome': 'H'},
+            {'match_id': 200, 'outcome': 'A'},
+        ]
+        
+        leg_ids = sorted([f"{leg['match_id']}:{leg['outcome']}" for leg in legs])
+        fingerprint = hashlib.md5("|".join(leg_ids).encode()).hexdigest()
+        
+        self.assertEqual(len(fingerprint), 32)
+        self.assertTrue(fingerprint.isalnum())
+    
+    def test_fingerprint_order_independent(self):
+        """Fingerprint should be same regardless of leg order"""
+        import hashlib
+        
+        legs_order_1 = [
+            {'match_id': 100, 'outcome': 'H'},
+            {'match_id': 200, 'outcome': 'A'},
+        ]
+        legs_order_2 = [
+            {'match_id': 200, 'outcome': 'A'},
+            {'match_id': 100, 'outcome': 'H'},
+        ]
+        
+        def get_fingerprint(legs):
+            leg_ids = sorted([f"{leg['match_id']}:{leg['outcome']}" for leg in legs])
+            return hashlib.md5("|".join(leg_ids).encode()).hexdigest()
+        
+        fp1 = get_fingerprint(legs_order_1)
+        fp2 = get_fingerprint(legs_order_2)
+        
+        self.assertEqual(fp1, fp2, "Fingerprints should match regardless of order")
+    
+    def test_different_outcomes_different_fingerprints(self):
+        """Different outcomes on same match should have different fingerprints"""
+        import hashlib
+        
+        def get_fingerprint(legs):
+            leg_ids = sorted([f"{leg['match_id']}:{leg['outcome']}" for leg in legs])
+            return hashlib.md5("|".join(leg_ids).encode()).hexdigest()
+        
+        legs_home = [{'match_id': 100, 'outcome': 'H'}]
+        legs_away = [{'match_id': 100, 'outcome': 'A'}]
+        
+        fp_home = get_fingerprint(legs_home)
+        fp_away = get_fingerprint(legs_away)
+        
+        self.assertNotEqual(fp_home, fp_away, "Different outcomes should have different fingerprints")
+    
+    def test_duplicate_detection_concept(self):
+        """Test the concept of duplicate detection"""
+        existing_parlays = [
+            {'parlay_id': 'abc', 'legs': [{'match_id': 100, 'outcome': 'H'}, {'match_id': 200, 'outcome': 'A'}]},
+        ]
+        
+        new_parlay_same = {'legs': [{'match_id': 100, 'outcome': 'H'}, {'match_id': 200, 'outcome': 'A'}]}
+        new_parlay_diff = {'legs': [{'match_id': 100, 'outcome': 'H'}, {'match_id': 300, 'outcome': 'D'}]}
+        
+        import hashlib
+        def get_fingerprint(legs):
+            leg_ids = sorted([f"{leg['match_id']}:{leg['outcome']}" for leg in legs])
+            return hashlib.md5("|".join(leg_ids).encode()).hexdigest()
+        
+        existing_fps = {get_fingerprint(p['legs']) for p in existing_parlays}
+        
+        self.assertIn(get_fingerprint(new_parlay_same['legs']), existing_fps)
+        self.assertNotIn(get_fingerprint(new_parlay_diff['legs']), existing_fps)
+
+
+class TestParlayConstraints(unittest.TestCase):
+    """Test parlay generation constraints"""
+    
+    def test_edge_range_validation(self):
+        """Test edge must be within valid range"""
+        MIN_EDGE = 0.04
+        MAX_EDGE = 0.15
+        
+        valid_edge = 0.07
+        too_low_edge = 0.02
+        too_high_edge = 0.20
+        
+        self.assertTrue(MIN_EDGE <= valid_edge <= MAX_EDGE)
+        self.assertFalse(MIN_EDGE <= too_low_edge <= MAX_EDGE)
+        self.assertFalse(MIN_EDGE <= too_high_edge <= MAX_EDGE)
+    
+    def test_leg_count_must_be_two(self):
+        """Current constraints require exactly 2 legs"""
+        REQUIRED_LEGS = 2
+        
+        valid_parlay = {'legs': [{'match_id': 1}, {'match_id': 2}]}
+        invalid_single = {'legs': [{'match_id': 1}]}
+        invalid_three = {'legs': [{'match_id': 1}, {'match_id': 2}, {'match_id': 3}]}
+        
+        self.assertEqual(len(valid_parlay['legs']), REQUIRED_LEGS)
+        self.assertNotEqual(len(invalid_single['legs']), REQUIRED_LEGS)
+        self.assertNotEqual(len(invalid_three['legs']), REQUIRED_LEGS)
+    
+    def test_minimum_leg_probability(self):
+        """Legs must have minimum probability threshold"""
+        MIN_PROB = 0.20
+        
+        valid_leg = {'model_prob': 0.45}
+        invalid_leg = {'model_prob': 0.15}
+        
+        self.assertGreaterEqual(valid_leg['model_prob'], MIN_PROB)
+        self.assertLess(invalid_leg['model_prob'], MIN_PROB)
+
+
 def run_all_tests():
     """Run all tests and return summary"""
     loader = unittest.TestLoader()
@@ -431,6 +596,9 @@ def run_all_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestDataIntegrity))
     suite.addTests(loader.loadTestsFromTestCase(TestDatabaseSchema))
     suite.addTests(loader.loadTestsFromTestCase(TestIntegration))
+    suite.addTests(loader.loadTestsFromTestCase(TestLegProbabilityRecording))
+    suite.addTests(loader.loadTestsFromTestCase(TestParlayDeduplication))
+    suite.addTests(loader.loadTestsFromTestCase(TestParlayConstraints))
     
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

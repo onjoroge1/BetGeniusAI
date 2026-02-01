@@ -517,10 +517,51 @@ class ParlayBuilder:
         
         return parlay
     
+    def _get_legs_fingerprint(self, legs: List[Dict]) -> str:
+        """Generate a unique fingerprint for a set of legs to detect duplicates"""
+        import hashlib
+        leg_ids = sorted([f"{leg['match_id']}:{leg['outcome']}" for leg in legs])
+        return hashlib.md5("|".join(leg_ids).encode()).hexdigest()
+    
+    def _parlay_exists(self, legs: List[Dict]) -> bool:
+        """Check if a parlay with these exact legs already exists (active or pending)"""
+        import json
+        fingerprint = self._get_legs_fingerprint(legs)
+        
+        with self.engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT COUNT(*) FROM parlay_consensus
+                WHERE status IN ('active', 'pending')
+                AND earliest_kickoff > NOW()
+            """))
+            active_count = result.scalar()
+            
+            if active_count == 0:
+                return False
+            
+            result = conn.execute(text("""
+                SELECT parlay_id, legs FROM parlay_consensus
+                WHERE status IN ('active', 'pending')
+                AND earliest_kickoff > NOW()
+            """))
+            
+            for row in result:
+                existing_legs = row.legs if isinstance(row.legs, list) else json.loads(row.legs)
+                existing_fp = self._get_legs_fingerprint(existing_legs)
+                if existing_fp == fingerprint:
+                    return True
+            
+            return False
+    
     def save_parlay(self, parlay: Dict) -> bool:
-        """Save a generated parlay to the database"""
+        """Save a generated parlay to the database (with deduplication)"""
         try:
             import json
+            
+            if self._parlay_exists(parlay['legs']):
+                logger.debug(f"Skipping duplicate parlay: {parlay['parlay_id'][:8]}...")
+                return False
+            
             with self.engine.connect() as conn:
                 conn.execute(text("""
                     INSERT INTO parlay_consensus (
