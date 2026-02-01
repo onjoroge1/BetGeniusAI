@@ -326,6 +326,92 @@ def get_clv_monitor():
         _clv_monitor = CLVMonitorAPI()
     return _clv_monitor
 
+_v3_predictor = None
+
+def get_v3_predictor_safe():
+    """Get V3 predictor with safe fallback - returns None if unavailable"""
+    global _v3_predictor
+    if _v3_predictor is None:
+        try:
+            from models.v3_predictor import get_v3_predictor
+            _v3_predictor = get_v3_predictor()
+            logger.info("✅ V3 predictor loaded for fallback")
+        except Exception as e:
+            logger.warning(f"⚠️  V3 predictor not available: {e}")
+            return None
+    return _v3_predictor
+
+async def check_sharp_book_availability(match_id: int) -> dict:
+    """Check if Pinnacle or Bet365 odds exist for a match"""
+    import psycopg2
+    sharp_books = ['pinnacle', 'bet365', 'betfair_ex_uk', 'betfair_ex_eu']
+    
+    try:
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT DISTINCT book_id 
+            FROM odds_snapshots 
+            WHERE match_id = %s AND market = 'h2h'
+        """, (match_id,))
+        
+        available_books = [row[0].lower() for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        
+        has_pinnacle = any('pinnacle' in b for b in available_books)
+        has_bet365 = any('bet365' in b for b in available_books)
+        has_betfair = any('betfair' in b for b in available_books)
+        
+        return {
+            'has_sharp_book': has_pinnacle or has_bet365 or has_betfair,
+            'has_pinnacle': has_pinnacle,
+            'has_bet365': has_bet365,
+            'has_betfair': has_betfair,
+            'book_count': len(available_books),
+            'available_books': available_books[:10]
+        }
+    except Exception as e:
+        logger.error(f"Error checking sharp books for match {match_id}: {e}")
+        return {'has_sharp_book': False, 'book_count': 0, 'available_books': []}
+
+async def get_v3_fallback_prediction(match_id: int) -> dict:
+    """Generate V3 prediction as fallback when V1 consensus unavailable"""
+    try:
+        predictor = get_v3_predictor_safe()
+        if not predictor:
+            return None
+        
+        result = predictor.predict(match_id)
+        if not result:
+            return None
+        
+        probs = result.get('probabilities', {})
+        prediction = result.get('prediction', 'home')
+        
+        prediction_map = {'home': 'Home', 'draw': 'Draw', 'away': 'Away'}
+        
+        return {
+            'probabilities': {
+                'home': probs.get('home', 0.33),
+                'draw': probs.get('draw', 0.33),
+                'away': probs.get('away', 0.33)
+            },
+            'confidence': result.get('confidence', 0.33),
+            'prediction': prediction_map.get(prediction, prediction),
+            'quality_score': min(result.get('features_used', 0) / result.get('total_features', 34), 1.0),
+            'bookmaker_count': 1,
+            'model_type': 'v3_sharp_fallback',
+            'data_source': 'v3_sharp_intelligence',
+            'data_quality': 'limited',
+            'features_used': result.get('features_used', 0),
+            'total_features': result.get('total_features', 34)
+        }
+    except Exception as e:
+        logger.error(f"V3 fallback prediction failed for match {match_id}: {e}")
+        return None
+
 def get_background_scheduler():
     global _background_scheduler
     if _background_scheduler is None:
@@ -2342,58 +2428,69 @@ async def predict_match(
             "league": match_details['league']['name']
         }
         
-        # Step 2: Generate prediction using consensus (pre-computed preferred, in-process fallback)
-        logger.info("Generating weighted consensus prediction...")
+        # Step 2: Generate prediction using cascading fallback
+        # Priority: V1 consensus → V3 sharp fallback → no prediction
+        logger.info("Generating prediction with cascading fallback...")
+        
+        prediction_result = None
+        prediction_source = None
+        data_quality = "full"
+        using_v3_fallback = False
         
         # FIRST: Try to get pre-computed consensus from consensus_predictions table
         prediction_result = await get_consensus_prediction_from_db(request.match_id)
         
-        if prediction_result:
-            logger.info(f"Using pre-computed consensus for match {request.match_id}")
+        if prediction_result and prediction_result.get('confidence', 0) > 0:
+            logger.info(f"✅ Using V1 pre-computed consensus for match {request.match_id}")
+            prediction_source = "v1_consensus"
+            data_quality = "full"
         else:
-            # FALLBACK: Build on-demand consensus from odds_snapshots and persist it
-            logger.info("No pre-computed consensus found, building on-demand consensus from snapshots...")
+            # Try on-demand consensus from odds_snapshots
+            logger.info("No pre-computed consensus, building on-demand...")
             prediction_result = await build_on_demand_consensus(request.match_id)
             
-            if not prediction_result:
-                # FINAL FALLBACK: Generate in-process consensus using current odds
-                logger.info("No consensus possible from snapshots, trying current odds...")
-                current_odds = match_data.get('current_odds', {})
-            
-            if not current_odds:
-                # NO REAL ODDS DATA - Return production-safe response with confidence 0
-                logger.warning(f"No real odds data available for match {request.match_id} - returning confidence 0")
-                prediction_result = {
-                    'probabilities': {'home_win': 0.0, 'draw': 0.0, 'away_win': 0.0},
-                    'confidence': 0.0,
-                    'prediction': 'no_prediction',
-                    'quality_score': 0.0,
-                    'bookmaker_count': 0,
-                    'model_type': 'simple_weighted_consensus',
-                    'data_source': 'no_real_data_available'
-                }
-            if current_odds:
-                # Real odds data available - generate prediction
-                prediction_result = get_consensus_predictor().predict_match(current_odds)
-                
-                if not prediction_result:
-                    logger.warning(f"Prediction failed despite having odds data for match {request.match_id}")
-                    raise HTTPException(
-                        status_code=422,
-                        detail="Unable to generate prediction - prediction algorithm failed"
-                    )
+            if prediction_result and prediction_result.get('confidence', 0) > 0:
+                logger.info(f"✅ Using V1 on-demand consensus for match {request.match_id}")
+                prediction_source = "v1_consensus"
+                data_quality = "full"
             else:
-                # No current odds either - return no prediction
-                logger.warning(f"No real odds data available for match {request.match_id} - returning confidence 0")
-                prediction_result = {
-                    'probabilities': {'home_win': 0.0, 'draw': 0.0, 'away_win': 0.0},
-                    'confidence': 0.0,
-                    'prediction': 'no_prediction',
-                    'quality_score': 0.0,
-                    'bookmaker_count': 0,
-                    'model_type': 'simple_weighted_consensus',
-                    'data_source': 'no_real_data_available'
-                }
+                # V1 FAILED - Try V3 sharp fallback
+                logger.info("V1 consensus failed, checking V3 sharp fallback...")
+                sharp_check = await check_sharp_book_availability(request.match_id)
+                
+                if sharp_check.get('has_sharp_book'):
+                    logger.info(f"Sharp books available ({sharp_check.get('book_count')} books), trying V3 fallback...")
+                    v3_result = await get_v3_fallback_prediction(request.match_id)
+                    
+                    if v3_result:
+                        logger.info(f"✅ Using V3 sharp fallback for match {request.match_id} (features: {v3_result.get('features_used')}/{v3_result.get('total_features')})")
+                        prediction_result = v3_result
+                        prediction_source = "v3_sharp_fallback"
+                        data_quality = "limited"
+                        using_v3_fallback = True
+                    else:
+                        logger.warning(f"V3 fallback failed for match {request.match_id}")
+                else:
+                    logger.warning(f"No sharp books available for match {request.match_id}")
+                
+                # FINAL FALLBACK: No prediction available
+                if not prediction_result:
+                    logger.warning(f"No prediction available for match {request.match_id}")
+                    prediction_result = {
+                        'probabilities': {'home': 0.0, 'draw': 0.0, 'away': 0.0},
+                        'confidence': 0.0,
+                        'prediction': 'no_prediction',
+                        'quality_score': 0.0,
+                        'bookmaker_count': sharp_check.get('book_count', 0),
+                        'model_type': 'none',
+                        'data_source': 'no_prediction_available'
+                    }
+                    prediction_source = "none"
+                    data_quality = "unavailable"
+        
+        # Add prediction metadata
+        prediction_result['prediction_source'] = prediction_source
+        prediction_result['data_quality'] = data_quality
         
         # Step 2.5: Shadow V2 Inference (if enabled)
         # Run both v1 (consensus) and v2 in parallel, log both predictions
@@ -2466,28 +2563,32 @@ async def predict_match(
         # Step 4: Calculate processing time
         processing_time = (datetime.now() - start_time).total_seconds()
         
-        # Step 4.5: Get V2 prediction for model transparency
+        # Step 4.5: Get V2 prediction for model transparency (SKIP if using V3 fallback)
         v2_result = None
         v2_available = False
-        try:
-            from models.v2_lgbm_predictor import get_v2_lgbm_predictor
-            v2_predictor = get_v2_lgbm_predictor()
-            
-            # V2 needs match_id and market probabilities as fallback
-            market_probs = {
-                'home': prediction_result.get('probabilities', {}).get('home', 0.33),
-                'draw': prediction_result.get('probabilities', {}).get('draw', 0.33),
-                'away': prediction_result.get('probabilities', {}).get('away', 0.33)
-            }
-            
-            # Pass match_id as first param, market_probs as fallback
-            v2_result = v2_predictor.predict(match_id=request.match_id, market_probs=market_probs)
-            if v2_result and v2_result.get('confidence', 0) > 0:
-                v2_available = True
-                logger.info(f"V2 prediction obtained: conf={v2_result.get('confidence', 0):.3f}")
-        except Exception as e:
-            logger.warning(f"V2 prediction unavailable (non-fatal): {e}")
-            v2_result = None
+        
+        if using_v3_fallback:
+            logger.info("Skipping V2 - using V3 sharp fallback (V2 requires consensus input)")
+        else:
+            try:
+                from models.v2_lgbm_predictor import get_v2_lgbm_predictor
+                v2_predictor = get_v2_lgbm_predictor()
+                
+                # V2 needs match_id and market probabilities as fallback
+                market_probs = {
+                    'home': prediction_result.get('probabilities', {}).get('home', 0.33),
+                    'draw': prediction_result.get('probabilities', {}).get('draw', 0.33),
+                    'away': prediction_result.get('probabilities', {}).get('away', 0.33)
+                }
+                
+                # Pass match_id as first param, market_probs as fallback
+                v2_result = v2_predictor.predict(match_id=request.match_id, market_probs=market_probs)
+                if v2_result and v2_result.get('confidence', 0) > 0:
+                    v2_available = True
+                    logger.info(f"V2 prediction obtained: conf={v2_result.get('confidence', 0):.3f}")
+            except Exception as e:
+                logger.warning(f"V2 prediction unavailable (non-fatal): {e}")
+                v2_result = None
         
         # Step 5: Build comprehensive response with frontend-compatible structure
         # Map new consensus predictor keys to frontend expectations
@@ -2524,33 +2625,65 @@ async def predict_match(
         # Build models array for transparency
         models_array = []
         
-        # V1 Model - Market Consensus (always available)
-        v1_prediction_mapping = {'home': 'home_win', 'draw': 'draw', 'away': 'away_win'}
+        # Primary Model - V1 Consensus or V3 Sharp Fallback (unified structure)
+        v1_prediction_mapping = {'home': 'home_win', 'draw': 'draw', 'away': 'away_win', 'Home': 'home_win', 'Draw': 'draw', 'Away': 'away_win'}
         v1_recommended = v1_prediction_mapping.get(raw_prediction, raw_prediction) if raw_prediction != 'No Prediction' else 'No Prediction'
         
-        models_array.append({
-            "id": "v1_consensus",
-            "name": "Market Weighted Consensus",
-            "type": "ensemble",
-            "version": "1.0.0",
-            "status": "active",
-            "predictions": {
-                "home_win": round(h_norm, 3),
-                "draw": round(d_norm, 3),
-                "away_win": round(a_norm, 3)
-            },
-            "confidence": round(confidence, 3),
-            "recommended_bet": v1_recommended,
-            "quality_metrics": {
-                "metric": "multi_logloss",
-                "value": 0.963475,
-                "sample_size": 5415
-            }
-        })
+        if using_v3_fallback:
+            # V3 Sharp Fallback - same structure as V1 but with limited data indicator
+            models_array.append({
+                "id": "v3_sharp_fallback",
+                "name": "V3 Sharp Intelligence (Fallback)",
+                "type": "lightgbm_ensemble",
+                "version": "3.0.0",
+                "status": "active",
+                "data_quality": "limited",
+                "predictions": {
+                    "home_win": round(h_norm, 3),
+                    "draw": round(d_norm, 3),
+                    "away_win": round(a_norm, 3)
+                },
+                "confidence": round(confidence, 3),
+                "recommended_bet": v1_recommended,
+                "quality_metrics": {
+                    "metric": "multi_logloss",
+                    "value": 0.9788,
+                    "sample_size": 4021,
+                    "features_used": prediction_result.get('features_used', 0),
+                    "total_features": prediction_result.get('total_features', 34)
+                },
+                "fallback_reason": "V1 consensus unavailable - using V3 sharp book intelligence"
+            })
+        else:
+            # V1 Consensus - full data quality
+            models_array.append({
+                "id": "v1_consensus",
+                "name": "Market Weighted Consensus",
+                "type": "ensemble",
+                "version": "1.0.0",
+                "status": "active",
+                "data_quality": "full",
+                "predictions": {
+                    "home_win": round(h_norm, 3),
+                    "draw": round(d_norm, 3),
+                    "away_win": round(a_norm, 3)
+                },
+                "confidence": round(confidence, 3),
+                "recommended_bet": v1_recommended,
+                "quality_metrics": {
+                    "metric": "multi_logloss",
+                    "value": 0.963475,
+                    "sample_size": 5415
+                }
+            })
         
-        # V2 Model - LightGBM Context Model (if available)
-        selected_model = "v1_consensus"
-        selection_reason = "V1 consensus is primary model"
+        # V2 Model - LightGBM Context Model (if available and not using V3 fallback)
+        if using_v3_fallback:
+            selected_model = "v3_sharp_fallback"
+            selection_reason = "V3 sharp intelligence fallback (V1 consensus unavailable)"
+        else:
+            selected_model = "v1_consensus"
+            selection_reason = "V1 consensus is primary model"
         
         if v2_available and v2_result:
             v2_probs = v2_result.get('probabilities', {})
@@ -2595,24 +2728,28 @@ async def predict_match(
             selected_model = "v1_consensus"
             selection_reason = "V1 consensus is production model; V2 shown for comparison"
         else:
-            # V2 not available
+            # V2 not available or skipped
+            v2_reason = "Skipped - using V3 sharp fallback" if using_v3_fallback else "Model not loaded or prediction failed"
             models_array.append({
                 "id": "v2_unified",
                 "name": "Unified V2 Context Model",
                 "type": "lightgbm",
                 "version": "2.0.0",
-                "status": "unavailable",
-                "reason": "Model not loaded or prediction failed",
+                "status": "skipped" if using_v3_fallback else "unavailable",
+                "reason": v2_reason,
                 "predictions": None,
                 "confidence": None,
                 "recommended_bet": None
             })
         
-        # Final decision block
+        # Final decision block with prediction source info
+        strategy = "v3_sharp_fallback" if using_v3_fallback else "v1_primary_v2_transparency"
         final_decision = {
             "selected_model": selected_model,
-            "strategy": "v1_primary_v2_transparency",
-            "reason": selection_reason
+            "strategy": strategy,
+            "reason": selection_reason,
+            "prediction_source": prediction_source,
+            "data_quality": data_quality
         }
         
         predictions = {
@@ -2627,17 +2764,35 @@ async def predict_match(
         }
         
         # Build response structure compatible with frontend expectations
-        response = {
-            "match_info": match_info,
-            "predictions": predictions,
-            "model_info": {
+        if using_v3_fallback:
+            model_info = {
+                "type": "v3_sharp_fallback",
+                "version": "3.0.0",
+                "performance": "0.9788 LogLoss (sharp book intelligence)",
+                "bookmaker_count": prediction_result.get('bookmaker_count', 1),
+                "quality_score": prediction_result.get('quality_score', 0),
+                "data_quality": "limited",
+                "prediction_source": "v3_sharp_fallback",
+                "features_used": prediction_result.get('features_used', 0),
+                "total_features": prediction_result.get('total_features', 34),
+                "data_sources": ["Sharp Bookmakers", "League Statistics", "Real-time Injuries"]
+            }
+        else:
+            model_info = {
                 "type": "simple_weighted_consensus",
                 "version": "1.0.0", 
                 "performance": "0.963475 LogLoss (best performing)",
                 "bookmaker_count": prediction_result.get('bookmaker_count', 0),
                 "quality_score": prediction_result.get('quality_score', 0),
+                "data_quality": "full",
+                "prediction_source": "v1_consensus",
                 "data_sources": ["RapidAPI Football", "Multiple Bookmakers", "Real-time Injuries", "Team News"]
-            },
+            }
+        
+        response = {
+            "match_info": match_info,
+            "predictions": predictions,
+            "model_info": model_info,
             "data_freshness": {
                 "collection_time": match_data.get('collection_timestamp'),
                 "home_injuries": len(match_data.get('home_team', {}).get('injuries', [])),
@@ -6820,6 +6975,28 @@ async def get_market_data(
                 lite_matches = []
                 now_utc = datetime.now(timezone.utc)
                 
+                # Identify matches needing V3 fallback (no consensus)
+                matches_without_consensus = [mid for mid in match_ids if mid not in consensus_map]
+                v3_fallback_map = {}
+                
+                if matches_without_consensus:
+                    logger.info(f"Generating V3 fallback for {len(matches_without_consensus)} matches without consensus")
+                    v3_predictor = get_v3_predictor_safe()
+                    if v3_predictor:
+                        for mid in matches_without_consensus[:10]:  # Limit V3 calls for performance
+                            try:
+                                v3_result = v3_predictor.predict(mid)
+                                if v3_result:
+                                    probs = v3_result.get('probabilities', {})
+                                    v3_fallback_map[mid] = {
+                                        'home': probs.get('home', 0.33),
+                                        'draw': probs.get('draw', 0.33),
+                                        'away': probs.get('away', 0.33),
+                                        'source': 'v3_fallback'
+                                    }
+                            except Exception as e:
+                                logger.warning(f"V3 fallback failed for match {mid}: {e}")
+                
                 for row in fixtures:
                     mid, home_team, away_team, lid, league_name, kickoff_at, home_team_id, away_team_id, home_logo, away_logo = row
                     
@@ -6832,12 +7009,25 @@ async def get_market_data(
                     else:
                         match_status = "FINISHED"
                     
-                    # Get consensus prediction
+                    # Get prediction: V1 consensus first, then V3 fallback
                     probs = consensus_map.get(mid)
+                    prediction_source = "v1_consensus"
+                    data_quality = "full"
+                    
+                    if not probs and mid in v3_fallback_map:
+                        probs = v3_fallback_map[mid]
+                        prediction_source = "v3_fallback"
+                        data_quality = "limited"
+                    
                     prediction = None
                     if probs:
-                        pick = max(probs, key=probs.get)
-                        prediction = {"pick": pick, "confidence": round(probs[pick], 3)}
+                        pick = max(['home', 'draw', 'away'], key=lambda k: probs.get(k, 0))
+                        prediction = {
+                            "pick": pick, 
+                            "confidence": round(probs.get(pick, 0), 3),
+                            "source": prediction_source,
+                            "data_quality": data_quality
+                        }
                     
                     lite_match = {
                         "match_id": mid,
@@ -6931,6 +7121,7 @@ async def get_market_data(
                 
                 v1_row = cursor.fetchone()
                 
+                using_v3_fallback = False
                 if v1_row:
                     v1_probs = {
                         'home': float(v1_row[0]),
@@ -6944,15 +7135,43 @@ async def get_market_data(
                         "probs": v1_probs,
                         "pick": v1_pick,
                         "confidence": round(v1_conf, 3),
-                        "source": "market_consensus"
+                        "source": "v1_consensus",
+                        "data_quality": "full"
                     }
                 else:
-                    # Fallback if no pre-computed consensus
-                    v1_data = None
-                    logger.warning(f"No V1 consensus for match {match_id}")
+                    # Try V3 fallback for matches without consensus
+                    v3_predictor = get_v3_predictor_safe()
+                    if v3_predictor:
+                        try:
+                            v3_result = v3_predictor.predict(match_id)
+                            if v3_result:
+                                v3_probs = v3_result.get('probabilities', {})
+                                v3_pick = max(v3_probs, key=v3_probs.get)
+                                v3_conf = max(v3_probs.values())
+                                
+                                v1_data = {
+                                    "probs": v3_probs,
+                                    "pick": v3_pick,
+                                    "confidence": round(v3_conf, 3),
+                                    "source": "v3_sharp_fallback",
+                                    "data_quality": "limited",
+                                    "features_used": v3_result.get('features_used', 0),
+                                    "total_features": v3_result.get('total_features', 34)
+                                }
+                                using_v3_fallback = True
+                                logger.info(f"Using V3 fallback for match {match_id}")
+                            else:
+                                v1_data = None
+                                logger.warning(f"No prediction available for match {match_id}")
+                        except Exception as e:
+                            v1_data = None
+                            logger.warning(f"V3 fallback failed for match {match_id}: {e}")
+                    else:
+                        v1_data = None
+                        logger.warning(f"No V1 consensus and V3 unavailable for match {match_id}")
                 
-                # OPTIMIZATION 3: Optional V2 prediction (conditional generation)
-                if include_v2:
+                # OPTIMIZATION 3: Optional V2 prediction (skip if using V3 fallback)
+                if include_v2 and not using_v3_fallback:
                     # Step 4: Generate V2 prediction
                     try:
                         v2_predictor = get_v2_lgbm_predictor()
