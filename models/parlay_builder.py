@@ -518,59 +518,75 @@ class ParlayBuilder:
         return parlay
     
     def _get_legs_fingerprint(self, legs: List[Dict]) -> str:
-        """Generate a unique fingerprint for a set of legs to detect duplicates"""
+        """Generate a unique fingerprint for a set of legs to detect duplicates.
+        
+        Returns MD5 hash of sorted match_id:outcome pairs.
+        Handles edge cases: empty legs, missing keys.
+        """
         import hashlib
-        leg_ids = sorted([f"{leg['match_id']}:{leg['outcome']}" for leg in legs])
-        return hashlib.md5("|".join(leg_ids).encode()).hexdigest()
+        
+        if not legs:
+            return hashlib.md5(b"empty").hexdigest()
+        
+        try:
+            leg_ids = sorted([f"{leg.get('match_id', 0)}:{leg.get('outcome', 'X')}" for leg in legs])
+            return hashlib.md5("|".join(leg_ids).encode()).hexdigest()
+        except Exception as e:
+            logger.warning(f"Error generating fingerprint: {e}")
+            return hashlib.md5(str(legs).encode()).hexdigest()
     
     def _parlay_exists(self, legs: List[Dict]) -> bool:
-        """Check if a parlay with these exact legs already exists (active or pending)"""
-        import json
+        """Check if a parlay with these exact legs already exists (active or pending).
+        
+        Uses indexed fingerprint column for O(1) lookup instead of scanning all rows.
+        """
+        if not legs:
+            return False
+            
         fingerprint = self._get_legs_fingerprint(legs)
         
-        with self.engine.connect() as conn:
-            result = conn.execute(text("""
-                SELECT COUNT(*) FROM parlay_consensus
-                WHERE status IN ('active', 'pending')
-                AND earliest_kickoff > NOW()
-            """))
-            active_count = result.scalar()
-            
-            if active_count == 0:
-                return False
-            
-            result = conn.execute(text("""
-                SELECT parlay_id, legs FROM parlay_consensus
-                WHERE status IN ('active', 'pending')
-                AND earliest_kickoff > NOW()
-            """))
-            
-            for row in result:
-                existing_legs = row.legs if isinstance(row.legs, list) else json.loads(row.legs)
-                existing_fp = self._get_legs_fingerprint(existing_legs)
-                if existing_fp == fingerprint:
-                    return True
-            
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT 1 FROM parlay_consensus
+                    WHERE legs_fingerprint = :fingerprint
+                    AND status IN ('active', 'pending')
+                    AND earliest_kickoff > NOW()
+                    LIMIT 1
+                """), {'fingerprint': fingerprint})
+                return result.fetchone() is not None
+        except Exception as e:
+            logger.warning(f"Error checking parlay existence: {e}")
             return False
     
     def save_parlay(self, parlay: Dict) -> bool:
-        """Save a generated parlay to the database (with deduplication)"""
+        """Save a generated parlay to the database (with deduplication).
+        
+        Uses fingerprint column for atomic deduplication via ON CONFLICT.
+        """
         try:
             import json
             
-            if self._parlay_exists(parlay['legs']):
+            legs = parlay.get('legs', [])
+            if not legs:
+                logger.warning("Cannot save parlay with empty legs")
+                return False
+            
+            fingerprint = self._get_legs_fingerprint(legs)
+            
+            if self._parlay_exists(legs):
                 logger.debug(f"Skipping duplicate parlay: {parlay['parlay_id'][:8]}...")
                 return False
             
             with self.engine.connect() as conn:
                 conn.execute(text("""
                     INSERT INTO parlay_consensus (
-                        parlay_id, leg_count, legs, combined_prob, correlation_penalty,
+                        parlay_id, leg_count, legs, legs_fingerprint, combined_prob, correlation_penalty,
                         adjusted_prob, implied_odds, market_implied_prob, edge_pct,
                         confidence_tier, parlay_type, league_group, earliest_kickoff,
                         latest_kickoff, kickoff_window, status, created_at
                     ) VALUES (
-                        :parlay_id, :leg_count, :legs, :combined_prob, :correlation_penalty,
+                        :parlay_id, :leg_count, :legs, :fingerprint, :combined_prob, :correlation_penalty,
                         :adjusted_prob, :implied_odds, :market_implied_prob, :edge_pct,
                         :confidence_tier, :parlay_type, :league_group, :earliest_kickoff,
                         :latest_kickoff, :kickoff_window, :status, NOW()
@@ -582,7 +598,8 @@ class ParlayBuilder:
                 """), {
                     'parlay_id': parlay['parlay_id'],
                     'leg_count': parlay['leg_count'],
-                    'legs': json.dumps(parlay['legs']),
+                    'legs': json.dumps(legs),
+                    'fingerprint': fingerprint,
                     'combined_prob': parlay['combined_prob'],
                     'correlation_penalty': parlay['correlation_penalty'],
                     'adjusted_prob': parlay['adjusted_prob'],
