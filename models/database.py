@@ -722,6 +722,84 @@ class DatabaseManager:
         
         return refreshed_count
     
+    def populate_consensus_from_sharp_books(self) -> int:
+        """
+        Populate odds_consensus from sharp_book_odds for matches that don't have regular odds.
+        
+        This expands training data coverage by using Pinnacle/Betfair odds for matches
+        that weren't captured by regular odds collection.
+        
+        Returns:
+            Number of new consensus rows created
+        """
+        created_count = 0
+        
+        try:
+            import psycopg2
+            
+            conn = psycopg2.connect(self.database_url, connect_timeout=10)
+            cursor = conn.cursor()
+            
+            populate_sql = """
+                WITH sharp_only_matches AS (
+                    SELECT 
+                        sbo.match_id,
+                        f.league_id,
+                        sbo.prob_home as ph_cons,
+                        sbo.prob_draw as pd_cons,
+                        sbo.prob_away as pa_cons,
+                        sbo.ts_recorded as ts_effective
+                    FROM sharp_book_odds sbo
+                    JOIN fixtures f ON sbo.match_id = f.match_id
+                    LEFT JOIN odds_consensus oc ON sbo.match_id = oc.match_id
+                    WHERE oc.match_id IS NULL
+                    AND sbo.is_sharp = true
+                    AND sbo.prob_home IS NOT NULL
+                    AND sbo.prob_draw IS NOT NULL
+                    AND sbo.prob_away IS NOT NULL
+                )
+                INSERT INTO odds_consensus (
+                    match_id, horizon_hours, ts_effective, ph_cons, pd_cons, pa_cons,
+                    disph, dispd, dispa, n_books, market_margin_avg, created_at, league_id
+                )
+                SELECT DISTINCT ON (match_id)
+                    match_id,
+                    1 as horizon_hours,
+                    ts_effective,
+                    ph_cons,
+                    pd_cons,
+                    pa_cons,
+                    0.01 as disph,
+                    0.01 as dispd,
+                    0.01 as dispa,
+                    1 as n_books,
+                    COALESCE((ph_cons + pd_cons + pa_cons) - 1.0, 0.02) as market_margin_avg,
+                    NOW() as created_at,
+                    league_id
+                FROM sharp_only_matches
+                ORDER BY match_id, ts_effective DESC
+                ON CONFLICT (match_id) DO NOTHING
+            """
+            
+            cursor.execute(populate_sql)
+            created_count = cursor.rowcount
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            if created_count > 0:
+                logger.info(f"📊 [SHARP→CONSENSUS] Created {created_count} new odds_consensus rows from sharp book data")
+            
+        except Exception as e:
+            logger.error(f"❌ [SHARP→CONSENSUS] Error: {e}")
+            if 'conn' in locals():
+                conn.rollback()
+                cursor.close()
+                conn.close()
+        
+        return created_count
+
     def load_training_data(self, league_ids: Optional[List[int]] = None, 
                           seasons: Optional[List[int]] = None) -> List[Dict[str, Any]]:
         """Load training data from database"""

@@ -1445,6 +1445,7 @@ class BackgroundScheduler:
         🎯 V3: Sharp Book Collection
         Tracks Pinnacle and other sharp bookmaker odds separately.
         Runs every 5 minutes for V3 feature engineering.
+        Also populates odds_consensus from sharp books to expand training data.
         """
         try:
             from models.sharp_book_collector import run_sharp_book_collection
@@ -1452,6 +1453,12 @@ class BackgroundScheduler:
             results = run_sharp_book_collection()
             total_stored = sum(r.get('odds_stored', 0) for r in results.values() if isinstance(r, dict))
             logger.info(f"✅ SHARP: Collection complete - {total_stored} odds stored")
+            
+            from models.database import DatabaseManager
+            db = DatabaseManager()
+            consensus_created = db.populate_consensus_from_sharp_books()
+            if consensus_created > 0:
+                logger.info(f"📊 SHARP→TRAINING: Created {consensus_created} new training samples from sharp book data")
         except ImportError:
             logger.warning("⚠️ SHARP: sharp_book_collector module not found - skipping")
         except Exception as e:
