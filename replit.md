@@ -19,7 +19,14 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Redis**: Used for session caching.
 
 ### Machine Learning Pipeline
-- **Models**: Production V1 (weighted consensus), V2 (LightGBM ensemble), unified V2 with 61 features, V2-NBA (basketball), V2-NHL (hockey), **V3 Binary Expert Ensemble** (52.80% accuracy, 0.9788 LogLoss).
+- **Models**: Production V1 (weighted consensus), V2 (LightGBM ensemble), unified V2 with 61 features, V2-NBA (basketball), V2-NHL (hockey), **V3 Binary Expert Ensemble** (52.80% accuracy, 0.9788 LogLoss), **V0 Form-Only** (62.2% accuracy, no odds required).
+- **V0 Form-Only Predictor (Feb 2026)**: ELO-based fallback predictor for matches without odds data.
+  - Uses 4 features: elo_diff, elo_expected, home_advantage, elo_tier_diff
+  - LogisticRegression model with StandardScaler
+  - Enables predictions for: minor leagues, early fixtures, international friendlies, pre-odds matches
+  - ELO system: K-factor=32, home_advantage=100, initial_rating=1500
+  - Daily ELO updates at 04:00 UTC via scheduler
+  - **Prediction Cascade**: V3 Sharp → V1 Consensus → V0 Form → None (95%+ match coverage)
 - **V3 Architecture (Jan 2026)**: Binary expert stacked ensemble with 3 calibrated binary classifiers (Home/Away/Draw) + stacked meta-model + 14 regime features. **Leak-free training** using out-of-fold predictions with time-based splits (50%/30%/20%).
   - Home Expert: Predicts H vs (D+A)
   - Away Expert: Predicts A vs (H+D)
