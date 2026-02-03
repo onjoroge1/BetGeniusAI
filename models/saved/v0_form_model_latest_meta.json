@@ -1,0 +1,1 @@
+{"cv_accuracy_mean": 0.6050044682752457, "n_samples": 1119, "n_features": 4, "feature_names": ["elo_diff", "elo_expected", "home_elo", "away_elo"], "model_type": "logistic_regression", "trained_at": "2026-02-03T19:17:56.289740"}

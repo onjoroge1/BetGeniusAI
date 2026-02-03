@@ -2475,6 +2475,43 @@ async def predict_match(
                 else:
                     logger.warning(f"No sharp books available for match {request.match_id}")
                 
+                # V0 FORM-ONLY FALLBACK: Use ELO-based prediction when no odds available
+                if not prediction_result:
+                    logger.info("Trying V0 form-only fallback (ELO-based)...")
+                    try:
+                        from models.v0_form_predictor import get_v0_predictor
+                        v0_predictor = get_v0_predictor()
+                        
+                        if v0_predictor.is_available():
+                            v0_result = v0_predictor.predict(request.match_id)
+                            
+                            if v0_result:
+                                logger.info(f"✅ Using V0 form fallback for match {request.match_id} (ELO: {v0_result.get('elo_home')} vs {v0_result.get('elo_away')})")
+                                prediction_result = {
+                                    'probabilities': {
+                                        'home': v0_result['probabilities']['H'],
+                                        'draw': v0_result['probabilities']['D'],
+                                        'away': v0_result['probabilities']['A']
+                                    },
+                                    'confidence': v0_result['confidence'],
+                                    'prediction': v0_result['prediction'].lower() + '_win' if v0_result['prediction'] != 'D' else 'draw',
+                                    'quality_score': v0_result['confidence'] * 0.6,
+                                    'bookmaker_count': 0,
+                                    'model_type': 'v0_form',
+                                    'data_source': 'form_only',
+                                    'elo_home': v0_result.get('elo_home'),
+                                    'elo_away': v0_result.get('elo_away'),
+                                    'elo_expected': v0_result.get('elo_expected')
+                                }
+                                prediction_source = "v0_form_fallback"
+                                data_quality = "form_only"
+                            else:
+                                logger.warning(f"V0 fallback returned no result for match {request.match_id}")
+                        else:
+                            logger.warning("V0 predictor not available")
+                    except Exception as e:
+                        logger.warning(f"V0 fallback error: {e}")
+                
                 # FINAL FALLBACK: No prediction available
                 if not prediction_result:
                     logger.warning(f"No prediction available for match {request.match_id}")

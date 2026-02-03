@@ -400,6 +400,11 @@ class BackgroundScheduler:
                     if "auto_retrain" not in self.last_run or (now - self.last_run["auto_retrain"]).total_seconds() >= 86400:
                         await self._spawn("auto_retrain", self._run_auto_retrain_check, timeout=1800)
                 
+                # 📊 V0: ELO Update - runs once per day at 04:00 UTC to update team ratings
+                if current_hour == 4:
+                    if "elo_update" not in self.last_run or (now - self.last_run["elo_update"]).total_seconds() >= 86400:
+                        await self._spawn("elo_update", self._run_elo_update, timeout=300)
+                
                 # 🎯 V3: Sharp Book Collection - runs every 5 minutes to track Pinnacle odds
                 if "sharp_book" not in self.last_run or (now - self.last_run["sharp_book"]).total_seconds() >= 300:
                     await self._spawn("sharp_book", self._run_sharp_book_collection, timeout=120)
@@ -1439,6 +1444,35 @@ class BackgroundScheduler:
             logger.warning("⚠️ RETRAIN: auto_retrain module not found - skipping")
         except Exception as e:
             logger.error(f"❌ RETRAIN: Auto-retrain check failed - {e}", exc_info=True)
+
+    async def _run_elo_update(self):
+        """
+        📊 V0: ELO Update Job
+        Updates team ELO ratings from recent match results.
+        Runs daily at 04:00 UTC.
+        """
+        try:
+            from models.team_elo import TeamELOManager
+            from datetime import timedelta
+            
+            logger.info("📊 ELO: Starting daily ELO update...")
+            manager = TeamELOManager()
+            
+            since_date = datetime.utcnow() - timedelta(days=7)
+            count = manager.update_elos_since(since_date)
+            
+            if count > 0:
+                logger.info(f"✅ ELO: Updated ratings for {count} matches")
+            else:
+                logger.info("✅ ELO: No new matches to process")
+                
+            stats = manager.get_elo_stats()
+            logger.info(f"📊 ELO Stats: {stats['total_teams']} teams, avg={stats['avg_elo']:.0f}")
+            
+        except ImportError:
+            logger.warning("⚠️ ELO: team_elo module not found - skipping")
+        except Exception as e:
+            logger.error(f"❌ ELO: Update failed - {e}", exc_info=True)
 
     async def _run_sharp_book_collection(self):
         """
