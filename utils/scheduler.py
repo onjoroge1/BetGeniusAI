@@ -1453,12 +1453,12 @@ class BackgroundScheduler:
         """
         try:
             from models.team_elo import TeamELOManager
-            from datetime import timedelta
+            from datetime import datetime as dt, timedelta
             
             logger.info("📊 ELO: Starting daily ELO update...")
             manager = TeamELOManager()
             
-            since_date = datetime.utcnow() - timedelta(days=7)
+            since_date = dt.utcnow() - timedelta(days=7)
             count = manager.update_elos_since(since_date)
             
             if count > 0:

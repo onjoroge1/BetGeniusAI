@@ -31,14 +31,16 @@ class V0FormPredictor:
     
     def __init__(self):
         self.model = None
+        self.scaler = None
         self.metadata = None
         self.elo_manager = TeamELOManager()
         self.engine = create_engine(os.environ['DATABASE_URL'])
         self._load_model()
     
     def _load_model(self):
-        """Load the trained model."""
+        """Load the trained model and scaler."""
         pkl_path = f"{MODEL_DIR}/{MODEL_NAME}_latest.pkl"
+        scaler_path = f"{MODEL_DIR}/{MODEL_NAME}_scaler.pkl"
         meta_path = f"{MODEL_DIR}/{MODEL_NAME}_latest_meta.json"
         
         if not os.path.exists(pkl_path):
@@ -48,11 +50,14 @@ class V0FormPredictor:
         try:
             self.model = joblib.load(pkl_path)
             
+            if os.path.exists(scaler_path):
+                self.scaler = joblib.load(scaler_path)
+            
             if os.path.exists(meta_path):
                 with open(meta_path, 'r') as f:
                     self.metadata = json.load(f)
             
-            acc = self.metadata.get('cv_accuracy_mean', 0)
+            acc = self.metadata.get('cv_accuracy_mean', 0) if self.metadata else 0
             logger.info(f"V0 Form model loaded: {acc:.1%} accuracy")
         except Exception as e:
             logger.error(f"Failed to load V0 model: {e}")
@@ -98,18 +103,35 @@ class V0FormPredictor:
             
             elo_diff = home_elo - away_elo
             elo_expected = 1.0 / (1.0 + 10 ** ((away_elo - home_elo - 100) / 400.0))
+            home_advantage = 100.0
             
-            X = np.array([[elo_diff, elo_expected, home_elo, away_elo]])
+            def get_tier(elo):
+                if elo >= 1700:
+                    return 3
+                elif elo >= 1550:
+                    return 2
+                elif elo >= 1400:
+                    return 1
+                else:
+                    return 0
+            
+            elo_tier_diff = get_tier(home_elo) - get_tier(away_elo)
+            
+            X = np.array([[elo_diff, elo_expected, home_advantage, elo_tier_diff]])
+            
+            if self.scaler:
+                X = self.scaler.transform(X)
             
             probs = self.model.predict_proba(X)[0]
-            classes = self.model.classes_
             
-            prob_dict = {}
-            for i, c in enumerate(classes):
-                prob_dict[c] = float(probs[i])
+            class_map = {0: 'H', 1: 'D', 2: 'A'}
+            
+            prob_h = float(probs[0])
+            prob_d = float(probs[1])
+            prob_a = float(probs[2])
             
             pred_idx = np.argmax(probs)
-            predicted = classes[pred_idx]
+            predicted = class_map[pred_idx]
             confidence = float(probs[pred_idx])
             
             return {
@@ -117,9 +139,9 @@ class V0FormPredictor:
                 'model_type': 'form_only',
                 'match_id': match_id,
                 'probabilities': {
-                    'H': prob_dict.get('H', 0.33),
-                    'D': prob_dict.get('D', 0.33),
-                    'A': prob_dict.get('A', 0.34)
+                    'H': prob_h,
+                    'D': prob_d,
+                    'A': prob_a
                 },
                 'prediction': predicted,
                 'confidence': confidence,
