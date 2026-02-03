@@ -31,6 +31,7 @@ from models.response_schemas import (
 )
 from utils.on_demand_consensus import build_on_demand_consensus
 from utils.betting_edge import compute_betting_intelligence, compute_live_intelligence
+from utils.prediction_logger import log_v0_prediction, log_v1_prediction, log_v3_prediction
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -7093,12 +7094,32 @@ async def get_market_data(
                     prediction = None
                     if probs:
                         pick = max(['home', 'draw', 'away'], key=lambda k: probs.get(k, 0))
+                        
+                        # Normalize model_version for logging (handle all source string variants)
+                        model_version = 'v1_consensus'
+                        if prediction_source in ("v3_sharp", "v3_sharp_fallback", "v3_fallback"):
+                            model_version = 'v3_sharp'
+                        elif prediction_source in ("v0_form", "v0_form_fallback"):
+                            model_version = 'v0_form'
+                        
                         prediction = {
                             "pick": pick, 
                             "confidence": round(probs.get(pick, 0), 3),
                             "source": prediction_source,
+                            "model_version": model_version,
                             "data_quality": data_quality
                         }
+                        
+                        # Log prediction to unified prediction_log table
+                        try:
+                            if model_version == "v1_consensus":
+                                log_v1_prediction(mid, probs['home'], probs['draw'], probs['away'], lid, kickoff_at)
+                            elif model_version == "v3_sharp":
+                                log_v3_prediction(mid, probs['home'], probs['draw'], probs['away'], lid, kickoff_at)
+                            elif model_version == "v0_form":
+                                log_v0_prediction(mid, probs['home'], probs['draw'], probs['away'], lid, kickoff_at)
+                        except Exception as log_err:
+                            logger.warning(f"Prediction logging failed for {mid}: {log_err}")
                     
                     lite_match = {
                         "match_id": mid,
@@ -7320,6 +7341,28 @@ async def get_market_data(
                 else:
                     analysis = None
                     ui_hints = {"primary_model": "v1_consensus" if v1_data else None}
+                
+                # Log prediction to unified prediction_log table with explicit model_version
+                if v1_data:
+                    try:
+                        p = v1_data['probs']
+                        src = v1_data.get('source', 'v1_consensus')
+                        
+                        # Determine model_version explicitly from source
+                        if src in ('v3_sharp_fallback', 'v3_sharp'):
+                            model_ver = 'v3_sharp'
+                            log_v3_prediction(match_id, p['home'], p['draw'], p['away'], league_id, kickoff_at)
+                        elif src == 'v0_form':
+                            model_ver = 'v0_form'
+                            log_v0_prediction(match_id, p['home'], p['draw'], p['away'], league_id, kickoff_at)
+                        else:
+                            model_ver = 'v1_consensus'
+                            log_v1_prediction(match_id, p['home'], p['draw'], p['away'], league_id, kickoff_at)
+                        
+                        # Add model_version to response for API consumers
+                        v1_data['model_version'] = model_ver
+                    except Exception as log_err:
+                        logger.warning(f"Prediction logging failed for {match_id}: {log_err}")
                 
                 # FIX: Determine ACTUAL match status from database, not URL param
                 # Check if match has fresh live data (updated in last 10 min)
