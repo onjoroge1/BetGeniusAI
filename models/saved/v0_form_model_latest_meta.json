@@ -1,19 +1,28 @@
 {
-  "cv_logloss_mean": 0.8333330937800346,
-  "cv_accuracy_mean": 0.6223463687150839,
+  "cv_accuracy_mean": 0.49074074074074076,
+  "cv_logloss_mean": 1.0310994065442092,
   "n_samples": 1079,
-  "n_features": 4,
+  "n_features": 11,
   "feature_names": [
     "elo_diff",
     "elo_expected",
     "home_advantage",
-    "elo_tier_diff"
+    "home_elo",
+    "away_elo",
+    "form_pts_diff",
+    "win_rate_diff",
+    "draw_rate_sum",
+    "home_matches",
+    "away_matches",
+    "is_tier1"
   ],
-  "model_type": "LogisticRegression",
-  "classes": [
-    "H",
-    "D",
-    "A"
-  ],
-  "trained_at": "2026-02-03T19:24:41.053183"
+  "model_type": "binary_experts_weighted",
+  "weights": {
+    "home": 0.45,
+    "draw": 0.2,
+    "away": 0.35
+  },
+  "trained_at": "2026-02-03T20:27:53.642090",
+  "leak_free": true,
+  "note": "Form-only fallback - use when odds unavailable"
 }
