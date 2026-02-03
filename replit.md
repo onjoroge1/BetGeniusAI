@@ -19,13 +19,15 @@ Improvement Priority: Focus on enhanced feature engineering and gradient boostin
 - **Redis**: Used for session caching.
 
 ### Machine Learning Pipeline
-- **Models**: Production V1 (weighted consensus), V2 (LightGBM ensemble), unified V2 with 61 features, V2-NBA (basketball), V2-NHL (hockey), **V3 Binary Expert Ensemble** (52.80% accuracy, 0.9788 LogLoss), **V0 Form-Only** (62.2% accuracy, no odds required).
+- **Models**: Production V1 (weighted consensus), V2 (LightGBM ensemble), unified V2 with 61 features, V2-NBA (basketball), V2-NHL (hockey), **V3 Binary Expert Ensemble** (52.80% accuracy, 0.9788 LogLoss), **V0 Form-Only** (~50% accuracy, leak-free, no odds required).
 - **V0 Form-Only Predictor (Feb 2026)**: ELO-based fallback predictor for matches without odds data.
-  - Uses 4 features: elo_diff, elo_expected, home_advantage, elo_tier_diff
-  - LogisticRegression model with StandardScaler
+  - Uses 11 features: elo_diff, elo_expected, home_advantage, home_elo, away_elo, form_pts_diff, win_rate_diff, draw_rate_sum, home_matches, away_matches, is_tier1
+  - Binary Expert Ensemble with weighted voting (H=0.45, D=0.20, A=0.35)
+  - **Leak-free training**: Chronological ELO computation (point-in-time, not final ratings)
   - Enables predictions for: minor leagues, early fixtures, international friendlies, pre-odds matches
   - ELO system: K-factor=32, home_advantage=100, initial_rating=1500
   - Daily ELO updates at 04:00 UTC via scheduler
+  - **Note**: Form-only predictions are ~10-12% less accurate than odds-based (V3/V1) because odds encode team news, injuries, market sentiment
   - **Prediction Cascade**: V3 Sharp → V1 Consensus → V0 Form → None (95%+ match coverage)
 - **V3 Architecture (Jan 2026)**: Binary expert stacked ensemble with 3 calibrated binary classifiers (Home/Away/Draw) + stacked meta-model + 14 regime features. **Leak-free training** using out-of-fold predictions with time-based splits (50%/30%/20%).
   - Home Expert: Predicts H vs (D+A)
