@@ -7014,15 +7014,18 @@ async def get_market_data(
                 lite_matches = []
                 now_utc = datetime.now(timezone.utc)
                 
-                # Identify matches needing V3 fallback (no consensus)
+                # Identify matches needing fallback (no consensus)
                 matches_without_consensus = [mid for mid in match_ids if mid not in consensus_map]
                 v3_fallback_map = {}
+                v0_fallback_map = {}
                 
                 if matches_without_consensus:
-                    logger.info(f"Generating V3 fallback for {len(matches_without_consensus)} matches without consensus")
+                    logger.info(f"Generating V3/V0 fallback for {len(matches_without_consensus)} matches without consensus")
+                    
+                    # Try V3 first
                     v3_predictor = get_v3_predictor_safe()
                     if v3_predictor:
-                        for mid in matches_without_consensus[:10]:  # Limit V3 calls for performance
+                        for mid in matches_without_consensus[:10]:
                             try:
                                 v3_result = v3_predictor.predict(mid)
                                 if v3_result:
@@ -7035,6 +7038,30 @@ async def get_market_data(
                                     }
                             except Exception as e:
                                 logger.warning(f"V3 fallback failed for match {mid}: {e}")
+                    
+                    # V0 form fallback for matches still without predictions
+                    remaining_matches = [mid for mid in matches_without_consensus if mid not in v3_fallback_map]
+                    if remaining_matches:
+                        try:
+                            from models.v0_form_predictor import get_v0_predictor
+                            v0_predictor = get_v0_predictor()
+                            if v0_predictor:
+                                # Build team name lookup from fixtures
+                                fixture_teams = {row[0]: (row[1], row[2]) for row in fixtures}
+                                for mid in remaining_matches:
+                                    if mid in fixture_teams:
+                                        home_team, away_team = fixture_teams[mid]
+                                        v0_result = v0_predictor.predict(home_team, away_team)
+                                        if v0_result and 'probabilities' in v0_result:
+                                            probs = v0_result['probabilities']
+                                            v0_fallback_map[mid] = {
+                                                'home': probs.get('home', 0.33),
+                                                'draw': probs.get('draw', 0.33),
+                                                'away': probs.get('away', 0.33),
+                                                'source': 'v0_form'
+                                            }
+                        except Exception as e:
+                            logger.warning(f"V0 form fallback failed: {e}")
                 
                 for row in fixtures:
                     mid, home_team, away_team, lid, league_name, kickoff_at, home_team_id, away_team_id, home_logo, away_logo = row
@@ -7048,15 +7075,20 @@ async def get_market_data(
                     else:
                         match_status = "FINISHED"
                     
-                    # Get prediction: V1 consensus first, then V3 fallback
+                    # Get prediction: V1 consensus → V3 sharp → V0 form cascade
                     probs = consensus_map.get(mid)
                     prediction_source = "v1_consensus"
                     data_quality = "full"
                     
                     if not probs and mid in v3_fallback_map:
                         probs = v3_fallback_map[mid]
-                        prediction_source = "v3_fallback"
+                        prediction_source = "v3_sharp"
                         data_quality = "limited"
+                    
+                    if not probs and mid in v0_fallback_map:
+                        probs = v0_fallback_map[mid]
+                        prediction_source = "v0_form"
+                        data_quality = "form_only"
                     
                     prediction = None
                     if probs:
@@ -7201,13 +7233,32 @@ async def get_market_data(
                                 logger.info(f"Using V3 fallback for match {match_id}")
                             else:
                                 v1_data = None
-                                logger.warning(f"No prediction available for match {match_id}")
                         except Exception as e:
                             v1_data = None
                             logger.warning(f"V3 fallback failed for match {match_id}: {e}")
-                    else:
-                        v1_data = None
-                        logger.warning(f"No V1 consensus and V3 unavailable for match {match_id}")
+                    
+                    # V0 form fallback if still no prediction
+                    if not v1_data:
+                        try:
+                            from models.v0_form_predictor import get_v0_predictor
+                            v0_predictor = get_v0_predictor()
+                            if v0_predictor:
+                                v0_result = v0_predictor.predict(home_team, away_team)
+                                if v0_result and 'probabilities' in v0_result:
+                                    v0_probs = v0_result['probabilities']
+                                    v0_pick = max(v0_probs, key=v0_probs.get)
+                                    v0_conf = max(v0_probs.values())
+                                    
+                                    v1_data = {
+                                        "probs": v0_probs,
+                                        "pick": v0_pick,
+                                        "confidence": round(v0_conf, 3),
+                                        "source": "v0_form",
+                                        "data_quality": "form_only"
+                                    }
+                                    logger.info(f"Using V0 form fallback for match {match_id}")
+                        except Exception as e:
+                            logger.warning(f"V0 form fallback failed for match {match_id}: {e}")
                 
                 # OPTIMIZATION 3: Optional V2 prediction (skip if using V3 fallback)
                 if include_v2 and not using_v3_fallback:
