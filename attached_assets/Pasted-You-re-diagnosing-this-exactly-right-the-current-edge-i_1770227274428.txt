@@ -1,0 +1,250 @@
+You’re diagnosing this exactly right: the current “edge” is mechanically forced by your own pricing formula, so the filter can’t discriminate quality, and the calibration table proves the player model is not usable as a probability estimator in its current form.
+
+Below is a concrete, implementation-level fix plan that turns player parlays into something that can actually (a) measure real edge, (b) diversify risk, and (c) settle reliably.
+
+---
+
+## 1) Fix the “edge is always 8%” bug (it’s not a bug, it’s the design)
+
+Right now you’re doing:
+
+* `fair_odds = 1 / model_prob`
+* `book_odds = fair_odds * (1 + 0.08)`
+* `implied_prob = 1 / book_odds = model_prob / 1.08`
+* `edge = (model_prob - implied_prob) / implied_prob * 100`
+* Substitute: `edge = (p - p/1.08) / (p/1.08) * 100 = 8%`
+
+So every leg gets **exactly 8%** edge by algebra. That’s why you see 757 legs all at 8.00%.
+
+### What to do instead
+
+Edge must compare **your probability** vs **market implied probability**:
+
+* Pull **real odds** for the prop (Anytime Goalscorer).
+* Convert market odds to implied probability (optionally de-vig if you have both sides).
+* Compute:
+
+  * `edge_pct = (p_model - p_market) / p_market * 100`
+
+If you don’t have market odds, you don’t have “edge”. You only have “model confidence” (and right now that’s miscalibrated anyway).
+
+---
+
+## 2) Stop manufacturing odds; integrate real player prop odds
+
+### Minimal viable integration
+
+Add an odds ingestion step for player props:
+
+**Data model (suggested)**
+
+* `player_prop_odds_snapshots`
+
+  * `match_id`
+  * `player_id`
+  * `market_type` (e.g., `anytime_scorer`)
+  * `book`
+  * `decimal_odds`
+  * `captured_at`
+  * `source`
+
+**Generator flow change**
+
+* For each fixture:
+
+  * get odds for anytime scorer for likely starters (or at least top attackers)
+  * join odds ↔ player mapping
+  * compute `p_market = 1/decimal_odds` (or de-vig if possible)
+  * compute real edge vs `p_model`
+
+### Practical note
+
+Player props odds are much harder than 1X2 totals BTTS etc:
+
+* different books publish different player name strings
+* lines change frequently
+* some matches won’t have props posted early
+
+So: **only generate player parlays for fixtures where you have props odds coverage**. Everything else becomes “preview only” or “no parlay”.
+
+---
+
+## 3) Treat the calibration failure as a release blocker
+
+Your calibration table says (example):
+
+* “60% predicted → 24.5% actual” = catastrophic overconfidence
+
+This means:
+
+* ranking might still have *some* value
+* but the raw probabilities are not decision-grade
+
+### Fast remediation path (2 stages)
+
+**Stage A (quick, no retraining): post-hoc calibration**
+
+* Take a large validation set of predictions vs outcomes
+* Fit calibration mapping:
+
+  * **isotonic regression** (robust, non-parametric) or
+  * **Platt scaling** / logistic calibration
+* Replace `p_model_raw` with `p_calibrated` everywhere in pricing + selection.
+
+**Stage B (proper): retrain with proper labels + leakage controls**
+Common failure modes for player scoring models:
+
+* label noise (wrong match/player join)
+* missing “minutes played” (starter vs sub)
+* training target not aligned to “anytime scorer”
+* team strength, opponent strength, home/away, implied team goals missing
+* temporal leakage from post-match stats
+
+Minimum features that usually matter a lot:
+
+* expected minutes / starter probability
+* shots, xG, shots on target per 90 (recent form windows)
+* team implied goals (from market totals) and player share
+* opponent defensive strength
+* set-piece role / penalty taker flags
+
+---
+
+## 4) Remove the 60% cap (it’s distorting everything)
+
+The cap guarantees:
+
+* your top legs bunch at 60%
+* which destroys ranking signal and produces unrealistic parlay probabilities
+
+If you’re worried about runaway confidence, that’s what calibration is for. A calibrated model won’t need a blunt cap.
+
+If you *must* guardrail:
+
+* cap only after calibration (e.g., `min(p, 0.45)`), but that’s usually inferior to good calibration.
+
+---
+
+## 5) Diversification rules (stop Greenwood 153x)
+
+You need “portfolio constraints” in parlay construction.
+
+### Concrete rules that work
+
+* Max appearances per player per slate: **2**
+* Max legs per match across all parlays: **2**
+* Max correlation clusters:
+
+  * if two legs are from same match, require they be *uncorrelated* (hard for anytime scorer; usually avoid same match entirely)
+* Don’t build parlays from only the top-15 legs; use:
+
+  * top legs per league / per match buckets
+  * sample with constraints
+
+**Implementation pattern**
+
+* After you create candidate legs, run a constrained selection step:
+
+  * greedy pick by `edge` (or `EV`) while enforcing caps
+
+---
+
+## 6) Use expected value (EV) as the primary leg score
+
+Once you have market odds:
+
+* `EV = p_calibrated * decimal_odds - 1`
+* Keep legs with:
+
+  * `EV >= 0.03` (example threshold)
+  * `p_calibrated` within realistic range (anytime scorer often 0.10–0.45 depending on player)
+
+Then for parlays:
+
+* `p_parlay = Π p_i`
+* `odds_parlay = Π odds_i`
+* `EV_parlay = p_parlay * odds_parlay - 1`
+* Filter on EV and sanity constraints (avoid “too good to be true” payouts).
+
+---
+
+## 7) Settlement reliability: fix match_id/player_id join issues
+
+Your settlement depends on `player_game_stats` with `game_id = match_id`, and you already found missing mappings (e.g., Salah match lacks `game_id` data).
+
+### What to implement
+
+* A canonical `match_id` mapping table:
+
+  * `provider_match_id` ↔ `snapbet_match_id`
+  * same for player IDs
+* Settlement should:
+
+  1. find the provider match id used by the stats feed
+  2. map to your internal match id
+  3. map player id
+  4. settle by a stable stat field (`goals >= 1`) in a known schema
+
+Also add:
+
+* settlement “unknown” state when data missing (do not mark loss)
+* periodic re-settlement job once stats arrive
+
+---
+
+## 8) Proposed “V2 Player Parlay” pipeline (what to build next)
+
+**Step 0: Data availability gate**
+
+* Only fixtures with:
+
+  * confirmed lineups OR strong starter model
+  * player prop odds available
+  * stable player↔match mapping
+
+**Step 1: Candidate leg generation**
+
+* start from players who have odds listed (not from season goals top-4)
+* compute `p_calibrated` + `p_market`
+* compute EV + edge
+
+**Step 2: Quality filtering**
+
+* keep legs with:
+
+  * `EV >= X`
+  * `edge >= Y`
+  * `p_calibrated` reasonable bounds
+
+**Step 3: Portfolio builder**
+
+* build 2-leg or 3-leg parlays
+* enforce diversification constraints
+
+**Step 4: Monitoring**
+Track weekly:
+
+* calibration curve (pred vs actual)
+* Brier score / logloss
+* realized ROI by EV bucket
+* coverage rate (how many matches had odds)
+
+---
+
+## 9) What I would change immediately (fast patch)
+
+If you want a “today” fix that stops the bleeding while you integrate odds + calibration:
+
+1. **Remove the manufactured odds/edge entirely** and rename outputs honestly:
+
+   * “model_prob” and “model_confidence” only
+2. **Stop labeling “high confidence” by the 8% circular edge**
+3. Add diversification caps (player/match)
+4. Fix settlement “unknown” state when stats missing
+
+This will reduce bad parlays fast, even before you’ve built real edge.
+
+---
+
+If you want, paste your current `PlayerPropsService.predict_player()` input features (or the schema it uses), and I’ll tell you exactly which additional features you’re missing that most commonly cause “60% predicted → 24% actual” type failures, and how to add them without blowing up your pipeline.
+
