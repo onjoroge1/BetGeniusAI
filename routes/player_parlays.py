@@ -11,13 +11,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/player-parlays", tags=["Player Parlays"])
 
 _generator = None
+_generator_v2 = None
 
 def get_generator():
+    """Get V1 generator (deprecated, kept for backward compatibility)."""
     global _generator
     if _generator is None:
         from models.player_parlay_generator import PlayerParlayGenerator
         _generator = PlayerParlayGenerator()
     return _generator
+
+def get_generator_v2():
+    """Get V2 generator with calibration and diversification."""
+    global _generator_v2
+    if _generator_v2 is None:
+        from models.player_parlay_generator_v2 import PlayerParlayGeneratorV2
+        _generator_v2 = PlayerParlayGeneratorV2()
+    return _generator_v2
 
 
 @router.get("/best")
@@ -134,24 +144,92 @@ async def get_player_parlays_by_legs(
 
 @router.post("/generate")
 async def generate_player_parlays(
-    hours_ahead: int = Query(default=72, ge=24, le=168)
+    hours_ahead: int = Query(default=72, ge=24, le=168),
+    version: str = Query(default="v2", description="Generator version: v1 or v2")
 ) -> Dict:
     """
     Manually trigger player parlay generation for upcoming fixtures.
     
-    This is normally run automatically by the scheduler every 10 minutes.
+    V2 (default): Uses calibrated probabilities and diversification constraints.
+    V1 (deprecated): Original generator without calibration.
     """
     try:
-        generator = get_generator()
+        if version == "v2":
+            generator = get_generator_v2()
+        else:
+            generator = get_generator()
+        
         result = generator.generate_all_player_parlays(hours_ahead=hours_ahead)
         
         return {
             'status': 'success',
+            'version': version,
             'generation_result': result
         }
         
     except Exception as e:
         logger.error(f"Error generating player parlays: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/best-v2")
+async def get_best_player_parlays_v2(
+    limit: int = Query(default=10, ge=1, le=50),
+    min_ev: float = Query(default=0, description="Minimum EV (model-based)")
+) -> Dict:
+    """
+    Get best player scorer parlays using V2 calibrated system.
+    
+    Returns parlays with:
+    - Calibrated win probabilities (isotonic regression)
+    - Model-based confidence scoring
+    - Diversification (max 2 per player, max 2 per match)
+    
+    Note: Soccer player props do not have real market odds from The Odds API.
+    The 'ev_source' field indicates whether EV is from real market or model confidence.
+    """
+    try:
+        generator = get_generator_v2()
+        parlays = generator.get_best_parlays(limit=limit, min_ev=min_ev)
+        
+        formatted_parlays = []
+        for p in parlays:
+            formatted_parlays.append({
+                'parlay_id': p['parlay_hash'],
+                'leg_count': p['leg_count'],
+                'combined_odds': float(p['combined_odds']),
+                'calibrated_prob': float(p.get('calibrated_prob_pct', p.get('raw_prob_pct', 0))),
+                'ev_pct': float(p.get('ev_pct', 0)),
+                'ev_source': 'model_confidence',
+                'has_market_odds': p.get('has_market_odds', False),
+                'confidence': p['confidence_tier'],
+                'payout_100': float(p['payout_100']),
+                'legs': [
+                    {
+                        'player': leg['player_name'],
+                        'team': leg['team_name'],
+                        'match': f"{leg['home_team']} vs {leg['away_team']}",
+                        'league': leg['league_name'],
+                        'calibrated_prob': float(leg.get('prob', leg.get('model_prob', 0))),
+                        'odds': float(leg['decimal_odds']),
+                        'ev': float(leg.get('ev', 0)),
+                        'has_market_odds': leg.get('has_market_odds', False)
+                    }
+                    for leg in p.get('legs', [])
+                ]
+            })
+        
+        return {
+            'version': 'v2',
+            'count': len(formatted_parlays),
+            'ev_note': 'Soccer player props use model confidence (no real market odds available)',
+            'filters': {'min_ev': min_ev},
+            'default_bet': 100.0,
+            'parlays': formatted_parlays
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting V2 player parlays: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

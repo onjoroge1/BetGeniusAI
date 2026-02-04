@@ -215,6 +215,11 @@ def get_parlay_performance_summary() -> dict:
 async def settle_player_parlays_job() -> dict:
     """
     Settle player parlays by checking goal scorers in completed matches.
+    
+    V2 improvements:
+    - Mark legs as 'unknown' when data is missing (not 'lost')
+    - Mark parlays as 'data_pending' when some legs have unknown status
+    - Only settle when all legs have definitive results
     """
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
@@ -231,13 +236,14 @@ async def settle_player_parlays_job() -> dict:
                     pp.combined_odds,
                     pp.confidence_tier
                 FROM player_parlays pp
-                WHERE pp.status = 'pending'
+                WHERE pp.status IN ('pending', 'data_pending')
                 AND pp.expires_at < NOW()
             """)).fetchall()
             
             settled_count = 0
             won_count = 0
             lost_count = 0
+            data_pending_count = 0
             
             for parlay in pending_parlays:
                 parlay_id = parlay.id
@@ -257,7 +263,9 @@ async def settle_player_parlays_job() -> dict:
                 
                 legs = conn.execute(text("""
                     SELECT 
+                        ppl.id as leg_id,
                         ppl.player_id,
+                        ppl.player_name,
                         ppl.match_id,
                         ppl.result
                     FROM player_parlay_legs ppl
@@ -265,12 +273,18 @@ async def settle_player_parlays_job() -> dict:
                 """), {'parlay_id': parlay_id}).fetchall()
                 
                 all_won = True
-                data_missing = False
+                any_lost = False
+                any_unknown = False
+                
                 for leg in legs:
                     if leg.result == 'lost':
+                        any_lost = True
                         all_won = False
                     elif leg.result == 'won':
                         pass
+                    elif leg.result == 'unknown':
+                        any_unknown = True
+                        all_won = False
                     else:
                         game_stats_exist = conn.execute(text("""
                             SELECT 1 FROM player_game_stats pgs
@@ -279,32 +293,63 @@ async def settle_player_parlays_job() -> dict:
                         """), {'match_id': leg.match_id}).fetchone()
                         
                         if not game_stats_exist:
-                            data_missing = True
+                            conn.execute(text("""
+                                UPDATE player_parlay_legs
+                                SET result = 'unknown'
+                                WHERE id = :leg_id
+                            """), {'leg_id': leg.leg_id})
+                            any_unknown = True
+                            all_won = False
+                            logger.debug(f"Leg {leg.leg_id} ({leg.player_name}): data missing, marked unknown")
                             continue
                         
-                        scorers = conn.execute(text("""
-                            SELECT 1 FROM player_game_stats pgs
+                        scorer_check = conn.execute(text("""
+                            SELECT 
+                                COALESCE((pgs.stats->>'goals')::int, 0) as goals
+                            FROM player_game_stats pgs
                             WHERE pgs.player_id = :player_id
                             AND pgs.game_id = :match_id
-                            AND (pgs.stats->>'goals')::int > 0
                         """), {'player_id': leg.player_id, 'match_id': leg.match_id}).fetchone()
                         
-                        won = scorers is not None
+                        if scorer_check is None:
+                            conn.execute(text("""
+                                UPDATE player_parlay_legs
+                                SET result = 'unknown'
+                                WHERE id = :leg_id
+                            """), {'leg_id': leg.leg_id})
+                            any_unknown = True
+                            all_won = False
+                            logger.debug(f"Leg {leg.leg_id} ({leg.player_name}): player not in stats, marked unknown")
+                            continue
+                        
+                        won = scorer_check.goals > 0
                         conn.execute(text("""
                             UPDATE player_parlay_legs
                             SET result = :result
-                            WHERE parlay_id = :parlay_id AND player_id = :player_id AND match_id = :match_id
+                            WHERE id = :leg_id
                         """), {
                             'result': 'won' if won else 'lost',
-                            'parlay_id': parlay_id,
-                            'player_id': leg.player_id,
-                            'match_id': leg.match_id
+                            'leg_id': leg.leg_id
                         })
                         
                         if not won:
+                            any_lost = True
                             all_won = False
                 
-                if data_missing:
+                if any_unknown and not any_lost:
+                    conn.execute(text("""
+                        UPDATE player_parlays
+                        SET status = 'data_pending'
+                        WHERE id = :parlay_id
+                    """), {'parlay_id': parlay_id})
+                    data_pending_count += 1
+                    continue
+                
+                if any_lost:
+                    result = 'lost'
+                elif all_won:
+                    result = 'won'
+                else:
                     continue
                 
                 conn.execute(text("""
@@ -313,23 +358,24 @@ async def settle_player_parlays_job() -> dict:
                     WHERE id = :parlay_id
                 """), {
                     'parlay_id': parlay_id,
-                    'result': 'won' if all_won else 'lost'
+                    'result': result
                 })
                 
                 settled_count += 1
-                if all_won:
+                if result == 'won':
                     won_count += 1
                 else:
                     lost_count += 1
             
             conn.commit()
             
-            logger.info(f"Settled {settled_count} player parlays (Won: {won_count}, Lost: {lost_count})")
+            logger.info(f"Settled {settled_count} player parlays (Won: {won_count}, Lost: {lost_count}, DataPending: {data_pending_count})")
             
             return {
                 'settled': settled_count,
                 'won': won_count,
-                'lost': lost_count
+                'lost': lost_count,
+                'data_pending': data_pending_count
             }
             
     except Exception as e:
