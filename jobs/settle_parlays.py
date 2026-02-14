@@ -394,6 +394,62 @@ async def settle_player_parlays_job() -> dict:
         return {'error': str(e), 'settled': settled_count, 'won': won_count, 'lost': lost_count}
 
 
+async def settle_match_parlay_legs_job() -> dict:
+    """
+    Settle the orphan parlay_legs table (match-level auto parlays from AutomatedParlayGenerator).
+    These have actual_outcome and won columns that were never populated.
+    Uses match_results table for canonical H/D/A outcomes.
+    """
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        return {'error': 'DATABASE_URL not set', 'settled': 0}
+    
+    engine = create_engine(db_url, pool_pre_ping=True)
+    
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                WITH updated AS (
+                    UPDATE parlay_legs pl
+                    SET won = (pl.outcome = mr.outcome),
+                        actual_outcome = mr.outcome,
+                        settled_at = NOW()
+                    FROM match_results mr
+                    WHERE pl.match_id = mr.match_id
+                      AND pl.won IS NULL
+                      AND mr.outcome IS NOT NULL
+                    RETURNING pl.leg_id, pl.won
+                )
+                SELECT 
+                    COUNT(*) as total_settled,
+                    SUM(CASE WHEN won THEN 1 ELSE 0 END) as won_count,
+                    SUM(CASE WHEN NOT won THEN 1 ELSE 0 END) as lost_count
+                FROM updated
+            """)).fetchone()
+            
+            conn.commit()
+            
+            settled = result.total_settled if result else 0
+            won_ct = result.won_count if result else 0
+            lost_ct = result.lost_count if result else 0
+            
+            still_pending = conn.execute(text(
+                "SELECT COUNT(*) FROM parlay_legs WHERE won IS NULL"
+            )).scalar() or 0
+            
+            logger.info(f"MATCH-LEGS SETTLE: {won_ct} won, {lost_ct} lost, {still_pending} still pending")
+            
+            return {
+                'settled': settled,
+                'won': won_ct,
+                'lost': lost_ct,
+                'pending': still_pending
+            }
+    except Exception as e:
+        logger.error(f"Match parlay legs settlement failed: {e}")
+        return {'error': str(e), 'settled': 0}
+
+
 if __name__ == "__main__":
     import asyncio
     logging.basicConfig(level=logging.INFO)
@@ -403,6 +459,9 @@ if __name__ == "__main__":
     
     player_result = asyncio.run(settle_player_parlays_job())
     print(f"Player parlay settlement result: {player_result}")
+    
+    match_legs_result = asyncio.run(settle_match_parlay_legs_job())
+    print(f"Match parlay legs settlement result: {match_legs_result}")
     
     summary = get_parlay_performance_summary()
     print(f"Performance summary: {summary}")

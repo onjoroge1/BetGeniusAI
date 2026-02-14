@@ -1,0 +1,236 @@
+You already did the forensic work — the root causes are clear. What you need now is a surgical remediation plan that:
+	1.	stops the combinatorial spam immediately
+	2.	makes probabilities/“confidence” stop lying
+	3.	fixes settlement for the orphan parlay_legs system
+	4.	gives you a clean path to a real player-props model later (without blocking the product)
+
+Below is a do-this-in-order implementation plan (with exact constraints, code-level changes, and how to measure success).
+
+⸻
+
+0) Immediate containment (today)
+
+A. Rate-limit generation at the leg level (not parlay level)
+
+Right now the parlay uniqueness is only parlay_hash, so you can generate infinite new hashes using the same legs. You need a generation window concept.
+
+Add two columns to player_parlays:
+	•	generation_key (string) — e.g. YYYY-MM-DDTHH:00Z (hour bucket) or YYYY-MM-DD (day bucket)
+	•	generator_version (string) — v1, v2, etc.
+
+Then enforce:
+	•	max N parlays per generation window, per league, per kickoff bucket, etc.
+	•	max M parlays per match per window
+
+Practical defaults:
+	•	per 5-min cron run: generate 0–20 new parlays max
+	•	per match per day: generate <= 10 player parlays
+
+This alone stops “Kane appears in 444 parlays” overnight.
+
+B. Stop generating all combinations
+
+Kill:
+
+combinations(all_legs_sorted, k)
+
+Replace with sampling + diversity constraints (details below).
+
+⸻
+
+1) Fix duplication properly (structural)
+
+You do not need a uniqueness constraint on (player_id, match_id) in player_parlay_legs — because you actually want legs reused across different parlays.
+
+What you need is portfolio uniqueness, not database uniqueness.
+
+A. Add a “portfolio dedupe” table keyed by (window, match, player)
+
+Create a small table that tracks how often a leg is used in a time window:
+
+player_leg_usage
+	•	window_key (date/hour bucket)
+	•	match_id
+	•	player_id
+	•	use_count
+	•	UNIQUE (window_key, match_id, player_id)
+
+During generation:
+	•	before selecting legs, fetch usage counts
+	•	penalize legs already used a lot
+	•	hard-cap leg reuse per window (e.g., use_count <= 3)
+
+B. Enforce diversity constraints during construction
+
+When building a parlay:
+	•	max 1 leg per match (or 2, but 1 is cleaner)
+	•	max 1 leg per team (prevents stacking one attack line)
+	•	max X legs from same league (optional)
+
+This automatically prevents permutations of the same few matches/players.
+
+⸻
+
+2) Replace the generator with a “rank → sample → assemble” pipeline
+
+Right now: “top scorers → brute force combos.”
+What you want: “candidate legs → quality score → sample diverse legs → assemble parlays.”
+
+A. Candidate leg pool must be wider than season-goals top N
+
+Your selection is narrow and static. Replace “top by season_goals” with something like:
+
+Candidate set per match: 10–20 players including:
+	•	projected starters (or “likely to play” proxy)
+	•	top xG / shots / SoT (even season-level is better than goals)
+	•	penalties taker flag (if you can approximate)
+	•	minutes per appearance / starts %
+
+If you don’t have these features yet, even expanding beyond season_goals helps:
+	•	include attackers/mids plus high-involvement wingers
+	•	include “minutes played” threshold so you avoid bench players with lucky goals
+	•	include last-N form if you have it (goals last 5, shots last 5)
+
+B. Score legs with a “sanity probability”
+
+Until you have a real model, do NOT pretend goals_per_game*0.8 is a probability.
+
+Replace it with a Poisson-based baseline (still heuristic, but grounded):
+	•	estimate player goal rate per 90 (λ) using:
+	•	goals / minutes * 90 (with shrinkage)
+	•	probability score ≥1:
+	•	p = 1 - exp(-λ_adj)
+
+Then shrink aggressively:
+	•	clamp λ to reasonable bounds (e.g., 0.05 to 0.55)
+	•	apply Bayesian shrinkage toward league-average attacker rate
+
+This will drag “60% cap everywhere” down into a more realistic distribution.
+
+C. Assemble parlays via sampling, not combinations
+
+For each parlay size k:
+	1.	sample legs using weighted sampling (higher score = higher weight)
+	2.	enforce diversity constraints
+	3.	stop once you have e.g. 10–25 total parlays per run across all k
+
+This prevents exponential explosion.
+
+⸻
+
+3) Fix “wrong probabilities” + “edge/confidence inversion”
+
+You found the core issue: edge is mathematically guaranteed by your synthetic odds.
+
+A. Delete “edge” from the product unless you have real market odds
+
+If you can’t source true anytime goalscorer odds, edge is a fake metric and will keep poisoning trust.
+
+Replace with:
+	•	Model Probability (or Baseline Probability)
+	•	Risk Tier based on probability bands + parlay size
+
+Example:
+	•	Low risk: avg leg p ≥ 0.22 and k=2
+	•	Medium: avg leg p 0.16–0.22 or k=3
+	•	High: below that
+
+B. Calibration only after you have a stable label dataset
+
+Isotonic calibration on garbage in → garbage out, especially with coverage gaps (only 796/2664 matches with stats).
+Short-term: remove calibration or freeze it behind a feature flag.
+
+C. Show “expected hit rate” ranges, not single-point confidence
+
+Given your observed ~15% true hit rate, you should treat any heuristic output as noisy.
+
+UI copy should be honest:
+	•	“Baseline estimate” / “experimental”
+	•	confidence is about data quality & stability, not “edge”
+
+⸻
+
+4) Settlement: fix the orphan parlay_legs system (534 stuck)
+
+You have 3 parlay systems; one is unowned.
+
+You have two choices. Pick one and delete the other.
+
+Option A (recommended): Migrate parlay_legs → parlay_consensus
+
+If parlay_consensus is the working match-level parlay system:
+	•	write a one-time migration that converts each parlay_legs parlay into a parlay_consensus row (or whatever structure it expects)
+	•	then drop or archive parlay_legs
+	•	keep one settlement job (the working one)
+
+Option B: Implement a real settlement job for parlay_legs
+
+If you must keep it:
+	•	add a parlay-level table (because right now legs have no parlay status)
+	•	implement settle_parlay_legs_job() that:
+	•	finds legs where fixture is FT and won is NULL
+	•	joins to match_results
+	•	writes actual_outcome and won
+	•	and schedules it every 5 minutes like the others
+
+But honestly: Option A reduces surface area and prevents this exact bug recurring.
+
+⸻
+
+5) Data coverage: stop marking everything “unknown” forever
+
+Your labels are missing because player stats coverage is weak.
+
+A. Track coverage as a first-class metric
+
+Add daily metrics:
+	•	finished matches
+	•	matches with any player_game_stats
+	•	% coverage
+
+B. Backfill / re-pull player stats for finished fixtures
+
+If your stats provider is API-Football:
+	•	run a backfill job for fixtures FT in last 30 days where stats missing
+	•	store stats_fetch_status and last_fetch_attempt_at
+
+This alone will improve settlement truth and model training.
+
+⸻
+
+6) What “success” looks like (numbers to aim for)
+
+After changes, you should see:
+
+Generation
+	•	total new player parlays per day: < 500 (not 1,000+ every day)
+	•	average repeats of same (player_id, match_id) per day: < 10
+	•	top-used leg per day: < 30 uses (not 400+)
+
+Probability realism
+	•	distribution of leg probabilities no longer pinned at 0.60
+	•	average leg probability likely in 0.10–0.22 range for anytime goalscorer (depending on leagues)
+
+Settlement
+	•	parlay_legs count with NULL won for fixtures FT should drop to near zero
+	•	player legs “unknown” should correlate to actual missing stats coverage, not job gaps
+
+⸻
+
+7) Minimal “Phase 1” patch list (fastest path)
+
+If you want the highest ROI patch set:
+	1.	Replace combinations() with sampling + caps
+	2.	Add generation window + per-match cap
+	3.	Remove synthetic edge and fake confidence tiers
+	4.	Migrate or settle parlay_legs immediately
+	5.	Add player_leg_usage and penalize repeat legs
+
+This will stop the bleeding, improve UX honesty, and reduce DB bloat fast.
+
+⸻
+
+If you paste the V1/V2 generator file names + where they live in repo, I can write you the exact pseudocode (or a drop-in implementation outline) for:
+	•	the sampling-based generator (with constraints)
+	•	the player_leg_usage tracking
+	•	the settlement migration from parlay_legs → parlay_consensus

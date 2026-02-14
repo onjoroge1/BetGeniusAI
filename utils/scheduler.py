@@ -1348,6 +1348,17 @@ class BackgroundScheduler:
             logger.debug("⚠️ PLAYER-SETTLE: settle_player_parlays_job not available - skipping")
         except Exception as e:
             logger.error(f"❌ PLAYER-SETTLE: Player parlay settlement failed - {e}", exc_info=True)
+        
+        try:
+            from jobs.settle_parlays import settle_match_parlay_legs_job
+            result = await settle_match_parlay_legs_job()
+            settled = result.get('settled', 0)
+            if settled > 0:
+                logger.info(f"✅ MATCH-LEGS-SETTLE: Settled {settled} match parlay legs (Won: {result.get('won', 0)}, Lost: {result.get('lost', 0)})")
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.error(f"❌ MATCH-LEGS-SETTLE: Failed - {e}")
 
     async def _run_fixtures_to_matches_sync(self):
         """
