@@ -1,0 +1,107 @@
+Got it. Based on what you shared, there are two separate failure modes happening:
+	1.	Player parlays: they do settle, but are structurally broken (duplication + miscalibration + “confidence/edge” inverted).
+	2.	Auto (match) parlays: they never settle (pipeline/settlement job failure), so you’re blind.
+
+To pinpoint root cause fast, I need answers to these questions (copy/paste and answer inline—short is fine).
+
+⸻
+
+1) Player parlays: duplication + wrong probabilities
+
+A. Where is “uniqueness” supposed to be enforced?
+	1.	What is the intended uniqueness key for a player leg? (e.g., match_id + player_id + market_type + line?)
+	2.	Do you have DB unique constraints (or upserts) that prevent reusing the same player_id+match_id+market inside the same “generation window” (day / 72h horizon)?
+	3.	Is duplication happening within one run of the generator, or across multiple cron runs throughout the day?
+
+B. Generator selection logic (most common duplication culprit)
+	4.	In player_parlay_generator, how do you select fixtures (next 72 hours): is it always “top N” by some sort, and then top 4 players by season goals?
+	5.	Do you cache the “top players per fixture” list and reuse it? If yes, where and for how long?
+	6.	Are you generating parlays by doing something like: for fixture in fixtures: combine top players into parlays (which naturally creates the same combos repeatedly)?
+
+C. Model probability source + mapping
+	7.	For each player leg probability, is it coming from:
+	•	a real model (PlayerPropsService.predict_player()), OR
+	•	fallback heuristic, OR
+	•	a hybrid/average?
+What % of legs are fallback vs model?
+	8.	When you say probabilities are capped at 60%: is that cap applied before edge/odds, or after? (This matters for calibration.)
+	9.	What is the exact target variable the model predicts? (“scores anytime”, “1+ SOT”, “goal in match”, etc.) And does settlement evaluate the same event?
+
+D. Settlement truth labels (calibration can be “wrong” if labels are wrong)
+	10.	For your deduped ground truth (288 combos), how are you labeling a “win”?
+	•	Did player score?
+	•	Did player have a shot on target?
+	•	Did player appear?
+	•	Any ambiguity with own goals / penalties / extra time?
+	11.	Are player IDs consistent between:
+	•	pre-match player universe (lineups/rosters)
+	•	in-match stats provider
+	•	your unified player table?
+(ID mismatches often create phantom losses.)
+
+E. “Confidence” and “Edge” being inverted
+	12.	What defines confidence tier?
+	•	probability thresholds only?
+	•	includes “data quality” flags?
+	•	includes odds/edge?
+	13.	How are you computing “edge” exactly?
+	•	Are you comparing model prob to implied prob from your synthetic odds (fair_odds * margin) rather than bookmaker odds?
+	•	If yes: edge becomes self-referential (and can invert).
+	14.	Do you store real bookmaker odds anywhere for player markets? If not, what is “edge” trying to represent?
+
+⸻
+
+2) Auto (match) parlays: ZERO settled = pipeline failure
+
+A. Do auto parlays create legs in the same table as player legs?
+	15.	Are auto parlay legs stored in the same parlay_legs table/schema as player legs, or a separate table/type?
+	16.	Do they have the same required fields the settlement job expects (e.g., match_id, market, selection, result, settled_at)?
+
+B. Settlement job routing
+	17.	What job/process is supposed to settle auto parlays?
+	•	name of cron/worker
+	•	schedule frequency
+	•	where it runs (serverless, ECS, cron, GitHub actions, etc.)
+	18.	Does that job filter by market_type == PLAYER or similar and accidentally excludes MATCH legs?
+	19.	Are auto parlay legs stuck in a status like pending, ungraded, data_pending, created, etc.? Which exact status?
+
+C. Data availability for match outcomes
+	20.	For match settlement, do you have final scores consistently stored for those 534 parlay matches?
+	21.	If match results exist, what’s the settlement step that’s failing:
+	•	fetching results,
+	•	mapping to outcome,
+	•	writing settlements,
+	•	or updating parlay aggregation?
+
+⸻
+
+3) The backend “AI agent” question (important)
+
+You said there’s a backend AI agent responsible for calculation and mapping of parlay code structure.
+	22.	What exactly does the agent do vs deterministic code?
+	•	Does it generate the parlay combinations?
+	•	Does it map markets/selections?
+	•	Does it compute odds/edge/confidence?
+	23.	Does the agent output a JSON schema that is then persisted? If yes, can you paste one example agent output for:
+	•	a player parlay leg
+	•	an auto parlay leg
+	24.	Do you validate the agent output with a strict schema (zod / pydantic) and reject malformed outputs? Or do malformed outputs slip into DB and later break settlement?
+
+⸻
+
+4) One “smoking gun” check (answer this even if nothing else)
+	25.	When you deduped down to 288 unique player+match combos, were those combos created:
+
+	•	across a single day,
+	•	a week,
+	•	or the entire dataset range?
+
+If that 288 spans long time ranges, then your generator is effectively recycling the same “top players in a few leagues” repeatedly—meaning the selection logic is fundamentally too narrow.
+
+⸻
+
+If you answer only 6 questions, answer these:
+
+2, 3, 7, 10, 15, 17.
+
+Once you reply, I’ll tell you exactly where the issue most likely is (generator vs model vs settlement routing) and give you a concrete fix plan (DB constraints + generator diversity + calibration + settlement patch).
