@@ -6570,29 +6570,26 @@ async def get_market_data(
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Market endpoint: Real-time odds board with V1 + V2 predictions (Requires API Key)
+    Market endpoint: Full match board with cascading predictions (Requires API Key)
+    
+    Uses prediction cascade (V1 consensus → V3 sharp → V0 form) for maximum coverage.
+    Matches WITHOUT odds still appear with ELO-based V0 form predictions.
     
     Status options (default: "all"):
     - "all": Smart composite view (upcoming → live → finished) - best UX
-    - "upcoming": Future scheduled matches with odds (bettable)
+    - "upcoming": All future scheduled matches (with or without odds)
     - "live": In-progress matches with fresh data (<10 min old)
     - "finished": Completed matches with final results
     
     Mode options (default: "full"):
     - "full": Complete data with all predictions, odds, momentum, etc.
     - "lite": Fast list view with minimal data (<500ms for 20+ matches)
-            Returns: team names/logos, league, kickoff, score, basic prediction, bookmaker names
     
-    OPTIMIZATIONS:
-    - Single-match filter: ?match_id=X for instant detail page loads (<500ms)
-    - Optional V2: ?include_v2=false for faster V1-only responses
-    - Batch bookmaker resolution: All mappings loaded once (800 queries → 1)
-    - Lite mode: ?mode=lite for fast list views (skips ML inference, momentum, etc.)
-    
-    Data sources:
-    - odds_snapshots: Latest raw odds per bookmaker (updated every 60s)
-    - consensus_predictions: V1 probabilities (pre-computed by scheduler)
-    - V2 predictor: Generate V2 predictions on-demand (optional, skipped in lite mode)
+    Prediction cascade:
+    - V1 consensus: Pre-computed odds consensus (data_quality: "full")
+    - V3 sharp: Sharp bookmaker ML model fallback (data_quality: "limited")
+    - V0 form: ELO-based form-only predictor (data_quality: "form_only")
+    - Each match response includes prediction source and data_quality labels
     
     Free tier gets both models, premium gets AI analysis via /predict-v2
     """
@@ -6679,7 +6676,6 @@ async def get_market_data(
                             AND f.status = 'scheduled'
                             AND f.league_id = %s
                             AND f.home_team != 'TBD' AND f.away_team != 'TBD'
-                            AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
                     """
@@ -6703,7 +6699,6 @@ async def get_market_data(
                         WHERE f.kickoff_at > NOW()
                             AND f.status = 'scheduled'
                             AND f.home_team != 'TBD' AND f.away_team != 'TBD'
-                            AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                         ORDER BY f.kickoff_at ASC
                         LIMIT %s
                     """
@@ -6843,7 +6838,6 @@ async def get_market_data(
                                 AND f.status = 'scheduled'
                                 AND f.league_id = %s
                                 AND f.home_team != 'TBD' AND f.away_team != 'TBD'
-                                AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                             ORDER BY f.kickoff_at ASC
                             LIMIT %s
                         """, (league_id, remaining_limit))
@@ -6860,7 +6854,6 @@ async def get_market_data(
                             WHERE f.kickoff_at > NOW()
                                 AND f.status = 'scheduled'
                                 AND f.home_team != 'TBD' AND f.away_team != 'TBD'
-                                AND EXISTS (SELECT 1 FROM odds_snapshots os WHERE os.match_id = f.match_id)
                             ORDER BY f.kickoff_at ASC
                             LIMIT %s
                         """, (remaining_limit,))
@@ -7023,46 +7016,51 @@ async def get_market_data(
                 if matches_without_consensus:
                     logger.info(f"Generating V3/V0 fallback for {len(matches_without_consensus)} matches without consensus")
                     
-                    # Try V3 first
-                    v3_predictor = get_v3_predictor_safe()
-                    if v3_predictor:
-                        for mid in matches_without_consensus[:10]:
-                            try:
-                                v3_result = v3_predictor.predict(mid)
-                                if v3_result:
-                                    probs = v3_result.get('probabilities', {})
-                                    v3_fallback_map[mid] = {
-                                        'home': probs.get('home', 0.33),
-                                        'draw': probs.get('draw', 0.33),
-                                        'away': probs.get('away', 0.33),
-                                        'source': 'v3_fallback'
-                                    }
-                            except Exception as e:
-                                logger.warning(f"V3 fallback failed for match {mid}: {e}")
+                    matches_with_odds_no_consensus = [mid for mid in matches_without_consensus if mid in bookmakers_by_match]
+                    matches_no_odds = [mid for mid in matches_without_consensus if mid not in bookmakers_by_match]
                     
-                    # V0 form fallback for matches still without predictions
-                    remaining_matches = [mid for mid in matches_without_consensus if mid not in v3_fallback_map]
+                    if matches_with_odds_no_consensus:
+                        v3_predictor = get_v3_predictor_safe()
+                        if v3_predictor:
+                            for mid in matches_with_odds_no_consensus[:10]:
+                                try:
+                                    v3_result = v3_predictor.predict(mid)
+                                    if v3_result:
+                                        probs = v3_result.get('probabilities', {})
+                                        v3_fallback_map[mid] = {
+                                            'home': probs.get('home', 0.33),
+                                            'draw': probs.get('draw', 0.33),
+                                            'away': probs.get('away', 0.33),
+                                            'source': 'v3_fallback'
+                                        }
+                                except Exception as e:
+                                    logger.warning(f"V3 fallback failed for match {mid}: {e}")
+                    
+                    remaining_matches = matches_no_odds + [mid for mid in matches_with_odds_no_consensus if mid not in v3_fallback_map]
                     if remaining_matches:
                         try:
                             from models.v0_form_predictor import get_v0_predictor
                             v0_predictor = get_v0_predictor()
-                            if v0_predictor:
-                                # Build team name lookup from fixtures
-                                fixture_teams = {row[0]: (row[1], row[2]) for row in fixtures}
+                            if v0_predictor and v0_predictor.is_available():
                                 for mid in remaining_matches:
-                                    if mid in fixture_teams:
-                                        home_team, away_team = fixture_teams[mid]
-                                        v0_result = v0_predictor.predict(home_team, away_team)
+                                    try:
+                                        v0_result = v0_predictor.predict(mid)
                                         if v0_result and 'probabilities' in v0_result:
                                             probs = v0_result['probabilities']
                                             v0_fallback_map[mid] = {
-                                                'home': probs.get('home', 0.33),
-                                                'draw': probs.get('draw', 0.33),
-                                                'away': probs.get('away', 0.33),
-                                                'source': 'v0_form'
+                                                'home': probs.get('H', probs.get('home', 0.33)),
+                                                'draw': probs.get('D', probs.get('draw', 0.33)),
+                                                'away': probs.get('A', probs.get('away', 0.33)),
+                                                'source': 'v0_form',
+                                                'elo_home': v0_result.get('elo_home'),
+                                                'elo_away': v0_result.get('elo_away')
                                             }
+                                    except Exception as e:
+                                        logger.warning(f"V0 form fallback failed for match {mid}: {e}")
                         except Exception as e:
-                            logger.warning(f"V0 form fallback failed: {e}")
+                            logger.warning(f"V0 form fallback init failed: {e}")
+                    
+                    logger.info(f"Cascade results: V3={len(v3_fallback_map)}, V0={len(v0_fallback_map)}, no_prediction={len(matches_without_consensus) - len(v3_fallback_map) - len(v0_fallback_map)}")
                 
                 for row in fixtures:
                     mid, home_team, away_team, lid, league_name, kickoff_at, home_team_id, away_team_id, home_logo, away_logo = row
@@ -7196,11 +7194,10 @@ async def get_market_data(
                         }
                 
                 if not books:
-                    logger.warning(f"No odds for match {match_id}, skipping")
-                    continue
-                
-                # Calculate no-vig consensus from current odds
-                novig_current = calculate_novig_consensus(books)
+                    novig_current = None
+                    logger.info(f"No odds for match {match_id}, will use prediction cascade (V3/V0 fallback)")
+                else:
+                    novig_current = calculate_novig_consensus(books)
                 
                 # Step 3: Get V1 consensus from consensus_predictions table (pre-computed)
                 cursor.execute("""
@@ -7231,59 +7228,62 @@ async def get_market_data(
                         "data_quality": "full"
                     }
                 else:
-                    # Try V3 fallback for matches without consensus
-                    v3_predictor = get_v3_predictor_safe()
-                    if v3_predictor:
-                        try:
-                            v3_result = v3_predictor.predict(match_id)
-                            if v3_result:
-                                v3_probs = v3_result.get('probabilities', {})
-                                v3_pick = max(v3_probs, key=v3_probs.get)
-                                v3_conf = max(v3_probs.values())
-                                
-                                v1_data = {
-                                    "probs": v3_probs,
-                                    "pick": v3_pick,
-                                    "confidence": round(v3_conf, 3),
-                                    "source": "v3_sharp_fallback",
-                                    "data_quality": "limited",
-                                    "features_used": v3_result.get('features_used', 0),
-                                    "total_features": v3_result.get('total_features', 34)
-                                }
-                                using_v3_fallback = True
-                                logger.info(f"Using V3 fallback for match {match_id}")
-                            else:
-                                v1_data = None
-                        except Exception as e:
-                            v1_data = None
-                            logger.warning(f"V3 fallback failed for match {match_id}: {e}")
+                    v1_data = None
+                    if books:
+                        v3_predictor = get_v3_predictor_safe()
+                        if v3_predictor:
+                            try:
+                                v3_result = v3_predictor.predict(match_id)
+                                if v3_result:
+                                    v3_probs = v3_result.get('probabilities', {})
+                                    v3_pick = max(v3_probs, key=v3_probs.get)
+                                    v3_conf = max(v3_probs.values())
+                                    
+                                    v1_data = {
+                                        "probs": v3_probs,
+                                        "pick": v3_pick,
+                                        "confidence": round(v3_conf, 3),
+                                        "source": "v3_sharp_fallback",
+                                        "data_quality": "limited",
+                                        "features_used": v3_result.get('features_used', 0),
+                                        "total_features": v3_result.get('total_features', 34)
+                                    }
+                                    using_v3_fallback = True
+                                    logger.info(f"Using V3 fallback for match {match_id}")
+                            except Exception as e:
+                                logger.warning(f"V3 fallback failed for match {match_id}: {e}")
                     
-                    # V0 form fallback if still no prediction
                     if not v1_data:
                         try:
                             from models.v0_form_predictor import get_v0_predictor
                             v0_predictor = get_v0_predictor()
-                            if v0_predictor:
-                                v0_result = v0_predictor.predict(home_team, away_team)
+                            if v0_predictor and v0_predictor.is_available():
+                                v0_result = v0_predictor.predict(match_id)
                                 if v0_result and 'probabilities' in v0_result:
                                     v0_probs = v0_result['probabilities']
-                                    v0_pick = max(v0_probs, key=v0_probs.get)
-                                    v0_conf = max(v0_probs.values())
+                                    v0_probs_norm = {
+                                        'home': v0_probs.get('H', v0_probs.get('home', 0.33)),
+                                        'draw': v0_probs.get('D', v0_probs.get('draw', 0.33)),
+                                        'away': v0_probs.get('A', v0_probs.get('away', 0.33))
+                                    }
+                                    v0_pick = max(v0_probs_norm, key=v0_probs_norm.get)
+                                    v0_conf = max(v0_probs_norm.values())
                                     
                                     v1_data = {
-                                        "probs": v0_probs,
+                                        "probs": v0_probs_norm,
                                         "pick": v0_pick,
                                         "confidence": round(v0_conf, 3),
                                         "source": "v0_form",
-                                        "data_quality": "form_only"
+                                        "data_quality": "form_only",
+                                        "elo_home": v0_result.get('elo_home'),
+                                        "elo_away": v0_result.get('elo_away')
                                     }
                                     logger.info(f"Using V0 form fallback for match {match_id}")
                         except Exception as e:
                             logger.warning(f"V0 form fallback failed for match {match_id}: {e}")
                 
                 # OPTIMIZATION 3: Optional V2 prediction (skip if using V3 fallback)
-                if include_v2 and not using_v3_fallback:
-                    # Step 4: Generate V2 prediction
+                if include_v2 and not using_v3_fallback and novig_current:
                     try:
                         v2_predictor = get_v2_lgbm_predictor()
                         v2_result = v2_predictor.predict(match_id, novig_current)
