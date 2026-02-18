@@ -227,6 +227,8 @@ class BackgroundScheduler:
         logger.info("📊 Automated metrics tracking enabled - calculates accuracy every 6 hours")
         logger.info("🎯 CLV Club alert producer enabled - scanning for opportunities every 60 seconds")
         
+        self._loop_count = 0
+        
         while self.is_running:
             try:
                 now = datetime.utcnow()
@@ -234,6 +236,7 @@ class BackgroundScheduler:
                 current_minute = now.minute
                 weekday = now.weekday()  # 0=Monday, 6=Sunday
                 is_weekend = weekday >= 5  # Saturday or Sunday
+                self._loop_count += 1
                 
                 # Determine collection hours based on day type
                 target_hours = self.weekend_hours if is_weekend else self.weekday_hours
@@ -301,36 +304,36 @@ class BackgroundScheduler:
                         await self._spawn("metrics_calc", self._run_metrics_calculation, timeout=120)
                         self.last_metrics_calculation = now
                 
-                # 🎯 HIGH PRIORITY: Run Phase B (fresh odds collection) every 60 seconds
-                # Use background task with 5-minute timeout to prevent blocking
-                if "phase_b" not in self.last_run or (now - self.last_run["phase_b"]).total_seconds() >= 60:
-                    await self._spawn("phase_b", self._run_phase_b_fresh_odds, timeout=300)
+                # STAGGER 60s tasks into 3 groups to prevent DB connection stampede
+                # Group A (loop % 3 == 0): Odds collection
+                # Group B (loop % 3 == 1): CLV + settlement
+                # Group C (loop % 3 == 2): Live data + resolver
+                group = self._loop_count % 3
                 
-                # 🎲 The Odds API Phase B: Continuous collection every 60 seconds (100k/day limit)
-                # Extended timeout (600s) to allow scanning all 39 leagues with rate limiting
-                if "theodds_phase_b" not in self.last_run or (now - self.last_run["theodds_phase_b"]).total_seconds() >= 60:
-                    await self._spawn("theodds_phase_b", self._run_theodds_phase_b, timeout=600)
+                # GROUP A: Odds collection tasks
+                if group == 0:
+                    if "phase_b" not in self.last_run or (now - self.last_run["phase_b"]).total_seconds() >= 55:
+                        await self._spawn("phase_b", self._run_phase_b_fresh_odds, timeout=300)
+                    
+                    if "theodds_phase_b" not in self.last_run or (now - self.last_run["theodds_phase_b"]).total_seconds() >= 55:
+                        await self._spawn("theodds_phase_b", self._run_theodds_phase_b, timeout=600)
+                    
+                    if "api_football_phase_b" not in self.last_run or (now - self.last_run["api_football_phase_b"]).total_seconds() >= 55:
+                        await self._spawn("api_football_phase_b", self._run_api_football_phase_b, timeout=300)
                 
-                # ⚽ API-Football Phase B: Continuous collection every 60 seconds (75k/day limit = plenty of headroom)
-                # Extended timeout (300s) to allow scanning all leagues (was 120s, causing timeouts)
-                if "api_football_phase_b" not in self.last_run or (now - self.last_run["api_football_phase_b"]).total_seconds() >= 60:
-                    await self._spawn("api_football_phase_b", self._run_api_football_phase_b, timeout=300)
-                
-                # Run CLV Club alert producer every 60 seconds (background task)
-                if "clv_producer" not in self.last_run or (now - self.last_run["clv_producer"]).total_seconds() >= 60:
-                    await self._spawn("clv_producer", self._run_clv_alert_producer, timeout=30)
-                
-                # Run CLV Club TTL cleanup every 5 minutes (300 seconds) - background task
-                if "clv_cleanup" not in self.last_run or (now - self.last_run["clv_cleanup"]).total_seconds() >= 300:
-                    await self._spawn("clv_cleanup", self._run_clv_ttl_cleanup, timeout=60)
-                
-                # Phase 2: Run closing sampler every 60 seconds (background task)
-                if "closing_sampler" not in self.last_run or (now - self.last_run["closing_sampler"]).total_seconds() >= 60:
-                    await self._spawn("closing_sampler", self._run_closing_sampler, timeout=30)
-                
-                # Phase 2: Run closing settler every 60 seconds (background task)
-                if "closing_settler" not in self.last_run or (now - self.last_run["closing_settler"]).total_seconds() >= 60:
-                    await self._spawn("closing_settler", self._run_closing_settler, timeout=30)
+                # GROUP B: CLV + settlement tasks
+                if group == 1:
+                    if "clv_producer" not in self.last_run or (now - self.last_run["clv_producer"]).total_seconds() >= 55:
+                        await self._spawn("clv_producer", self._run_clv_alert_producer, timeout=30)
+                    
+                    if "clv_cleanup" not in self.last_run or (now - self.last_run["clv_cleanup"]).total_seconds() >= 300:
+                        await self._spawn("clv_cleanup", self._run_clv_ttl_cleanup, timeout=60)
+                    
+                    if "closing_sampler" not in self.last_run or (now - self.last_run["closing_sampler"]).total_seconds() >= 55:
+                        await self._spawn("closing_sampler", self._run_closing_sampler, timeout=30)
+                    
+                    if "closing_settler" not in self.last_run or (now - self.last_run["closing_settler"]).total_seconds() >= 55:
+                        await self._spawn("closing_settler", self._run_closing_settler, timeout=30)
                 
                 # CLV Daily Brief: Run once per day at 00:05 UTC (background task)
                 if current_hour == 0 and current_minute >= 5 and current_minute < 15:
@@ -342,29 +345,26 @@ class BackgroundScheduler:
                         await self._spawn("daily_brief", self._run_daily_brief, timeout=120)
                         self.last_daily_brief_run = now
                 
-                # 🔗 PHASE 2: Fixture ID Resolver - runs every 60 seconds to link fixtures with API-Football IDs
-                if "fixture_resolver" not in self.last_run or (now - self.last_run["fixture_resolver"]).total_seconds() >= 60:
-                    await self._spawn("fixture_resolver", self._run_fixture_id_resolver, timeout=90)
+                # GROUP C: Resolver + live data tasks
+                if group == 2:
+                    if "fixture_resolver" not in self.last_run or (now - self.last_run["fixture_resolver"]).total_seconds() >= 55:
+                        await self._spawn("fixture_resolver", self._run_fixture_id_resolver, timeout=90)
+                    
+                    if "live_data" not in self.last_run or (now - self.last_run["live_data"]).total_seconds() >= 55:
+                        await self._spawn("live_data", self._run_live_data_collection, timeout=60)
+                    
+                    if "ai_analysis" not in self.last_run or (now - self.last_run["ai_analysis"]).total_seconds() >= 55:
+                        await self._spawn("ai_analysis", self._run_live_ai_analysis, timeout=90)
+                    
+                    if "momentum_calc" not in self.last_run or (now - self.last_run["momentum_calc"]).total_seconds() >= 55:
+                        await self._spawn("momentum_calc", self._run_momentum_calculator, timeout=30)
+                    
+                    if "live_markets" not in self.last_run or (now - self.last_run["live_markets"]).total_seconds() >= 55:
+                        await self._spawn("live_markets", self._run_live_market_engine, timeout=30)
                 
-                # 🔄 PHASE 2: TBD Fixture Resolver - runs every 5 minutes to update placeholder teams
+                # TBD resolver runs every 5 min regardless of group
                 if "tbd_resolver" not in self.last_run or (now - self.last_run["tbd_resolver"]).total_seconds() >= 300:
                     await self._spawn("tbd_resolver", self._run_tbd_fixture_resolver, timeout=60)
-                
-                # 🔴 PHASE 1: Live data collection - runs every 60 seconds for live matches
-                if "live_data" not in self.last_run or (now - self.last_run["live_data"]).total_seconds() >= 60:
-                    await self._spawn("live_data", self._run_live_data_collection, timeout=60)
-                
-                # 🤖 PHASE 1: AI analysis triggers - runs every 60 seconds, checks if analysis needed
-                if "ai_analysis" not in self.last_run or (now - self.last_run["ai_analysis"]).total_seconds() >= 60:
-                    await self._spawn("ai_analysis", self._run_live_ai_analysis, timeout=90)
-                
-                # 📊 PHASE 2: Momentum calculator - runs every 60 seconds for live matches
-                if "momentum_calc" not in self.last_run or (now - self.last_run["momentum_calc"]).total_seconds() >= 60:
-                    await self._spawn("momentum_calc", self._run_momentum_calculator, timeout=30)
-                
-                # 🎲 PHASE 2: Live market engine - runs every 60 seconds for in-play predictions
-                if "live_markets" not in self.last_run or (now - self.last_run["live_markets"]).total_seconds() >= 60:
-                    await self._spawn("live_markets", self._run_live_market_engine, timeout=30)
                 
                 # 🗑️ PHASE 2: Stale data cleanup - runs every 30 minutes to remove old live data
                 if "stale_cleanup" not in self.last_run or (now - self.last_run["stale_cleanup"]).total_seconds() >= 1800:
@@ -476,7 +476,7 @@ class BackgroundScheduler:
             if not database_url:
                 return
             
-            with psycopg2.connect(database_url) as conn:
+            with psycopg2.connect(database_url, connect_timeout=10) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT COUNT(*) FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes'")
                     result = cursor.fetchone()
@@ -615,7 +615,7 @@ class BackgroundScheduler:
             # Check if we have fresh odds (10min window)
             logger.info("🔍 Phase B: Checking for fresh odds...")
             has_fresh_odds = False
-            with psycopg2.connect(database_url) as conn:
+            with psycopg2.connect(database_url, connect_timeout=10) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT EXISTS(SELECT 1 FROM odds_snapshots WHERE ts_snapshot > NOW() - INTERVAL '10 minutes')")
                     result = cursor.fetchone()
@@ -628,7 +628,7 @@ class BackgroundScheduler:
             
             # Find targets with recent odds but stale/no predictions
             target_matches = []
-            with psycopg2.connect(database_url) as conn:
+            with psycopg2.connect(database_url, connect_timeout=10) as conn:
                 with conn.cursor() as cursor:
                     # Status can be 'NS' or 'scheduled' (different APIs use different conventions)
                     cursor.execute(f"""
@@ -890,7 +890,7 @@ class BackgroundScheduler:
                 logger.error("🗑️ Cleanup: DATABASE_URL not found")
                 return
             
-            with psycopg2.connect(database_url) as conn:
+            with psycopg2.connect(database_url, connect_timeout=10) as conn:
                 with conn.cursor() as cursor:
                     # Delete stale live match stats (>4 hours old)
                     cursor.execute("""
@@ -972,7 +972,7 @@ class BackgroundScheduler:
             if not database_url:
                 return
             
-            with psycopg2.connect(database_url) as conn:
+            with psycopg2.connect(database_url, connect_timeout=10) as conn:
                 cursor = conn.cursor()
                 
                 # Archive alerts expired >1 hour ago to history table
@@ -1116,7 +1116,7 @@ class BackgroundScheduler:
                 logger.error("[CONSENSUS] ❌ DATABASE_URL not found")
                 return 0
             
-            with psycopg2.connect(database_url) as conn:
+            with psycopg2.connect(database_url, connect_timeout=10) as conn:
                 with conn.cursor() as cursor:
                     # Find matches with recent odds that might need consensus for new time buckets
                     cursor.execute("""
@@ -1393,7 +1393,7 @@ class BackgroundScheduler:
             from models.team_linkage import TeamLinkageService
             
             service = TeamLinkageService()
-            conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+            conn = psycopg2.connect(os.environ.get('DATABASE_URL'), connect_timeout=10)
             cursor = conn.cursor()
             
             cursor.execute("""
@@ -1691,7 +1691,7 @@ class BackgroundScheduler:
                 logger.error("❌ PLAYER STATS: DATABASE_URL not set")
                 return
             
-            with psycopg2.connect(database_url) as conn:
+            with psycopg2.connect(database_url, connect_timeout=10) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
                         SELECT DISTINCT league_id, league_name 

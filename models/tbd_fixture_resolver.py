@@ -225,13 +225,28 @@ class TbdFixtureResolver:
             self.metrics["failed"] += 1
             return False
     
+    _archived_column_verified = False
+    
     def ensure_archived_column(self):
         """
-        Ensure the archived column exists in fixtures table (for soft delete)
+        Ensure the archived column exists in fixtures table (for soft delete).
+        Uses a class-level flag to avoid repeated ALTER TABLE DDL which takes
+        an ACCESS EXCLUSIVE lock and blocks all queries on the table.
         """
+        if TbdFixtureResolver._archived_column_verified:
+            return
+        
         try:
-            with psycopg2.connect(self.db_url) as conn:
+            with psycopg2.connect(self.db_url, connect_timeout=10) as conn:
                 cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'fixtures' AND column_name = 'archived'
+                """)
+                if cursor.fetchone():
+                    TbdFixtureResolver._archived_column_verified = True
+                    return
                 
                 cursor.execute("""
                     ALTER TABLE fixtures 
@@ -239,9 +254,10 @@ class TbdFixtureResolver:
                 """)
                 
                 conn.commit()
+                TbdFixtureResolver._archived_column_verified = True
                 
         except Exception as e:
-            logger.warning(f"Failed to add archived column (may already exist): {e}")
+            logger.warning(f"Failed to check/add archived column: {e}")
     
     def archive_old_tbd_fixtures(self) -> int:
         """

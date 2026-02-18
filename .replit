@@ -29,7 +29,7 @@ args = "redis-server --daemonize yes --port 6379 2>/dev/null; sleep 1; export LD
 waitForPort = 5000
 
 [deployment]
-run = ["bash", "-lc", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-server-header"]
+run = ["bash", "-c", "export LD_LIBRARY_PATH=\"$(gcc -print-file-name=libgomp.so | xargs dirname):$LD_LIBRARY_PATH\" && python main.py"]
 deploymentTarget = "autoscale"
 
 [[ports]]

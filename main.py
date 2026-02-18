@@ -521,6 +521,17 @@ async def _start_background_jobs():
         
         logger.info("⏳ Port opened - importing heavy modules and starting scheduler...")
         
+        # Pre-load V0 predictor to avoid blocking first request
+        try:
+            from models.v0_form_predictor import get_v0_predictor
+            v0 = get_v0_predictor()
+            if v0 and v0.is_available():
+                logger.info("✅ V0 Form Predictor pre-loaded on startup")
+            else:
+                logger.info("⚠️ V0 Form Predictor not available (no ELO data)")
+        except Exception as e:
+            logger.warning(f"V0 predictor pre-load failed (non-critical): {e}")
+        
         # 👉 Import scheduler ONLY when needed (not at module import time)
         from utils.scheduler import BackgroundScheduler
         
@@ -2404,21 +2415,66 @@ async def predict_match(
     Enhanced prediction endpoint with real data and AI analysis
     Uses simple weighted consensus + comprehensive real-time data + OpenAI analysis
     """
+    import asyncio
+    import concurrent.futures
     start_time = datetime.now()
     
     try:
-        # Enhanced logging with metadata
         logger.info(f"🎯 PREDICTION REQUEST | match_id={request.match_id} | include_analysis={request.include_analysis} | additional_markets={request.include_additional_markets}")
         
-        # Step 1: Collect comprehensive real-time data (injuries, form, news, odds)
         logger.info("Collecting comprehensive real-time data...")
-        match_data = get_enhanced_data_collector().collect_comprehensive_match_data(request.match_id)
+        loop = asyncio.get_event_loop()
+        try:
+            match_data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    get_enhanced_data_collector().collect_comprehensive_match_data,
+                    request.match_id
+                ),
+                timeout=20.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Data collection timed out for match {request.match_id}, using minimal data")
+            match_data = None
         
         if not match_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Match {request.match_id} not found or data unavailable"
-            )
+            import psycopg2 as _pg2
+            try:
+                with _pg2.connect(os.environ.get('DATABASE_URL'), connect_timeout=5) as _conn:
+                    with _conn.cursor() as _cur:
+                        _cur.execute("""
+                            SELECT home_team, away_team, kickoff_at, league_name, league_id
+                            FROM fixtures WHERE match_id = %s LIMIT 1
+                        """, (request.match_id,))
+                        row = _cur.fetchone()
+                        if row:
+                            match_data = {
+                                'match_details': {
+                                    'teams': {
+                                        'home': {'name': row[0]},
+                                        'away': {'name': row[1]}
+                                    },
+                                    'fixture': {
+                                        'venue': {'name': 'Unknown'},
+                                        'date': row[2].isoformat() if row[2] else None,
+                                        'id': request.match_id
+                                    },
+                                    'league': {'name': row[3] or 'Unknown', 'id': row[4] or 0}
+                                },
+                                'odds': {},
+                                'injuries': {'home': [], 'away': []},
+                                'form': {},
+                                'h2h': []
+                            }
+                            logger.info(f"Using minimal DB fallback data for match {request.match_id}")
+            except Exception as db_err:
+                logger.warning(f"DB fallback failed: {db_err}")
+            
+            if not match_data:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Match {request.match_id} not found or data unavailable"
+                )
         
         # Extract match info
         match_details = match_data['match_details']
@@ -2571,7 +2627,18 @@ async def predict_match(
             logger.info("Generating enhanced AI analysis with real data...")
             try:
                 analyzer = get_enhanced_ai_analyzer()
-                ai_result = analyzer.analyze_match_comprehensive(match_data, prediction_result)
+                try:
+                    ai_result = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            analyzer.analyze_match_comprehensive,
+                            match_data, prediction_result
+                        ),
+                        timeout=15.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"AI analysis timed out for match {request.match_id}")
+                    ai_result = {'error': 'timeout', 'error_details': 'AI analysis timed out'}
                 
                 if 'error' not in ai_result:
                     ai_analysis = {
@@ -6603,10 +6670,9 @@ async def get_market_data(
         
         matches = []
         
-        with psycopg2.connect(os.environ.get('DATABASE_URL')) as conn:
+        with psycopg2.connect(os.environ.get('DATABASE_URL'), connect_timeout=10) as conn:
             cursor = conn.cursor()
             
-            # OPTIMIZATION 1: Batch load all bookmaker mappings (800 queries → 1)
             cursor.execute("""
                 SELECT theodds_book_id, api_football_book_id, canonical_name
                 FROM bookmaker_xwalk
