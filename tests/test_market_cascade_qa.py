@@ -9,7 +9,7 @@ import time
 import sys
 from datetime import datetime, timezone
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:5000"
 AUTH = {"Authorization": "Bearer betgenius_secure_key_2024"}
 TIMEOUT = 90
 FULL_TIMEOUT = 120
@@ -559,7 +559,7 @@ if __name__ == "__main__":
         test_data_consistency()
         test_status_values()
     except requests.exceptions.ConnectionError:
-        print("\n  FATAL: Cannot connect to server at localhost:8000")
+        print("\n  FATAL: Cannot connect to server at localhost:5000")
         sys.exit(1)
     except Exception as e:
         print(f"\n  FATAL: Unexpected error: {e}")
