@@ -29,7 +29,14 @@ class TeamELOManager:
     """Manages team ELO ratings computation and storage."""
     
     def __init__(self):
-        self.engine = create_engine(os.environ['DATABASE_URL'])
+        self.engine = create_engine(
+            os.environ['DATABASE_URL'],
+            pool_pre_ping=True,
+            pool_size=3,
+            max_overflow=2,
+            pool_recycle=300,
+            connect_args={'connect_timeout': 10}
+        )
         self.Session = sessionmaker(bind=self.engine)
         self._ensure_tables()
     

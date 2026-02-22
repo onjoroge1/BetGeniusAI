@@ -71,9 +71,16 @@ The platform prioritizes a superior user experience through confidence-calibrate
 ### Database
 - **PostgreSQL**: The core relational database for persistent storage.
 
-## Recent Changes (2026-02-18)
+## Recent Changes (2026-02-22)
+- **Market Endpoint Performance**: Lite mode now responds in ~1.1s for 50 matches (was ~28s). Full mode ~7.9s for 50 matches.
+  - Removed per-match prediction logging from request path (50 individual DB connections eliminated).
+  - Batch live_match_stats check replaces 50 per-match queries in full mode.
+  - V2 LightGBM predictions disabled by default in market board (can be enabled via `include_v2=true`).
+- **V0 Batch Predictions**: predict_batch() method reduces 5 sequential DB queries per match to 2 batch queries for all matches.
+- **DB Connection Pooling**: pool_pre_ping, pool_size=3, max_overflow=2, pool_recycle=300 added to V0FormPredictor and TeamELOManager.
+
+## Changes (2026-02-18)
 - **Fixed DB Connection Starvation**: Root cause was `ALTER TABLE fixtures ADD COLUMN IF NOT EXISTS archived` running every 5 minutes via TBD Fixture Resolver, taking an ACCESS EXCLUSIVE lock on the fixtures table and blocking all reads. Fixed by checking column existence first (information_schema) and caching the result with a class-level flag.
 - **Scheduler Staggering**: Split 10+ concurrent 60-second scheduler tasks into 3 groups (A: odds collection, B: CLV/settlement, C: resolver/live data) that alternate every loop iteration, preventing DB connection stampede.
 - **V0 Predictor Pre-loading**: V0 Form Predictor now loads eagerly at startup instead of lazily on first request, preventing event loop blocking.
 - **Connection Timeouts**: Added `connect_timeout=10` to all scheduler database connections for fail-fast behavior.
-- **Performance**: Market endpoint now responds in ~3s (single match) / ~8-13s (upcoming list), down from infinite timeout.

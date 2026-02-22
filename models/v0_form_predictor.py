@@ -14,7 +14,7 @@ predictions (V1/V3 at 52-53%) but still better than random (33%).
 import os
 import json
 import logging
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from collections import defaultdict
 
@@ -41,7 +41,14 @@ class V0FormPredictor:
         self.model_data = None
         self.metadata = None
         self.elo_manager = TeamELOManager()
-        self.engine = create_engine(os.environ['DATABASE_URL'])
+        self.engine = create_engine(
+            os.environ['DATABASE_URL'],
+            pool_pre_ping=True,
+            pool_size=3,
+            max_overflow=2,
+            pool_recycle=300,
+            connect_args={'connect_timeout': 10}
+        )
         self.form_cache = defaultdict(list)
         self._load_model()
     
@@ -227,6 +234,186 @@ class V0FormPredictor:
             logger.error(f"V0 prediction error for match {match_id}: {e}")
             return None
     
+    def _get_batch_team_forms(self, team_ids: List[int], n: int = 5) -> Dict[int, list]:
+        """Batch fetch recent form for multiple teams in a single query."""
+        uncached = [tid for tid in team_ids if tid not in self.form_cache]
+        if not uncached:
+            return {tid: self.form_cache[tid][-n:] for tid in team_ids}
+        
+        try:
+            import psycopg2
+            with psycopg2.connect(os.environ['DATABASE_URL'], connect_timeout=10) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT f.home_team_id, f.away_team_id, m.outcome, f.kickoff_at
+                        FROM fixtures f
+                        JOIN matches m ON f.match_id = m.match_id
+                        WHERE (f.home_team_id = ANY(%s) OR f.away_team_id = ANY(%s))
+                        AND f.status = 'finished'
+                        AND m.outcome IS NOT NULL
+                        ORDER BY f.kickoff_at DESC
+                    """, (uncached, uncached))
+                    
+                    team_matches = defaultdict(list)
+                    for home_tid, away_tid, outcome, kickoff in cur.fetchall():
+                        if home_tid in uncached and len(team_matches[home_tid]) < n:
+                            if outcome == 'H':
+                                team_matches[home_tid].append('W')
+                            elif outcome == 'D':
+                                team_matches[home_tid].append('D')
+                            else:
+                                team_matches[home_tid].append('L')
+                        if away_tid in uncached and len(team_matches[away_tid]) < n:
+                            if outcome == 'A':
+                                team_matches[away_tid].append('W')
+                            elif outcome == 'D':
+                                team_matches[away_tid].append('D')
+                            else:
+                                team_matches[away_tid].append('L')
+                    
+                    for tid in uncached:
+                        form = team_matches.get(tid, [])
+                        form.reverse()
+                        self.form_cache[tid] = form
+        except Exception as e:
+            logger.warning(f"Batch form fetch failed: {e}")
+        
+        return {tid: self.form_cache.get(tid, [])[-n:] for tid in team_ids}
+
+    def _build_features_from_data(self, home_team_id: int, away_team_id: int, 
+                                   league_id: int, home_elo: float, away_elo: float,
+                                   home_form: list, away_form: list) -> Tuple[np.ndarray, float]:
+        """Build feature vector from pre-fetched data (no DB calls)."""
+        def pts(f): 
+            return sum(3 if x=='W' else 1 if x=='D' else 0 for x in f)
+        def wr(f): 
+            return sum(1 for x in f if x=='W') / max(len(f), 1) if f else 0.33
+        def dr(f): 
+            return sum(1 for x in f if x=='D') / max(len(f), 1) if f else 0.33
+        
+        elo_diff = home_elo - away_elo
+        elo_expected = 1.0 / (1.0 + 10 ** ((away_elo - home_elo - HOME_ADVANTAGE) / 400.0))
+        
+        features = [
+            elo_diff,
+            elo_expected,
+            HOME_ADVANTAGE,
+            home_elo,
+            away_elo,
+            pts(home_form) - pts(away_form),
+            wr(home_form) - wr(away_form),
+            dr(home_form) + dr(away_form),
+            len(home_form),
+            len(away_form),
+            1 if league_id in TIER1_LEAGUES else 0,
+        ]
+        
+        return np.array(features).reshape(1, -1), elo_expected
+
+    def predict_batch(self, match_infos: List[Dict]) -> Dict[int, Dict]:
+        """
+        Batch predict for multiple matches using only 2-3 DB queries total.
+        
+        Args:
+            match_infos: List of dicts with keys:
+                - match_id (int)
+                - home_team_id (int)
+                - away_team_id (int)
+                - league_id (int, optional)
+        
+        Returns:
+            Dict mapping match_id -> prediction result (same format as predict())
+        """
+        if not self.is_available() or not match_infos:
+            return {}
+        
+        try:
+            all_team_ids = list(set(
+                [m['home_team_id'] for m in match_infos if m.get('home_team_id')] +
+                [m['away_team_id'] for m in match_infos if m.get('away_team_id')]
+            ))
+            
+            if not all_team_ids:
+                return {}
+            
+            elo_map = self.elo_manager.get_team_elos(all_team_ids)
+            form_map = self._get_batch_team_forms(all_team_ids, 5)
+            
+            scaler = self.model_data.get('scaler')
+            experts = self.model_data['experts']
+            weights = self.model_data.get('weights', {'home': 0.45, 'draw': 0.20, 'away': 0.35})
+            
+            results = {}
+            for m in match_infos:
+                mid = m['match_id']
+                htid = m.get('home_team_id')
+                atid = m.get('away_team_id')
+                lid = m.get('league_id')
+                
+                if not htid or not atid:
+                    continue
+                
+                try:
+                    home_elo = elo_map.get(htid, INITIAL_ELO)
+                    away_elo = elo_map.get(atid, INITIAL_ELO)
+                    home_form = form_map.get(htid, [])
+                    away_form = form_map.get(atid, [])
+                    
+                    X, elo_expected = self._build_features_from_data(
+                        htid, atid, lid, home_elo, away_elo, home_form, away_form
+                    )
+                    
+                    if scaler:
+                        X = scaler.transform(X)
+                    
+                    hp = experts['home'].predict_proba(X)[0, 1]
+                    dp = experts['draw'].predict_proba(X)[0, 1]
+                    ap = experts['away'].predict_proba(X)[0, 1]
+                    
+                    raw_probs = np.array([
+                        hp * weights['home'],
+                        dp * weights['draw'],
+                        ap * weights['away']
+                    ])
+                    normalized = raw_probs / raw_probs.sum()
+                    
+                    prob_h = float(normalized[0])
+                    prob_d = float(normalized[1])
+                    prob_a = float(normalized[2])
+                    
+                    pred_idx = np.argmax(normalized)
+                    predicted = ['H', 'D', 'A'][pred_idx]
+                    confidence = float(normalized[pred_idx])
+                    
+                    results[mid] = {
+                        'model': 'v0_form',
+                        'model_type': 'binary_experts_weighted',
+                        'match_id': mid,
+                        'probabilities': {
+                            'H': prob_h,
+                            'D': prob_d,
+                            'A': prob_a
+                        },
+                        'prediction': predicted,
+                        'confidence': confidence,
+                        'features_used': 11,
+                        'elo_home': round(home_elo, 1),
+                        'elo_away': round(away_elo, 1),
+                        'elo_expected': round(elo_expected, 4),
+                        'data_quality': 'form_only',
+                        'leak_free': self.model_data.get('leak_free', False),
+                    }
+                except Exception as e:
+                    logger.warning(f"V0 batch prediction failed for match {mid}: {e}")
+                    continue
+            
+            logger.info(f"V0 batch predicted {len(results)}/{len(match_infos)} matches (2 queries)")
+            return results
+            
+        except Exception as e:
+            logger.error(f"V0 batch prediction error: {e}")
+            return {}
+
     def get_model_info(self) -> Dict:
         """Get model information and status."""
         if not self.metadata:

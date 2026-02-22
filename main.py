@@ -6632,7 +6632,7 @@ async def get_market_data(
     league_id: Optional[int] = None,
     match_id: Optional[str] = None,
     limit: int = 100,
-    include_v2: bool = True,
+    include_v2: bool = False,
     mode: str = "full",
     api_key: str = Depends(verify_api_key)
 ):
@@ -7033,6 +7033,8 @@ async def get_market_data(
             
             # LITE MODE: Fast path with batch queries (no per-match loops)
             if is_lite_mode:
+                import time as _time
+                _t0 = _time.monotonic()
                 match_ids = [row[0] for row in fixtures]
                 
                 # Batch fetch consensus predictions for all matches
@@ -7044,6 +7046,8 @@ async def get_market_data(
                     ORDER BY match_id, created_at DESC
                 """, (match_ids,))
                 consensus_map = {row[0]: {'home': float(row[1]), 'draw': float(row[2]), 'away': float(row[3])} for row in cursor.fetchall()}
+                _t1 = _time.monotonic()
+                logger.info(f"⏱️ LITE: consensus query: {(_t1-_t0)*1000:.0f}ms")
                 
                 # Batch fetch bookmaker names (not full odds) for all matches
                 cursor.execute("""
@@ -7069,6 +7073,8 @@ async def get_market_data(
                     ORDER BY match_id, timestamp DESC
                 """, (match_ids,))
                 live_scores_map = {row[0]: {'home': row[1], 'away': row[2], 'minute': row[3], 'period': row[4]} for row in cursor.fetchall()}
+                _t2 = _time.monotonic()
+                logger.info(f"⏱️ LITE: bookmaker+live queries: {(_t2-_t1)*1000:.0f}ms")
                 
                 # Build lite response
                 lite_matches = []
@@ -7108,25 +7114,34 @@ async def get_market_data(
                             from models.v0_form_predictor import get_v0_predictor
                             v0_predictor = get_v0_predictor()
                             if v0_predictor and v0_predictor.is_available():
+                                fixture_lookup = {row[0]: row for row in fixtures}
+                                batch_infos = []
                                 for mid in remaining_matches:
-                                    try:
-                                        v0_result = v0_predictor.predict(mid)
-                                        if v0_result and 'probabilities' in v0_result:
-                                            probs = v0_result['probabilities']
-                                            v0_fallback_map[mid] = {
-                                                'home': probs.get('H', probs.get('home', 0.33)),
-                                                'draw': probs.get('D', probs.get('draw', 0.33)),
-                                                'away': probs.get('A', probs.get('away', 0.33)),
-                                                'source': 'v0_form',
-                                                'elo_home': v0_result.get('elo_home'),
-                                                'elo_away': v0_result.get('elo_away')
-                                            }
-                                    except Exception as e:
-                                        logger.warning(f"V0 form fallback failed for match {mid}: {e}")
+                                    frow = fixture_lookup.get(mid)
+                                    if frow:
+                                        batch_infos.append({
+                                            'match_id': mid,
+                                            'home_team_id': frow[6],
+                                            'away_team_id': frow[7],
+                                            'league_id': frow[3]
+                                        })
+                                
+                                batch_results = v0_predictor.predict_batch(batch_infos)
+                                for mid, v0_result in batch_results.items():
+                                    probs = v0_result['probabilities']
+                                    v0_fallback_map[mid] = {
+                                        'home': probs.get('H', probs.get('home', 0.33)),
+                                        'draw': probs.get('D', probs.get('draw', 0.33)),
+                                        'away': probs.get('A', probs.get('away', 0.33)),
+                                        'source': 'v0_form',
+                                        'elo_home': v0_result.get('elo_home'),
+                                        'elo_away': v0_result.get('elo_away')
+                                    }
                         except Exception as e:
                             logger.warning(f"V0 form fallback init failed: {e}")
                     
-                    logger.info(f"Cascade results: V3={len(v3_fallback_map)}, V0={len(v0_fallback_map)}, no_prediction={len(matches_without_consensus) - len(v3_fallback_map) - len(v0_fallback_map)}")
+                    _t3 = _time.monotonic()
+                    logger.info(f"⏱️ LITE: V3/V0 fallback: {(_t3-_t2)*1000:.0f}ms | Cascade: V3={len(v3_fallback_map)}, V0={len(v0_fallback_map)}, no_prediction={len(matches_without_consensus) - len(v3_fallback_map) - len(v0_fallback_map)}")
                 
                 for row in fixtures:
                     mid, home_team, away_team, lid, league_name, kickoff_at, home_team_id, away_team_id, home_logo, away_logo = row
@@ -7174,17 +7189,6 @@ async def get_market_data(
                             "data_quality": data_quality
                         }
                         
-                        # Log prediction to unified prediction_log table
-                        try:
-                            if model_version == "v1_consensus":
-                                log_v1_prediction(mid, probs['home'], probs['draw'], probs['away'], lid, kickoff_at)
-                            elif model_version == "v3_sharp":
-                                log_v3_prediction(mid, probs['home'], probs['draw'], probs['away'], lid, kickoff_at)
-                            elif model_version == "v0_form":
-                                log_v0_prediction(mid, probs['home'], probs['draw'], probs['away'], lid, kickoff_at)
-                        except Exception as log_err:
-                            logger.warning(f"Prediction logging failed for {mid}: {log_err}")
-                    
                     lite_match = {
                         "match_id": mid,
                         "status": match_status,
@@ -7204,7 +7208,8 @@ async def get_market_data(
                     
                     lite_matches.append(lite_match)
                 
-                logger.info(f"✅ LITE MODE: Returned {len(lite_matches)} matches in fast path")
+                _tf = _time.monotonic()
+                logger.info(f"✅ LITE MODE: Returned {len(lite_matches)} matches in {(_tf-_t0)*1000:.0f}ms total")
                 return {
                     "matches": lite_matches,
                     "total_count": len(lite_matches),
@@ -7213,6 +7218,33 @@ async def get_market_data(
                 }
             
             # FULL MODE: Per-match detailed processing
+            # Pre-compute V0 batch predictions (2 queries for ALL matches instead of 5 per match)
+            v0_batch_cache = {}
+            try:
+                from models.v0_form_predictor import get_v0_predictor
+                v0_predictor = get_v0_predictor()
+                if v0_predictor and v0_predictor.is_available():
+                    batch_infos = [
+                        {'match_id': row[0], 'home_team_id': row[6], 'away_team_id': row[7], 'league_id': row[3]}
+                        for row in fixtures if row[6] and row[7]
+                    ]
+                    v0_batch_cache = v0_predictor.predict_batch(batch_infos)
+            except Exception as e:
+                logger.warning(f"V0 batch pre-compute failed: {e}")
+            
+            # Pre-compute live data set (batch instead of per-match query)
+            _all_match_ids = [row[0] for row in fixtures]
+            _live_data_set = set()
+            try:
+                cursor.execute("""
+                    SELECT DISTINCT match_id FROM live_match_stats
+                    WHERE match_id = ANY(%s)
+                    AND timestamp > NOW() - INTERVAL '10 minutes'
+                """, (_all_match_ids,))
+                _live_data_set = {row[0] for row in cursor.fetchall()}
+            except Exception as e:
+                logger.warning(f"Batch live data check failed: {e}")
+            
             # Step 2: For each fixture, get odds and predictions
             for row in fixtures:
                 match_id, home_team, away_team, league_id, league_name, kickoff_at, home_team_id, away_team_id, home_logo, away_logo = row
@@ -7319,34 +7351,27 @@ async def get_market_data(
                             except Exception as e:
                                 logger.warning(f"V3 fallback failed for match {match_id}: {e}")
                     
-                    if not v1_data:
-                        try:
-                            from models.v0_form_predictor import get_v0_predictor
-                            v0_predictor = get_v0_predictor()
-                            if v0_predictor and v0_predictor.is_available():
-                                v0_result = v0_predictor.predict(match_id)
-                                if v0_result and 'probabilities' in v0_result:
-                                    v0_probs = v0_result['probabilities']
-                                    v0_probs_norm = {
-                                        'home': v0_probs.get('H', v0_probs.get('home', 0.33)),
-                                        'draw': v0_probs.get('D', v0_probs.get('draw', 0.33)),
-                                        'away': v0_probs.get('A', v0_probs.get('away', 0.33))
-                                    }
-                                    v0_pick = max(v0_probs_norm, key=v0_probs_norm.get)
-                                    v0_conf = max(v0_probs_norm.values())
-                                    
-                                    v1_data = {
-                                        "probs": v0_probs_norm,
-                                        "pick": v0_pick,
-                                        "confidence": round(v0_conf, 3),
-                                        "source": "v0_form",
-                                        "data_quality": "form_only",
-                                        "elo_home": v0_result.get('elo_home'),
-                                        "elo_away": v0_result.get('elo_away')
-                                    }
-                                    logger.info(f"Using V0 form fallback for match {match_id}")
-                        except Exception as e:
-                            logger.warning(f"V0 form fallback failed for match {match_id}: {e}")
+                    if not v1_data and match_id in v0_batch_cache:
+                        v0_result = v0_batch_cache[match_id]
+                        v0_probs = v0_result['probabilities']
+                        v0_probs_norm = {
+                            'home': v0_probs.get('H', v0_probs.get('home', 0.33)),
+                            'draw': v0_probs.get('D', v0_probs.get('draw', 0.33)),
+                            'away': v0_probs.get('A', v0_probs.get('away', 0.33))
+                        }
+                        v0_pick = max(v0_probs_norm, key=v0_probs_norm.get)
+                        v0_conf = max(v0_probs_norm.values())
+                        
+                        v1_data = {
+                            "probs": v0_probs_norm,
+                            "pick": v0_pick,
+                            "confidence": round(v0_conf, 3),
+                            "source": "v0_form",
+                            "data_quality": "form_only",
+                            "elo_home": v0_result.get('elo_home'),
+                            "elo_away": v0_result.get('elo_away')
+                        }
+                        logger.info(f"Using V0 form fallback for match {match_id} (batch)")
                 
                 # OPTIMIZATION 3: Optional V2 prediction (skip if using V3 fallback)
                 if include_v2 and not using_v3_fallback and novig_current:
@@ -7408,37 +7433,16 @@ async def get_market_data(
                     analysis = None
                     ui_hints = {"primary_model": "v1_consensus" if v1_data else None}
                 
-                # Log prediction to unified prediction_log table with explicit model_version
                 if v1_data:
-                    try:
-                        p = v1_data['probs']
-                        src = v1_data.get('source', 'v1_consensus')
-                        
-                        # Determine model_version explicitly from source
-                        if src in ('v3_sharp_fallback', 'v3_sharp'):
-                            model_ver = 'v3_sharp'
-                            log_v3_prediction(match_id, p['home'], p['draw'], p['away'], league_id, kickoff_at)
-                        elif src == 'v0_form':
-                            model_ver = 'v0_form'
-                            log_v0_prediction(match_id, p['home'], p['draw'], p['away'], league_id, kickoff_at)
-                        else:
-                            model_ver = 'v1_consensus'
-                            log_v1_prediction(match_id, p['home'], p['draw'], p['away'], league_id, kickoff_at)
-                        
-                        # Add model_version to response for API consumers
-                        v1_data['model_version'] = model_ver
-                    except Exception as log_err:
-                        logger.warning(f"Prediction logging failed for {match_id}: {log_err}")
+                    src = v1_data.get('source', 'v1_consensus')
+                    if src in ('v3_sharp_fallback', 'v3_sharp'):
+                        v1_data['model_version'] = 'v3_sharp'
+                    elif src == 'v0_form':
+                        v1_data['model_version'] = 'v0_form'
+                    else:
+                        v1_data['model_version'] = 'v1_consensus'
                 
-                # FIX: Determine ACTUAL match status from database, not URL param
-                # Check if match has fresh live data (updated in last 10 min)
-                cursor.execute("""
-                    SELECT COUNT(*) FROM live_match_stats
-                    WHERE match_id = %s
-                      AND timestamp > NOW() - INTERVAL '10 minutes'
-                """, (match_id,))
-                
-                has_fresh_live_data = cursor.fetchone()[0] > 0
+                has_fresh_live_data = match_id in _live_data_set
                 
                 # Determine actual status based on kickoff time and live data
                 now_utc = datetime.now(timezone.utc)
