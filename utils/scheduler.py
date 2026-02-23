@@ -448,6 +448,10 @@ class BackgroundScheduler:
                 if "player_prop_odds" not in self.last_run or (now - self.last_run["player_prop_odds"]).total_seconds() >= 7200:
                     await self._spawn("player_prop_odds", self._run_player_prop_odds_collection, timeout=300)
                 
+                # ⚽ Soccer Scorer Odds Collection - runs every 4 hours for anytime goalscorer markets
+                if "soccer_scorer_odds" not in self.last_run or (now - self.last_run["soccer_scorer_odds"]).total_seconds() >= 14400:
+                    await self._spawn("soccer_scorer_odds", self._run_soccer_scorer_odds_collection, timeout=600)
+                
                 # 🌱 Fixture Seeding - runs every 4 hours to discover new upcoming matches
                 if "fixture_seeding" not in self.last_run or (now - self.last_run["fixture_seeding"]).total_seconds() >= 14400:
                     await self._spawn("fixture_seeding", self._run_fixture_seeding, timeout=300)
@@ -1780,6 +1784,31 @@ class BackgroundScheduler:
             logger.debug("⚠️ PLAYER PROPS: player_prop_odds_collector module not ready - skipping")
         except Exception as e:
             logger.error(f"❌ PLAYER PROPS: Collection failed - {e}", exc_info=True)
+
+    async def _run_soccer_scorer_odds_collection(self):
+        """
+        ⚽ Soccer Scorer Odds Collection Job
+        Collects anytime goalscorer odds from The Odds API for EPL, La Liga, Serie A, Bundesliga, Ligue 1, MLS.
+        Runs every 4 hours.
+        """
+        try:
+            from models.soccer_scorer_odds import SoccerScorerOddsCollector
+            logger.info("⚽ SOCCER SCORER ODDS: Starting collection for all supported leagues...")
+            collector = SoccerScorerOddsCollector()
+            result = await asyncio.get_event_loop().run_in_executor(None, collector.collect_all_soccer_scorer_odds)
+
+            total_odds = result.get('total_odds_collected', 0)
+            total_events = result.get('total_events_processed', 0)
+            total_matched = result.get('total_events_matched', 0)
+            logger.info(
+                f"✅ SOCCER SCORER ODDS: {total_odds} odds collected from "
+                f"{total_events} events ({total_matched} matched) across {len(result.get('leagues', {}))} leagues"
+            )
+
+        except ImportError:
+            logger.debug("⚠️ SOCCER SCORER ODDS: soccer_scorer_odds module not ready - skipping")
+        except Exception as e:
+            logger.error(f"❌ SOCCER SCORER ODDS: Collection failed - {e}", exc_info=True)
 
 
 # Global scheduler instance

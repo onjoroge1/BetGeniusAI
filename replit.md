@@ -71,7 +71,16 @@ The platform prioritizes a superior user experience through confidence-calibrate
 ### Database
 - **PostgreSQL**: The core relational database for persistent storage.
 
-## Recent Changes (2026-02-22)
+## Recent Changes (2026-02-23)
+- **Soccer Scorer Odds System**: New odds-informed player betting system using real bookmaker odds from The Odds API.
+  - `models/soccer_scorer_odds.py`: SoccerScorerOddsCollector collects anytime goalscorer odds for EPL, La Liga, Serie A, Bundesliga, Ligue 1, MLS. SoccerScorerEdgeDetector computes model prob vs implied prob edge and EV.
+  - Player parlay generator now enriches legs with real bookmaker odds, filters out negative EV legs when market data exists, and boosts sampling weight for market-odds legs by 1.5x.
+  - New API endpoints: `/api/v1/player-parlays/singles/best` (best single bets by EV), `/api/v1/player-parlays/singles/by-match/{match_id}` (per-match scorer analysis), `/api/v1/player-parlays/odds-coverage` (collection statistics).
+  - Automated scheduler runs soccer scorer odds collection every 4 hours.
+  - Database tables: `soccer_scorer_odds`, `player_name_aliases` for name matching cache.
+  - Edge formula: `model_prob - implied_prob`, EV formula: `model_prob * (odds - 1) - (1 - model_prob)`.
+
+## Changes (2026-02-22)
 - **Market Endpoint Performance**: Lite mode now responds in ~1.1s for 50 matches (was ~28s). Full mode ~7.9s for 50 matches.
   - Removed per-match prediction logging from request path (50 individual DB connections eliminated).
   - Batch live_match_stats check replaces 50 per-match queries in full mode.

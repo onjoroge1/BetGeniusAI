@@ -227,9 +227,50 @@ class PlayerParlayGenerator:
                 """), {'match_id': leg['match_id'], 'player_id': leg['player_id']})
             conn.commit()
 
+    def _get_real_odds_for_matches(self, match_ids: List[int]) -> Dict:
+        """Fetch real bookmaker scorer odds for given matches."""
+        real_odds = {}
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT 
+                        match_id,
+                        player_name,
+                        player_id,
+                        AVG(decimal_odds) AS avg_odds,
+                        MAX(decimal_odds) AS best_odds,
+                        AVG(implied_prob) AS avg_implied,
+                        COUNT(DISTINCT bookmaker) AS n_books
+                    FROM soccer_scorer_odds
+                    WHERE match_id = ANY(:mids)
+                      AND collected_at > NOW() - INTERVAL '12 hours'
+                    GROUP BY match_id, player_name, player_id
+                    HAVING COUNT(DISTINCT bookmaker) >= 1
+                """), {'mids': match_ids})
+
+                for row in result.fetchall():
+                    key = (row.match_id, row.player_id) if row.player_id else None
+                    name_key = (row.match_id, row.player_name.lower().strip())
+                    entry = {
+                        'avg_odds': float(row.avg_odds),
+                        'best_odds': float(row.best_odds),
+                        'avg_implied': float(row.avg_implied),
+                        'n_books': row.n_books,
+                        'has_market_odds': True,
+                    }
+                    if key:
+                        real_odds[key] = entry
+                    real_odds[name_key] = entry
+        except Exception as e:
+            logger.debug(f"Real odds lookup failed (non-fatal): {e}")
+        return real_odds
+
     def _generate_candidate_legs(self, fixtures: List[Dict]) -> List[Dict]:
-        """Generate candidate legs with Poisson probabilities."""
+        """Generate candidate legs with Poisson probabilities, enriched with real odds when available."""
         all_legs = []
+        match_ids = [f['match_id'] for f in fixtures]
+        real_odds_map = self._get_real_odds_for_matches(match_ids)
+        odds_enriched = 0
 
         for fixture in fixtures:
             players = self._get_players_for_match(
@@ -247,8 +288,29 @@ class PlayerParlayGenerator:
                 if prob < MIN_PROB:
                     continue
 
-                fair_odds = 1.0 / prob
-                decimal_odds = fair_odds * (1 + self.MARKET_MARGIN)
+                has_market_odds = False
+                market_odds_data = None
+                key_by_id = (fixture['match_id'], player['player_id'])
+                key_by_name = (fixture['match_id'], player['player_name'].lower().strip())
+
+                if key_by_id in real_odds_map:
+                    market_odds_data = real_odds_map[key_by_id]
+                elif key_by_name in real_odds_map:
+                    market_odds_data = real_odds_map[key_by_name]
+
+                if market_odds_data:
+                    decimal_odds = market_odds_data['best_odds']
+                    implied_prob = market_odds_data['avg_implied']
+                    has_market_odds = True
+                    odds_enriched += 1
+                    edge = prob - implied_prob
+                    ev = prob * (decimal_odds - 1) - (1 - prob)
+                else:
+                    fair_odds = 1.0 / prob
+                    decimal_odds = fair_odds * (1 + self.MARKET_MARGIN)
+                    implied_prob = 1.0 / decimal_odds
+                    edge = 0.0
+                    ev = 0.0
 
                 all_legs.append({
                     'match_id': fixture['match_id'],
@@ -262,9 +324,22 @@ class PlayerParlayGenerator:
                     'team_id': player.get('team_id'),
                     'model_prob': round(prob, 4),
                     'decimal_odds': round(decimal_odds, 2),
+                    'implied_prob': round(implied_prob, 4),
+                    'edge': round(edge, 4),
+                    'ev': round(ev, 4),
+                    'has_market_odds': has_market_odds,
                     'season_goals': player.get('season_goals', 0),
                     'games_played': player.get('games_played', 0),
                 })
+
+        if odds_enriched > 0:
+            positive_ev_legs = [l for l in all_legs if l.get('has_market_odds') and l.get('ev', 0) > 0]
+            negative_ev_removed = odds_enriched - len(positive_ev_legs)
+            all_legs = [l for l in all_legs if not l.get('has_market_odds') or l.get('ev', 0) > 0]
+            logger.info(
+                f"PlayerParlay: {odds_enriched} legs with real odds, "
+                f"{len(positive_ev_legs)} positive EV, {negative_ev_removed} negative EV removed"
+            )
 
         return all_legs
 
@@ -288,7 +363,10 @@ class PlayerParlayGenerator:
         if len(eligible) < k:
             return None
 
-        weights = [leg['model_prob'] for leg in eligible]
+        weights = [
+            leg['model_prob'] * (1.5 if leg.get('has_market_odds') else 1.0)
+            for leg in eligible
+        ]
         total_w = sum(weights)
         if total_w == 0:
             return None
@@ -366,10 +444,15 @@ class PlayerParlayGenerator:
 
         combined_odds = 1.0
         combined_prob = 1.0
+        has_any_market_odds = False
+        total_ev = 0.0
 
         for leg in legs:
             combined_odds *= leg['decimal_odds']
             combined_prob *= leg['model_prob']
+            if leg.get('has_market_odds'):
+                has_any_market_odds = True
+            total_ev += leg.get('ev', 0)
 
         risk_tier = self._compute_risk_tier(legs)
 
@@ -378,6 +461,8 @@ class PlayerParlayGenerator:
 
         max_kickoff = max(leg['kickoff_at'] for leg in legs)
         expires_at = max_kickoff + timedelta(hours=3)
+
+        edge_pct = round(total_ev / len(legs) * 100, 2) if has_any_market_odds else 0
 
         return {
             'parlay_hash': parlay_hash,
@@ -388,7 +473,10 @@ class PlayerParlayGenerator:
             'combined_prob_pct': round(combined_prob * 100, 4),
             'risk_tier': risk_tier,
             'payout_100': round(self.DEFAULT_BET * combined_odds, 2),
-            'expires_at': expires_at
+            'expires_at': expires_at,
+            'has_market_odds': has_any_market_odds,
+            'edge_pct': edge_pct,
+            'avg_ev': round(total_ev / len(legs), 4) if legs else 0,
         }
 
     def _save_parlay(self, parlay: Dict) -> bool:
@@ -411,7 +499,7 @@ class PlayerParlayGenerator:
                 'combined_odds': parlay['combined_odds'],
                 'raw_prob_pct': parlay['combined_prob_pct'],
                 'adjusted_prob_pct': parlay['combined_prob_pct'],
-                'edge_pct': 0,
+                'edge_pct': parlay.get('edge_pct', 0),
                 'confidence_tier': parlay['risk_tier'],
                 'payout_100': parlay['payout_100'],
                 'expires_at': parlay['expires_at'],
@@ -448,7 +536,7 @@ class PlayerParlayGenerator:
                     'player_name': leg['player_name'],
                     'team_name': leg['team_name'],
                     'model_prob': leg['model_prob'],
-                    'market_prob': 1.0 / leg['decimal_odds'] if leg['decimal_odds'] > 0 else 0,
+                    'market_prob': leg.get('implied_prob', 1.0 / leg['decimal_odds'] if leg['decimal_odds'] > 0 else 0),
                     'decimal_odds': leg['decimal_odds'],
                 })
 
