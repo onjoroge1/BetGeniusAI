@@ -23,13 +23,13 @@ from sqlalchemy.orm import sessionmaker
 
 logger = logging.getLogger(__name__)
 
-LEAGUE_AVG_GOAL_RATE = 0.12
-SHRINKAGE_GAMES = 15
+LEAGUE_AVG_GOAL_RATE = 0.07
+SHRINKAGE_GAMES = 25
 MAX_PARLAYS_PER_RUN = 20
 MAX_LEG_REUSE_PER_DAY = 5
 MAX_PARLAYS_PER_MATCH_PER_DAY = 10
-MIN_PROB = 0.04
-MAX_PROB = 0.40
+MIN_PROB = 0.05
+MAX_PROB = 0.25
 
 
 class PlayerParlayGenerator:
@@ -127,7 +127,7 @@ class PlayerParlayGenerator:
         shrinkage_weight = min(games_equiv / (games_equiv + SHRINKAGE_GAMES), 0.85)
         shrunk_rate = raw_rate * shrinkage_weight + LEAGUE_AVG_GOAL_RATE * (1 - shrinkage_weight)
 
-        shrunk_rate = max(0.03, min(0.55, shrunk_rate))
+        shrunk_rate = max(0.03, min(0.29, shrunk_rate))
 
         prob = 1.0 - math.exp(-shrunk_rate)
 
@@ -430,11 +430,11 @@ class PlayerParlayGenerator:
         avg_prob = sum(l['model_prob'] for l in legs) / len(legs)
         k = len(legs)
 
-        if k == 2 and avg_prob >= 0.22:
+        if k == 2 and avg_prob >= 0.18:
             return 'low_risk'
-        elif k == 2 and avg_prob >= 0.15:
+        elif k == 2 and avg_prob >= 0.12:
             return 'medium_risk'
-        elif k == 3 and avg_prob >= 0.20:
+        elif k == 3 and avg_prob >= 0.15:
             return 'medium_risk'
         else:
             return 'high_risk'

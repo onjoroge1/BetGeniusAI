@@ -149,32 +149,32 @@ class PlayerPropsService:
         
         position = player.get('position', '').lower()
         if 'forward' in position or 'attacker' in position or 'striker' in position:
-            base_prob = 0.25
+            base_prob = 0.18
         elif 'midfielder' in position:
-            base_prob = 0.12
+            base_prob = 0.10
         elif 'defender' in position:
             base_prob = 0.04
         elif 'goalkeeper' in position:
             base_prob = 0.001
         
         if form['games'] >= 3:
-            form_adjustment = form['avg_goals'] * 0.3
-            base_prob = base_prob * 0.6 + (base_prob + form_adjustment) * 0.4
+            form_adjustment = form['avg_goals'] * 0.25
+            base_prob = base_prob * 0.65 + (base_prob + form_adjustment) * 0.35
         
         if form['avg_shots'] > 3:
-            base_prob *= 1.15
+            base_prob *= 1.10
         elif form['avg_shots'] > 2:
-            base_prob *= 1.08
+            base_prob *= 1.05
         
         if form['avg_rating'] > 7.5:
-            base_prob *= 1.10
+            base_prob *= 1.08
         elif form['avg_rating'] < 6.5:
-            base_prob *= 0.90
+            base_prob *= 0.92
         
         if form['avg_minutes'] < 60:
             base_prob *= form['avg_minutes'] / 90
         
-        probability = max(0.01, min(0.65, base_prob))
+        probability = max(0.01, min(0.28, base_prob))
         
         confidence = min(1.0, form['games'] / 5)
         

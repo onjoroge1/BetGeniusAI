@@ -299,9 +299,11 @@ class AutomatedParlayGenerator:
                 top_players = self.player_props.get_top_scorer_picks(match_info['match_id'], limit=4)
                 if top_players and 'picks' in top_players:
                     for player in top_players['picks'][:4]:
-                        model_prob = float(player.get('anytime_scorer_prob', 0.15))
-                        market_prob = 0.18
-                        decimal_odds = 1 / market_prob if market_prob > 0 else 5.5
+                        model_prob = float(player.get('anytime_scorer_prob', 0.12))
+                        model_prob = max(0.05, min(0.28, model_prob))
+                        market_margin = 0.08
+                        market_prob = min(model_prob * (1 + market_margin), 0.30)
+                        decimal_odds = 1 / market_prob if market_prob > 0 else 6.0
                         edge = (model_prob - market_prob) / market_prob if market_prob > 0 else 0
                         
                         legs.append({
