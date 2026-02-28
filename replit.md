@@ -71,6 +71,13 @@ The platform prioritizes a superior user experience through confidence-calibrate
 ### Database
 - **PostgreSQL**: The core relational database for persistent storage.
 
+## Recent Changes (2026-02-28)
+- **Auto Parlay System Fixes**:
+  - **Leg result tracking fixed**: `settle_parlays()` now writes `result='won'/'lost'` to each individual `parlay_precomputed_legs` row. Previously, all 340 settled leg results were NULL.
+  - **Backfill completed**: `jobs/backfill_parlay_leg_results.py` populated result for all 340 historically settled legs.
+  - **2-leg only enforcement**: `TARGET_LEG_COUNT=2` is now the only supported format. Edge filter widened slightly (MIN 3% → was 4%, MAX 25% → was 15%, MIN_PARLAY_PROB 0.10 → was 0.20) to sustain generation volume now that higher-quality leg combinations are the only option.
+  - **Unit tests added**: `tests/test_auto_parlay_system.py` with 39 passing tests covering: leg result logic (`TestCheckLegResult`, 17 tests), parlay math (`TestBuildParlay`, 6 tests), generation flow (`TestGenerationFlow`, 6 tests), settlement + leg tracking (`TestSettlement`, 5 tests including regression test for the NULL-result bug), performance stats (`TestPerformanceStats`, 5 tests), and live integration smoke tests (`TestLiveIntegration`, 5 tests skipped in CI).
+
 ## Recent Changes (2026-02-23)
 - **Soccer Scorer Odds System**: New odds-informed player betting system using real bookmaker odds from The Odds API.
   - `models/soccer_scorer_odds.py`: SoccerScorerOddsCollector collects anytime goalscorer odds for EPL, La Liga, Serie A, Bundesliga, Ligue 1, MLS. SoccerScorerEdgeDetector computes model prob vs implied prob edge and EV.

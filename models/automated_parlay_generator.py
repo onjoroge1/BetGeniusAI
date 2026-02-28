@@ -73,12 +73,12 @@ class AutomatedParlayGenerator:
             return {'error': 'Insufficient legs available', 'parlays_generated': 0}
         
         parlays_generated = 0
-        parlays_by_leg_count = {2: 0, 3: 0, 4: 0, '5+': 0}
-        
-        MIN_EDGE_PCT = 4.0
-        MAX_EDGE_PCT = 15.0
+        parlays_by_leg_count = {2: 0}
+
+        MIN_EDGE_PCT = 3.0
+        MAX_EDGE_PCT = 25.0
         TARGET_LEG_COUNT = 2
-        MIN_PARLAY_PROB = 0.20
+        MIN_PARLAY_PROB = 0.10
         
         if len(legs) >= TARGET_LEG_COUNT:
             combos = list(combinations(legs, TARGET_LEG_COUNT))
@@ -504,23 +504,32 @@ class AutomatedParlayGenerator:
                 parlay_id = parlay_row[0]
                 
                 legs_result = session.execute(text("""
-                    SELECT ppl.leg_type, ppl.market_code, ppl.player_id,
+                    SELECT ppl.leg_index, ppl.leg_type, ppl.market_code, ppl.player_id,
                            m.home_goals as home_score, m.away_goals as away_score, m.outcome as match_result
                     FROM parlay_precomputed_legs ppl
                     JOIN matches m ON ppl.match_id = m.match_id
                     WHERE ppl.parlay_id = :parlay_id
+                    ORDER BY ppl.leg_index
                 """), {'parlay_id': parlay_id})
                 
                 all_won = True
+                leg_outcomes = []
                 for leg in legs_result.fetchall():
                     leg_won = self._check_leg_result(
                         leg.leg_type, leg.market_code, leg.player_id,
                         leg.home_score, leg.away_score, leg.match_result
                     )
+                    leg_outcomes.append((leg.leg_index, 'won' if leg_won else 'lost'))
                     if not leg_won:
                         all_won = False
-                        break
-                
+
+                for leg_index, leg_result in leg_outcomes:
+                    session.execute(text("""
+                        UPDATE parlay_precomputed_legs
+                        SET result = :result
+                        WHERE parlay_id = :parlay_id AND leg_index = :leg_index
+                    """), {'result': leg_result, 'parlay_id': parlay_id, 'leg_index': leg_index})
+
                 parlay_result = 'won' if all_won else 'lost'
                 session.execute(text("""
                     UPDATE parlay_precomputed 
