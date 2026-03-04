@@ -2670,25 +2670,29 @@ async def predict_match(
         # Step 4: Calculate processing time
         processing_time = (datetime.now() - start_time).total_seconds()
         
-        # Step 4.5: Get V2 prediction for model transparency (SKIP if using V3 fallback)
+        # Step 4.5: Get V2 + V3 shadow predictions for model transparency
         v2_result = None
         v2_available = False
-        
+        v3_shadow_result = None
+        v3_shadow_available = False
+
         if using_v3_fallback:
-            logger.info("Skipping V2 - using V3 sharp fallback (V2 requires consensus input)")
+            logger.info("Skipping V2 shadow - using V3 sharp fallback (V2 requires consensus input)")
+            # V3 already ran as the primary source; capture its result for models array
+            try:
+                v3_shadow_result = prediction_result
+                v3_shadow_available = True
+            except Exception:
+                pass
         else:
             try:
                 from models.v2_lgbm_predictor import get_v2_lgbm_predictor
                 v2_predictor = get_v2_lgbm_predictor()
-                
-                # V2 needs match_id and market probabilities as fallback
                 market_probs = {
                     'home': prediction_result.get('probabilities', {}).get('home', 0.33),
                     'draw': prediction_result.get('probabilities', {}).get('draw', 0.33),
                     'away': prediction_result.get('probabilities', {}).get('away', 0.33)
                 }
-                
-                # Pass match_id as first param, market_probs as fallback
                 v2_result = v2_predictor.predict(match_id=request.match_id, market_probs=market_probs)
                 if v2_result and v2_result.get('confidence', 0) > 0:
                     v2_available = True
@@ -2696,6 +2700,18 @@ async def predict_match(
             except Exception as e:
                 logger.warning(f"V2 prediction unavailable (non-fatal): {e}")
                 v2_result = None
+
+            # V3 shadow inference — always run alongside V1 when V1 is primary
+            try:
+                from models.v3_predictor import get_v3_predictor
+                v3_predictor_inst = get_v3_predictor()
+                v3_shadow_result = v3_predictor_inst.predict(match_id=request.match_id)
+                if v3_shadow_result and v3_shadow_result.get('confidence', 0) > 0:
+                    v3_shadow_available = True
+                    logger.info(f"V3 shadow obtained: conf={v3_shadow_result.get('confidence', 0):.3f}")
+            except Exception as e:
+                logger.warning(f"V3 shadow prediction unavailable (non-fatal): {e}")
+                v3_shadow_result = None
         
         # Step 5: Build comprehensive response with frontend-compatible structure
         # Map new consensus predictor keys to frontend expectations
@@ -2792,21 +2808,23 @@ async def predict_match(
             selected_model = "v1_consensus"
             selection_reason = "V1 consensus is primary model"
         
+        _pred_map = {'H': 'home_win', 'D': 'draw', 'A': 'away_win',
+                     'home': 'home_win', 'draw': 'draw', 'away': 'away_win',
+                     'home_win': 'home_win', 'away_win': 'away_win'}
+
+        # --- V2 entry ---
+        v2_recommended = None
+        v2_conf = 0.0
         if v2_available and v2_result:
             v2_probs = v2_result.get('probabilities', {})
             v2_h = v2_probs.get('home', 0.0)
             v2_d = v2_probs.get('draw', 0.0)
             v2_a = v2_probs.get('away', 0.0)
             v2_h_norm, v2_d_norm, v2_a_norm = normalize_hda(v2_h, v2_d, v2_a)
-            
             v2_pred_raw = v2_result.get('prediction', 'H')
-            v2_pred_mapping = {'H': 'home_win', 'D': 'draw', 'A': 'away_win', 'home': 'home_win', 'draw': 'draw', 'away': 'away_win'}
-            v2_recommended = v2_pred_mapping.get(v2_pred_raw, v2_pred_raw)
+            v2_recommended = _pred_map.get(v2_pred_raw, v2_pred_raw)
             v2_conf = v2_result.get('confidence', 0.0)
-            
-            # Check agreement between models
-            models_agree = v1_recommended == v2_recommended
-            
+            models_agree_v1_v2 = v1_recommended == v2_recommended
             models_array.append({
                 "id": "v2_unified",
                 "name": "Unified V2 Context Model",
@@ -2826,16 +2844,13 @@ async def predict_match(
                     "sample_size": 5415
                 },
                 "agreement": {
-                    "agrees_with_v1": models_agree,
+                    "agrees_with_v1": models_agree_v1_v2,
                     "confidence_delta": round(v2_conf - confidence, 3)
                 }
             })
-            
-            # Model selection logic: V1 is primary, V2 shown for transparency
             selected_model = "v1_consensus"
             selection_reason = "V1 consensus is production model; V2 shown for comparison"
         else:
-            # V2 not available or skipped
             v2_reason = "Skipped - using V3 sharp fallback" if using_v3_fallback else "Model not loaded or prediction failed"
             models_array.append({
                 "id": "v2_unified",
@@ -2848,15 +2863,121 @@ async def predict_match(
                 "confidence": None,
                 "recommended_bet": None
             })
-        
+
+        # --- V3 entry ---
+        v3_recommended = None
+        v3_conf = 0.0
+        if v3_shadow_available and v3_shadow_result:
+            v3_probs = v3_shadow_result.get('probabilities', {})
+            v3_h = v3_probs.get('home', 0.0)
+            v3_d = v3_probs.get('draw', 0.0)
+            v3_a = v3_probs.get('away', 0.0)
+            v3_h_norm, v3_d_norm, v3_a_norm = normalize_hda(v3_h, v3_d, v3_a)
+            v3_pred_raw = v3_shadow_result.get('prediction', 'H')
+            v3_recommended = _pred_map.get(v3_pred_raw, v3_pred_raw)
+            v3_conf = float(v3_shadow_result.get('confidence', 0.0))
+            v3_status = "primary" if using_v3_fallback else "active"
+            models_array.append({
+                "id": "v3_sharp",
+                "name": "V3 Sharp Intelligence Model",
+                "type": "lightgbm_ensemble",
+                "version": "3.0.0",
+                "status": v3_status,
+                "draw_specialist": True,
+                "predictions": {
+                    "home_win": round(v3_h_norm, 3),
+                    "draw": round(v3_d_norm, 3),
+                    "away_win": round(v3_a_norm, 3)
+                },
+                "confidence": round(v3_conf, 3),
+                "recommended_bet": v3_recommended,
+                "features_used": v3_shadow_result.get('features_used', 0),
+                "quality_metrics": {
+                    "metric": "multi_logloss",
+                    "value": 1.09,
+                    "feature_count": 36
+                },
+                "agreement": {
+                    "agrees_with_v1": v3_recommended == v1_recommended,
+                    "agrees_with_v2": v3_recommended == v2_recommended if v2_recommended else None,
+                    "confidence_delta_vs_v1": round(v3_conf - confidence, 3)
+                }
+            })
+        else:
+            v3_skip_reason = "primary" if using_v3_fallback else "Sharp book data unavailable or model not loaded"
+            models_array.append({
+                "id": "v3_sharp",
+                "name": "V3 Sharp Intelligence Model",
+                "type": "lightgbm_ensemble",
+                "version": "3.0.0",
+                "status": "unavailable",
+                "draw_specialist": True,
+                "reason": v3_skip_reason,
+                "predictions": None,
+                "confidence": None,
+                "recommended_bet": None
+            })
+
+        # --- Log V3 shadow to prediction_log (T004) ---
+        if v3_shadow_available and v3_shadow_result and not using_v3_fallback:
+            try:
+                _league_id_for_log = match_details.get('league', {}).get('id', 0) if match_details else 0
+                _kickoff_for_log = match_details.get('fixture', {}).get('date') if match_details else None
+                _v3_pick_raw = v3_shadow_result.get('prediction', 'H')
+                _v3_pick = _v3_pick_raw if _v3_pick_raw in ('H', 'D', 'A') else (
+                    'H' if _v3_pick_raw in ('home', 'home_win') else
+                    'A' if _v3_pick_raw in ('away', 'away_win') else 'D'
+                )
+                with get_db_session() as _log_session:
+                    _log_session.execute(text("""
+                        INSERT INTO prediction_log
+                        (match_id, league_id, model_version, cascade_level,
+                         prob_home, prob_draw, prob_away, pick, confidence,
+                         features_used, predicted_at, kickoff_at)
+                        VALUES
+                        (:match_id, :league_id, 'v3_sharp_shadow', 3,
+                         :ph, :pd, :pa, :pick, :conf,
+                         :feats, NOW(), :kickoff)
+                        ON CONFLICT DO NOTHING
+                    """), {
+                        'match_id': request.match_id,
+                        'league_id': _league_id_for_log,
+                        'ph': round(v3_h_norm, 4),
+                        'pd': round(v3_d_norm, 4),
+                        'pa': round(v3_a_norm, 4),
+                        'pick': _v3_pick,
+                        'conf': round(v3_conf, 4),
+                        'feats': v3_shadow_result.get('features_used', 0),
+                        'kickoff': _kickoff_for_log,
+                    })
+            except Exception as _log_err:
+                logger.warning(f"V3 shadow log failed (non-fatal): {_log_err}")
+
+        # --- Conviction tier (all three models) ---
+        active_picks = [p for p in [v1_recommended, v2_recommended, v3_recommended] if p]
+        active_confs = [c for c in [confidence, v2_conf, v3_conf] if c > 0]
+        all_agree = len(set(active_picks)) == 1 and len(active_picks) == 3
+        any_two_agree = len(active_picks) >= 2 and len(set(active_picks)) < len(active_picks)
+        all_high_conf = all(c >= 0.50 for c in active_confs) if active_confs else False
+        any_high_conf = any(c >= 0.50 for c in active_confs) if active_confs else False
+
+        if all_agree and all_high_conf:
+            conviction_tier = "premium"
+        elif (all_agree or any_two_agree) and any_high_conf:
+            conviction_tier = "strong"
+        else:
+            conviction_tier = "standard"
+
         # Final decision block with prediction source info
-        strategy = "v3_sharp_fallback" if using_v3_fallback else "v1_primary_v2_transparency"
+        strategy = "v3_sharp_fallback" if using_v3_fallback else "v1_primary_v2_v3_transparency"
         final_decision = {
             "selected_model": selected_model,
             "strategy": strategy,
             "reason": selection_reason,
             "prediction_source": prediction_source,
-            "data_quality": data_quality
+            "data_quality": data_quality,
+            "conviction_tier": conviction_tier,
+            "models_in_agreement": len(set(active_picks)) == 1 if active_picks else False,
         }
         
         predictions = {

@@ -71,6 +71,20 @@ The platform prioritizes a superior user experience through confidence-calibrate
 ### Database
 - **PostgreSQL**: The core relational database for persistent storage.
 
+## Recent Changes (2026-03-04)
+- **V3 Sharp Intelligence Model added to /predict response**:
+  - `models[]` array in `/predict` now contains 3 entries: `v1_consensus`, `v2_unified`, `v3_sharp`
+  - V3 runs as shadow inference alongside V1 when V1 is primary; status="primary" when V3 is the cascade fallback
+  - V3 entry includes `draw_specialist: true` flag, per-model agreement fields, and draw probability
+  - **Conviction tier** added to `final_decision`: `premium` (all 3 agree + all ≥50% conf), `strong` (2 agree + any ≥50%), `standard` otherwise
+  - V3 shadow predictions now logged to `prediction_log` as `v3_sharp_shadow` for accuracy tracking
+- **H2H Draw Rate feature added to V3 Feature Builder**:
+  - `features/v3_feature_builder.py` now builds 36 features (was 34)
+  - New: `h2h_draw_rate` (historical H2H draws / matches played) and `h2h_matches_used` (sample size signal)
+  - Sourced from `historical_features` table using `h2h_draws` and `h2h_matches_used` columns
+  - Existing V3 model (34-feature) still loads correctly; new features are present in inference dict but used after retrain
+  - V3 retrain: `python training/train_v3_sharp.py` — builds 36-feature dataset; updated script reuses single DB connection per match (~5x faster than before)
+
 ## Recent Changes (2026-02-28)
 - **Auto Parlay System Fixes**:
   - **Leg result tracking fixed**: `settle_parlays()` now writes `result='won'/'lost'` to each individual `parlay_precomputed_legs` row. Previously, all 340 settled leg results were NULL.

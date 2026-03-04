@@ -82,33 +82,67 @@ def get_trainable_matches(min_sharp_odds: int = 0) -> List[Tuple[int, str]]:
 
 
 def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float = 1.0) -> pd.DataFrame:
-    """Build training dataset with V3 features"""
-    
+    """Build training dataset with V3 features — reuses a single DB connection per match for speed"""
+    import psycopg2
+
     builder = V3FeatureBuilder()
     records = []
-    
+    errors = 0
+
     logger.info(f"Building features for {len(matches)} matches...")
-    
+
     for i, (match_id, outcome) in enumerate(matches):
         try:
-            features = builder.build_features(match_id)
+            conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+            cursor = conn.cursor()
+
+            match_info = builder._get_match_info(cursor, match_id)
+            if not match_info:
+                cursor.close()
+                conn.close()
+                continue
+
+            cutoff_time = match_info['kickoff_time']
+            if cutoff_time is None:
+                cursor.close()
+                conn.close()
+                continue
+
+            v2_f = builder._build_v2_features(cursor, match_id, cutoff_time)
+            sharp_f = builder._build_sharp_features(cursor, match_id, cutoff_time)
+            ece_f = builder._build_ece_features(cursor, match_info['league_id'])
+            injury_f = builder._build_injury_features(cursor, match_id, match_info)
+            timing_f = builder._build_timing_features(cursor, match_id, cutoff_time, match_info)
+            h2h_f = builder._build_h2h_features(cursor, match_id, match_info)
+
+            cursor.close()
+            conn.close()
+
+            features = {**v2_f, **sharp_f, **ece_f, **injury_f, **timing_f, **h2h_f}
             features['match_id'] = match_id
             features['outcome'] = outcome
             records.append(features)
-            
-            if (i + 1) % 50 == 0:
-                logger.info(f"  Progress: {i+1}/{len(matches)} matches")
-                
+
+            if (i + 1) % 100 == 0:
+                logger.info(f"  Progress: {i+1}/{len(matches)} matches (errors: {errors})")
+
         except Exception as e:
-            logger.warning(f"  Skip match {match_id}: {e}")
+            errors += 1
+            try:
+                cursor.close()
+                conn.close()
+            except Exception:
+                pass
+            if errors <= 10:
+                logger.warning(f"  Skip match {match_id}: {e}")
             continue
-    
+
     if not records:
         raise ValueError("No training data could be built")
-    
+
     df = pd.DataFrame(records)
-    logger.info(f"Built {len(df)} training samples with {len(df.columns)} columns")
-    
+    logger.info(f"Built {len(df)} training samples with {len(df.columns)} columns ({errors} skipped)")
+
     return df
 
 

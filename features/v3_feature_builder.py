@@ -64,7 +64,11 @@ class V3FeatureBuilder:
         'movement_velocity_24h', 'steam_move_detected',
         'reverse_line_movement', 'time_to_kickoff_bucket'
     ]
-    
+
+    H2H_FEATURE_NAMES = [
+        'h2h_draw_rate', 'h2h_matches_used'
+    ]
+
     def __init__(self, database_url: Optional[str] = None):
         """Initialize V3 feature builder with database connection"""
         self.db_url = database_url or os.getenv('DATABASE_URL')
@@ -74,14 +78,14 @@ class V3FeatureBuilder:
         logger.info("✅ V3FeatureBuilder initialized")
     
     def get_all_feature_names(self) -> List[str]:
-        """Get list of all 34 V3 feature names"""
+        """Get list of all 36 V3 feature names (34 original + 2 H2H draw features)"""
         return (self.V2_FEATURE_NAMES + self.SHARP_FEATURE_NAMES + 
                 self.ECE_FEATURE_NAMES + self.INJURY_FEATURE_NAMES + 
-                self.TIMING_FEATURE_NAMES)
+                self.TIMING_FEATURE_NAMES + self.H2H_FEATURE_NAMES)
     
     def build_features(self, match_id: int, cutoff_time: Optional[datetime] = None) -> Dict[str, float]:
         """
-        Build all 34 V3 features for a match
+        Build all 36 V3 features for a match (34 original + 2 H2H draw features)
         
         Args:
             match_id: Match ID to build features for
@@ -111,7 +115,8 @@ class V3FeatureBuilder:
             ece_features = self._build_ece_features(cursor, match_info['league_id'])
             injury_features = self._build_injury_features(cursor, match_id, match_info)
             timing_features = self._build_timing_features(cursor, match_id, cutoff_time, match_info)
-            
+            h2h_features = self._build_h2h_features(cursor, match_id, match_info)
+
             cursor.close()
             conn.close()
             
@@ -121,7 +126,8 @@ class V3FeatureBuilder:
                 **sharp_features,
                 **ece_features,
                 **injury_features,
-                **timing_features
+                **timing_features,
+                **h2h_features,
             }
             
             return all_features
@@ -462,14 +468,42 @@ class V3FeatureBuilder:
         
         return features
     
+    def _build_h2h_features(self, cursor, match_id: int, match_info: Dict) -> Dict[str, float]:
+        """
+        Build H2H draw rate features from historical_features table.
+        These help the draw expert identify historically draw-prone fixture pairs.
+        """
+        features = {name: 0.0 for name in self.H2H_FEATURE_NAMES}
+
+        try:
+            cursor.execute("""
+                SELECT h2h_draws, h2h_matches_used, h2h_home_wins, h2h_away_wins
+                FROM historical_features
+                WHERE match_id = %s
+                LIMIT 1
+            """, (match_id,))
+
+            row = cursor.fetchone()
+            if row:
+                h2h_draws = float(row[0] or 0)
+                h2h_used = float(row[1] or 0)
+                if h2h_used > 0:
+                    features['h2h_draw_rate'] = round(h2h_draws / h2h_used, 4)
+                    features['h2h_matches_used'] = h2h_used
+        except Exception as e:
+            logger.warning(f"H2H feature build failed for match {match_id}: {e}")
+
+        return features
+
     def get_feature_names(self) -> List[str]:
-        """Get ordered list of all 34 V3 feature names"""
+        """Get ordered list of all 36 V3 feature names (34 original + 2 H2H draw features)"""
         return (
             self.V2_FEATURE_NAMES +
             self.SHARP_FEATURE_NAMES +
             self.ECE_FEATURE_NAMES +
             self.INJURY_FEATURE_NAMES +
-            self.TIMING_FEATURE_NAMES
+            self.TIMING_FEATURE_NAMES +
+            self.H2H_FEATURE_NAMES
         )
     
     def build_training_dataframe(self, match_ids: List[int], 
