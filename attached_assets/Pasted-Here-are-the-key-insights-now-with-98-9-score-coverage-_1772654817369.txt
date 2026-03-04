@@ -1,0 +1,74 @@
+Here are the key insights now with **98.9% score coverage** (808/817 matches):
+
+---
+
+## Overall Performance
+
+- **V1 Consensus: 52.5%** (424/808) — +19.1 pts over random (33.3%)
+- **V2 Unified: 51.6%** (96/186) — +18.3 pts over random
+- Both models deliver consistent edge, with V1 having a much larger sample
+
+## The Draw Problem (Biggest Finding)
+
+- **Draws happen 25.7%** of the time (208 out of 808 matches)
+- **Neither model ever predicts a draw** — 0/208 for V1, 0/42 for V2
+- This is the single largest drag on accuracy. If V1 correctly identified even 30% of draws, overall accuracy would jump to ~60%+
+
+## When Models Agree + High Confidence = Gold
+
+- **Both agree: 61.3% accuracy** (76/124 matches)
+- **Both agree AND both confidence ≥50%: 84.6% accuracy** (22/26 matches)
+- This is your strongest signal — a premium "high conviction" tier
+
+## Confidence Calibration is Well-Tuned
+
+| Confidence | V1 Accuracy | V2 Accuracy |
+|---|---|---|
+| Low (<40%) | 42.2% (79/187) | 28.6% (2/7) |
+| Medium (40-60%) | 49.0% (221/451) | 48.8% (79/162) |
+| High (>60%) | **72.9%** (124/170) | **88.2%** (15/17) |
+
+Higher confidence = higher accuracy. The calibration holds well, especially at the top.
+
+## Home Bias is Real
+
+- **Home picks: 82-83% accurate** for both models — excellent
+- **Away picks: 52.6% (V1) / 38.9% (V2)** — V2 really struggles with away calls
+- V1 picks the market favorite **98.4%** of the time — it's essentially a smart favorite picker with slight edge
+
+## Best & Worst Leagues
+
+**V1 excels in:**
+- Africa Cup of Nations (74.4%), Scottish Premiership (72.4%), Süper Lig (64.3%), League One (64.3%)
+
+**V1 struggles in:**
+- LaLiga2 (36.1%), 2. Bundesliga (38.5%), A-League (38.9%), Ligue 2 (40.0%), **Premier League (43.4%)**
+
+**V2 beats V1 in:**
+- Bundesliga: V2 76.2% vs V1 57.4% (+18.8 pts)
+- Premier League: V2 46.2% vs V1 43.4% (+2.8 pts)
+
+## Monthly Trend
+
+| Month | V1 | V2 |
+|---|---|---|
+| Dec 2025 | 53.9% (167/310) | — |
+| Jan 2026 | 49.7% (144/290) | 53.2% (33/62) |
+| Feb 2026 | 54.7% (94/172) | 51.9% (54/104) |
+| Mar 2026 | 52.8% (19/36) | 45.0% (9/20) |
+
+V1 had a dip in January, V2 is fairly stable but March looks soft (small sample).
+
+---
+
+## Strategic Recommendations
+
+1. **Implement draw detection** — Even a simple rule ("if max probability < 38%, predict draw") could recover a chunk of the 208 missed draws and push accuracy above 55%
+
+2. **Create a "High Conviction" tier** — When both models agree AND both have ≥50% confidence (84.6% hit rate), surface these as premium picks
+
+3. **League-specific strategy** — Consider disabling or warning on predictions for LaLiga2, 2. Bundesliga, A-League where accuracy is below random
+
+4. **Use V2 for Bundesliga** — V2 meaningfully outperforms V1 there (+18.8 pts). Consider a league-specific model selector
+
+5. **Premier League is surprisingly weak** — 43.4% V1 accuracy on 106 matches is below random. Worth investigating why EPL is so hard for the models — likely high draw rate and competitive parity
