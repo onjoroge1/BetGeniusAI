@@ -1,6 +1,6 @@
 {
   "model_type": "V3_Sharp_LightGBM",
-  "trained_at": "2026-03-11T19:08:00.331621+00:00",
+  "trained_at": "2026-03-11T20:04:18.670609+00:00",
   "n_features": 36,
   "oof_metrics": {
     "accuracy_3way": 0.513978494623656,
