@@ -32,5 +32,7 @@
   "movement_velocity_24h",
   "steam_move_detected",
   "reverse_line_movement",
-  "time_to_kickoff_bucket"
+  "time_to_kickoff_bucket",
+  "h2h_draw_rate",
+  "h2h_matches_used"
 ]

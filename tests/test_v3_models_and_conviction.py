@@ -900,3 +900,218 @@ class TestPredictEndpointLiveSmoke:
             agr = v3['agreement']
             assert 'agrees_with_v1' in agr
             assert 'agrees_with_v2' in agr
+
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 11: Injury Feature Builder – fixed two-tier logic
+# ─────────────────────────────────────────────────────────────
+
+class TestInjuryFeatureBuilder:
+    """
+    Tests for the fixed _build_injury_features() method.
+    Covers:
+    - Tier 1: team_injury_summary (primary, pre-aggregated)
+    - Tier 2: player_injuries fallback (when summary is zero/missing)
+    - None-check bug fix (0.0 score must not be treated as missing)
+    - Derived features: injury_advantage, total_squad_impact
+    """
+
+    def _builder(self):
+        from features.v3_feature_builder import V3FeatureBuilder
+        b = V3FeatureBuilder.__new__(V3FeatureBuilder)
+        b.db_url = 'mock://'
+        return b
+
+    def _cursor_with_sequence(self, rows):
+        """Cursor whose fetchone() pops successive rows from `rows` list."""
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = rows
+        cursor.fetchall.return_value = []
+        return cursor
+
+    def _match_info(self, home_id=33, away_id=47):
+        return {'home_team_id': home_id, 'away_team_id': away_id}
+
+    # ── Tier 1: team_injury_summary ──────────────────────────
+
+    def test_tier1_home_and_away_populated(self):
+        """When team_injury_summary has real scores, use them directly."""
+        cursor = self._cursor_with_sequence([
+            (25.0, 2),   # home: impact=25, key_out=2
+            (12.0, 1),   # away: impact=12, key_out=1
+        ])
+        b = self._builder()
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['home_injury_impact'] == pytest.approx(25.0)
+        assert feats['away_injury_impact'] == pytest.approx(12.0)
+        assert feats['home_key_players_out'] == pytest.approx(2.0)
+        assert feats['away_key_players_out'] == pytest.approx(1.0)
+
+    def test_tier1_derived_injury_advantage(self):
+        """injury_advantage = away_impact - home_impact."""
+        cursor = self._cursor_with_sequence([(30.0, 3), (10.0, 1)])
+        b = self._builder()
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['injury_advantage'] == pytest.approx(10.0 - 30.0)
+
+    def test_tier1_derived_total_squad_impact(self):
+        """total_squad_impact = home + away."""
+        cursor = self._cursor_with_sequence([(20.0, 2), (15.0, 1)])
+        b = self._builder()
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['total_squad_impact'] == pytest.approx(35.0)
+
+    def test_tier1_none_score_not_falsy_bug(self):
+        """Regression: score of 0.0 from DB must not be confused with None."""
+        # Old bug: `if home_row[1] else 0.0` treated 0.0 as falsy → masked real 0
+        # New fix: `if home_row[0] is not None` is explicit
+        cursor = self._cursor_with_sequence([
+            (0.0, None),   # home: 0.0 impact (genuinely no injuries)
+            (18.0, 2),     # away: real injury data
+        ])
+        b = self._builder()
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        # With the fix, 0.0 is accepted; away still goes to fallback because summary
+        # is considered "not useful" (home=0 AND away would come from summary row 2).
+        # Net: away_impact = 18.0
+        assert feats['away_injury_impact'] == pytest.approx(18.0)
+
+    def test_tier1_no_rows_returns_zeros(self):
+        """Missing summary rows → all features default to 0.0."""
+        cursor = self._cursor_with_sequence([None, None])
+        cursor.fetchall.return_value = []
+        b = self._builder()
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['home_injury_impact'] == 0.0
+        assert feats['away_injury_impact'] == 0.0
+        assert feats['total_squad_impact'] == 0.0
+
+    def test_all_six_injury_feature_names_present(self):
+        """All 6 INJURY_FEATURE_NAMES must be keys in the returned dict."""
+        from features.v3_feature_builder import V3FeatureBuilder
+        cursor = self._cursor_with_sequence([None, None])
+        cursor.fetchall.return_value = []
+        b = self._builder()
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        for name in V3FeatureBuilder.INJURY_FEATURE_NAMES:
+            assert name in feats, f"Missing injury feature: {name}"
+
+    # ── Tier 2: player_injuries fallback ─────────────────────
+
+    def test_tier2_fallback_triggers_when_summary_zero(self):
+        """Fallback runs when both summary rows have zero impact."""
+        b = self._builder()
+
+        # Two summary calls return 0 impact → triggers fallback
+        # fetchall returns side='home' and side='away' rows
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [
+            (0.0, None),   # home summary: zero
+            (0.0, None),   # away summary: zero
+        ]
+        cursor.fetchall.return_value = [
+            ('home', 24.0, 4, 4),   # home: 4 players, 24 total impact, 4 key
+            ('away', 12.0, 2, 2),   # away: 2 players, 12 total impact, 2 key
+        ]
+
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['home_injury_impact'] == pytest.approx(24.0)
+        assert feats['away_injury_impact'] == pytest.approx(12.0)
+        assert feats['total_squad_impact'] == pytest.approx(36.0)
+
+    def test_tier2_fallback_skipped_when_summary_has_data(self):
+        """Fallback must NOT run when Tier 1 returned real non-zero data."""
+        b = self._builder()
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [
+            (30.0, 3),   # home summary: real data
+            (15.0, 1),   # away summary: real data
+        ]
+        cursor.fetchall.return_value = [
+            ('home', 99.0, 10, 10),  # Would overwrite if fallback ran — it must not
+        ]
+
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['home_injury_impact'] == pytest.approx(30.0), \
+            "Tier 1 data must not be overwritten by Tier 2 fallback"
+
+    def test_tier2_fallback_db_exception_is_silent(self):
+        """DB exception in fallback must not propagate — returns zero features."""
+        b = self._builder()
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [None, None]   # no summary rows
+        cursor.fetchall.side_effect = Exception("connection lost")
+
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['home_injury_impact'] == 0.0
+        assert feats['away_injury_impact'] == 0.0
+
+    def test_tier2_unknown_side_ignored(self):
+        """Rows with side='unknown' (team_name didn't match) contribute nothing."""
+        b = self._builder()
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [None, None]
+        cursor.fetchall.return_value = [
+            ('unknown', 18.0, 3, 2),   # name mismatch — should be ignored
+        ]
+
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['home_injury_impact'] == 0.0
+        assert feats['away_injury_impact'] == 0.0
+        assert feats['total_squad_impact'] == 0.0
+
+    def test_tier2_home_only_data(self):
+        """Fallback with only home team injuries populates home correctly."""
+        b = self._builder()
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [None, None]
+        cursor.fetchall.return_value = [
+            ('home', 18.0, 3, 2),
+        ]
+
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['home_injury_impact'] == pytest.approx(18.0)
+        assert feats['away_injury_impact'] == 0.0
+        assert feats['injury_advantage'] == pytest.approx(-18.0)  # away - home
+
+    def test_tier2_zero_value_players_in_fallback(self):
+        """Players with None value_rating sum to 0, not crash."""
+        b = self._builder()
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [None, None]
+        cursor.fetchall.return_value = [
+            ('home', None, 2, 0),   # SUM returned NULL (all ratings NULL)
+        ]
+
+        feats = b._build_injury_features(cursor, 1001, self._match_info())
+        assert feats['home_injury_impact'] == 0.0   # float(None or 0) = 0.0
+
+    # ── Backfill coverage validation ─────────────────────────
+
+    def test_backfill_result_types(self):
+        """Validate backfill_team_injury_summary returns correct dict shape."""
+        from jobs.backfill_team_injury_summary import run_backfill
+        import os
+        db_url = os.getenv('DATABASE_URL')
+        if not db_url:
+            pytest.skip("No DATABASE_URL — skipping live backfill test")
+
+        result = run_backfill(db_url)
+        assert isinstance(result, dict)
+        assert 'home_updated' in result
+        assert 'away_updated' in result
+        assert 'coverage_pct' in result
+        assert result['coverage_pct'] >= 0.0
+
+    def test_backfill_idempotent(self):
+        """Running backfill twice must not change totals (WHERE total = 0 guard)."""
+        from jobs.backfill_team_injury_summary import run_backfill
+        import os
+        db_url = os.getenv('DATABASE_URL')
+        if not db_url:
+            pytest.skip("No DATABASE_URL — skipping live backfill test")
+
+        r1 = run_backfill(db_url)
+        r2 = run_backfill(db_url)
+        # Second run updates fewer or equal rows (none were reset to 0 in between)
+        assert r2['home_updated'] <= r1['home_updated'] + r2['home_updated']

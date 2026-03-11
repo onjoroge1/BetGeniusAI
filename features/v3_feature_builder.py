@@ -354,48 +354,86 @@ class V3FeatureBuilder:
         return features
     
     def _build_injury_features(self, cursor, match_id: int, match_info: Dict) -> Dict[str, float]:
-        """Build injury/player context features from team_injury_summary table"""
-        
+        """
+        Build injury/player context features.
+
+        Strategy (two-tier):
+          1. Query team_injury_summary (pre-aggregated, fast).  This table is only
+             populated for upcoming matches by the scheduler, so historical rows often
+             have total_impact_score = 0.
+          2. If both teams show zero impact from the summary (or the match has no
+             summary rows at all), fall back to player_injuries directly.
+             player_injuries.fixture_id == fixtures.match_id in this system.
+        """
         features = {name: 0.0 for name in self.INJURY_FEATURE_NAMES}
-        
-        # Get home team injury summary
-        cursor.execute("""
-            SELECT 
-                n_injured + n_suspended as total_out,
-                total_impact_score,
-                array_length(key_players_out, 1) as key_out_count
-            FROM team_injury_summary
-            WHERE match_id = %s AND team_type = 'home'
-            ORDER BY ts_computed DESC
-            LIMIT 1
-        """, (match_id,))
-        
-        home_row = cursor.fetchone()
-        if home_row:
-            features['home_injury_impact'] = float(home_row[1]) if home_row[1] else 0.0
-            features['home_key_players_out'] = float(home_row[2]) if home_row[2] else 0.0
-        
-        # Get away team injury summary
-        cursor.execute("""
-            SELECT 
-                n_injured + n_suspended as total_out,
-                total_impact_score,
-                array_length(key_players_out, 1) as key_out_count
-            FROM team_injury_summary
-            WHERE match_id = %s AND team_type = 'away'
-            ORDER BY ts_computed DESC
-            LIMIT 1
-        """, (match_id,))
-        
-        away_row = cursor.fetchone()
-        if away_row:
-            features['away_injury_impact'] = float(away_row[1]) if away_row[1] else 0.0
-            features['away_key_players_out'] = float(away_row[2]) if away_row[2] else 0.0
-        
-        # Calculate derived features
-        features['injury_advantage'] = features['away_injury_impact'] - features['home_injury_impact']
-        features['total_squad_impact'] = features['home_injury_impact'] + features['away_injury_impact']
-        
+
+        home_team_id = match_info.get('home_team_id')
+        away_team_id = match_info.get('away_team_id')
+
+        # --- Tier 1: team_injury_summary ---
+        def _query_summary(team_type: str):
+            cursor.execute("""
+                SELECT total_impact_score,
+                       array_length(key_players_out, 1) as key_out_count
+                FROM team_injury_summary
+                WHERE match_id = %s AND team_type = %s
+                ORDER BY ts_computed DESC
+                LIMIT 1
+            """, (match_id, team_type))
+            return cursor.fetchone()
+
+        home_row = _query_summary('home')
+        away_row = _query_summary('away')
+
+        # Fix: use `is not None` so a genuine 0.0 score doesn't look like missing data
+        home_impact = float(home_row[0]) if home_row and home_row[0] is not None else 0.0
+        home_key    = float(home_row[1]) if home_row and home_row[1] is not None else 0.0
+        away_impact = float(away_row[0]) if away_row and away_row[0] is not None else 0.0
+        away_key    = float(away_row[1]) if away_row and away_row[1] is not None else 0.0
+
+        # --- Tier 2: player_injuries fallback ---
+        # Use when summary is missing or both teams report zero impact.
+        # player_injuries.team_name matches fixtures.home_team / away_team exactly.
+        # Key threshold: player_value_rating >= 6.0 is considered a "key" player.
+        summary_useful = home_impact > 0 or away_impact > 0
+        if not summary_useful:
+            try:
+                cursor.execute("""
+                    SELECT
+                        CASE
+                            WHEN pi.team_name = f.home_team THEN 'home'
+                            WHEN pi.team_name = f.away_team THEN 'away'
+                            ELSE 'unknown'
+                        END                                                 AS side,
+                        SUM(pi.player_value_rating)                         AS total_impact,
+                        COUNT(*)                                            AS n_injured,
+                        COUNT(*) FILTER (WHERE pi.player_value_rating >= 6.0) AS key_out
+                    FROM player_injuries pi
+                    JOIN fixtures f ON pi.fixture_id = f.match_id
+                    WHERE pi.fixture_id = %s
+                    GROUP BY side
+                """, (match_id,))
+
+                for row in cursor.fetchall():
+                    side, impact, n_inj, key_out = row
+                    impact  = float(impact  or 0)
+                    key_out = float(key_out or 0)
+                    if side == 'home':
+                        home_impact = impact
+                        home_key    = key_out
+                    elif side == 'away':
+                        away_impact = impact
+                        away_key    = key_out
+            except Exception as e:
+                logger.warning(f"player_injuries fallback failed for match {match_id}: {e}")
+
+        features['home_injury_impact']  = home_impact
+        features['home_key_players_out'] = home_key
+        features['away_injury_impact']  = away_impact
+        features['away_key_players_out'] = away_key
+        features['injury_advantage']    = away_impact - home_impact
+        features['total_squad_impact']  = home_impact + away_impact
+
         return features
     
     def _build_timing_features(self, cursor, match_id: int, cutoff_time: datetime, 

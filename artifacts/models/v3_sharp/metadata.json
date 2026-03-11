@@ -1,69 +1,86 @@
 {
   "model_type": "V3_Sharp_LightGBM",
-  "trained_at": "2025-12-06T00:08:59.594976+00:00",
-  "n_features": 34,
+  "trained_at": "2026-03-11T19:08:00.331621+00:00",
+  "n_features": 36,
   "oof_metrics": {
-    "accuracy_3way": 0.46846846846846846,
-    "logloss": 1.0897029786384795,
-    "n_samples": 111,
-    "n_folds": 3
+    "accuracy_3way": 0.513978494623656,
+    "logloss": 1.0182534516469997,
+    "brier_score": 0.6088643817230069,
+    "n_samples": 930,
+    "n_folds": 5
   },
   "feature_importance": [
     {
-      "feature": "odds_volatility_away",
-      "importance": 33.48473481585582
-    },
-    {
-      "feature": "odds_volatility_draw",
-      "importance": 25.297439434876043
+      "feature": "prob_away",
+      "importance": 524.0527161195874
     },
     {
       "feature": "odds_volatility_home",
-      "importance": 15.303246055729687
+      "importance": 425.1244952969253
     },
     {
-      "feature": "book_dispersion_away",
-      "importance": 15.176507910092672
+      "feature": "odds_volatility_draw",
+      "importance": 417.01559819728135
     },
     {
-      "feature": "league_ece",
-      "importance": 15.160145878791809
-    },
-    {
-      "feature": "book_dispersion_draw",
-      "importance": 9.021326541900635
-    },
-    {
-      "feature": "league_historical_edge",
-      "importance": 7.970587099591891
-    },
-    {
-      "feature": "book_dispersion_home",
-      "importance": 5.861286560694377
+      "feature": "odds_volatility_away",
+      "importance": 348.23557591438293
     },
     {
       "feature": "prob_home",
-      "importance": 4.344490011533101
+      "importance": 334.463676495105
     },
     {
-      "feature": "league_tier_weight",
-      "importance": 4.305157500008742
+      "feature": "league_historical_edge",
+      "importance": 262.26898372620343
     },
     {
-      "feature": "prob_away",
-      "importance": 3.4656916658083596
+      "feature": "book_dispersion_away",
+      "importance": 187.4479581657797
     },
     {
-      "feature": "book_coverage",
-      "importance": 3.0668266216913858
+      "feature": "book_dispersion_draw",
+      "importance": 170.12831058502198
     },
     {
       "feature": "prob_draw",
-      "importance": 2.4103233019510903
+      "importance": 169.85339594334363
+    },
+    {
+      "feature": "book_dispersion_home",
+      "importance": 156.25351676493884
     },
     {
       "feature": "market_overround",
-      "importance": 2.06495996316274
+      "importance": 150.13505678661167
+    },
+    {
+      "feature": "league_ece",
+      "importance": 127.00116686075926
+    },
+    {
+      "feature": "book_coverage",
+      "importance": 60.24362869313918
+    },
+    {
+      "feature": "h2h_draw_rate",
+      "importance": 45.85186465680599
+    },
+    {
+      "feature": "h2h_matches_used",
+      "importance": 44.21002008505165
+    },
+    {
+      "feature": "league_tier_weight",
+      "importance": 8.451449739933015
+    },
+    {
+      "feature": "prob_drift_draw",
+      "importance": 0.0
+    },
+    {
+      "feature": "prob_drift_away",
+      "importance": 0.0
     },
     {
       "feature": "drift_magnitude",
@@ -74,11 +91,11 @@
       "importance": 0.0
     },
     {
-      "feature": "prob_drift_draw",
+      "feature": "sharp_prob_away",
       "importance": 0.0
     },
     {
-      "feature": "prob_drift_away",
+      "feature": "sharp_prob_draw",
       "importance": 0.0
     },
     {
@@ -94,15 +111,7 @@
       "importance": 0.0
     },
     {
-      "feature": "sharp_prob_draw",
-      "importance": 0.0
-    },
-    {
-      "feature": "soft_vs_sharp_divergence",
-      "importance": 0.0
-    },
-    {
-      "feature": "sharp_prob_away",
+      "feature": "away_injury_impact",
       "importance": 0.0
     },
     {
@@ -110,15 +119,15 @@
       "importance": 0.0
     },
     {
-      "feature": "away_injury_impact",
-      "importance": 0.0
-    },
-    {
-      "feature": "home_key_players_out",
+      "feature": "soft_vs_sharp_divergence",
       "importance": 0.0
     },
     {
       "feature": "away_key_players_out",
+      "importance": 0.0
+    },
+    {
+      "feature": "home_key_players_out",
       "importance": 0.0
     },
     {
@@ -130,19 +139,19 @@
       "importance": 0.0
     },
     {
-      "feature": "movement_velocity_24h",
-      "importance": 0.0
-    },
-    {
       "feature": "steam_move_detected",
       "importance": 0.0
     },
     {
-      "feature": "reverse_line_movement",
+      "feature": "movement_velocity_24h",
       "importance": 0.0
     },
     {
       "feature": "time_to_kickoff_bucket",
+      "importance": 0.0
+    },
+    {
+      "feature": "reverse_line_movement",
       "importance": 0.0
     }
   ]

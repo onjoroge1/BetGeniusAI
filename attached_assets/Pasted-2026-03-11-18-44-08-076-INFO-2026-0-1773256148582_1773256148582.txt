@@ -1,0 +1,103 @@
+2026-03-11 18:44:08,076 - INFO - ============================================================
+2026-03-11 18:44:08,076 - INFO - V3 SHARP BOOK INTELLIGENCE MODEL TRAINING
+2026-03-11 18:44:08,076 - INFO - ============================================================
+2026-03-11 18:44:08,714 - INFO - Found 1121 trainable matches
+2026-03-11 18:44:08,714 - INFO - ✅ V3FeatureBuilder initialized
+2026-03-11 18:44:08,714 - INFO - Building features for 1121 matches...
+2026-03-11 18:46:09,627 - INFO -   Progress: 100/1121 matches (errors: 0)
+2026-03-11 18:48:10,089 - INFO -   Progress: 200/1121 matches (errors: 0)
+2026-03-11 18:50:11,186 - INFO -   Progress: 300/1121 matches (errors: 0)
+2026-03-11 18:52:11,890 - INFO -   Progress: 400/1121 matches (errors: 0)
+2026-03-11 18:54:12,885 - INFO -   Progress: 500/1121 matches (errors: 0)
+2026-03-11 18:56:13,363 - INFO -   Progress: 600/1121 matches (errors: 0)
+2026-03-11 18:58:13,922 - INFO -   Progress: 700/1121 matches (errors: 0)
+2026-03-11 19:00:14,909 - INFO -   Progress: 800/1121 matches (errors: 0)
+2026-03-11 19:02:15,341 - INFO -   Progress: 900/1121 matches (errors: 0)
+2026-03-11 19:04:16,038 - INFO -   Progress: 1000/1121 matches (errors: 0)
+2026-03-11 19:06:17,852 - INFO -   Progress: 1100/1121 matches (errors: 0)
+2026-03-11 19:07:33,574 - INFO - Built 1121 training samples with 38 columns (0 skipped)
+2026-03-11 19:07:33,575 - INFO - 
+Feature Population:
+2026-03-11 19:07:33,575 - INFO -   prob_home: 81.8%
+2026-03-11 19:07:33,576 - INFO -   prob_draw: 81.8%
+2026-03-11 19:07:33,576 - INFO -   prob_away: 81.8%
+2026-03-11 19:07:33,576 - INFO -   book_dispersion_home: 81.8%
+2026-03-11 19:07:33,576 - INFO -   book_dispersion_draw: 81.8%
+2026-03-11 19:07:33,576 - INFO -   book_dispersion_away: 81.8%
+2026-03-11 19:07:33,576 - INFO -   odds_volatility_home: 100.0%
+2026-03-11 19:07:33,576 - INFO -   odds_volatility_draw: 100.0%
+2026-03-11 19:07:33,576 - INFO -   odds_volatility_away: 100.0%
+2026-03-11 19:07:33,576 - INFO -   book_coverage: 81.8%
+2026-03-11 19:07:33,576 - INFO -   market_overround: 81.8%
+2026-03-11 19:07:33,576 - INFO -   prob_drift_home: 0.0%
+2026-03-11 19:07:33,576 - INFO -   prob_drift_draw: 0.0%
+2026-03-11 19:07:33,576 - INFO -   prob_drift_away: 0.0%
+2026-03-11 19:07:33,576 - INFO -   drift_magnitude: 0.0%
+2026-03-11 19:07:33,576 - INFO -   time_decay_weight: 100.0%
+2026-03-11 19:07:33,576 - INFO -   closing_line_captured: 2.1%
+2026-03-11 19:07:33,576 - INFO -   sharp_prob_home: 2.1%
+2026-03-11 19:07:33,576 - INFO -   sharp_prob_draw: 2.1%
+2026-03-11 19:07:33,576 - INFO -   sharp_prob_away: 2.1%
+2026-03-11 19:07:33,576 - INFO -   soft_vs_sharp_divergence: 2.1%
+2026-03-11 19:07:33,576 - INFO -   league_ece: 95.5%
+2026-03-11 19:07:33,576 - INFO -   league_tier_weight: 100.0%
+2026-03-11 19:07:33,576 - INFO -   league_historical_edge: 95.5%
+2026-03-11 19:07:33,576 - INFO -   home_injury_impact: 0.0%
+2026-03-11 19:07:33,576 - INFO -   away_injury_impact: 0.0%
+2026-03-11 19:07:33,577 - INFO -   home_key_players_out: 0.0%
+2026-03-11 19:07:33,577 - INFO -   away_key_players_out: 0.0%
+2026-03-11 19:07:33,577 - INFO -   injury_advantage: 0.0%
+2026-03-11 19:07:33,577 - INFO -   total_squad_impact: 0.0%
+2026-03-11 19:07:33,577 - INFO -   movement_velocity_24h: 0.0%
+2026-03-11 19:07:33,577 - INFO -   steam_move_detected: 0.0%
+2026-03-11 19:07:33,577 - INFO -   reverse_line_movement: 0.1%
+2026-03-11 19:07:33,577 - INFO -   time_to_kickoff_bucket: 100.0%
+2026-03-11 19:07:33,577 - INFO -   h2h_draw_rate: 32.6%
+2026-03-11 19:07:33,577 - INFO -   h2h_matches_used: 38.4%
+2026-03-11 19:07:33,578 - INFO - Training with 36 features, 1121 samples
+2026-03-11 19:07:33,578 - INFO - Class distribution: H=524, D=278, A=319
+2026-03-11 19:07:33,578 - INFO - Fold 1/5: train=191, val=186
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[28]    train's multi_logloss: 0.947439 valid's multi_logloss: 1.0619
+2026-03-11 19:07:42,098 - INFO - Fold 2/5: train=377, val=186
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[36]    train's multi_logloss: 0.870106 valid's multi_logloss: 1.01078
+2026-03-11 19:07:44,281 - INFO - Fold 3/5: train=563, val=186
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[45]    train's multi_logloss: 0.79469  valid's multi_logloss: 0.975287
+2026-03-11 19:07:48,285 - INFO - Fold 4/5: train=749, val=186
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[21]    train's multi_logloss: 0.892579 valid's multi_logloss: 1.04276
+2026-03-11 19:07:49,823 - INFO - Fold 5/5: train=935, val=186
+Training until validation scores don't improve for 100 rounds
+Early stopping, best iteration is:
+[24]    train's multi_logloss: 0.885926 valid's multi_logloss: 1.00054
+2026-03-11 19:08:00,291 - INFO - ============================================================
+2026-03-11 19:08:00,291 - INFO - V3 MODEL RESULTS
+2026-03-11 19:08:00,291 - INFO - ============================================================
+2026-03-11 19:08:00,291 - INFO - 3-way Accuracy: 51.40%
+2026-03-11 19:08:00,291 - INFO - LogLoss: 1.0183
+2026-03-11 19:08:00,291 - INFO - Brier Score: 0.6089
+2026-03-11 19:08:00,292 - INFO - 
+Top 10 Features:
+2026-03-11 19:08:00,293 - INFO -   prob_away: 524.05
+2026-03-11 19:08:00,293 - INFO -   odds_volatility_home: 425.12
+2026-03-11 19:08:00,293 - INFO -   odds_volatility_draw: 417.02
+2026-03-11 19:08:00,293 - INFO -   odds_volatility_away: 348.24
+2026-03-11 19:08:00,293 - INFO -   prob_home: 334.46
+2026-03-11 19:08:00,293 - INFO -   league_historical_edge: 262.27
+2026-03-11 19:08:00,293 - INFO -   book_dispersion_away: 187.45
+2026-03-11 19:08:00,294 - INFO -   book_dispersion_draw: 170.13
+2026-03-11 19:08:00,294 - INFO -   prob_draw: 169.85
+2026-03-11 19:08:00,294 - INFO -   book_dispersion_home: 156.25
+2026-03-11 19:08:00,332 - INFO - 
+✅ V3 model saved to artifacts/models/v3_sharp
+2026-03-11 19:08:00,332 - INFO - 
+============================================================
+2026-03-11 19:08:00,332 - INFO - TRAINING COMPLETE
+2026-03-11 19:08:00,332 - INFO - ============================================================
+~/workspace$ 
