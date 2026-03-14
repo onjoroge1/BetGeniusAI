@@ -1,0 +1,247 @@
+{
+  "model_type": "V3_NHL_Hockey_LightGBM",
+  "sport_key": "icehockey_nhl",
+  "trained_at": "2026-03-14T15:35:55.041511+00:00",
+  "n_features": 46,
+  "n_samples": 341,
+  "n_folds": 5,
+  "oof_metrics": {
+    "accuracy": 0.7071428571428571,
+    "logloss": 0.5310631269090578,
+    "brier_score": 0.23420399106686998
+  },
+  "feature_importance": [
+    {
+      "feature": "prob_diff",
+      "importance": 1490.1816619336605
+    },
+    {
+      "feature": "home_prob_drift",
+      "importance": 167.30365198850632
+    },
+    {
+      "feature": "away_prob_drift",
+      "importance": 131.18090266734362
+    },
+    {
+      "feature": "overround",
+      "importance": 115.08185011148453
+    },
+    {
+      "feature": "away_spread_odds",
+      "importance": 94.40917873382568
+    },
+    {
+      "feature": "home_rest_days",
+      "importance": 89.33518719673157
+    },
+    {
+      "feature": "open_away_prob",
+      "importance": 87.02473375946283
+    },
+    {
+      "feature": "prob_home",
+      "importance": 77.11145156621933
+    },
+    {
+      "feature": "open_home_prob",
+      "importance": 62.07086992263794
+    },
+    {
+      "feature": "over_odds",
+      "importance": 61.021977588534355
+    },
+    {
+      "feature": "home_odds_volatility",
+      "importance": 59.12905235402286
+    },
+    {
+      "feature": "rest_advantage",
+      "importance": 57.40062490105629
+    },
+    {
+      "feature": "home_pts_diff_avg",
+      "importance": 54.576602642424405
+    },
+    {
+      "feature": "away_rest_days",
+      "importance": 49.261408515274525
+    },
+    {
+      "feature": "elo_diff",
+      "importance": 48.960960656404495
+    },
+    {
+      "feature": "away_elo",
+      "importance": 48.62625276297331
+    },
+    {
+      "feature": "home_spread_odds",
+      "importance": 47.75977808237076
+    },
+    {
+      "feature": "season_progress",
+      "importance": 45.62710838764906
+    },
+    {
+      "feature": "n_snapshots",
+      "importance": 37.009371157735586
+    },
+    {
+      "feature": "under_odds",
+      "importance": 33.19269037246704
+    },
+    {
+      "feature": "home_elo",
+      "importance": 30.50757897645235
+    },
+    {
+      "feature": "prob_away",
+      "importance": 29.581883043050766
+    },
+    {
+      "feature": "away_season_win_rate",
+      "importance": 29.20004314184189
+    },
+    {
+      "feature": "open_total",
+      "importance": 28.94922184944153
+    },
+    {
+      "feature": "form_advantage",
+      "importance": 28.606306314468384
+    },
+    {
+      "feature": "total_line",
+      "importance": 18.09809982776642
+    },
+    {
+      "feature": "home_season_win_rate",
+      "importance": 15.883899807929993
+    },
+    {
+      "feature": "home_home_win_rate",
+      "importance": 14.880959078669548
+    },
+    {
+      "feature": "away_pts_diff_avg",
+      "importance": 12.053245179355145
+    },
+    {
+      "feature": "home_win_rate_l10",
+      "importance": 11.59365963935852
+    },
+    {
+      "feature": "odds_diff",
+      "importance": 9.932669878005981
+    },
+    {
+      "feature": "h2h_matches_used",
+      "importance": 7.22578901052475
+    },
+    {
+      "feature": "away_win_rate_l10",
+      "importance": 6.489000082015991
+    },
+    {
+      "feature": "elo_home_win_prob",
+      "importance": 4.072929859161377
+    },
+    {
+      "feature": "b2b_disadvantage",
+      "importance": 3.5880099534988403
+    },
+    {
+      "feature": "away_away_win_rate",
+      "importance": 1.6601349711418152
+    },
+    {
+      "feature": "away_is_b2b",
+      "importance": 1.3191900253295898
+    },
+    {
+      "feature": "n_bookmakers",
+      "importance": 0.0
+    },
+    {
+      "feature": "home_is_favorite",
+      "importance": 0.0
+    },
+    {
+      "feature": "spread_line",
+      "importance": 0.0
+    },
+    {
+      "feature": "spread_drift",
+      "importance": 0.0
+    },
+    {
+      "feature": "open_spread",
+      "importance": 0.0
+    },
+    {
+      "feature": "total_drift",
+      "importance": 0.0
+    },
+    {
+      "feature": "home_is_b2b",
+      "importance": 0.0
+    },
+    {
+      "feature": "h2h_home_win_rate",
+      "importance": 0.0
+    },
+    {
+      "feature": "time_to_game_hours",
+      "importance": 0.0
+    }
+  ],
+  "feature_population": {
+    "prob_home": 1.0,
+    "prob_away": 1.0,
+    "open_home_prob": 1.0,
+    "open_away_prob": 1.0,
+    "home_prob_drift": 0.8797653958944281,
+    "away_prob_drift": 0.9442815249266863,
+    "home_odds_volatility": 1.0,
+    "overround": 1.0,
+    "n_bookmakers": 1.0,
+    "n_snapshots": 1.0,
+    "odds_diff": 0.9912023460410557,
+    "prob_diff": 0.9912023460410557,
+    "home_is_favorite": 0.7712609970674487,
+    "spread_line": 1.0,
+    "spread_drift": 0.33724340175953077,
+    "home_spread_odds": 1.0,
+    "away_spread_odds": 1.0,
+    "open_spread": 1.0,
+    "total_line": 1.0,
+    "total_drift": 0.39002932551319647,
+    "over_odds": 1.0,
+    "under_odds": 1.0,
+    "open_total": 1.0,
+    "home_rest_days": 1.0,
+    "away_rest_days": 1.0,
+    "home_is_b2b": 0.41642228739002934,
+    "away_is_b2b": 0.5043988269794721,
+    "rest_advantage": 0.9413489736070382,
+    "b2b_disadvantage": 0.4398826979472141,
+    "home_win_rate_l10": 0.9941348973607038,
+    "away_win_rate_l10": 0.9970674486803519,
+    "home_season_win_rate": 0.9941348973607038,
+    "away_season_win_rate": 0.9970674486803519,
+    "home_home_win_rate": 0.9442815249266863,
+    "away_away_win_rate": 0.9442815249266863,
+    "home_pts_diff_avg": 0.9706744868035191,
+    "away_pts_diff_avg": 0.9618768328445748,
+    "form_advantage": 0.9149560117302052,
+    "home_elo": 1.0,
+    "away_elo": 1.0,
+    "elo_diff": 1.0,
+    "elo_home_win_prob": 1.0,
+    "h2h_home_win_rate": 0.906158357771261,
+    "h2h_matches_used": 0.41055718475073316,
+    "season_progress": 1.0,
+    "time_to_game_hours": 0.2287390029325513
+  }
+}

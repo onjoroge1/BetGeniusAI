@@ -31,7 +31,7 @@ from models.response_schemas import (
 )
 from utils.on_demand_consensus import build_on_demand_consensus
 from utils.betting_edge import compute_betting_intelligence, compute_live_intelligence
-from utils.prediction_logger import log_v0_prediction, log_v1_prediction, log_v3_prediction
+from utils.prediction_logger import log_v0_prediction, log_v1_prediction, log_v3_prediction, log_prediction
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -2922,34 +2922,32 @@ async def predict_match(
         if v3_shadow_available and v3_shadow_result and not using_v3_fallback:
             try:
                 _league_id_for_log = match_details.get('league', {}).get('id', 0) if match_details else 0
-                _kickoff_for_log = match_details.get('fixture', {}).get('date') if match_details else None
+                _kickoff_raw = match_details.get('fixture', {}).get('date') if match_details else None
+                _kickoff_for_log = None
+                if _kickoff_raw:
+                    try:
+                        from datetime import datetime as _dt
+                        _kickoff_for_log = _dt.fromisoformat(str(_kickoff_raw).replace('Z', '+00:00')) if isinstance(_kickoff_raw, str) else _kickoff_raw
+                    except Exception:
+                        pass
                 _v3_pick_raw = v3_shadow_result.get('prediction', 'H')
                 _v3_pick = _v3_pick_raw if _v3_pick_raw in ('H', 'D', 'A') else (
                     'H' if _v3_pick_raw in ('home', 'home_win') else
                     'A' if _v3_pick_raw in ('away', 'away_win') else 'D'
                 )
-                with get_db_session() as _log_session:
-                    _log_session.execute(text("""
-                        INSERT INTO prediction_log
-                        (match_id, league_id, model_version, cascade_level,
-                         prob_home, prob_draw, prob_away, pick, confidence,
-                         features_used, predicted_at, kickoff_at)
-                        VALUES
-                        (:match_id, :league_id, 'v3_sharp_shadow', 3,
-                         :ph, :pd, :pa, :pick, :conf,
-                         :feats, NOW(), :kickoff)
-                        ON CONFLICT DO NOTHING
-                    """), {
-                        'match_id': request.match_id,
-                        'league_id': _league_id_for_log,
-                        'ph': round(v3_h_norm, 4),
-                        'pd': round(v3_d_norm, 4),
-                        'pa': round(v3_a_norm, 4),
-                        'pick': _v3_pick,
-                        'conf': round(v3_conf, 4),
-                        'feats': v3_shadow_result.get('features_used', 0),
-                        'kickoff': _kickoff_for_log,
-                    })
+                log_prediction(
+                    match_id=request.match_id,
+                    model_version='v3_sharp_shadow',
+                    prob_home=round(v3_h_norm, 4),
+                    prob_draw=round(v3_d_norm, 4),
+                    prob_away=round(v3_a_norm, 4),
+                    pick=_v3_pick,
+                    confidence=round(v3_conf, 4),
+                    league_id=_league_id_for_log,
+                    kickoff_at=_kickoff_for_log,
+                    features_used=v3_shadow_result.get('features_used', 0),
+                    model_metadata={'source': 'shadow_inference', 'cascade_level': 3},
+                )
             except Exception as _log_err:
                 logger.warning(f"V3 shadow log failed (non-fatal): {_log_err}")
 

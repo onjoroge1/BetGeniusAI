@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 MODEL_VERSIONS = {
     'v0_form': {'cascade_level': 3, 'description': 'ELO-based form predictor'},
     'v1_consensus': {'cascade_level': 1, 'description': 'Odds-based consensus'},
-    'v3_sharp': {'cascade_level': 2, 'description': 'Sharp book ensemble'}
+    'v3_sharp': {'cascade_level': 2, 'description': 'Sharp book ensemble'},
+    'v3_sharp_shadow': {'cascade_level': 3, 'description': 'V3 shadow inference alongside V1'},
 }
 
 

@@ -20,7 +20,7 @@ The platform employs a multi-model approach for predictions, including:
 - **V1 Weighted Consensus**: A consensus model used in the prediction cascade.
 - **Prediction Cascade**: Utilizes V3 Sharp → V1 Consensus → V0 Form → None for comprehensive match coverage.
 - **Feature Engineering**: Automated pipeline generating features from categories like Odds, Drift, ELO, Form, H2H, and Sharp Book data.
-- **Multi-Sport Models**: Dedicated LightGBM models for NBA and NHL predictions (V2-Basketball, V2-Hockey).
+- **Multi-Sport V3 Models**: Dedicated LightGBM models for NBA (85.6% accuracy) and NHL (70.7% accuracy) predictions using 46 features across 7 groups (Odds, Spread/Totals, Rest/Schedule, Team Form, ELO, H2H, Season Context). Stored at `artifacts/models/v3_basketball/` and `artifacts/models/v3_hockey/`.
 - **Auto-Retraining System**: Models automatically retrain based on new data volume, staleness, or accuracy drift.
 - **Parlay System**: AI-curated parlay recommendations with correlation-adjusted probabilities, edge detection, and confidence tiers, utilizing the V2 LightGBM model and Poisson-based totals predictor. Features include Leg Quality Score, single outcome per match constraint, probability-based confidence, and exposure caps.
 - **Player Performance Prediction (V2-Player)**: LightGBM models predict goal involvement and goals, using approximately 45 features across various categories (Form, Season, Opponent, Match, Profile, Market).
@@ -70,6 +70,18 @@ The platform prioritizes a superior user experience through confidence-calibrate
 
 ### Database
 - **PostgreSQL**: The core relational database for persistent storage.
+
+## Recent Changes (2026-03-14)
+- **NBA/NHL V3 Models built and trained** (multisport V3 intelligence):
+  - New files: `features/multisport_feature_builder.py` (46 features, 7 groups), `models/multisport_v3_predictor.py`, `training/train_multisport_v3.py`, `jobs/backfill_multisport_features.py`, `jobs/collect_multisport_team_stats.py`
+  - **NBA V3**: 85.6% accuracy, 0.346 LogLoss, 410 training samples, binary H/A prediction
+  - **NHL V3**: 70.7% accuracy, 0.531 LogLoss, 341 training samples, binary H/A prediction
+  - 7 feature groups: Odds (13), Spread/Totals (10), Rest/Schedule (6), Team Form (9), ELO (4), H2H (2), Season Context (2)
+  - ELO system: K=20, start=1500, home_advantage=35pts, B2B detection at ≤26 hours
+  - NBA team stats computed from match results (API-Sports free plan blocks NBA standings); NHL via API-Sports league 57 season 2024
+  - **Fast batch backfill**: `backfill_multisport_features.py` processes 619 records in ~37 seconds using pre-loaded in-memory ELO (vs ~10 min naive O(n²))
+  - 44 unit tests in `tests/test_multisport_v3.py` covering feature constants, ELO mechanics, rest/B2B detection, form computation, predictor contract, and backfill idempotency
+- **V3 shadow logging fixed**: `v3_sharp_shadow` added to `MODEL_VERSIONS` in `utils/prediction_logger.py`; shadow log now correctly calls `log_prediction()` instead of the undefined `get_db_session()`. Shadow rows appear in `prediction_log` after each `/predict` call.
 
 ## Recent Changes (2026-03-04)
 - **V3 Sharp Intelligence Model added to /predict response**:
