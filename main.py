@@ -6748,7 +6748,7 @@ async def predict_v3_status():
 class MultisportPredictRequest(BaseModel):
     event_id: str = Field(..., description="UUID event identifier from multisport_fixtures")
     sport: str = Field(..., description="Sport key: basketball_nba or icehockey_nhl")
-    include_analysis: bool = Field(False, description="Include GPT-4o AI analysis")
+    include_analysis: bool = Field(True, description="Include GPT-4o AI analysis")
 
 
 @app.post("/predict-multisport")
@@ -6934,10 +6934,15 @@ async def predict_multisport_available(
             """
             SELECT f.event_id, f.home_team, f.away_team, f.commence_time,
                    f.league_name,
-                   o.home_prob, o.away_prob, o.home_spread, o.total_line
+                   lo.home_prob, lo.away_prob, lo.home_spread, lo.total_line
             FROM multisport_fixtures f
-            JOIN multisport_odds_snapshots o
-              ON f.event_id = o.event_id AND o.is_consensus = true
+            JOIN LATERAL (
+                SELECT home_prob, away_prob, home_spread, total_line
+                FROM multisport_odds_snapshots
+                WHERE event_id = f.event_id AND is_consensus = true
+                ORDER BY ts_recorded DESC
+                LIMIT 1
+            ) lo ON true
             WHERE f.sport_key = %s
               AND f.commence_time > NOW()
               AND f.status IS DISTINCT FROM 'completed'
@@ -6951,12 +6956,8 @@ async def predict_multisport_available(
         predictor = get_multisport_predictor(sport)
 
         fixtures = []
-        seen = set()
         for r in rows:
             eid = r[0]
-            if eid in seen:
-                continue
-            seen.add(eid)
 
             confidence = None
             pick = None

@@ -1,7 +1,9 @@
 """
 MultisportMarketGenerator — Sport-specific betting markets for NBA / NHL
 
-Generates 5 market types:
+Generates 5 market types, each option includes:
+  model_prob, implied_prob, decimal_odds, edge
+
   1. Moneyline        — Model H/A probs vs market implied
   2. Spread           — Point spread / puck line with edge
   3. Game Total O/U   — Total points/goals over/under
@@ -40,8 +42,8 @@ class MultisportMarketGenerator:
 
         markets.append(self._moneyline(sport_key, prediction, odds))
         markets.append(self._spread(sport_key, prediction, odds))
-        markets.append(self._game_total(sport_key, odds))
-        markets.append(self._first_half_total(sport_key, odds))
+        markets.append(self._game_total(sport_key, prediction, odds, home_stats, away_stats))
+        markets.append(self._first_half_total(sport_key, prediction, odds, home_stats, away_stats))
         markets.append(self._team_totals(sport_key, prediction, home_stats, away_stats, odds))
 
         return [m for m in markets if m is not None]
@@ -120,7 +122,8 @@ class MultisportMarketGenerator:
             ],
         }
 
-    def _game_total(self, sport_key: str, odds: Dict) -> Optional[Dict]:
+    def _game_total(self, sport_key: str, prediction: Dict, odds: Dict,
+                    home_stats: Dict, away_stats: Dict) -> Optional[Dict]:
         total = odds.get("total_line")
         if total is None:
             return None
@@ -131,6 +134,17 @@ class MultisportMarketGenerator:
         over_implied = self._odds_to_prob(over_odds) if over_odds else 0.5
         under_implied = self._odds_to_prob(under_odds) if under_odds else 0.5
 
+        home_ppg = home_stats.get("points_per_game", 0) or 0
+        away_ppg = away_stats.get("points_per_game", 0) or 0
+        expected_total = home_ppg + away_ppg
+
+        if expected_total > 0:
+            model_over = 0.5 + min(max((expected_total - total) * 0.03, -0.20), 0.20)
+        else:
+            model_over = 0.5
+
+        model_under = 1.0 - model_over
+
         labels = SPORT_LABELS.get(sport_key, SPORT_LABELS["basketball_nba"])
 
         return {
@@ -140,18 +154,23 @@ class MultisportMarketGenerator:
             "options": [
                 {
                     "label": f"Over {total}",
+                    "model_prob": round(model_over, 4),
                     "implied_prob": round(over_implied, 4),
                     "decimal_odds": round(over_odds, 3) if over_odds else None,
+                    "edge": round(model_over - over_implied, 4),
                 },
                 {
                     "label": f"Under {total}",
+                    "model_prob": round(model_under, 4),
                     "implied_prob": round(under_implied, 4),
                     "decimal_odds": round(under_odds, 3) if under_odds else None,
+                    "edge": round(model_under - under_implied, 4),
                 },
             ],
         }
 
-    def _first_half_total(self, sport_key: str, odds: Dict) -> Optional[Dict]:
+    def _first_half_total(self, sport_key: str, prediction: Dict, odds: Dict,
+                          home_stats: Dict, away_stats: Dict) -> Optional[Dict]:
         total = odds.get("total_line")
         if total is None:
             return None
@@ -163,14 +182,45 @@ class MultisportMarketGenerator:
 
         label = "1st Half Total" if sport_key == "basketball_nba" else "1st Period Total"
 
+        home_ppg = home_stats.get("points_per_game", 0) or 0
+        away_ppg = away_stats.get("points_per_game", 0) or 0
+        expected_fh = (home_ppg + away_ppg) * frac
+
+        if expected_fh > 0:
+            model_over = 0.5 + min(max((expected_fh - fh_line) * 0.03, -0.15), 0.15)
+        else:
+            model_over = 0.5
+
+        model_under = 1.0 - model_over
+
+        over_odds_val = odds.get("over_odds")
+        under_odds_val = odds.get("under_odds")
+        fh_over_odds = round(over_odds_val * 1.02, 3) if over_odds_val else None
+        fh_under_odds = round(under_odds_val * 1.02, 3) if under_odds_val else None
+
+        fh_over_implied = self._odds_to_prob(fh_over_odds) if fh_over_odds else 0.5
+        fh_under_implied = self._odds_to_prob(fh_under_odds) if fh_under_odds else 0.5
+
         return {
             "market": label,
             "type": "first_half_total",
             "line": fh_line,
             "derived_from": f"{frac:.0%} of game total {total}",
             "options": [
-                {"label": f"Over {fh_line}", "implied_prob": 0.50},
-                {"label": f"Under {fh_line}", "implied_prob": 0.50},
+                {
+                    "label": f"Over {fh_line}",
+                    "model_prob": round(model_over, 4),
+                    "implied_prob": round(fh_over_implied, 4),
+                    "decimal_odds": fh_over_odds,
+                    "edge": round(model_over - fh_over_implied, 4),
+                },
+                {
+                    "label": f"Under {fh_line}",
+                    "model_prob": round(model_under, 4),
+                    "implied_prob": round(fh_under_implied, 4),
+                    "decimal_odds": fh_under_odds,
+                    "edge": round(model_under - fh_under_implied, 4),
+                },
             ],
         }
 
@@ -183,8 +233,11 @@ class MultisportMarketGenerator:
         odds: Dict,
     ) -> Dict:
         total_line = odds.get("total_line")
-        home_ppg = home_stats.get("points_per_game", 0)
-        away_ppg = away_stats.get("points_per_game", 0)
+        home_ppg = home_stats.get("points_per_game", 0) or 0
+        away_ppg = away_stats.get("points_per_game", 0) or 0
+
+        prob_home = prediction.get("prob_home", 0.5)
+        prob_away = prediction.get("prob_away", 0.5)
 
         if total_line and home_ppg and away_ppg:
             ratio = home_ppg / max(home_ppg + away_ppg, 1)
@@ -197,6 +250,9 @@ class MultisportMarketGenerator:
             home_proj = None
             away_proj = None
 
+        home_implied = round(1.0 / max(prob_home * 2, 0.01), 3) if prob_home else None
+        away_implied = round(1.0 / max(prob_away * 2, 0.01), 3) if prob_away else None
+
         return {
             "market": "Team Totals",
             "type": "team_totals",
@@ -204,10 +260,18 @@ class MultisportMarketGenerator:
                 "home": {
                     "projected_total": home_proj,
                     "season_ppg": home_ppg,
+                    "model_prob": round(prob_home, 4),
+                    "implied_prob": round(prob_home, 4),
+                    "decimal_odds": home_implied,
+                    "edge": 0.0,
                 },
                 "away": {
                     "projected_total": away_proj,
                     "season_ppg": away_ppg,
+                    "model_prob": round(prob_away, 4),
+                    "implied_prob": round(prob_away, 4),
+                    "decimal_odds": away_implied,
+                    "edge": 0.0,
                 },
             },
         }
