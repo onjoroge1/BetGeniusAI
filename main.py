@@ -6961,6 +6961,8 @@ async def predict_multisport_available(
 
         predictor = get_multisport_predictor(sport)
 
+        from dateutil.parser import parse as _dt_parse
+
         fixtures = []
         for r in rows:
             eid = r[0]
@@ -6969,12 +6971,13 @@ async def predict_multisport_available(
             pick = None
             if predictor:
                 try:
+                    game_dt = r[3] if isinstance(r[3], datetime) else _dt_parse(str(r[3]))
                     pred = predictor.predict(
                         sport_key=sport,
                         event_id=eid,
                         home_team=r[1],
                         away_team=r[2],
-                        game_date=str(r[3]),
+                        game_date=game_dt,
                     )
                     confidence = pred.get("confidence")
                     pick = pred.get("pick")
