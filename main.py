@@ -2495,6 +2495,7 @@ async def predict_match(
         prediction_source = None
         data_quality = "full"
         using_v3_fallback = False
+        is_v0_fallback = False
         
         # FIRST: Try to get pre-computed consensus from consensus_predictions table
         prediction_result = await get_consensus_prediction_from_db(request.match_id)
@@ -2562,6 +2563,7 @@ async def predict_match(
                                 }
                                 prediction_source = "v0_form_fallback"
                                 data_quality = "form_only"
+                                is_v0_fallback = True
                             else:
                                 logger.warning(f"V0 fallback returned no result for match {request.match_id}")
                         else:
@@ -2777,6 +2779,33 @@ async def predict_match(
                 },
                 "fallback_reason": "V1 consensus unavailable - using V3 sharp book intelligence"
             })
+        elif is_v0_fallback:
+            # V0 Form-Only — ELO-based, no odds data available
+            models_array.append({
+                "id": "v0_form",
+                "name": "ELO Form Predictor",
+                "type": "elo_weighted",
+                "version": "0.1.0",
+                "status": "active",
+                "data_quality": "form_only",
+                "predictions": {
+                    "home_win": round(h_norm, 3),
+                    "draw": round(d_norm, 3),
+                    "away_win": round(a_norm, 3)
+                },
+                "confidence": round(confidence, 3),
+                "recommended_bet": v1_recommended,
+                "elo_context": {
+                    "elo_home": prediction_result.get('elo_home'),
+                    "elo_away": prediction_result.get('elo_away'),
+                    "elo_expected_home": prediction_result.get('elo_expected')
+                },
+                "quality_metrics": {
+                    "metric": "accuracy",
+                    "note": "ELO-only benchmark; no market features available"
+                },
+                "fallback_reason": "No consensus odds available — using ELO-based form prediction"
+            })
         else:
             # V1 Consensus - full data quality
             models_array.append({
@@ -2804,6 +2833,9 @@ async def predict_match(
         if using_v3_fallback:
             selected_model = "v3_sharp_fallback"
             selection_reason = "V3 sharp intelligence fallback (V1 consensus unavailable)"
+        elif is_v0_fallback:
+            selected_model = "v0_form"
+            selection_reason = "V0 ELO form fallback (no consensus odds available)"
         else:
             selected_model = "v1_consensus"
             selection_reason = "V1 consensus is primary model"
@@ -2848,16 +2880,25 @@ async def predict_match(
                     "confidence_delta": round(v2_conf - confidence, 3)
                 }
             })
-            selected_model = "v1_consensus"
-            selection_reason = "V1 consensus is production model; V2 shown for comparison"
+            if not is_v0_fallback and not using_v3_fallback:
+                selected_model = "v1_consensus"
+                selection_reason = "V1 consensus is production model; V2 shown for comparison"
         else:
-            v2_reason = "Skipped - using V3 sharp fallback" if using_v3_fallback else "Model not loaded or prediction failed"
+            if using_v3_fallback:
+                v2_status = "skipped"
+                v2_reason = "Skipped - using V3 sharp fallback"
+            elif is_v0_fallback:
+                v2_status = "skipped"
+                v2_reason = "Skipped - no odds data available (V0 form fallback active)"
+            else:
+                v2_status = "unavailable"
+                v2_reason = "Model not loaded or prediction failed"
             models_array.append({
                 "id": "v2_unified",
                 "name": "Unified V2 Context Model",
                 "type": "lightgbm",
                 "version": "2.0.0",
-                "status": "skipped" if using_v3_fallback else "unavailable",
+                "status": v2_status,
                 "reason": v2_reason,
                 "predictions": None,
                 "confidence": None,
@@ -2876,7 +2917,7 @@ async def predict_match(
             v3_pred_raw = v3_shadow_result.get('prediction', 'H')
             v3_recommended = _pred_map.get(v3_pred_raw, v3_pred_raw)
             v3_conf = float(v3_shadow_result.get('confidence', 0.0))
-            v3_status = "primary" if using_v3_fallback else "active"
+            v3_status = "primary" if using_v3_fallback else ("shadow" if is_v0_fallback else "active")
             models_array.append({
                 "id": "v3_sharp",
                 "name": "V3 Sharp Intelligence Model",
@@ -2904,7 +2945,12 @@ async def predict_match(
                 }
             })
         else:
-            v3_skip_reason = "primary" if using_v3_fallback else "Sharp book data unavailable or model not loaded"
+            if using_v3_fallback:
+                v3_skip_reason = "primary"
+            elif is_v0_fallback:
+                v3_skip_reason = "Skipped - no odds data available (V0 form fallback active)"
+            else:
+                v3_skip_reason = "Sharp book data unavailable or model not loaded"
             models_array.append({
                 "id": "v3_sharp",
                 "name": "V3 Sharp Intelligence Model",
@@ -2952,22 +2998,32 @@ async def predict_match(
                 logger.warning(f"V3 shadow log failed (non-fatal): {_log_err}")
 
         # --- Conviction tier (all three models) ---
+        # Always initialise so final_decision can reference it safely
         active_picks = [p for p in [v1_recommended, v2_recommended, v3_recommended] if p]
-        active_confs = [c for c in [confidence, v2_conf, v3_conf] if c > 0]
-        all_agree = len(set(active_picks)) == 1 and len(active_picks) == 3
-        any_two_agree = len(active_picks) >= 2 and len(set(active_picks)) < len(active_picks)
-        all_high_conf = all(c >= 0.50 for c in active_confs) if active_confs else False
-        any_high_conf = any(c >= 0.50 for c in active_confs) if active_confs else False
-
-        if all_agree and all_high_conf:
-            conviction_tier = "premium"
-        elif (all_agree or any_two_agree) and any_high_conf:
-            conviction_tier = "strong"
-        else:
+        # V0 is a lone model with no odds cross-check — always standard
+        if is_v0_fallback:
             conviction_tier = "standard"
+        else:
+            active_confs = [c for c in [confidence, v2_conf, v3_conf] if c > 0]
+            all_agree = len(set(active_picks)) == 1 and len(active_picks) == 3
+            any_two_agree = len(active_picks) >= 2 and len(set(active_picks)) < len(active_picks)
+            all_high_conf = all(c >= 0.50 for c in active_confs) if active_confs else False
+            any_high_conf = any(c >= 0.50 for c in active_confs) if active_confs else False
+
+            if all_agree and all_high_conf:
+                conviction_tier = "premium"
+            elif (all_agree or any_two_agree) and any_high_conf:
+                conviction_tier = "strong"
+            else:
+                conviction_tier = "standard"
 
         # Final decision block with prediction source info
-        strategy = "v3_sharp_fallback" if using_v3_fallback else "v1_primary_v2_v3_transparency"
+        if using_v3_fallback:
+            strategy = "v3_sharp_fallback"
+        elif is_v0_fallback:
+            strategy = "v0_form_fallback"
+        else:
+            strategy = "v1_primary_v2_v3_transparency"
         final_decision = {
             "selected_model": selected_model,
             "strategy": strategy,
@@ -3003,10 +3059,23 @@ async def predict_match(
                 "total_features": prediction_result.get('total_features', 34),
                 "data_sources": ["Sharp Bookmakers", "League Statistics", "Real-time Injuries"]
             }
+        elif is_v0_fallback:
+            model_info = {
+                "type": "v0_form",
+                "version": "0.1.0",
+                "performance": "ELO-based benchmark (no odds data)",
+                "bookmaker_count": 0,
+                "quality_score": prediction_result.get('quality_score', 0),
+                "data_quality": "form_only",
+                "prediction_source": "v0_form_fallback",
+                "elo_home": prediction_result.get('elo_home'),
+                "elo_away": prediction_result.get('elo_away'),
+                "data_sources": ["ELO Ratings", "Historical Form"]
+            }
         else:
             model_info = {
                 "type": "simple_weighted_consensus",
-                "version": "1.0.0", 
+                "version": "1.0.0",
                 "performance": "0.963475 LogLoss (best performing)",
                 "bookmaker_count": prediction_result.get('bookmaker_count', 0),
                 "quality_score": prediction_result.get('quality_score', 0),
