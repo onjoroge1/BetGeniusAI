@@ -6745,6 +6745,263 @@ async def predict_v3_status():
         raise HTTPException(500, f"Status check failed: {str(e)}")
 
 
+class MultisportPredictRequest(BaseModel):
+    event_id: str = Field(..., description="UUID event identifier from multisport_fixtures")
+    sport: str = Field(..., description="Sport key: basketball_nba or icehockey_nhl")
+    include_analysis: bool = Field(False, description="Include GPT-4o AI analysis")
+
+
+@app.post("/predict-multisport")
+async def predict_multisport(
+    request: MultisportPredictRequest,
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Full-fidelity NBA / NHL prediction endpoint.
+
+    Returns V3 model prediction, sport-specific betting markets, team context
+    (form, standings, H2H, rest/B2B), current odds, and optional GPT-4o analysis.
+    Binary outcome only — no draw probability.
+    """
+    import asyncio
+    import concurrent.futures
+
+    start_time = datetime.now()
+    sport_key = request.sport
+
+    if sport_key not in ("basketball_nba", "icehockey_nhl"):
+        raise HTTPException(400, f"Unsupported sport: {sport_key}. Use basketball_nba or icehockey_nhl.")
+
+    try:
+        from models.multisport_v3_predictor import get_multisport_predictor
+        from utils.multisport_context_builder import MultisportContextBuilder
+        from utils.multisport_market_generator import MultisportMarketGenerator
+
+        predictor = get_multisport_predictor(sport_key)
+        if not predictor:
+            raise HTTPException(503, f"V3 model not available for {sport_key}")
+
+        ctx_builder = MultisportContextBuilder()
+        context = ctx_builder.build_context(request.event_id, sport_key)
+        if not context:
+            raise HTTPException(404, f"Fixture {request.event_id} not found for {sport_key}")
+
+        mi = context["match_info"]
+        home_team = mi["home_team"]
+        away_team = mi["away_team"]
+
+        prediction = predictor.predict(
+            sport_key=sport_key,
+            event_id=request.event_id,
+            home_team=home_team,
+            away_team=away_team,
+            game_date=mi["commence_time"],
+        )
+
+        market_gen = MultisportMarketGenerator()
+        markets = market_gen.generate_markets(
+            sport_key=sport_key,
+            prediction=prediction,
+            odds=context.get("odds", {}),
+            home_stats=context["home_team"].get("season_stats", {}),
+            away_stats=context["away_team"].get("season_stats", {}),
+        )
+
+        pick = prediction.get("pick", "H")
+        rec_team = home_team if pick == "H" else away_team
+        confidence = prediction.get("confidence", 0.5)
+
+        odds_data = context.get("odds", {})
+        mkt_prob = odds_data.get("home_prob") if pick == "H" else odds_data.get("away_prob")
+        edge = round(confidence - (mkt_prob or confidence), 4) if mkt_prob else None
+
+        conviction = "standard"
+        if confidence >= 0.65:
+            conviction = "strong"
+        if confidence >= 0.72 and edge and edge > 0.03:
+            conviction = "premium"
+
+        model_info_data = predictor.get_model_info()
+
+        feature_groups = {
+            "odds": 13,
+            "spread_totals": 10,
+            "rest_schedule": 6,
+            "team_form": 9,
+            "elo": 4,
+            "h2h": 2,
+            "season_context": 2,
+        }
+
+        response = {
+            "match_info": {
+                "event_id": request.event_id,
+                "sport_key": sport_key,
+                "sport": mi.get("sport", sport_key),
+                "league_name": mi.get("league_name", ""),
+                "home_team": home_team,
+                "away_team": away_team,
+                "commence_time": mi["commence_time"],
+            },
+            "predictions": {
+                "home_win": prediction["prob_home"],
+                "away_win": prediction["prob_away"],
+                "pick": pick,
+                "recommended_bet": rec_team,
+                "confidence": confidence,
+                "conviction_tier": conviction,
+                "edge_vs_market": edge,
+            },
+            "no_draw": True,
+            "model_info": {
+                "id": "v3_multisport",
+                "name": f"V3 Multisport LightGBM ({sport_key})",
+                "type": "lightgbm",
+                "version": model_info_data.get("version", "3.0.0"),
+                "accuracy": model_info_data.get("accuracy", 0),
+                "logloss": model_info_data.get("logloss", 1.0),
+                "n_features": model_info_data.get("n_features", 46),
+                "n_training_samples": model_info_data.get("n_samples", 0),
+                "trained_at": model_info_data.get("trained_at", ""),
+                "feature_groups": feature_groups,
+                "features_used": prediction.get("features_used", 0),
+                "top_features": model_info_data.get("top_features", []),
+            },
+            "team_context": {
+                "home": context["home_team"],
+                "away": context["away_team"],
+            },
+            "h2h": context.get("h2h", []),
+            "odds": odds_data,
+            "markets": markets,
+            "feature_values": prediction.get("feature_values", {}),
+            "processing_time": round((datetime.now() - start_time).total_seconds(), 3),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        if request.include_analysis:
+            try:
+                loop = asyncio.get_event_loop()
+                analyzer = get_enhanced_ai_analyzer()
+                analysis = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        analyzer.analyze_multisport_match,
+                        context,
+                        prediction,
+                        sport_key,
+                    ),
+                    timeout=30.0,
+                )
+                response["analysis"] = analysis
+                response["processing_time"] = round(
+                    (datetime.now() - start_time).total_seconds(), 3
+                )
+            except Exception as e:
+                logger.warning(f"Multisport AI analysis failed: {e}")
+                response["analysis"] = {"error": str(e), "note": "AI analysis unavailable"}
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"predict-multisport error: {e}", exc_info=True)
+        raise HTTPException(500, f"Multisport prediction failed: {str(e)}")
+
+
+@app.get("/predict-multisport/available")
+async def predict_multisport_available(
+    sport: str = "basketball_nba",
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    List upcoming NBA / NHL fixtures that have consensus odds and are ready
+    for prediction. Returns pre-computed confidence for each fixture.
+    """
+    import psycopg2 as _pg2
+
+    if sport not in ("basketball_nba", "icehockey_nhl"):
+        raise HTTPException(400, f"Unsupported sport: {sport}")
+
+    try:
+        from models.multisport_v3_predictor import get_multisport_predictor
+
+        conn = _pg2.connect(os.environ.get("DATABASE_URL"), connect_timeout=10)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT f.event_id, f.home_team, f.away_team, f.commence_time,
+                   f.league_name,
+                   o.home_prob, o.away_prob, o.home_spread, o.total_line
+            FROM multisport_fixtures f
+            JOIN multisport_odds_snapshots o
+              ON f.event_id = o.event_id AND o.is_consensus = true
+            WHERE f.sport_key = %s
+              AND f.commence_time > NOW()
+              AND f.status IS DISTINCT FROM 'completed'
+            ORDER BY f.commence_time
+            """,
+            (sport,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        predictor = get_multisport_predictor(sport)
+
+        fixtures = []
+        seen = set()
+        for r in rows:
+            eid = r[0]
+            if eid in seen:
+                continue
+            seen.add(eid)
+
+            confidence = None
+            pick = None
+            if predictor:
+                try:
+                    pred = predictor.predict(
+                        sport_key=sport,
+                        event_id=eid,
+                        home_team=r[1],
+                        away_team=r[2],
+                        game_date=str(r[3]),
+                    )
+                    confidence = pred.get("confidence")
+                    pick = pred.get("pick")
+                except Exception:
+                    pass
+
+            fixtures.append({
+                "event_id": eid,
+                "home_team": r[1],
+                "away_team": r[2],
+                "commence_time": str(r[3]),
+                "league_name": r[4],
+                "home_prob": float(r[5]) if r[5] else None,
+                "away_prob": float(r[6]) if r[6] else None,
+                "spread": float(r[7]) if r[7] else None,
+                "total_line": float(r[8]) if r[8] else None,
+                "model_pick": pick,
+                "model_confidence": confidence,
+            })
+
+        return {
+            "sport": sport,
+            "count": len(fixtures),
+            "fixtures": fixtures,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"predict-multisport/available error: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to list available fixtures: {str(e)}")
+
+
 @app.get("/market")
 async def get_market_data(
     status: str = "all",

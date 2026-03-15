@@ -227,6 +227,175 @@ Focus on providing actionable insights based on the real data provided. Be hones
             'note': 'Fallback analysis due to AI service unavailability'
         }
     
+    def analyze_multisport_match(
+        self,
+        context: Dict,
+        prediction_result: Dict,
+        sport_key: str,
+    ) -> Dict[str, Any]:
+        sport_label = "basketball" if "basketball" in sport_key else "hockey"
+        sport_upper = "NBA" if "basketball" in sport_key else "NHL"
+
+        home_info = context.get("home_team", {})
+        away_info = context.get("away_team", {})
+        match = context.get("match_info", {})
+        odds = context.get("odds", {})
+        h2h = context.get("h2h", [])
+
+        home_name = home_info.get("name", "Home")
+        away_name = away_info.get("name", "Away")
+
+        ctx = f"""
+MATCH ANALYSIS REQUEST — {sport_upper}
+
+=== BASIC MATCH INFORMATION ===
+Match: {home_name} vs {away_name}
+Date: {match.get('commence_time', 'Unknown')}
+League: {match.get('league_name', sport_upper)}
+Sport: {sport_label.title()}
+
+=== HOME TEAM: {home_name} ===
+
+Season Record:
+"""
+        hs = home_info.get("season_stats", {})
+        ctx += f"  W-L: {hs.get('wins', '?')}-{hs.get('losses', '?')} ({hs.get('win_pct', 0):.3f})\n"
+        ctx += f"  Home Record: {hs.get('home_record', 'N/A')}\n"
+        ctx += f"  PPG: {hs.get('points_per_game', 0)} | PAPG: {hs.get('points_against_per_game', 0)}\n"
+        ctx += f"  Streak: {hs.get('streak', 'N/A')} | Last 10: {hs.get('last_10', 'N/A')}\n"
+        ctx += f"  Conference: {hs.get('conference', 'N/A')} | Playoff Position: {hs.get('playoff_position', 'N/A')}\n"
+
+        rest_h = home_info.get("rest", {})
+        ctx += f"  Rest Days: {rest_h.get('rest_days', 'N/A')} | Back-to-Back: {'YES' if rest_h.get('is_back_to_back') else 'No'}\n"
+
+        ctx += "\nRecent Form (last games):\n"
+        for i, g in enumerate(home_info.get("recent_form", [])[:5]):
+            ctx += f"  {i+1}. vs {g.get('opponent', '?')} ({g.get('venue', '?')}) — {g.get('result', '?')} {g.get('score', '?')}\n"
+
+        ctx += f"\n=== AWAY TEAM: {away_name} ===\n\nSeason Record:\n"
+        aws = away_info.get("season_stats", {})
+        ctx += f"  W-L: {aws.get('wins', '?')}-{aws.get('losses', '?')} ({aws.get('win_pct', 0):.3f})\n"
+        ctx += f"  Away Record: {aws.get('away_record', 'N/A')}\n"
+        ctx += f"  PPG: {aws.get('points_per_game', 0)} | PAPG: {aws.get('points_against_per_game', 0)}\n"
+        ctx += f"  Streak: {aws.get('streak', 'N/A')} | Last 10: {aws.get('last_10', 'N/A')}\n"
+        ctx += f"  Conference: {aws.get('conference', 'N/A')} | Playoff Position: {aws.get('playoff_position', 'N/A')}\n"
+
+        rest_a = away_info.get("rest", {})
+        ctx += f"  Rest Days: {rest_a.get('rest_days', 'N/A')} | Back-to-Back: {'YES' if rest_a.get('is_back_to_back') else 'No'}\n"
+
+        ctx += "\nRecent Form (last games):\n"
+        for i, g in enumerate(away_info.get("recent_form", [])[:5]):
+            ctx += f"  {i+1}. vs {g.get('opponent', '?')} ({g.get('venue', '?')}) — {g.get('result', '?')} {g.get('score', '?')}\n"
+
+        if h2h:
+            ctx += f"\n=== HEAD-TO-HEAD (Last {len(h2h)} meetings) ===\n"
+            for m in h2h:
+                ctx += f"  {m.get('date', '?')}: {m.get('home_team', '?')} {m.get('score', '?')} {m.get('away_team', '?')} (Winner: {m.get('winner', '?')})\n"
+
+        if odds:
+            ctx += "\n=== CURRENT ODDS ===\n"
+            ctx += f"  Moneyline: Home {odds.get('home_odds', 'N/A')} | Away {odds.get('away_odds', 'N/A')}\n"
+            if odds.get("home_spread") is not None:
+                ctx += f"  Spread: Home {odds['home_spread']:+.1f} ({odds.get('home_spread_odds', 'N/A')})\n"
+            if odds.get("total_line") is not None:
+                ctx += f"  Total: {odds['total_line']} (Over {odds.get('over_odds', 'N/A')} | Under {odds.get('under_odds', 'N/A')})\n"
+
+        prob_h = prediction_result.get("prob_home", 0.5)
+        prob_a = prediction_result.get("prob_away", 0.5)
+        pick = prediction_result.get("pick", "?")
+        conf = prediction_result.get("confidence", 0)
+
+        pred_ctx = f"""
+=== AI MODEL PREDICTION ===
+Model Type: V3 Multisport LightGBM (46 features, 7 groups)
+Home Win: {prob_h:.1%}
+Away Win: {prob_a:.1%}
+Predicted Outcome: {'Home' if pick == 'H' else 'Away'}
+Confidence Level: {conf:.1%}
+Features Used: {prediction_result.get('features_used', 0)} of {prediction_result.get('total_features', 46)}
+"""
+
+        prompt = f"""You are BetGenius AI, an expert {sport_label} analyst specializing in {sport_upper} predictions. Analyze this {sport_label} match comprehensively using the provided data.
+
+{ctx}
+
+{pred_ctx}
+
+Provide a comprehensive analysis in JSON format:
+{{
+    "match_overview": "Brief overview of the match significance — include playoff implications, rivalry context, and rest/schedule factors",
+    "key_factors": [
+        "List 3-5 key factors. For {sport_label}, prioritize: rest/back-to-back impact, home court/ice advantage, recent form streaks, head-to-head history, and pace/scoring matchup"
+    ],
+    "team_analysis": {{
+        "home_team": {{
+            "strengths": ["Current strengths"],
+            "weaknesses": ["Concerns or weaknesses"],
+            "form_assessment": "Recent form analysis",
+            "rest_impact": "Impact of rest days or back-to-back schedule"
+        }},
+        "away_team": {{
+            "strengths": ["Current strengths"],
+            "weaknesses": ["Concerns or weaknesses"],
+            "form_assessment": "Recent form analysis",
+            "rest_impact": "Impact of rest days or back-to-back schedule"
+        }}
+    }},
+    "prediction_analysis": {{
+        "model_assessment": "Analysis of the AI model's prediction",
+        "confidence_factors": ["Factors supporting the confidence level"],
+        "risk_factors": ["Potential risks or uncertainties"],
+        "value_assessment": "Assessment of betting value — moneyline, spread ({odds.get('home_spread', 'N/A')}), and total ({odds.get('total_line', 'N/A')}) analysis"
+    }},
+    "betting_recommendations": {{
+        "primary_bet": "Main recommendation with reasoning (moneyline, spread, or total)",
+        "alternative_bets": ["Alternative options including spread and totals"],
+        "risk_level": "Low/Medium/High",
+        "suggested_stake": "Conservative/Moderate/Aggressive"
+    }},
+    "final_verdict": "Concise final assessment and recommendation"
+}}
+
+Focus on {sport_label}-specific factors: rest/back-to-back impact, home court/ice advantage, pace and scoring trends, playoff positioning. Be honest about uncertainties."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"You are BetGenius AI, an expert {sport_upper} analyst. Provide comprehensive, data-driven analysis in JSON format. Base your analysis on the provided data.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3,
+                max_tokens=2000,
+            )
+
+            analysis = json.loads(response.choices[0].message.content)
+            analysis["metadata"] = {
+                "model_used": self.model,
+                "sport": sport_key,
+                "data_sources": ["MultisportV3", "The Odds API", "AI Analysis"],
+                "confidence_calibrated": True,
+            }
+            return analysis
+
+        except Exception as e:
+            logger.error(f"Multisport AI analysis error: {e}")
+            return {
+                "match_overview": f"{home_name} vs {away_name} — {sport_upper} match analysis",
+                "key_factors": [
+                    "Recent team form",
+                    "Head-to-head record",
+                    "Home advantage",
+                    "Rest / schedule impact",
+                ],
+                "recommendation": "Analysis based on quantitative model prediction",
+                "note": "Fallback analysis due to AI service unavailability",
+            }
+
     def generate_match_summary(self, analysis: Dict, prediction: Dict) -> str:
         """Generate a concise match summary for display"""
         
