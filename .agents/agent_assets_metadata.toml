@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "runU93gAIXSnMSleDUhwS"
+uri = "file://API_DOCS.md"
+type = "text"
+title = "BetGenius AI — Central API Documentation"
