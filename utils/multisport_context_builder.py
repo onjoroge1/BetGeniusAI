@@ -190,17 +190,17 @@ class MultisportContextBuilder:
         if not row:
             return {}
         return {
-            "home_odds": float(row["home_odds"]) if row["home_odds"] else None,
-            "away_odds": float(row["away_odds"]) if row["away_odds"] else None,
-            "home_prob": float(row["home_prob"]) if row["home_prob"] else None,
-            "away_prob": float(row["away_prob"]) if row["away_prob"] else None,
-            "home_spread": float(row["home_spread"]) if row["home_spread"] else None,
-            "home_spread_odds": float(row["home_spread_odds"]) if row["home_spread_odds"] else None,
-            "away_spread_odds": float(row["away_spread_odds"]) if row["away_spread_odds"] else None,
-            "total_line": float(row["total_line"]) if row["total_line"] else None,
-            "over_odds": float(row["over_odds"]) if row["over_odds"] else None,
-            "under_odds": float(row["under_odds"]) if row["under_odds"] else None,
-            "overround": float(row["overround"]) if row["overround"] else None,
+            "home_odds": float(row["home_odds"]) if row["home_odds"] is not None else None,
+            "away_odds": float(row["away_odds"]) if row["away_odds"] is not None else None,
+            "home_prob": float(row["home_prob"]) if row["home_prob"] is not None else None,
+            "away_prob": float(row["away_prob"]) if row["away_prob"] is not None else None,
+            "home_spread": float(row["home_spread"]) if row["home_spread"] is not None else None,
+            "home_spread_odds": float(row["home_spread_odds"]) if row["home_spread_odds"] is not None else None,
+            "away_spread_odds": float(row["away_spread_odds"]) if row["away_spread_odds"] is not None else None,
+            "total_line": float(row["total_line"]) if row["total_line"] is not None else None,
+            "over_odds": float(row["over_odds"]) if row["over_odds"] is not None else None,
+            "under_odds": float(row["under_odds"]) if row["under_odds"] is not None else None,
+            "overround": float(row["overround"]) if row["overround"] is not None else None,
             "n_bookmakers": row["n_bookmakers"],
             "recorded_at": str(row["ts_recorded"]),
         }

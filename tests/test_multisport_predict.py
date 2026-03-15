@@ -67,7 +67,22 @@ class TestPredictMultisportNBA:
         assert "moneyline" in types
         assert "spread" in types
         assert "total" in types
-        assert len(markets) >= 4
+        assert "first_half_total" in types
+        assert "team_totals" in types
+        assert len(markets) == 5
+
+    def test_nba_market_fields_complete(self):
+        markets = self._predict().json()["markets"]
+        for m in markets:
+            if "options" in m:
+                for opt in m["options"]:
+                    for field in ("model_prob", "implied_prob", "decimal_odds", "edge"):
+                        assert field in opt, f"Missing {field} in {m['market']}/{opt.get('label')}"
+            elif "projections" in m:
+                for side in ("home", "away"):
+                    proj = m["projections"][side]
+                    for field in ("model_prob", "implied_prob", "decimal_odds", "edge"):
+                        assert field in proj, f"Missing {field} in {m['market']}/{side}"
 
     def test_nba_team_context(self):
         tc = self._predict().json()["team_context"]

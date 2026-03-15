@@ -81,7 +81,7 @@ class MultisportMarketGenerator:
 
     def _spread(self, sport_key: str, prediction: Dict, odds: Dict) -> Optional[Dict]:
         spread = odds.get("home_spread")
-        if spread is None:
+        if spread is None:  # explicit None check — 0.0 is a valid pick'em spread
             return None
 
         labels = SPORT_LABELS.get(sport_key, SPORT_LABELS["basketball_nba"])

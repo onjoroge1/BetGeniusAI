@@ -6790,12 +6790,18 @@ async def predict_multisport(
         home_team = mi["home_team"]
         away_team = mi["away_team"]
 
+        from dateutil.parser import parse as _dt_parse
+        try:
+            parsed_game_date = _dt_parse(mi["commence_time"])
+        except Exception:
+            parsed_game_date = mi["commence_time"]
+
         prediction = predictor.predict(
             sport_key=sport_key,
             event_id=request.event_id,
             home_team=home_team,
             away_team=away_team,
-            game_date=mi["commence_time"],
+            game_date=parsed_game_date,
         )
 
         market_gen = MultisportMarketGenerator()
