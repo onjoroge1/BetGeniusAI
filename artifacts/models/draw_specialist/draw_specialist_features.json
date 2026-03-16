@@ -1,0 +1,66 @@
+{
+  "draw_fraction": {
+    "gain": 3482.6607645750046,
+    "splits": 190
+  },
+  "favourite_prob": {
+    "gain": 2179.8073580265045,
+    "splits": 199
+  },
+  "draw_prob_std": {
+    "gain": 1458.1872061491013,
+    "splits": 271
+  },
+  "ha_odds_ratio": {
+    "gain": 1390.891310095787,
+    "splits": 253
+  },
+  "draw_sharp_ratio": {
+    "gain": 1372.9061941802502,
+    "splits": 266
+  },
+  "overround": {
+    "gain": 1370.9119565486908,
+    "splits": 270
+  },
+  "ha_prob_gap": {
+    "gain": 1308.644248843193,
+    "splits": 210
+  },
+  "corners_balance": {
+    "gain": 1117.0760409832,
+    "splits": 193
+  },
+  "shots_balance": {
+    "gain": 925.7062149643898,
+    "splits": 186
+  },
+  "draw_odds_max": {
+    "gain": 875.0729793310165,
+    "splits": 153
+  },
+  "draw_prob_mean": {
+    "gain": 799.4781598448753,
+    "splits": 138
+  },
+  "draw_odds_avg": {
+    "gain": 679.4211480617523,
+    "splits": 139
+  },
+  "league_draw_rate": {
+    "gain": 596.0043621063232,
+    "splits": 112
+  },
+  "draw_prob_max_book": {
+    "gain": 418.4166399240494,
+    "splits": 70
+  },
+  "n_draw_books": {
+    "gain": 44.84343957901001,
+    "splits": 8
+  },
+  "n_home_books": {
+    "gain": 0.0,
+    "splits": 0
+  }
+}
