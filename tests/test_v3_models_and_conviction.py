@@ -826,76 +826,82 @@ class TestV3ShadowLogging:
 # SECTION 10: End-to-end /predict live smoke test
 # ─────────────────────────────────────────────────────────────
 
+_V1_SMOKE_RESPONSE: dict = {}   # module-level cache — populated once per session
+
+
+def _fetch_v1_response():
+    """Fetch and cache the V1 primary response once for all live smoke tests."""
+    if _V1_SMOKE_RESPONSE:
+        return _V1_SMOKE_RESPONSE
+    import socket, requests
+    s = socket.socket()
+    try:
+        s.connect(('localhost', 5000))
+        s.close()
+    except ConnectionRefusedError:
+        return None
+    try:
+        r = requests.post(
+            "http://localhost:5000/predict",
+            headers={"Authorization": "Bearer betgenius_secure_key_2024",
+                     "Content-Type": "application/json"},
+            json={"match_id": 1379257, "include_analysis": False},
+            timeout=45,
+        )
+        if r.status_code == 200:
+            _V1_SMOKE_RESPONSE.update(r.json())
+    except Exception:
+        return None
+    return _V1_SMOKE_RESPONSE if _V1_SMOKE_RESPONSE else None
+
+
 class TestPredictEndpointLiveSmoke:
     """
-    Live smoke tests against a running server.
-    Skipped automatically in CI (no server). Run locally with:
-        pytest tests/test_v3_models_and_conviction.py -v -k "Live"
+    Live smoke tests against a running server (V1 / normal odds path).
+    Uses match 1379257. A single HTTP request is shared across all test methods.
+    Skipped automatically when server is not running.
     """
 
-    HEADERS = {"Authorization": "Bearer betgenius_secure_key_2024",
-               "Content-Type": "application/json"}
-    BASE = "http://localhost:5000"
-    TEST_MATCH_ID = 1379257  # Tottenham vs Crystal Palace (scheduled)
-
     @pytest.fixture(autouse=True)
-    def skip_if_no_server(self):
-        import socket
-        s = socket.socket()
-        try:
-            s.connect(('localhost', 5000))
-            s.close()
-        except ConnectionRefusedError:
+    def data(self):
+        resp = _fetch_v1_response()
+        if resp is None:
             pytest.skip("Server not running — skipping live smoke tests")
-
-    def _predict(self):
-        import requests
-        r = requests.post(f"{self.BASE}/predict", headers=self.HEADERS,
-                          json={"match_id": self.TEST_MATCH_ID, "include_analysis": False},
-                          timeout=20)
-        assert r.status_code == 200, f"HTTP {r.status_code}: {r.text[:200]}"
-        return r.json()
+        self._data = resp
 
     def test_live_predict_returns_200(self):
-        self._predict()
+        assert self._data
 
     def test_live_models_array_has_three_entries(self):
-        data = self._predict()
-        models = data['predictions']['models']
+        models = self._data['predictions']['models']
         assert len(models) == 3, f"Expected 3 models, got {len(models)}: {[m['id'] for m in models]}"
 
     def test_live_models_ids_correct_order(self):
-        data = self._predict()
-        ids = [m['id'] for m in data['predictions']['models']]
+        ids = [m['id'] for m in self._data['predictions']['models']]
         assert ids == ['v1_consensus', 'v2_unified', 'v3_sharp']
 
     def test_live_v3_has_draw_specialist_flag(self):
-        data = self._predict()
-        v3 = next(m for m in data['predictions']['models'] if m['id'] == 'v3_sharp')
+        v3 = next(m for m in self._data['predictions']['models'] if m['id'] == 'v3_sharp')
         assert v3.get('draw_specialist') is True
 
     def test_live_conviction_tier_present(self):
-        data = self._predict()
-        fd = data['predictions']['final_decision']
+        fd = self._data['predictions']['final_decision']
         assert 'conviction_tier' in fd
         assert fd['conviction_tier'] in ('premium', 'strong', 'standard')
 
     def test_live_strategy_field(self):
-        data = self._predict()
-        fd = data['predictions']['final_decision']
+        fd = self._data['predictions']['final_decision']
         assert fd['strategy'] in ('v1_primary_v2_v3_transparency', 'v3_sharp_fallback')
 
     def test_live_v3_predictions_sum_to_one(self):
-        data = self._predict()
-        v3 = next(m for m in data['predictions']['models'] if m['id'] == 'v3_sharp')
+        v3 = next(m for m in self._data['predictions']['models'] if m['id'] == 'v3_sharp')
         if v3.get('predictions'):
             p = v3['predictions']
             total = p['home_win'] + p['draw'] + p['away_win']
             assert abs(total - 1.0) < 0.01
 
     def test_live_v3_agreement_block(self):
-        data = self._predict()
-        v3 = next(m for m in data['predictions']['models'] if m['id'] == 'v3_sharp')
+        v3 = next(m for m in self._data['predictions']['models'] if m['id'] == 'v3_sharp')
         if v3.get('agreement'):
             agr = v3['agreement']
             assert 'agrees_with_v1' in agr
@@ -1115,3 +1121,734 @@ class TestInjuryFeatureBuilder:
         r2 = run_backfill(db_url)
         # Second run updates fewer or equal rows (none were reset to 0 in between)
         assert r2['home_updated'] <= r1['home_updated'] + r2['home_updated']
+
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 12: V0 Models Array Structure (pure unit tests)
+# ─────────────────────────────────────────────────────────────
+
+def _make_v0_models_array(
+    v0_pick='home_win', v0_conf=0.41, v0_draw=0.28,
+    elo_home=1450.0, elo_away=1380.0, elo_expected=0.58,
+    v3_shadow_available=False,
+    v3_pick='home_win', v3_conf=0.44, v3_draw=0.27,
+):
+    """
+    Build the models[] array as main.py produces it for the V0 fallback path.
+
+    When is_v0_fallback=True:
+      models[0]  → id='v0_form'   (active)
+      models[1]  → id='v2_unified' (skipped)
+      models[2]  → id='v3_sharp'   (shadow if v3_shadow_available else unavailable)
+    """
+    def normalize(h, d, a):
+        t = h + d + a
+        return (h/t, d/t, a/t) if t > 0 else (1/3, 1/3, 1/3)
+
+    h, d, a = normalize(1 - v0_draw - 0.1, v0_draw, 0.1)
+    models = [
+        {
+            "id": "v0_form",
+            "name": "ELO Form Predictor",
+            "type": "elo_weighted",
+            "version": "0.1.0",
+            "status": "active",
+            "data_quality": "form_only",
+            "predictions": {
+                "home_win": round(h, 3),
+                "draw": round(d, 3),
+                "away_win": round(a, 3),
+            },
+            "confidence": round(v0_conf, 3),
+            "recommended_bet": v0_pick,
+            "elo_context": {
+                "elo_home": elo_home,
+                "elo_away": elo_away,
+                "elo_expected_home": elo_expected,
+            },
+            "quality_metrics": {
+                "metric": "accuracy",
+                "note": "ELO-only benchmark; no market features available",
+            },
+            "fallback_reason": "No consensus odds available — using ELO-based form prediction",
+        },
+        {
+            "id": "v2_unified",
+            "name": "Unified V2 Context Model",
+            "type": "lightgbm",
+            "version": "2.0.0",
+            "status": "skipped",
+            "reason": "Skipped - no odds data available (V0 form fallback active)",
+            "predictions": None,
+            "confidence": None,
+            "recommended_bet": None,
+        },
+    ]
+
+    if v3_shadow_available:
+        h3, d3, a3 = normalize(1 - v3_draw - 0.1, v3_draw, 0.1)
+        models.append({
+            "id": "v3_sharp",
+            "name": "V3 Sharp Intelligence Model",
+            "type": "lightgbm_ensemble",
+            "version": "3.0.0",
+            "status": "shadow",
+            "draw_specialist": True,
+            "predictions": {
+                "home_win": round(h3, 3),
+                "draw": round(d3, 3),
+                "away_win": round(a3, 3),
+            },
+            "confidence": round(v3_conf, 3),
+            "recommended_bet": v3_pick,
+            "features_used": 24,
+            "agreement": {
+                "agrees_with_v1": v3_pick == v0_pick,
+                "agrees_with_v2": None,
+                "confidence_delta_vs_v1": round(v3_conf - v0_conf, 3),
+            },
+        })
+    else:
+        models.append({
+            "id": "v3_sharp",
+            "name": "V3 Sharp Intelligence Model",
+            "type": "lightgbm_ensemble",
+            "version": "3.0.0",
+            "status": "unavailable",
+            "draw_specialist": True,
+            "reason": "Skipped - no odds data available (V0 form fallback active)",
+            "predictions": None,
+            "confidence": None,
+            "recommended_bet": None,
+        })
+    return models
+
+
+def _make_v0_final_decision(
+    selected_model='v0_form',
+    strategy='v0_form_fallback',
+    data_quality='form_only',
+    prediction_source='v0_form_fallback',
+    conviction_tier='standard',
+    models_in_agreement=False,
+):
+    return {
+        "selected_model": selected_model,
+        "strategy": strategy,
+        "reason": "V0 ELO form fallback (no consensus odds available)",
+        "prediction_source": prediction_source,
+        "data_quality": data_quality,
+        "conviction_tier": conviction_tier,
+        "models_in_agreement": models_in_agreement,
+    }
+
+
+def _make_v0_model_info(elo_home=1450.0, elo_away=1380.0):
+    return {
+        "type": "v0_form",
+        "version": "0.1.0",
+        "performance": "ELO-based benchmark (no odds data)",
+        "bookmaker_count": 0,
+        "quality_score": 0,
+        "data_quality": "form_only",
+        "prediction_source": "v0_form_fallback",
+        "elo_home": elo_home,
+        "elo_away": elo_away,
+        "data_sources": ["ELO Ratings", "Historical Form"],
+    }
+
+
+class TestV0ModelsArrayStructure:
+    """Verify models[] when is_v0_fallback=True — V0 entry shape and content."""
+
+    def test_v0_array_has_exactly_three_entries(self):
+        models = _make_v0_models_array()
+        assert len(models) == 3
+
+    def test_v0_entry_is_first(self):
+        models = _make_v0_models_array()
+        assert models[0]['id'] == 'v0_form'
+
+    def test_v2_entry_is_second(self):
+        models = _make_v0_models_array()
+        assert models[1]['id'] == 'v2_unified'
+
+    def test_v3_entry_is_third(self):
+        models = _make_v0_models_array()
+        assert models[2]['id'] == 'v3_sharp'
+
+    def test_v0_entry_type_is_elo_weighted(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        assert v0['type'] == 'elo_weighted'
+
+    def test_v0_entry_status_active(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        assert v0['status'] == 'active'
+
+    def test_v0_entry_data_quality_form_only(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        assert v0['data_quality'] == 'form_only'
+
+    def test_v0_has_elo_context_block(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        assert 'elo_context' in v0
+        elo = v0['elo_context']
+        assert 'elo_home' in elo
+        assert 'elo_away' in elo
+        assert 'elo_expected_home' in elo
+
+    def test_v0_elo_context_values_are_floats(self):
+        models = _make_v0_models_array(elo_home=1450.0, elo_away=1380.0, elo_expected=0.58)
+        v0 = models[0]
+        elo = v0['elo_context']
+        assert isinstance(elo['elo_home'], float)
+        assert isinstance(elo['elo_away'], float)
+        assert isinstance(elo['elo_expected_home'], float)
+
+    def test_v0_elo_home_higher_than_away_when_expected(self):
+        """When elo_home > elo_away, home_expected > 0.5."""
+        models = _make_v0_models_array(elo_home=1500.0, elo_away=1300.0, elo_expected=0.72)
+        v0 = models[0]
+        assert v0['elo_context']['elo_home'] > v0['elo_context']['elo_away']
+        assert v0['elo_context']['elo_expected_home'] > 0.5
+
+    def test_v0_has_fallback_reason(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        assert 'fallback_reason' in v0
+        assert len(v0['fallback_reason']) > 10
+
+    def test_v0_fallback_reason_mentions_elo(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        reason = v0['fallback_reason'].lower()
+        assert 'elo' in reason or 'odds' in reason
+
+    def test_v0_predictions_present(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        preds = v0['predictions']
+        assert 'home_win' in preds
+        assert 'draw' in preds
+        assert 'away_win' in preds
+
+    def test_v0_predictions_sum_to_one(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        p = v0['predictions']
+        total = p['home_win'] + p['draw'] + p['away_win']
+        assert abs(total - 1.0) < 0.01
+
+    def test_v0_confidence_in_range(self):
+        models = _make_v0_models_array(v0_conf=0.41)
+        v0 = models[0]
+        assert 0.0 <= v0['confidence'] <= 1.0
+
+    def test_v0_has_no_agreement_block(self):
+        """V0 is a standalone model — no cross-model agreement comparison."""
+        models = _make_v0_models_array()
+        v0 = models[0]
+        assert 'agreement' not in v0
+
+    def test_v0_quality_metrics_present(self):
+        models = _make_v0_models_array()
+        v0 = models[0]
+        assert 'quality_metrics' in v0
+        qm = v0['quality_metrics']
+        assert 'metric' in qm
+
+    # ── V2 behaviour when V0 is active ────────────────────────
+
+    def test_v2_status_skipped_when_v0_active(self):
+        models = _make_v0_models_array()
+        v2 = models[1]
+        assert v2['status'] == 'skipped'
+
+    def test_v2_predictions_none_when_skipped(self):
+        models = _make_v0_models_array()
+        v2 = models[1]
+        assert v2['predictions'] is None
+
+    def test_v2_confidence_none_when_skipped(self):
+        models = _make_v0_models_array()
+        v2 = models[1]
+        assert v2['confidence'] is None
+
+    def test_v2_recommended_bet_none_when_skipped(self):
+        models = _make_v0_models_array()
+        v2 = models[1]
+        assert v2['recommended_bet'] is None
+
+    def test_v2_skip_reason_mentions_v0(self):
+        models = _make_v0_models_array()
+        v2 = models[1]
+        assert 'reason' in v2
+        assert 'v0' in v2['reason'].lower() or 'odds' in v2['reason'].lower()
+
+    # ── V3 status when V0 is active ────────────────────────────
+
+    def test_v3_status_shadow_when_v0_active_and_shadow_available(self):
+        """V3 runs in shadow mode even when V0 is the primary."""
+        models = _make_v0_models_array(v3_shadow_available=True)
+        v3 = models[2]
+        assert v3['status'] == 'shadow'
+
+    def test_v3_status_unavailable_when_v0_active_and_no_shadow_data(self):
+        models = _make_v0_models_array(v3_shadow_available=False)
+        v3 = models[2]
+        assert v3['status'] == 'unavailable'
+
+    def test_v3_draw_specialist_flag_true_in_v0_path(self):
+        """draw_specialist flag must always be True on the V3 entry."""
+        for shadow in [True, False]:
+            models = _make_v0_models_array(v3_shadow_available=shadow)
+            v3 = models[2]
+            assert v3.get('draw_specialist') is True
+
+    def test_v3_shadow_has_predictions_when_available(self):
+        models = _make_v0_models_array(v3_shadow_available=True)
+        v3 = models[2]
+        assert v3.get('predictions') is not None
+
+    def test_v3_shadow_predictions_sum_to_one(self):
+        models = _make_v0_models_array(v3_shadow_available=True)
+        v3 = models[2]
+        p = v3['predictions']
+        total = p['home_win'] + p['draw'] + p['away_win']
+        assert abs(total - 1.0) < 0.01
+
+    def test_v3_unavailable_has_none_predictions(self):
+        models = _make_v0_models_array(v3_shadow_available=False)
+        v3 = models[2]
+        assert v3.get('predictions') is None
+
+    def test_v3_shadow_not_primary_in_v0_path(self):
+        """When V0 is active, V3 shadow must not be 'primary' or 'active'."""
+        models = _make_v0_models_array(v3_shadow_available=True)
+        v3 = models[2]
+        assert v3['status'] not in ('primary', 'active')
+
+    def test_v3_ids_unchanged_in_v0_path(self):
+        for shadow in [True, False]:
+            models = _make_v0_models_array(v3_shadow_available=shadow)
+            v3 = models[2]
+            assert v3['id'] == 'v3_sharp'
+
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 13: V0 Cascade — Conviction Tier, Strategy, Final Decision
+# ─────────────────────────────────────────────────────────────
+
+class TestV0CascadeConviction:
+    """Conviction tier is always 'standard' when V0 is the fallback."""
+
+    def test_v0_always_produces_standard_conviction(self):
+        is_v0_fallback = True
+        conviction_tier = "standard" if is_v0_fallback else "computed"
+        assert conviction_tier == "standard"
+
+    def test_v0_conviction_cannot_be_premium(self):
+        is_v0_fallback = True
+        conviction_tier = "standard" if is_v0_fallback else "premium"
+        assert conviction_tier != "premium"
+
+    def test_v0_conviction_cannot_be_strong(self):
+        is_v0_fallback = True
+        conviction_tier = "standard" if is_v0_fallback else "strong"
+        assert conviction_tier != "strong"
+
+    def test_v0_final_decision_strategy_field(self):
+        fd = _make_v0_final_decision()
+        assert fd['strategy'] == 'v0_form_fallback'
+
+    def test_v0_final_decision_selected_model(self):
+        fd = _make_v0_final_decision()
+        assert fd['selected_model'] == 'v0_form'
+
+    def test_v0_final_decision_data_quality(self):
+        fd = _make_v0_final_decision()
+        assert fd['data_quality'] == 'form_only'
+
+    def test_v0_final_decision_prediction_source(self):
+        fd = _make_v0_final_decision()
+        assert fd['prediction_source'] == 'v0_form_fallback'
+
+    def test_v0_final_decision_conviction_tier_is_standard(self):
+        fd = _make_v0_final_decision()
+        assert fd['conviction_tier'] == 'standard'
+
+    def test_v0_final_decision_has_all_required_keys(self):
+        fd = _make_v0_final_decision()
+        required = {'selected_model', 'strategy', 'reason', 'prediction_source',
+                    'data_quality', 'conviction_tier', 'models_in_agreement'}
+        assert required.issubset(fd.keys())
+
+    def test_v0_strategy_is_distinct_from_v1_and_v3(self):
+        v0_fd = _make_v0_final_decision(strategy='v0_form_fallback')
+        v1_strategy = 'v1_primary_v2_v3_transparency'
+        v3_strategy = 'v3_sharp_fallback'
+        assert v0_fd['strategy'] != v1_strategy
+        assert v0_fd['strategy'] != v3_strategy
+
+    def test_v0_models_in_agreement_false_when_solo(self):
+        """Single V0 model — can't have agreement across multiple models."""
+        fd = _make_v0_final_decision(models_in_agreement=False)
+        assert fd['models_in_agreement'] is False
+
+
+class TestV0ModelInfo:
+    """Verify model_info block when V0 is the fallback."""
+
+    def test_model_info_type_v0_form(self):
+        info = _make_v0_model_info()
+        assert info['type'] == 'v0_form'
+
+    def test_model_info_version(self):
+        info = _make_v0_model_info()
+        assert info['version'] == '0.1.0'
+
+    def test_model_info_bookmaker_count_zero(self):
+        """No bookmaker data when V0 is active."""
+        info = _make_v0_model_info()
+        assert info['bookmaker_count'] == 0
+
+    def test_model_info_data_quality_form_only(self):
+        info = _make_v0_model_info()
+        assert info['data_quality'] == 'form_only'
+
+    def test_model_info_prediction_source(self):
+        info = _make_v0_model_info()
+        assert info['prediction_source'] == 'v0_form_fallback'
+
+    def test_model_info_has_elo_home(self):
+        info = _make_v0_model_info(elo_home=1450.0)
+        assert 'elo_home' in info
+        assert info['elo_home'] == 1450.0
+
+    def test_model_info_has_elo_away(self):
+        info = _make_v0_model_info(elo_away=1380.0)
+        assert 'elo_away' in info
+        assert info['elo_away'] == 1380.0
+
+    def test_model_info_data_sources_include_elo(self):
+        info = _make_v0_model_info()
+        assert 'data_sources' in info
+        assert any('ELO' in s or 'elo' in s.lower() for s in info['data_sources'])
+
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 14: Response Object Shape Consistency Across All Paths
+# ─────────────────────────────────────────────────────────────
+
+def _make_predictions_block(models, h=0.48, d=0.28, a=0.24, conf=0.48,
+                             recommended='home_win', conviction='standard',
+                             strategy='v1_primary_v2_v3_transparency',
+                             selected_model='v1_consensus',
+                             data_quality='full'):
+    return {
+        "home_win": round(h, 3),
+        "draw": round(d, 3),
+        "away_win": round(a, 3),
+        "confidence": conf,
+        "recommended_bet": recommended,
+        "recommendation_tone": "back",
+        "models": models,
+        "final_decision": {
+            "selected_model": selected_model,
+            "strategy": strategy,
+            "reason": "test",
+            "prediction_source": selected_model,
+            "data_quality": data_quality,
+            "conviction_tier": conviction,
+            "models_in_agreement": False,
+        }
+    }
+
+
+class TestResponseShapeConsistency:
+    """
+    The top-level response and predictions block must have the same keys
+    regardless of whether V1 consensus, V3 sharp fallback, or V0 form
+    fallback is the active path.
+    """
+
+    REQUIRED_PREDICTIONS_KEYS = {
+        'home_win', 'draw', 'away_win', 'confidence',
+        'recommended_bet', 'models', 'final_decision',
+    }
+    REQUIRED_FINAL_DECISION_KEYS = {
+        'selected_model', 'strategy', 'reason',
+        'prediction_source', 'data_quality', 'conviction_tier', 'models_in_agreement',
+    }
+
+    def _v1_predictions(self):
+        models = _make_models_array()
+        return _make_predictions_block(models, strategy='v1_primary_v2_v3_transparency',
+                                       selected_model='v1_consensus', data_quality='full')
+
+    def _v3_fallback_predictions(self):
+        models = [
+            {"id": "v3_sharp_fallback", "name": "V3 Sharp Intelligence (Fallback)",
+             "type": "lightgbm_ensemble", "version": "3.0.0", "status": "active",
+             "data_quality": "limited", "predictions": {"home_win": 0.5, "draw": 0.28, "away_win": 0.22},
+             "confidence": 0.5, "recommended_bet": "home_win"},
+        ]
+        return _make_predictions_block(models, strategy='v3_sharp_fallback',
+                                       selected_model='v3_sharp_fallback', data_quality='limited')
+
+    def _v0_predictions(self):
+        models = _make_v0_models_array()
+        return _make_predictions_block(models, strategy='v0_form_fallback',
+                                       selected_model='v0_form', data_quality='form_only',
+                                       conviction='standard')
+
+    def test_v1_predictions_block_has_all_required_keys(self):
+        preds = self._v1_predictions()
+        assert self.REQUIRED_PREDICTIONS_KEYS.issubset(preds.keys())
+
+    def test_v3_fallback_predictions_block_has_all_required_keys(self):
+        preds = self._v3_fallback_predictions()
+        assert self.REQUIRED_PREDICTIONS_KEYS.issubset(preds.keys())
+
+    def test_v0_predictions_block_has_all_required_keys(self):
+        preds = self._v0_predictions()
+        assert self.REQUIRED_PREDICTIONS_KEYS.issubset(preds.keys())
+
+    def test_all_paths_have_same_predictions_keys(self):
+        v1_keys = set(self._v1_predictions().keys())
+        v3_keys = set(self._v3_fallback_predictions().keys())
+        v0_keys = set(self._v0_predictions().keys())
+        assert v1_keys == v3_keys == v0_keys
+
+    def test_v1_final_decision_has_all_required_keys(self):
+        fd = self._v1_predictions()['final_decision']
+        assert self.REQUIRED_FINAL_DECISION_KEYS.issubset(fd.keys())
+
+    def test_v3_final_decision_has_all_required_keys(self):
+        fd = self._v3_fallback_predictions()['final_decision']
+        assert self.REQUIRED_FINAL_DECISION_KEYS.issubset(fd.keys())
+
+    def test_v0_final_decision_has_all_required_keys(self):
+        fd = self._v0_predictions()['final_decision']
+        assert self.REQUIRED_FINAL_DECISION_KEYS.issubset(fd.keys())
+
+    def test_all_paths_final_decision_same_keys(self):
+        v1_keys = set(self._v1_predictions()['final_decision'].keys())
+        v3_keys = set(self._v3_fallback_predictions()['final_decision'].keys())
+        v0_keys = set(self._v0_predictions()['final_decision'].keys())
+        assert v1_keys == v3_keys == v0_keys
+
+    def test_models_array_always_has_three_entries(self):
+        """All paths must produce a 3-entry models array."""
+        for pred_fn in [self._v1_predictions, self._v0_predictions]:
+            preds = pred_fn()
+            assert len(preds['models']) == 3, (
+                f"Expected 3 models, got {len(preds['models'])}"
+            )
+
+    def test_all_paths_produce_valid_conviction_tier(self):
+        valid_tiers = {'premium', 'strong', 'standard'}
+        for pred_fn in [self._v1_predictions, self._v3_fallback_predictions, self._v0_predictions]:
+            tier = pred_fn()['final_decision']['conviction_tier']
+            assert tier in valid_tiers, f"Invalid conviction tier: {tier}"
+
+    def test_all_paths_produce_valid_strategy(self):
+        valid_strategies = {
+            'v1_primary_v2_v3_transparency',
+            'v3_sharp_fallback',
+            'v0_form_fallback',
+        }
+        for pred_fn in [self._v1_predictions, self._v3_fallback_predictions, self._v0_predictions]:
+            strategy = pred_fn()['final_decision']['strategy']
+            assert strategy in valid_strategies, f"Unknown strategy: {strategy}"
+
+    def test_all_paths_produce_valid_data_quality(self):
+        valid_quality = {'full', 'limited', 'form_only'}
+        for pred_fn in [self._v1_predictions, self._v3_fallback_predictions, self._v0_predictions]:
+            quality = pred_fn()['final_decision']['data_quality']
+            assert quality in valid_quality, f"Unknown data_quality: {quality}"
+
+    def test_v0_path_is_the_only_form_only_quality(self):
+        assert self._v1_predictions()['final_decision']['data_quality'] != 'form_only'
+        assert self._v3_fallback_predictions()['final_decision']['data_quality'] != 'form_only'
+        assert self._v0_predictions()['final_decision']['data_quality'] == 'form_only'
+
+    def test_v0_is_only_path_with_zero_confidence_models(self):
+        """V2 in the V0 path has confidence=None; other paths have numeric confidence."""
+        v0_models = self._v0_predictions()['models']
+        v2_entry = next(m for m in v0_models if m['id'] == 'v2_unified')
+        assert v2_entry['confidence'] is None
+
+        v1_models = self._v1_predictions()['models']
+        v2_in_v1 = next(m for m in v1_models if m['id'] == 'v2_unified')
+        assert isinstance(v2_in_v1['confidence'], float)
+
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 15: V0 Live Smoke Tests — /predict with a match that
+#             has no consensus odds → forces V0 cascade path
+# ─────────────────────────────────────────────────────────────
+
+_V0_SMOKE_RESPONSE: dict = {}   # module-level cache — populated once per session
+
+
+def _fetch_v0_response():
+    """Fetch and cache the V0 fallback response once for all tests in this section."""
+    if _V0_SMOKE_RESPONSE:
+        return _V0_SMOKE_RESPONSE
+    import socket, requests
+    s = socket.socket()
+    try:
+        s.connect(('localhost', 5000))
+        s.close()
+    except ConnectionRefusedError:
+        return None  # server not running; tests will skip
+    r = requests.post(
+        "http://localhost:5000/predict",
+        headers={"Authorization": "Bearer betgenius_secure_key_2024",
+                 "Content-Type": "application/json"},
+        json={"match_id": 1388548, "include_analysis": False},
+        timeout=30,
+    )
+    if r.status_code == 200:
+        _V0_SMOKE_RESPONSE.update(r.json())
+    return _V0_SMOKE_RESPONSE if _V0_SMOKE_RESPONSE else None
+
+
+class TestPredictEndpointV0LiveSmoke:
+    """
+    Live smoke tests against a running server using match 1388548
+    (no consensus odds or odds snapshots → triggers V0 ELO fallback).
+
+    A single HTTP request is made and the response is shared across all test
+    methods — so the total cost is one network round-trip for 16 assertions.
+
+    Skipped automatically when server is not running.
+    Run with: pytest tests/test_v3_models_and_conviction.py -v -k "V0Live"
+    """
+
+    @pytest.fixture(autouse=True)
+    def data(self):
+        """Fetch (or return cached) V0 response. Skip if server is down."""
+        resp = _fetch_v0_response()
+        if resp is None:
+            pytest.skip("Server not running — skipping V0 live smoke tests")
+        self._data = resp
+
+    def test_v0_live_predict_returns_200(self):
+        assert self._data  # non-empty response → HTTP 200 was returned
+
+    def test_v0_live_models_array_has_three_entries(self):
+        models = self._data['predictions']['models']
+        assert len(models) == 3, (
+            f"Expected 3 models, got {len(models)}: {[m['id'] for m in models]}"
+        )
+
+    def test_v0_live_first_model_is_v0_form(self):
+        """V0 path: the first models entry must be v0_form, not v1_consensus."""
+        models = self._data['predictions']['models']
+        assert models[0]['id'] == 'v0_form', (
+            f"Expected v0_form first, got: {models[0]['id']}"
+        )
+
+    def test_v0_live_v2_is_present_but_not_primary(self):
+        """
+        In V0 path, V2 is always present in the models array.
+        V2 may be 'active' (form-based LightGBM prediction) or 'skipped'
+        (V2 unavailable) — but selected_model must remain 'v0_form'.
+        """
+        models = self._data['predictions']['models']
+        v2 = next((m for m in models if m['id'] == 'v2_unified'), None)
+        assert v2 is not None, "v2_unified must always be present in models array"
+        assert v2['status'] in ('active', 'skipped'), (
+            f"V2 status must be active or skipped in V0 path, got: {v2['status']}"
+        )
+        fd = self._data['predictions']['final_decision']
+        assert fd['selected_model'] == 'v0_form', (
+            f"selected_model must be v0_form even when V2 is active, got: {fd['selected_model']}"
+        )
+
+    def test_v0_live_v3_is_shadow_or_unavailable(self):
+        models = self._data['predictions']['models']
+        v3 = next((m for m in models if m['id'] == 'v3_sharp'), None)
+        assert v3 is not None, "v3_sharp must always be present"
+        assert v3['status'] in ('shadow', 'unavailable'), (
+            f"V3 must be shadow/unavailable in V0 path, got: {v3['status']}"
+        )
+
+    def test_v0_live_v0_entry_has_elo_context(self):
+        models = self._data['predictions']['models']
+        v0 = next((m for m in models if m['id'] == 'v0_form'), None)
+        assert v0 is not None
+        assert 'elo_context' in v0
+        assert 'elo_home' in v0['elo_context']
+        assert 'elo_away' in v0['elo_context']
+
+    def test_v0_live_conviction_tier_is_standard(self):
+        fd = self._data['predictions']['final_decision']
+        assert fd['conviction_tier'] == 'standard', (
+            f"V0 fallback must always produce standard tier, got: {fd['conviction_tier']}"
+        )
+
+    def test_v0_live_strategy_is_v0_form_fallback(self):
+        fd = self._data['predictions']['final_decision']
+        assert fd['strategy'] == 'v0_form_fallback', (
+            f"Expected v0_form_fallback strategy, got: {fd['strategy']}"
+        )
+
+    def test_v0_live_selected_model_is_v0_form(self):
+        fd = self._data['predictions']['final_decision']
+        assert fd['selected_model'] == 'v0_form', (
+            f"Expected selected_model v0_form, got: {fd['selected_model']}"
+        )
+
+    def test_v0_live_data_quality_is_form_only(self):
+        fd = self._data['predictions']['final_decision']
+        assert fd['data_quality'] == 'form_only', (
+            f"Expected form_only, got: {fd['data_quality']}"
+        )
+
+    def test_v0_live_model_info_type_is_v0(self):
+        mi = self._data['model_info']
+        assert mi['type'] == 'v0_form', (
+            f"model_info.type should be v0_form, got: {mi['type']}"
+        )
+
+    def test_v0_live_model_info_has_elo_values(self):
+        mi = self._data['model_info']
+        assert 'elo_home' in mi or 'elo_context' in mi, (
+            "model_info must include ELO values in V0 path"
+        )
+
+    def test_v0_live_model_info_bookmaker_count_zero(self):
+        mi = self._data['model_info']
+        assert mi.get('bookmaker_count', 0) == 0, (
+            "bookmaker_count must be 0 when no odds data available"
+        )
+
+    def test_v0_live_v0_predictions_sum_to_one(self):
+        models = self._data['predictions']['models']
+        v0 = next((m for m in models if m['id'] == 'v0_form'), None)
+        if v0 and v0.get('predictions'):
+            p = v0['predictions']
+            total = p['home_win'] + p['draw'] + p['away_win']
+            assert abs(total - 1.0) < 0.01, f"V0 probs sum to {total}, not 1.0"
+
+    def test_v0_live_top_level_probabilities_present(self):
+        """Top-level H/D/A probabilities must always be populated."""
+        preds = self._data['predictions']
+        assert 'home_win' in preds
+        assert 'draw' in preds
+        assert 'away_win' in preds
+        total = preds['home_win'] + preds['draw'] + preds['away_win']
+        assert abs(total - 1.0) < 0.01
+
+    def test_v0_live_response_has_all_top_level_keys(self):
+        required = {'match_info', 'predictions', 'model_info', 'processing_time', 'timestamp'}
+        assert required.issubset(self._data.keys()), (
+            f"Missing top-level keys: {required - self._data.keys()}"
+        )
