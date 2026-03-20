@@ -343,3 +343,194 @@ class TestNCAAbTrainingSyncCovers:
         cfg = configs["basketball_ncaab"]
         assert "active_months" in cfg
         assert len(cfg["active_months"]) > 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Section 6 — End-to-End Training Flow Integration Test
+#
+# Seeds one completed NCAAB fixture + matching consensus odds snapshot, runs
+# sync_to_training_table('basketball_ncaab'), asserts the row materialises in
+# multisport_training with the correct sport_key / scores / outcome / probs,
+# then cleans up all seeded rows.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+TEST_EVENT_ID = "ncaab_test_e2e_fixture_pytest_unique_001"
+
+class TestNCAAbEndToEndTrainingFlow:
+
+    @classmethod
+    def _cleanup(cls, cursor):
+        """Remove all seeded test rows so tests are idempotent."""
+        cursor.execute(
+            "DELETE FROM multisport_training WHERE event_id = %s AND sport_key = 'basketball_ncaab'",
+            (TEST_EVENT_ID,)
+        )
+        cursor.execute(
+            "DELETE FROM multisport_match_results WHERE event_id = %s AND sport_key = 'basketball_ncaab'",
+            (TEST_EVENT_ID,)
+        )
+        cursor.execute(
+            "DELETE FROM multisport_odds_snapshots WHERE event_id = %s AND sport_key = 'basketball_ncaab'",
+            (TEST_EVENT_ID,)
+        )
+        cursor.execute(
+            "DELETE FROM multisport_fixtures WHERE event_id = %s AND sport = 'basketball'",
+            (TEST_EVENT_ID,)
+        )
+
+    @classmethod
+    def setup_class(cls):
+        """Seed one completed NCAAB game with consensus odds into the DB."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cls._cleanup(cursor)  # clean any leftover from a previous failed run
+
+        from datetime import datetime, timezone, timedelta
+        game_dt = datetime(2026, 3, 15, 19, 0, 0, tzinfo=timezone.utc)
+
+        # 1. Fixture
+        cursor.execute("""
+            INSERT INTO multisport_fixtures (
+                sport, sport_key, event_id,
+                home_team, away_team, commence_time,
+                status, home_score, away_score, outcome, updated_at
+            ) VALUES (
+                'basketball', 'basketball_ncaab', %s,
+                'Duke', 'UNC', %s,
+                'final', 78, 65, 'H', NOW()
+            )
+            ON CONFLICT (sport, event_id) DO NOTHING
+        """, (TEST_EVENT_ID, game_dt))
+
+        # 2. Completed result (multisport_match_results is what sync_to_training_table reads)
+        cursor.execute("""
+            INSERT INTO multisport_match_results (
+                sport_key, event_id, game_date,
+                home_team, away_team,
+                home_score, away_score, result,
+                status, updated_at
+            ) VALUES (
+                'basketball_ncaab', %s, %s,
+                'Duke', 'UNC',
+                78, 65, 'H',
+                'final', NOW()
+            )
+            ON CONFLICT (sport_key, event_id) DO NOTHING
+        """, (TEST_EVENT_ID, game_dt))
+
+        # 3. Consensus odds snapshot (is_consensus=True is required by the sync query)
+        ts_recorded = game_dt - timedelta(hours=2)  # captured 2 hours before tip-off
+        cursor.execute("""
+            INSERT INTO multisport_odds_snapshots (
+                sport, sport_key, event_id,
+                home_team, away_team, commence_time,
+                home_prob, away_prob,
+                overround, n_bookmakers,
+                bookmaker, is_consensus, ts_recorded
+            ) VALUES (
+                'basketball', 'basketball_ncaab', %s,
+                'Duke', 'UNC', %s,
+                0.6200, 0.3800,
+                1.0400, 10,
+                'consensus', TRUE, %s
+            )
+            ON CONFLICT (event_id, bookmaker, ts_recorded) DO NOTHING
+        """, (TEST_EVENT_ID, game_dt, ts_recorded))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    @classmethod
+    def teardown_class(cls):
+        """Remove all seeded rows after all tests in this class finish."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cls._cleanup(cursor)
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    def test_e2e_sync_inserts_row_into_multisport_training(self):
+        """
+        sync_to_training_table('basketball_ncaab') must insert the seeded completed
+        game into multisport_training.
+        """
+        from models.multisport_data_collector import MultiSportDataCollector
+        collector = MultiSportDataCollector()
+        result = collector.sync_to_training_table("basketball_ncaab")
+        assert "error" not in result, f"sync_to_training_table raised: {result}"
+        assert result["synced"] >= 1, (
+            f"Expected at least 1 row synced, got {result['synced']}. "
+            "Seeded fixture + consensus odds should have produced a training row."
+        )
+
+    def test_e2e_training_row_has_correct_sport_key(self):
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT sport_key FROM multisport_training
+            WHERE event_id = %s
+        """, (TEST_EVENT_ID,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        assert row is not None, "Training row not found after sync"
+        assert row[0] == "basketball_ncaab", f"Wrong sport_key: {row[0]}"
+
+    def test_e2e_training_row_has_correct_scores(self):
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT home_score, away_score FROM multisport_training
+            WHERE event_id = %s AND sport_key = 'basketball_ncaab'
+        """, (TEST_EVENT_ID,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        assert row is not None, "Training row not found"
+        assert row[0] == 78, f"home_score should be 78, got {row[0]}"
+        assert row[1] == 65, f"away_score should be 65, got {row[1]}"
+
+    def test_e2e_training_row_outcome_is_H(self):
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT outcome FROM multisport_training
+            WHERE event_id = %s AND sport_key = 'basketball_ncaab'
+        """, (TEST_EVENT_ID,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        assert row is not None, "Training row not found"
+        assert row[0] == "H", f"Outcome should be H (Duke won 78-65), got {row[0]}"
+
+    def test_e2e_training_row_has_consensus_probs(self):
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT consensus_home_prob, consensus_away_prob FROM multisport_training
+            WHERE event_id = %s AND sport_key = 'basketball_ncaab'
+        """, (TEST_EVENT_ID,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        assert row is not None, "Training row not found"
+        home_prob, away_prob = row
+        assert home_prob is not None, "consensus_home_prob must not be NULL"
+        assert away_prob is not None, "consensus_away_prob must not be NULL"
+        assert abs(float(home_prob) - 0.62) < 0.01, f"home_prob should be ~0.62, got {home_prob}"
+        assert abs(float(away_prob) - 0.38) < 0.01, f"away_prob should be ~0.38, got {away_prob}"
+
+    def test_e2e_training_row_sport_is_basketball(self):
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT sport FROM multisport_training
+            WHERE event_id = %s AND sport_key = 'basketball_ncaab'
+        """, (TEST_EVENT_ID,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        assert row is not None, "Training row not found"
+        assert row[0] == "basketball", f"sport field should be 'basketball', got {row[0]}"
