@@ -382,8 +382,10 @@ def store_odds(db_url: str, events: list, dry_run: bool = False) -> int:
                         bm_key, False, now,
                     ))
                     stored += 1
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        f"  Odds insert failed event={event_id} bm={bm_key}: {exc}"
+                    )
 
         if home_probs and away_probs:
             avg_hp      = sum(home_probs) / len(home_probs)
@@ -413,8 +415,10 @@ def store_odds(db_url: str, events: list, dry_run: bool = False) -> int:
                     "consensus", True, now,
                 ))
                 stored += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    f"  Consensus odds insert failed event={event_id}: {exc}"
+                )
 
     conn.commit()
     cursor.close()

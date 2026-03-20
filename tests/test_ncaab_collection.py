@@ -1,12 +1,15 @@
 """
 Integration tests for NCAA Basketball (NCAAB) data collection pipeline.
 
-Sections:
-  1. TestNCAAbSportRegistry       — sports table registration
-  2. TestNCAAbCollectorConfig     — SPORT_CONFIGS in both collector classes
-  3. TestNCAAbFeatureBuilderConfig — SEASON_INFO and ELO home advantage
-  4. TestNCAAbDatabaseRows        — fixtures / odds / training row counts (live DB)
-  5. TestNCAAbTrainingSyncCovers  — training sync picks up basketball_ncaab rows
+Sections 1-3 are pure code/config checks (no DB required).
+Sections 4-6 are live-DB integration tests: they require DATABASE_URL to be set
+and expect the initial backfill (scripts/backfill_ncaab.py) to have been run.
+
+To run only the config checks:
+    pytest tests/test_ncaab_collection.py -m "not integration"
+
+To run everything (default in CI where DATABASE_URL is set):
+    pytest tests/test_ncaab_collection.py
 """
 
 import os
@@ -15,9 +18,15 @@ import pytest
 import psycopg2
 from unittest.mock import patch, MagicMock
 
-# ── helpers ─────────────────────────────────────────────────────────────────────
+# ── integration marker ───────────────────────────────────────────────────────────
 
 DB_URL = os.getenv("DATABASE_URL", "")
+HAS_DB = bool(DB_URL)
+
+integration = pytest.mark.skipif(
+    not HAS_DB,
+    reason="DATABASE_URL not set — skipping live-DB integration tests"
+)
 
 
 def get_db():
@@ -30,6 +39,7 @@ def get_db():
 # Section 1 — Sports Table Registration
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@integration
 class TestNCAAbSportRegistry:
 
     def test_ncaab_row_exists_in_sports_table(self):
@@ -181,6 +191,7 @@ class TestNCAAbFeatureBuilderConfig:
 # Section 4 — Live Database Row Counts (after backfill)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@integration
 class TestNCAAbDatabaseRows:
 
     def _counts(self):
@@ -271,6 +282,7 @@ class TestNCAAbDatabaseRows:
 # Section 5 — Training Sync Covers NCAAB
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@integration
 class TestNCAAbTrainingSyncCovers:
 
     def test_training_sync_basketball_covers_ncaab(self):
@@ -297,15 +309,17 @@ class TestNCAAbTrainingSyncCovers:
             "Run scripts/backfill_ncaab.py to seed completed game data."
         )
 
+    @pytest.mark.skipif(not HAS_DB, reason="DATABASE_URL not set")
     def test_sync_to_training_table_ncaab_does_not_raise(self):
         """
         MultiSportDataCollector.sync_to_training_table() must handle basketball_ncaab
         without raising an exception. The query itself is the important contract here.
+        Rows synced may be 0 if no odds have been captured for completed games yet.
         """
         from models.multisport_data_collector import MultiSportDataCollector
         collector = MultiSportDataCollector()
         result = collector.sync_to_training_table("basketball_ncaab")
-        # Result may have 0 rows synced (no odds for historical games yet) but must not error
+        # synced >= 0: 0 is valid (no paired odds+results yet); error key means failure
         assert "error" not in result, f"sync_to_training_table returned error: {result}"
         assert "synced" in result
         assert result["synced"] >= 0
@@ -353,7 +367,7 @@ class TestNCAAbTrainingSyncCovers:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Section 6 — End-to-End Training Flow Integration Test
+# Section 6 — End-to-End Training Flow Integration Test  (@integration)
 #
 # Seeds one completed NCAAB fixture + matching consensus odds snapshot, runs
 # sync_to_training_table('basketball_ncaab'), asserts the row materialises in
@@ -363,6 +377,7 @@ class TestNCAAbTrainingSyncCovers:
 
 TEST_EVENT_ID = "ncaab_test_e2e_fixture_pytest_unique_001"
 
+@integration
 class TestNCAAbEndToEndTrainingFlow:
 
     @classmethod
