@@ -32,6 +32,11 @@ SEASON_INFO = {
         'end':   (4, 15),    # Apr 15
         'total_games': 82,
     },
+    'basketball_ncaab': {
+        'start': (11, 4),    # Nov 4 (typical D1 season open)
+        'end':   (4, 7),     # Apr 7 (NCAA Championship game)
+        'total_games': 35,   # ~30-35 regular season + conf tournament
+    },
     'icehockey_nhl': {
         'start': (10, 8),    # Oct 8
         'end':   (4, 18),    # Apr 18
@@ -47,7 +52,15 @@ SEASON_INFO = {
 # ELO parameters
 ELO_K        = 20
 ELO_START    = 1500
-ELO_HOME_ADV = 35    # typical home-court advantage in Elo points
+ELO_HOME_ADV = 35    # default home-court advantage in Elo points
+
+# Sport-specific home court advantage (college has much stronger home advantage than NBA)
+ELO_HOME_ADV_BY_SPORT = {
+    'basketball_nba':       35,
+    'basketball_ncaab':     70,   # college home crowds much louder; travel harder
+    'basketball_euroleague': 40,
+    'icehockey_nhl':        25,
+}
 
 # B2B threshold
 B2B_HOURS = 26       # within 26 hours = back-to-back
@@ -450,7 +463,8 @@ class MultisportFeatureBuilder:
 
         home_elo = elo_map.get(home_team, ELO_START)
         away_elo = elo_map.get(away_team, ELO_START)
-        diff = home_elo + ELO_HOME_ADV - away_elo
+        sport_home_adv = ELO_HOME_ADV_BY_SPORT.get(sport_key, ELO_HOME_ADV)
+        diff = home_elo + sport_home_adv - away_elo
         win_prob = 1.0 / (1.0 + 10 ** (-diff / 400))
 
         return {

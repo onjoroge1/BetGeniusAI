@@ -1,9 +1,10 @@
 """
 Multi-Sport Odds Collector
-Collects odds for NBA, NHL, and MLB from The Odds API.
+Collects odds for NBA, NHL, MLB, and NCAAB from The Odds API.
 
 Sports covered:
 - basketball_nba: NBA (Oct-Jun)
+- basketball_ncaab: NCAA Men's D1 Basketball (Nov-Apr, incl. March Madness)
 - icehockey_nhl: NHL (Oct-Jun) 
 - baseball_mlb: MLB (Apr-Oct) - Currently off-season
 
@@ -35,6 +36,15 @@ class MultiSportCollector:
             'outcome_type': '2way',
             'active_months': [10, 11, 12, 1, 2, 3, 4, 5, 6],
             'typical_games_per_day': 8
+        },
+        'basketball_ncaab': {
+            'name': 'NCAAB',
+            'sport': 'basketball',
+            'markets': ['h2h', 'spreads', 'totals'],
+            'regions': 'us',
+            'outcome_type': '2way',
+            'active_months': [11, 12, 1, 2, 3, 4],  # Nov-Apr (regular season + March Madness)
+            'typical_games_per_day': 30
         },
         'basketball_euroleague': {
             'name': 'Euroleague',

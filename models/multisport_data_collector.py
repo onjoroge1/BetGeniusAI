@@ -1,6 +1,6 @@
 """
 Multi-Sport Data Collector
-Collects match results, schedules, and syncs training data for NBA, NHL, and NFL.
+Collects match results, schedules, and syncs training data for NBA, NHL, NFL, and NCAAB.
 Uses The Odds API for match results/scores (same API as odds collection).
 
 This collector works alongside the odds collector to populate match results.
@@ -23,7 +23,7 @@ class MultiSportDataCollector:
     Unified collector for multi-sport data.
     Uses The Odds API for match results (same API key as odds).
     Collects: match results, schedules
-    Sports: NBA, NHL, NFL
+    Sports: NBA, NHL, NFL, NCAAB
     """
     
     SPORT_CONFIGS = {
@@ -31,6 +31,12 @@ class MultiSportDataCollector:
             'name': 'NBA',
             'sport': 'basketball',
             'active_months': [10, 11, 12, 1, 2, 3, 4, 5, 6],
+            'has_playoffs': True
+        },
+        'basketball_ncaab': {
+            'name': 'NCAAB',
+            'sport': 'basketball',
+            'active_months': [11, 12, 1, 2, 3, 4],  # Nov-Apr (regular season + March Madness)
             'has_playoffs': True
         },
         'icehockey_nhl': {

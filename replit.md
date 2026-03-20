@@ -31,7 +31,7 @@ A Canonical Fixtures Table serves as the single source of truth. Data collection
 - **Multi-Source Real-Time Odds**: Parallel collection from multiple providers.
 - **Fixture ID Resolver**: Advanced system for cross-source data linkage.
 - **Historical Match Data**: Extensive dataset including results, odds, and in-game statistics.
-- **Multi-Sport Data Collector**: Gathers NBA, NHL, NFL data.
+- **Multi-Sport Data Collector**: Gathers NBA, NHL, NFL, and NCAA Basketball (NCAAB) data. NCAAB added March 2026 — collects fixtures, odds (h2h/spreads/totals from 12 US bookmakers), and completed game results; backfill script at `scripts/backfill_ncaab.py`. A prediction model will be trained after a full season of data (November 2026+).
 - **Sharp Book Data**: Pinnacle and other sharp bookmaker odds for V3 features.
 - **International Match Collector**: System for major international tournaments.
 - **Multi-Sport Player Statistics**: Unified tables with 48 metrics for Soccer, NBA, and NHL.

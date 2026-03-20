@@ -41,7 +41,11 @@ class MultiSportTrainingSync:
         }
     
     def sync_all_sports(self) -> Dict:
-        """Sync training data for all sports"""
+        """
+        Sync training data for all sports.
+        'basketball' covers both NBA (basketball_nba) and NCAAB (basketball_ncaab)
+        since both share sport='basketball' in multisport_fixtures.
+        """
         results = {}
         
         for sport in ['basketball', 'hockey']:
