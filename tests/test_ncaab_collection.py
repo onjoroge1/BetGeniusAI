@@ -210,9 +210,14 @@ class TestNCAAbDatabaseRows:
         )
 
     def test_odds_snapshots_row_count_positive(self):
-        """At least one odds snapshot must exist (upcoming games have odds)."""
+        """
+        At least one odds snapshot must exist after backfill_ncaab.py has run.
+        The initial backfill collected 490 snapshots; this asserts they were stored.
+        """
         _, odds, _ = self._counts()
-        assert odds >= 0  # odds may be 0 if season ended — not a hard failure
+        assert odds > 0, (
+            "No NCAAB odds snapshots found — run scripts/backfill_ncaab.py to seed data"
+        )
 
     def test_schedule_row_count_positive(self):
         """Schedule table must have NCAAB entries."""
@@ -286,9 +291,11 @@ class TestNCAAbTrainingSyncCovers:
         ncaab_completed = cursor.fetchone()[0]
         cursor.close()
         conn.close()
-        # Just verifying the query works and doesn't error out.
-        # If no completed fixtures yet that's OK (season may have ended before backfill).
-        assert ncaab_completed >= 0
+        # Backfill captured 32 completed games in the initial run — assert real data exists
+        assert ncaab_completed > 0, (
+            f"Expected >0 completed NCAAB fixtures with scores, got {ncaab_completed}. "
+            "Run scripts/backfill_ncaab.py to seed completed game data."
+        )
 
     def test_sync_to_training_table_ncaab_does_not_raise(self):
         """
