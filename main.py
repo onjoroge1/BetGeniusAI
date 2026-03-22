@@ -231,6 +231,9 @@ app.include_router(trending_router, tags=["PHASE 1 - Trending & Hot Matches"])
 from routes.api_tester import router as api_tester_router
 app.include_router(api_tester_router)
 
+from routes.multisport_market import router as multisport_market_router
+app.include_router(multisport_market_router)
+
 from routes.parlays import router as parlays_router, router_v2 as parlays_router_v2
 app.include_router(parlays_router, tags=["Parlay Recommendations"])
 app.include_router(parlays_router_v2, tags=["Parlay Recommendations V2"])
