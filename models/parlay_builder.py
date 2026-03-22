@@ -12,20 +12,22 @@ from itertools import combinations
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+from utils.config import settings
+
 logger = logging.getLogger(__name__)
 
 
 CORRELATION_PENALTIES = {
-    'same_league': 0.10,
-    'same_country': 0.05,
-    'same_time_slot': 0.03,
-    'favorites_combo': 0.05,
+    'same_league': settings.PARLAY_CORR_SAME_LEAGUE,
+    'same_country': settings.PARLAY_CORR_SAME_COUNTRY,
+    'same_time_slot': settings.PARLAY_CORR_SAME_TIME,
+    'favorites_combo': settings.PARLAY_CORR_FAVORITES,
 }
 
 CONFIDENCE_THRESHOLDS = {
-    'high': {'min_edge': 0.04, 'max_correlation': 0.15},
-    'medium': {'min_edge': 0.02, 'max_correlation': 0.25},
-    'low': {'min_edge': 0.01, 'max_correlation': 0.40},
+    'high': {'min_edge': settings.PARLAY_EDGE_HIGH_MIN, 'max_correlation': settings.PARLAY_EDGE_HIGH_MAX_CORR},
+    'medium': {'min_edge': settings.PARLAY_EDGE_MEDIUM_MIN, 'max_correlation': settings.PARLAY_EDGE_MEDIUM_MAX_CORR},
+    'low': {'min_edge': settings.PARLAY_EDGE_LOW_MIN, 'max_correlation': settings.PARLAY_EDGE_LOW_MAX_CORR},
 }
 
 class ParlayBuilder:
@@ -129,12 +131,13 @@ class ParlayBuilder:
     def calculate_correlation_penalty(self, legs: List[Dict]) -> float:
         """Calculate correlation penalty for a set of legs"""
         penalty = 0.0
-        
+
+        # Count same-league pairs (not set difference) to avoid inflated penalties
         leagues = [leg['league_name'] for leg in legs if leg.get('league_name')]
-        unique_leagues = set(leagues)
-        if len(leagues) > len(unique_leagues):
-            same_league_count = len(leagues) - len(unique_leagues)
-            penalty += same_league_count * CORRELATION_PENALTIES['same_league']
+        from collections import Counter
+        league_counts = Counter(leagues)
+        same_league_pairs = sum(n * (n - 1) // 2 for n in league_counts.values())
+        penalty += same_league_pairs * CORRELATION_PENALTIES['same_league']
         
         kickoff_times = [leg['kickoff_at'] for leg in legs]
         for i, t1 in enumerate(kickoff_times):
@@ -142,11 +145,11 @@ class ParlayBuilder:
                 if abs((t1 - t2).total_seconds()) < 7200:
                     penalty += CORRELATION_PENALTIES['same_time_slot']
         
-        favorites = sum(1 for leg in legs if leg['decimal_odds'] < 1.50)
+        favorites = sum(1 for leg in legs if leg['decimal_odds'] < settings.PARLAY_FAVORITES_ODDS_THRESHOLD)
         if favorites >= 2:
             penalty += CORRELATION_PENALTIES['favorites_combo']
         
-        return min(penalty, 0.40)
+        return min(penalty, settings.PARLAY_MAX_CORRELATION)
     
     def generate_same_day_parlays(
         self, 
@@ -180,7 +183,7 @@ class ParlayBuilder:
                 legs = []
                 for match in combo:
                     outcome, prob, odds, edge = self.calculate_best_selection(match)
-                    if edge > -0.05 and prob >= 0.20:
+                    if edge > settings.PARLAY_LEG_MIN_EDGE and prob >= settings.PARLAY_LEG_MIN_PROB:
                         legs.append({
                             'match_id': match['match_id'],
                             'home_team': match['home_team'],
@@ -253,7 +256,7 @@ class ParlayBuilder:
                 legs = []
                 for match in combo:
                     outcome, prob, odds, edge = self.calculate_best_selection(match)
-                    if edge > -0.05 and prob >= 0.20:
+                    if edge > settings.PARLAY_LEG_MIN_EDGE and prob >= settings.PARLAY_LEG_MIN_PROB:
                         legs.append({
                             'match_id': match['match_id'],
                             'home_team': match['home_team'],

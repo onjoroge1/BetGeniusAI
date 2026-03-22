@@ -221,7 +221,16 @@ FRONTEND_RESPONSE_TEMPLATE = {
     }
 }
 
-# Error Response Template
+# ── Standardized Error Response Model ──
+class ErrorResponse(BaseModel):
+    """Structured error response used across all API endpoints."""
+    error_code: str = Field(..., description="Machine-readable error code, e.g. MATCH_NOT_FOUND")
+    message: str = Field(..., description="Human-readable error description")
+    details: Optional[Any] = Field(None, description="Extra context (dict, string, etc.)")
+    suggestion: Optional[str] = Field(None, description="Actionable next step for the caller")
+
+
+# Legacy template kept for backward compatibility
 ERROR_RESPONSE_TEMPLATE = {
     "error": {
         "code": "ANALYSIS_FAILED",

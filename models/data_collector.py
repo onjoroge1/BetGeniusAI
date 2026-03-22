@@ -15,9 +15,64 @@ from models.player_analyzer import PlayerPerformanceAnalyzer
 
 logger = logging.getLogger(__name__)
 
+# Transient HTTP status codes that should trigger a retry
+_TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 3
+_BASE_BACKOFF_SECONDS = 1.0
+
+
+async def _api_request_with_retry(
+    session: aiohttp.ClientSession,
+    method: str,
+    url: str,
+    headers: dict,
+    params: dict = None,
+    max_retries: int = _MAX_RETRIES,
+    base_backoff: float = _BASE_BACKOFF_SECONDS,
+) -> Optional[dict]:
+    """
+    Make an HTTP request with exponential backoff for transient failures.
+    Returns parsed JSON on success, None on permanent failure.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            async with session.request(method, url, headers=headers, params=params) as response:
+                if response.status == 200:
+                    return await response.json()
+
+                if response.status in _TRANSIENT_STATUS_CODES:
+                    retry_after = response.headers.get("Retry-After")
+                    if retry_after:
+                        wait = float(retry_after)
+                    else:
+                        wait = base_backoff * (2 ** attempt)
+                    logger.warning(
+                        f"Transient {response.status} from {url} (attempt {attempt + 1}/{max_retries + 1}), "
+                        f"retrying in {wait:.1f}s"
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+
+                # Permanent failure (4xx other than 429)
+                logger.warning(f"Permanent failure {response.status} from {url}")
+                return None
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            if attempt < max_retries:
+                wait = base_backoff * (2 ** attempt)
+                logger.warning(f"Request error {e} (attempt {attempt + 1}/{max_retries + 1}), retrying in {wait:.1f}s")
+                await asyncio.sleep(wait)
+            else:
+                logger.error(f"Request failed after {max_retries + 1} attempts: {e}")
+                return None
+
+    logger.error(f"All {max_retries + 1} retries exhausted for {url}")
+    return None
+
+
 class SportsDataCollector:
     """Collects and processes sports data from RapidAPI Football API"""
-    
+
     def __init__(self):
         self.base_url = settings.RAPIDAPI_FOOTBALL_URL
         self.headers = get_rapidapi_headers()
@@ -195,16 +250,14 @@ class SportsDataCollector:
                 params["to"] = to_date
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        matches = data.get('response', [])
-                        logger.info(f"Found {len(matches)} {status} matches for league {league_id}, season {season}")
-                        return matches
-                    else:
-                        logger.warning(f"API request failed for league {league_id}, season {season}: {response.status}")
-                        return []
-                        
+                data = await _api_request_with_retry(session, "GET", url, self.headers, params)
+                if data:
+                    matches = data.get('response', [])
+                    logger.info(f"Found {len(matches)} {status} matches for league {league_id}, season {season}")
+                    return matches
+                logger.warning(f"API request failed for league {league_id}, season {season}")
+                return []
+
         except Exception as e:
             logger.error(f"Failed to get {status} matches: {e}")
             return []
@@ -240,19 +293,18 @@ class SportsDataCollector:
         try:
             url = f"{self.base_url}/fixtures"
             params = {"id": match_id}
-            
+
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        fixtures = data.get('response', [])
-                        return fixtures[0] if fixtures else None
-                    return None
-                    
+                data = await _api_request_with_retry(session, "GET", url, self.headers, params)
+                if data:
+                    fixtures = data.get('response', [])
+                    return fixtures[0] if fixtures else None
+                return None
+
         except Exception as e:
             logger.error(f"Failed to get match details for {match_id}: {e}")
             return None
-    
+
     async def _get_team_statistics(self, team_id: int, season: int = 2024) -> Dict:
         """Get comprehensive team statistics"""
         try:
@@ -262,14 +314,13 @@ class SportsDataCollector:
                 "season": season,
                 "team": team_id
             }
-            
+
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return data.get('response', {})
-                    return {}
-                    
+                data = await _api_request_with_retry(session, "GET", url, self.headers, params)
+                if data:
+                    return data.get('response', {})
+                return {}
+
         except Exception as e:
             logger.error(f"Failed to get team statistics for {team_id}: {e}")
             return {}
@@ -285,16 +336,15 @@ class SportsDataCollector:
             }
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return data.get('response', [])
-                    return []
-                    
+                data = await _api_request_with_retry(session, "GET", url, self.headers, params)
+                if data:
+                    return data.get('response', [])
+                return []
+
         except Exception as e:
             logger.error(f"Failed to get team form for {team_id}: {e}")
             return []
-    
+
     async def _get_head_to_head(self, team1_id: int, team2_id: int, last_games: int = 10) -> List[Dict]:
         """Get head-to-head history"""
         try:
@@ -303,18 +353,17 @@ class SportsDataCollector:
                 "h2h": f"{team1_id}-{team2_id}",
                 "last": last_games
             }
-            
+
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return data.get('response', [])
-                    return []
-                    
+                data = await _api_request_with_retry(session, "GET", url, self.headers, params)
+                if data:
+                    return data.get('response', [])
+                return []
+
         except Exception as e:
             logger.error(f"Failed to get H2H for {team1_id} vs {team2_id}: {e}")
             return []
-    
+
     async def _get_team_injuries(self, team_id: int) -> List[Dict]:
         """Get team injury list"""
         try:
@@ -323,14 +372,13 @@ class SportsDataCollector:
                 "team": team_id,
                 "season": 2024
             }
-            
+
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return data.get('response', [])
-                    return []
-                    
+                data = await _api_request_with_retry(session, "GET", url, self.headers, params)
+                if data:
+                    return data.get('response', [])
+                return []
+
         except Exception as e:
             logger.error(f"Failed to get injuries for {team_id}: {e}")
             return []

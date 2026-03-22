@@ -47,6 +47,11 @@ SEASON_INFO = {
         'end':   (4, 30),
         'total_games': 34,
     },
+    'americanfootball_nfl': {
+        'start': (9, 7),     # Sept 7 (typical Thursday kickoff)
+        'end':   (2, 12),    # Feb 12 (Super Bowl)
+        'total_games': 17,   # 17 regular-season games per team
+    },
 }
 
 # ELO parameters

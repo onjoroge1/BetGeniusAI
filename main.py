@@ -13,7 +13,8 @@ import logging
 import math
 import os
 import json
-import redis
+import time
+import threading
 from datetime import datetime, timezone
 from functools import lru_cache
 
@@ -27,11 +28,13 @@ from slowapi.errors import RateLimitExceeded
 from utils.config import settings
 from models.response_schemas import (
     FinalPredictionResponse, MatchContext, ComprehensiveAnalysisResponse,
-    AvailabilityRequest, AvailabilityResponse, MatchAvailability, AvailabilityMeta
+    AvailabilityRequest, AvailabilityResponse, MatchAvailability, AvailabilityMeta,
+    ErrorResponse
 )
 from utils.on_demand_consensus import build_on_demand_consensus
 from utils.betting_edge import compute_betting_intelligence, compute_live_intelligence
-from utils.prediction_logger import log_v0_prediction, log_v1_prediction, log_v3_prediction, log_prediction
+from utils.prediction_logger import log_v0_prediction, log_v1_prediction, log_v2_prediction, log_v3_prediction, log_multisport_prediction, log_prediction
+from utils.ab_allocator import allocate_variant
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +42,83 @@ logger = logging.getLogger(__name__)
 
 # Configure rate limiter
 limiter = Limiter(key_func=get_remote_address)
+
+# ============ LIGHTWEIGHT TTL CACHE FOR API RESPONSES ============
+class TTLCache:
+    """Thread-safe in-memory cache with per-key TTL expiration."""
+    def __init__(self, default_ttl: int = 60, max_size: int = 500):
+        self._store: Dict[str, Any] = {}
+        self._expiry: Dict[str, float] = {}
+        self._lock = threading.Lock()
+        self.default_ttl = default_ttl
+        self.max_size = max_size
+
+    def get(self, key: str):
+        with self._lock:
+            if key in self._store and time.time() < self._expiry[key]:
+                return self._store[key]
+            self._store.pop(key, None)
+            self._expiry.pop(key, None)
+            return None
+
+    def set(self, key: str, value, ttl: int = None):
+        with self._lock:
+            if len(self._store) >= self.max_size:
+                # Evict expired entries first
+                now = time.time()
+                expired = [k for k, exp in self._expiry.items() if now >= exp]
+                for k in expired:
+                    self._store.pop(k, None)
+                    self._expiry.pop(k, None)
+            self._store[key] = value
+            self._expiry[key] = time.time() + (ttl or self.default_ttl)
+
+# Cache instances: /predict (60s), /market (30s)
+_predict_cache = TTLCache(default_ttl=60, max_size=200)
+_market_cache = TTLCache(default_ttl=30, max_size=100)
+
+
+# ============ DATA FRESHNESS HELPER ============
+def compute_freshness(timestamp) -> dict:
+    """Compute data freshness metadata from a timestamp."""
+    if timestamp is None:
+        return {"last_updated": None, "data_age_seconds": None, "freshness_status": "unknown"}
+    from datetime import timezone as _tz
+    now = datetime.now(_tz.utc)
+    ts = timestamp if getattr(timestamp, 'tzinfo', None) else timestamp.replace(tzinfo=_tz.utc)
+    age = (now - ts).total_seconds()
+    if age < settings.FRESHNESS_FRESH_SEC:
+        status = "fresh"
+    elif age < settings.FRESHNESS_STALE_SEC:
+        status = "stale"
+    else:
+        status = "very_stale"
+    return {
+        "last_updated": ts.isoformat(),
+        "data_age_seconds": round(age),
+        "freshness_status": status
+    }
+
+
+# ============ STANDARDIZED ERROR HELPER ============
+def raise_api_error(
+    status_code: int,
+    error_code: str,
+    message: str,
+    details=None,
+    suggestion: str = None
+):
+    """Raise an HTTPException with a structured ErrorResponse body."""
+    raise HTTPException(
+        status_code=status_code,
+        detail=ErrorResponse(
+            error_code=error_code,
+            message=message,
+            details=details,
+            suggestion=suggestion
+        ).model_dump()
+    )
+
 
 # ============ PERFORMANCE OPTIMIZATION: POISSON PMF CACHING ============
 # Cache for Poisson grids to eliminate repeated calculations
@@ -148,6 +228,9 @@ app.include_router(realtime_router, tags=["Phase 2 - Real-time"])
 from routes.trending import router as trending_router
 app.include_router(trending_router, tags=["PHASE 1 - Trending & Hot Matches"])
 
+from routes.api_tester import router as api_tester_router
+app.include_router(api_tester_router)
+
 from routes.parlays import router as parlays_router, router_v2 as parlays_router_v2
 app.include_router(parlays_router, tags=["Parlay Recommendations"])
 app.include_router(parlays_router_v2, tags=["Parlay Recommendations V2"])
@@ -205,6 +288,49 @@ async def healthz():
     """
     return {"ok": True}
 
+@app.post("/auth/login", tags=["Auth"])
+async def admin_login(request: Request):
+    """
+    Admin login endpoint.  Returns a JWT access token.
+
+    Body: {"email": "admin@snapbet.bet", "password": "..."}
+
+    Requires JWT_SECRET_KEY and ADMIN_PASSWORD_HASH env vars to be set.
+    """
+    from utils.auth import (
+        create_access_token, verify_admin_password,
+        is_jwt_configured, ADMIN_EMAIL,
+    )
+
+    if not is_jwt_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="JWT auth not configured. Set JWT_SECRET_KEY and ADMIN_PASSWORD_HASH env vars."
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    email = body.get("email", "")
+    password = body.get("password", "")
+
+    if email != ADMIN_EMAIL:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not verify_admin_password(password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_access_token(subject="admin")
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": 86400,  # 24 hours
+    }
+
+
 @app.get("/metrics", tags=["Observability"])
 async def metrics_endpoint():
     """
@@ -236,9 +362,9 @@ async def metrics_endpoint():
     data = generate_latest(registry)
     return Response(media_type=CONTENT_TYPE_LATEST, content=data)
 
-@app.get("/", tags=["Health"])
-async def root():
-    """Root endpoint"""
+@app.get("/health/json", tags=["Health"])
+async def root_json():
+    """JSON health check (moved from / to /health/json)"""
     return {"message": "BetGenius AI Backend", "status": "running", "docs": "/docs"}
 
 # ============ LAZY INITIALIZATION FOR FAST STARTUP ============
@@ -624,27 +750,39 @@ class PredictionResponse(BaseModel):
 
 # Authentication dependency
 async def verify_api_key(authorization: str = Header(None)):
-    """Verify API key authentication"""
+    """
+    Verify authentication via either:
+    1. Legacy API key: Bearer <BETGENIUS_API_KEY>
+    2. JWT token:      Bearer <jwt_token>
+    """
     if not authorization:
         raise HTTPException(
             status_code=401,
             detail="Authorization header required"
         )
-    
+
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
             detail="Authorization header must start with 'Bearer '"
         )
-    
-    api_key = authorization.split(" ")[1]
-    if api_key != settings.BETGENIUS_API_KEY:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API key"
-        )
-    
-    return api_key
+
+    token = authorization.split(" ", 1)[1]
+
+    # Path 1: Legacy API key match
+    if token == settings.BETGENIUS_API_KEY:
+        return token
+
+    # Path 2: JWT verification
+    from utils.auth import verify_token
+    payload = verify_token(token)
+    if payload:
+        return token
+
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid API key or expired JWT token"
+    )
 
 # Poisson Goal Model for Additional Markets
 import math
@@ -1286,6 +1424,60 @@ def calculate_calibrated_confidence(probabilities: dict, dispersions: dict, n_bo
         # Fallback to safe conservative confidence
         return 0.50
 
+
+def compute_unified_confidence(
+    probs: dict,
+    n_books: int = None,
+    dispersions: dict = None
+) -> tuple:
+    """
+    Unified confidence calculation that works for all model outputs.
+
+    When bookmaker consensus data (n_books, dispersions) is available (V1 path),
+    uses the full 3-component geometric mean.
+
+    When only probabilities are available (V2/V3/multisport path), uses
+    entropy-only calibration so confidence has the same semantic meaning
+    across all endpoints.
+
+    Returns:
+        (calibrated_confidence, method_name)
+    """
+    try:
+        pH = max(probs.get('home', probs.get('H', 0)), 1e-12)
+        pD = max(probs.get('draw', probs.get('D', 0)), 1e-12)
+        pA = max(probs.get('away', probs.get('A', 0)), 1e-12)
+
+        total = pH + pD + pA
+        if total > 0:
+            pH, pD, pA = pH / total, pD / total, pA / total
+
+        entropy = -(pH * math.log(pH) + pD * math.log(pD) + pA * math.log(pA))
+        max_entropy = math.log(3)
+        entropy_confidence = 1 - (entropy / max_entropy)
+
+        if n_books is not None and dispersions is not None:
+            # Full calibration with consensus strength and sample size
+            disp_h = max(dispersions.get('home', 0), 0)
+            disp_d = max(dispersions.get('draw', 0), 0)
+            disp_a = max(dispersions.get('away', 0), 0)
+            avg_dispersion = (disp_h + disp_d + disp_a) / 3
+            consensus_conf = math.exp(-avg_dispersion * 10)
+            sample_conf = min(n_books / 20, 1.0)
+            combined = (entropy_confidence * consensus_conf * sample_conf) ** (1 / 3)
+            method = "entropy_consensus_calibrated"
+        else:
+            # Entropy-only calibration for model outputs
+            combined = entropy_confidence
+            method = "entropy_calibrated"
+
+        calibrated = min(max(combined, 0.05), 0.95)
+        return calibrated, method
+
+    except Exception:
+        return 0.50, "fallback"
+
+
 def derive_comprehensive_markets(home_prob: float, draw_prob: float, away_prob: float, injury_adjustment: float = 1.0, config: dict = None):
     """
     Derive comprehensive additional markets from 1X2 consensus using Poisson goal model
@@ -1534,27 +1726,148 @@ def derive_comprehensive_markets(home_prob: float, draw_prob: float, away_prob: 
             "flat": {"btts_yes": 0.50, "btts_no": 0.50, "totals_over_2_5": 0.45}
         }
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    """Health check endpoint"""
-    return {
-        "message": "BetGenius AI Backend - Africa's First AI-Powered Sports Prediction Platform",
-        "status": "operational", 
-        "version": "1.0.0",
-        "features": [
-            "Real-time sports data from RapidAPI",
-            "Enhanced two-stage ML predictions (55.2% current accuracy, 102% improvement)",
-            "AI explanations powered by OpenAI GPT-4o",
-            "Multi-language support (English, Swahili)",
-            "Honest performance reporting with no data leakage"
-        ],
-        "endpoints": {
-            "predict": "POST /predict - Get match predictions with AI analysis",
-            "upcoming": "GET /matches/upcoming - Get upcoming matches",
-            "health": "GET /health - System health check"
-        },
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    """Landing page with links to all key pages and APIs"""
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BetGenius AI</title>
+<style>
+  :root { --bg:#0f1117; --surface:#1a1d27; --surface2:#252830; --border:#2e313a;
+          --text:#e4e4e7; --muted:#8b8d97; --accent:#6366f1; --accent2:#818cf8;
+          --green:#22c55e; --blue:#3b82f6; --yellow:#eab308; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+         background:var(--bg); color:var(--text); min-height:100vh; }
+  .container { max-width:900px; margin:0 auto; padding:40px 24px; }
+  h1 { font-size:28px; font-weight:700; margin-bottom:4px; }
+  h1 span { color:var(--accent2); }
+  .subtitle { color:var(--muted); font-size:14px; margin-bottom:32px; }
+  .section { margin-bottom:28px; }
+  .section h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px;
+                color:var(--muted); margin-bottom:12px; padding-bottom:6px;
+                border-bottom:1px solid var(--border); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+  a.card { display:block; background:var(--surface); border:1px solid var(--border);
+           border-radius:8px; padding:16px; text-decoration:none; color:var(--text);
+           transition:all 0.2s; }
+  a.card:hover { border-color:var(--accent); transform:translateY(-1px);
+                 box-shadow:0 4px 12px rgba(99,102,241,0.15); }
+  .card .path { font-family:monospace; font-size:13px; color:var(--accent2);
+                margin-bottom:6px; font-weight:600; }
+  .card .desc { font-size:12px; color:var(--muted); line-height:1.4; }
+  .card .badge { display:inline-block; padding:1px 6px; border-radius:3px;
+                 font-size:10px; font-weight:600; margin-left:6px; }
+  .badge-get { background:#3b82f622; color:var(--blue); }
+  .badge-post { background:#22c55e22; color:var(--green); }
+  .badge-html { background:#eab30822; color:var(--yellow); }
+  .status { display:inline-flex; align-items:center; gap:6px; background:var(--surface);
+            border:1px solid var(--border); border-radius:20px; padding:4px 12px;
+            font-size:12px; margin-bottom:24px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--green); }
+  .footer { margin-top:40px; padding-top:16px; border-top:1px solid var(--border);
+            font-size:11px; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1><span>BetGenius</span> AI</h1>
+  <div class="subtitle">AI-Powered Sports Prediction Platform</div>
+  <div class="status"><div class="dot"></div> Operational &middot; V3 Sharp Primary</div>
+
+  <div class="section">
+    <h2>Tools & Dashboards</h2>
+    <div class="grid">
+      <a class="card" href="/api-tester">
+        <div class="path">/api-tester <span class="badge badge-html">HTML</span></div>
+        <div class="desc">Interactive API tester. Test Market, Predict, Performance and Health endpoints with a visual UI.</div>
+      </a>
+      <a class="card" href="/docs">
+        <div class="path">/docs <span class="badge badge-html">Swagger</span></div>
+        <div class="desc">Auto-generated Swagger UI with all endpoints. Try requests directly from the browser.</div>
+      </a>
+      <a class="card" href="/redoc">
+        <div class="path">/redoc <span class="badge badge-html">ReDoc</span></div>
+        <div class="desc">Clean API reference documentation. Read-only, organized by tags.</div>
+      </a>
+      <a class="card" href="/demo">
+        <div class="path">/demo <span class="badge badge-html">HTML</span></div>
+        <div class="desc">Original demo page with workflow examples and quick endpoint tests.</div>
+      </a>
+      <a class="card" href="/internal/metrics">
+        <div class="path">/internal/metrics <span class="badge badge-html">HTML</span></div>
+        <div class="desc">Operational metrics dashboard. Active leagues, ROI, CLV rates, system health.</div>
+      </a>
+      <a class="card" href="/examples">
+        <div class="path">/examples <span class="badge badge-get">GET</span></div>
+        <div class="desc">Complete API usage guide with curl examples for every endpoint.</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Core APIs</h2>
+    <div class="grid">
+      <a class="card" href="/api-tester" onclick="return false;" style="cursor:default">
+        <div class="path">POST /predict <span class="badge badge-post">POST</span></div>
+        <div class="desc">Main prediction endpoint. V3 Sharp primary model with draw-enhanced LightGBM. Returns H/D/A probabilities, confidence, model comparison.</div>
+      </a>
+      <a class="card" href="/market?league_id=39&limit=5&status=finished" target="_blank">
+        <div class="path">GET /market <span class="badge badge-get">GET</span></div>
+        <div class="desc">Market data with bookmaker odds, no-vig probabilities, model predictions, live stats, and betting intelligence.</div>
+      </a>
+      <a class="card" href="/performance/models?window=30d" target="_blank">
+        <div class="path">GET /performance/models <span class="badge badge-get">GET</span></div>
+        <div class="desc">Model performance metrics. Hit rates, Brier scores, log loss, ROI per model version.</div>
+      </a>
+      <a class="card" href="/performance/ab?window=30d" target="_blank">
+        <div class="path">GET /performance/ab <span class="badge badge-get">GET</span></div>
+        <div class="desc">A/B testing results comparing model versions side by side.</div>
+      </a>
+      <a class="card" href="/health" target="_blank">
+        <div class="path">GET /health <span class="badge badge-get">GET</span></div>
+        <div class="desc">System health check. Server status, uptime, version info.</div>
+      </a>
+      <a class="card" href="/predict-v3/status" target="_blank">
+        <div class="path">GET /predict-v3/status <span class="badge badge-get">GET</span></div>
+        <div class="desc">V3 model status. Model loaded, feature count, fold count, metadata.</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Betting Intelligence</h2>
+    <div class="grid">
+      <a class="card" href="/clv/dashboard" target="_blank">
+        <div class="path">GET /clv/dashboard <span class="badge badge-get">GET</span></div>
+        <div class="desc">Closing Line Value dashboard. Track how predictions compare against closing odds.</div>
+      </a>
+      <a class="card" href="/clv/opportunities" target="_blank">
+        <div class="path">GET /clv/opportunities <span class="badge badge-get">GET</span></div>
+        <div class="desc">Current CLV opportunities across upcoming matches.</div>
+      </a>
+      <a class="card" href="/matches/upcoming" target="_blank">
+        <div class="path">GET /matches/upcoming <span class="badge badge-get">GET</span></div>
+        <div class="desc">Upcoming matches across all tracked leagues.</div>
+      </a>
+      <a class="card" href="/leagues" target="_blank">
+        <div class="path">GET /leagues <span class="badge badge-get">GET</span></div>
+        <div class="desc">Available leagues with team counts and coverage info.</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="footer">
+    BetGenius AI Backend v3.0 &middot; V3 Sharp LightGBM (24 features, draw-enhanced) &middot;
+    <a href="/api-tester" style="color:var(--accent2)">API Tester</a> &middot;
+    <a href="/docs" style="color:var(--accent2)">Swagger</a>
+  </div>
+</div>
+</body>
+</html>"""
 
 @app.get("/demo", response_class=HTMLResponse)
 async def demo_page():
@@ -2418,10 +2731,18 @@ async def predict_match(
     import asyncio
     import concurrent.futures
     start_time = datetime.now()
-    
+
+    # Check TTL cache (skip if AI analysis requested — those are unique)
+    cache_key = f"predict:{request.match_id}"
+    if not request.include_analysis:
+        cached = _predict_cache.get(cache_key)
+        if cached:
+            cached["_cached"] = True
+            return cached
+
     try:
         logger.info(f"🎯 PREDICTION REQUEST | match_id={request.match_id} | include_analysis={request.include_analysis} | additional_markets={request.include_additional_markets}")
-        
+
         logger.info("Collecting comprehensive real-time data...")
         loop = asyncio.get_event_loop()
         try:
@@ -2435,6 +2756,9 @@ async def predict_match(
             )
         except asyncio.TimeoutError:
             logger.warning(f"Data collection timed out for match {request.match_id}, using minimal data")
+            match_data = None
+        except Exception as data_err:
+            logger.warning(f"Data collection failed for match {request.match_id}: {data_err}, using DB fallback")
             match_data = None
         
         if not match_data:
@@ -2488,103 +2812,128 @@ async def predict_match(
         }
         
         # Step 2: Generate prediction using cascading fallback
-        # Priority: V1 consensus → V3 sharp fallback → no prediction
+        # Priority: V3 sharp (primary) → V1 consensus → V0 form → no prediction
         logger.info("Generating prediction with cascading fallback...")
-        
+
         prediction_result = None
         prediction_source = None
         data_quality = "full"
-        using_v3_fallback = False
+        using_v3_primary = False
+        using_v1_fallback = False
         is_v0_fallback = False
-        
-        # FIRST: Try to get pre-computed consensus from consensus_predictions table
-        prediction_result = await get_consensus_prediction_from_db(request.match_id)
-        
-        if prediction_result and prediction_result.get('confidence', 0) > 0:
-            logger.info(f"✅ Using V1 pre-computed consensus for match {request.match_id}")
-            prediction_source = "v1_consensus"
-            data_quality = "full"
-        else:
-            # Try on-demand consensus from odds_snapshots
-            logger.info("No pre-computed consensus, building on-demand...")
-            prediction_result = await build_on_demand_consensus(request.match_id)
-            
+
+        # TIER 1: V3 Sharp as PRIMARY model
+        try:
+            v3_primary_predictor = get_v3_predictor_safe()
+            if v3_primary_predictor:
+                v3_primary_result = v3_primary_predictor.predict(match_id=request.match_id)
+                if v3_primary_result and v3_primary_result.get('confidence', 0) > 0:
+                    # Calibrate confidence using dispersion + book count from features
+                    v3_dispersions = v3_primary_result.get('dispersions')
+                    v3_book_count = v3_primary_result.get('bookmaker_count', 0)
+                    cal_conf, cal_method = compute_unified_confidence(
+                        v3_primary_result['probabilities'],
+                        n_books=v3_book_count if v3_book_count > 0 else None,
+                        dispersions=v3_dispersions if v3_dispersions else None
+                    )
+                    prediction_result = {
+                        'probabilities': v3_primary_result['probabilities'],
+                        'confidence': cal_conf,
+                        'raw_confidence': v3_primary_result.get('raw_confidence', v3_primary_result['confidence']),
+                        'prediction': v3_primary_result['prediction'],
+                        'quality_score': min(v3_primary_result.get('features_used', 0) / max(v3_primary_result.get('total_features', 24), 1), 1.0),
+                        'bookmaker_count': v3_book_count,
+                        'model_type': 'v3_sharp_primary',
+                        'data_source': 'v3_sharp_intelligence',
+                        'features_used': v3_primary_result.get('features_used', 0),
+                        'total_features': v3_primary_result.get('total_features', 24),
+                        'confidence_method': cal_method,
+                    }
+                    prediction_source = "v3_sharp"
+                    data_quality = "full"
+                    using_v3_primary = True
+                    logger.info(f"✅ Using V3 sharp PRIMARY for match {request.match_id} "
+                               f"(features: {v3_primary_result.get('features_used')}/{v3_primary_result.get('total_features')}, "
+                               f"conf: {cal_conf:.3f} [{cal_method}])")
+                else:
+                    logger.info(f"V3 returned no valid prediction for match {request.match_id}, falling back to V1...")
+            else:
+                logger.info("V3 predictor not available, falling back to V1...")
+        except Exception as e:
+            logger.warning(f"V3 primary prediction failed (non-fatal): {e}, falling back to V1...")
+
+        # TIER 2: V1 consensus FALLBACK (pre-computed or on-demand)
+        if not prediction_result:
+            prediction_result = await get_consensus_prediction_from_db(request.match_id)
+
             if prediction_result and prediction_result.get('confidence', 0) > 0:
-                logger.info(f"✅ Using V1 on-demand consensus for match {request.match_id}")
+                logger.info(f"✅ Using V1 pre-computed consensus (fallback) for match {request.match_id}")
                 prediction_source = "v1_consensus"
                 data_quality = "full"
+                using_v1_fallback = True
             else:
-                # V1 FAILED - Try V3 sharp fallback
-                logger.info("V1 consensus failed, checking V3 sharp fallback...")
-                sharp_check = await check_sharp_book_availability(request.match_id)
-                
-                if sharp_check.get('has_sharp_book'):
-                    logger.info(f"Sharp books available ({sharp_check.get('book_count')} books), trying V3 fallback...")
-                    v3_result = await get_v3_fallback_prediction(request.match_id)
-                    
-                    if v3_result:
-                        logger.info(f"✅ Using V3 sharp fallback for match {request.match_id} (features: {v3_result.get('features_used')}/{v3_result.get('total_features')})")
-                        prediction_result = v3_result
-                        prediction_source = "v3_sharp_fallback"
-                        data_quality = "limited"
-                        using_v3_fallback = True
+                # Try on-demand consensus from odds_snapshots
+                logger.info("No pre-computed consensus, building on-demand...")
+                prediction_result = await build_on_demand_consensus(request.match_id)
+
+                if prediction_result and prediction_result.get('confidence', 0) > 0:
+                    logger.info(f"✅ Using V1 on-demand consensus (fallback) for match {request.match_id}")
+                    prediction_source = "v1_consensus"
+                    data_quality = "full"
+                    using_v1_fallback = True
+
+        # TIER 3: V0 FORM-ONLY FALLBACK (ELO-based, no odds needed)
+        if not prediction_result:
+            logger.info("Trying V0 form-only fallback (ELO-based)...")
+            try:
+                from models.v0_form_predictor import get_v0_predictor
+                v0_predictor = get_v0_predictor()
+
+                if v0_predictor.is_available():
+                    v0_result = v0_predictor.predict(request.match_id)
+
+                    if v0_result:
+                        logger.info(f"✅ Using V0 form fallback for match {request.match_id} (ELO: {v0_result.get('elo_home')} vs {v0_result.get('elo_away')})")
+                        prediction_result = {
+                            'probabilities': {
+                                'home': v0_result['probabilities']['H'],
+                                'draw': v0_result['probabilities']['D'],
+                                'away': v0_result['probabilities']['A']
+                            },
+                            'confidence': v0_result['confidence'],
+                            'prediction': v0_result['prediction'].lower() + '_win' if v0_result['prediction'] != 'D' else 'draw',
+                            'quality_score': v0_result['confidence'] * 0.6,
+                            'bookmaker_count': 0,
+                            'model_type': 'v0_form',
+                            'data_source': 'form_only',
+                            'elo_home': v0_result.get('elo_home'),
+                            'elo_away': v0_result.get('elo_away'),
+                            'elo_expected': v0_result.get('elo_expected')
+                        }
+                        prediction_source = "v0_form_fallback"
+                        data_quality = "form_only"
+                        is_v0_fallback = True
                     else:
-                        logger.warning(f"V3 fallback failed for match {request.match_id}")
+                        logger.warning(f"V0 fallback returned no result for match {request.match_id}")
                 else:
-                    logger.warning(f"No sharp books available for match {request.match_id}")
-                
-                # V0 FORM-ONLY FALLBACK: Use ELO-based prediction when no odds available
-                if not prediction_result:
-                    logger.info("Trying V0 form-only fallback (ELO-based)...")
-                    try:
-                        from models.v0_form_predictor import get_v0_predictor
-                        v0_predictor = get_v0_predictor()
-                        
-                        if v0_predictor.is_available():
-                            v0_result = v0_predictor.predict(request.match_id)
-                            
-                            if v0_result:
-                                logger.info(f"✅ Using V0 form fallback for match {request.match_id} (ELO: {v0_result.get('elo_home')} vs {v0_result.get('elo_away')})")
-                                prediction_result = {
-                                    'probabilities': {
-                                        'home': v0_result['probabilities']['H'],
-                                        'draw': v0_result['probabilities']['D'],
-                                        'away': v0_result['probabilities']['A']
-                                    },
-                                    'confidence': v0_result['confidence'],
-                                    'prediction': v0_result['prediction'].lower() + '_win' if v0_result['prediction'] != 'D' else 'draw',
-                                    'quality_score': v0_result['confidence'] * 0.6,
-                                    'bookmaker_count': 0,
-                                    'model_type': 'v0_form',
-                                    'data_source': 'form_only',
-                                    'elo_home': v0_result.get('elo_home'),
-                                    'elo_away': v0_result.get('elo_away'),
-                                    'elo_expected': v0_result.get('elo_expected')
-                                }
-                                prediction_source = "v0_form_fallback"
-                                data_quality = "form_only"
-                                is_v0_fallback = True
-                            else:
-                                logger.warning(f"V0 fallback returned no result for match {request.match_id}")
-                        else:
-                            logger.warning("V0 predictor not available")
-                    except Exception as e:
-                        logger.warning(f"V0 fallback error: {e}")
-                
-                # FINAL FALLBACK: No prediction available
-                if not prediction_result:
-                    logger.warning(f"No prediction available for match {request.match_id}")
-                    prediction_result = {
-                        'probabilities': {'home': 0.0, 'draw': 0.0, 'away': 0.0},
-                        'confidence': 0.0,
-                        'prediction': 'no_prediction',
-                        'quality_score': 0.0,
-                        'bookmaker_count': sharp_check.get('book_count', 0),
-                        'model_type': 'none',
-                        'data_source': 'no_prediction_available'
-                    }
-                    prediction_source = "none"
-                    data_quality = "unavailable"
+                    logger.warning("V0 predictor not available")
+            except Exception as e:
+                logger.warning(f"V0 fallback error: {e}")
+
+        # TIER 4: No prediction available
+        if not prediction_result:
+            logger.warning(f"No prediction available for match {request.match_id}")
+            prediction_result = {
+                'probabilities': {'home': 0.0, 'draw': 0.0, 'away': 0.0},
+                'confidence': 0.0,
+                'prediction': 'no_prediction',
+                'quality_score': 0.0,
+                'bookmaker_count': 0,
+                'model_type': 'none',
+                'data_source': 'no_prediction_available'
+            }
+            prediction_source = "none"
+            data_quality = "unavailable"
         
         # Add prediction metadata
         prediction_result['prediction_source'] = prediction_source
@@ -2678,15 +3027,27 @@ async def predict_match(
         v3_shadow_result = None
         v3_shadow_available = False
 
-        if using_v3_fallback:
-            logger.info("Skipping V2 shadow - using V3 sharp fallback (V2 requires consensus input)")
-            # V3 already ran as the primary source; capture its result for models array
+        # Shadow inference: run comparison models alongside primary
+        v1_shadow_result = None
+        v1_shadow_available = False
+
+        if using_v3_primary:
+            # V3 is primary — run V1 consensus as shadow for comparison
             try:
-                v3_shadow_result = prediction_result
-                v3_shadow_available = True
-            except Exception:
-                pass
-        else:
+                v1_shadow_result = await get_consensus_prediction_from_db(request.match_id)
+                if not v1_shadow_result or v1_shadow_result.get('confidence', 0) <= 0:
+                    v1_shadow_result = await build_on_demand_consensus(request.match_id)
+                if v1_shadow_result and v1_shadow_result.get('confidence', 0) > 0:
+                    v1_shadow_available = True
+                    logger.info(f"V1 shadow obtained: conf={v1_shadow_result.get('confidence', 0):.3f}")
+            except Exception as e:
+                logger.warning(f"V1 shadow prediction unavailable (non-fatal): {e}")
+
+            # V3 already ran as primary; capture for models array
+            v3_shadow_result = prediction_result
+            v3_shadow_available = True
+
+            # V2 shadow — uses V3's probabilities as market input
             try:
                 from models.v2_lgbm_predictor import get_v2_lgbm_predictor
                 v2_predictor = get_v2_lgbm_predictor()
@@ -2698,12 +3059,31 @@ async def predict_match(
                 v2_result = v2_predictor.predict(match_id=request.match_id, market_probs=market_probs)
                 if v2_result and v2_result.get('confidence', 0) > 0:
                     v2_available = True
-                    logger.info(f"V2 prediction obtained: conf={v2_result.get('confidence', 0):.3f}")
+                    logger.info(f"V2 shadow obtained: conf={v2_result.get('confidence', 0):.3f}")
+            except Exception as e:
+                logger.warning(f"V2 prediction unavailable (non-fatal): {e}")
+                v2_result = None
+        elif is_v0_fallback:
+            logger.info("Skipping V2/V3 shadow - V0 form fallback active (no odds data)")
+        else:
+            # V1 is primary (fallback case) — run V2 and V3 as shadows
+            try:
+                from models.v2_lgbm_predictor import get_v2_lgbm_predictor
+                v2_predictor = get_v2_lgbm_predictor()
+                market_probs = {
+                    'home': prediction_result.get('probabilities', {}).get('home', 0.33),
+                    'draw': prediction_result.get('probabilities', {}).get('draw', 0.33),
+                    'away': prediction_result.get('probabilities', {}).get('away', 0.33)
+                }
+                v2_result = v2_predictor.predict(match_id=request.match_id, market_probs=market_probs)
+                if v2_result and v2_result.get('confidence', 0) > 0:
+                    v2_available = True
+                    logger.info(f"V2 shadow obtained: conf={v2_result.get('confidence', 0):.3f}")
             except Exception as e:
                 logger.warning(f"V2 prediction unavailable (non-fatal): {e}")
                 v2_result = None
 
-            # V3 shadow inference — always run alongside V1 when V1 is primary
+            # V3 shadow inference — run alongside V1
             try:
                 from models.v3_predictor import get_v3_predictor
                 v3_predictor_inst = get_v3_predictor()
@@ -2749,38 +3129,58 @@ async def predict_match(
         
         # Build models array for transparency
         models_array = []
-        
-        # Primary Model - V1 Consensus or V3 Sharp Fallback (unified structure)
-        v1_prediction_mapping = {'home': 'home_win', 'draw': 'draw', 'away': 'away_win', 'Home': 'home_win', 'Draw': 'draw', 'Away': 'away_win'}
-        v1_recommended = v1_prediction_mapping.get(raw_prediction, raw_prediction) if raw_prediction != 'No Prediction' else 'No Prediction'
-        
-        if using_v3_fallback:
-            # V3 Sharp Fallback - same structure as V1 but with limited data indicator
+
+        # Load V3 metadata dynamically for accurate reporting
+        _v3_meta = {}
+        try:
+            _v3_pred = get_v3_predictor_safe()
+            if _v3_pred and _v3_pred.metadata:
+                _v3_meta = _v3_pred.metadata
+        except Exception:
+            pass
+        _v3_oof = _v3_meta.get('oof_metrics', {})
+        _v3_logloss = _v3_oof.get('logloss', 1.035)
+        _v3_n_features = _v3_meta.get('n_features', len(_v3_oof.get('feature_importance', {})))
+        _v3_accuracy = _v3_oof.get('accuracy_3way', 0)
+        _v3_n_samples = _v3_oof.get('n_samples', 0)
+
+        # Prediction mapping for display
+        _pred_map = {'H': 'home_win', 'D': 'draw', 'A': 'away_win',
+                     'home': 'home_win', 'draw': 'draw', 'away': 'away_win',
+                     'home_win': 'home_win', 'away_win': 'away_win'}
+        primary_recommended = _pred_map.get(raw_prediction, raw_prediction) if raw_prediction != 'No Prediction' else 'No Prediction'
+
+        # --- Primary model entry ---
+        if using_v3_primary:
+            selected_model = "v3_sharp"
+            selection_reason = "V3 sharp intelligence is primary model"
             models_array.append({
-                "id": "v3_sharp_fallback",
-                "name": "V3 Sharp Intelligence (Fallback)",
+                "id": "v3_sharp",
+                "name": "V3 Sharp Intelligence Model",
                 "type": "lightgbm_ensemble",
                 "version": "3.0.0",
-                "status": "active",
-                "data_quality": "limited",
+                "status": "primary",
+                "draw_specialist": True,
+                "data_quality": "full",
                 "predictions": {
                     "home_win": round(h_norm, 3),
                     "draw": round(d_norm, 3),
                     "away_win": round(a_norm, 3)
                 },
                 "confidence": round(confidence, 3),
-                "recommended_bet": v1_recommended,
+                "recommended_bet": primary_recommended,
+                "features_used": prediction_result.get('features_used', 0),
                 "quality_metrics": {
                     "metric": "multi_logloss",
-                    "value": 0.9788,
-                    "sample_size": 4021,
-                    "features_used": prediction_result.get('features_used', 0),
-                    "total_features": prediction_result.get('total_features', 34)
-                },
-                "fallback_reason": "V1 consensus unavailable - using V3 sharp book intelligence"
+                    "value": round(_v3_logloss, 4),
+                    "feature_count": _v3_n_features or 24,
+                    "sample_size": _v3_n_samples,
+                    "accuracy_3way": round(_v3_accuracy, 4) if _v3_accuracy else None
+                }
             })
         elif is_v0_fallback:
-            # V0 Form-Only — ELO-based, no odds data available
+            selected_model = "v0_form"
+            selection_reason = "V0 ELO form fallback (no consensus odds available)"
             models_array.append({
                 "id": "v0_form",
                 "name": "ELO Form Predictor",
@@ -2794,7 +3194,7 @@ async def predict_match(
                     "away_win": round(a_norm, 3)
                 },
                 "confidence": round(confidence, 3),
-                "recommended_bet": v1_recommended,
+                "recommended_bet": primary_recommended,
                 "elo_context": {
                     "elo_home": prediction_result.get('elo_home'),
                     "elo_away": prediction_result.get('elo_away'),
@@ -2807,7 +3207,9 @@ async def predict_match(
                 "fallback_reason": "No consensus odds available — using ELO-based form prediction"
             })
         else:
-            # V1 Consensus - full data quality
+            # V1 Consensus as fallback primary
+            selected_model = "v1_consensus"
+            selection_reason = "V1 consensus fallback (V3 unavailable)"
             models_array.append({
                 "id": "v1_consensus",
                 "name": "Market Weighted Consensus",
@@ -2821,30 +3223,52 @@ async def predict_match(
                     "away_win": round(a_norm, 3)
                 },
                 "confidence": round(confidence, 3),
-                "recommended_bet": v1_recommended,
+                "recommended_bet": primary_recommended,
                 "quality_metrics": {
                     "metric": "multi_logloss",
                     "value": 0.963475,
                     "sample_size": 5415
                 }
             })
-        
-        # V2 Model - LightGBM Context Model (if available and not using V3 fallback)
-        if using_v3_fallback:
-            selected_model = "v3_sharp_fallback"
-            selection_reason = "V3 sharp intelligence fallback (V1 consensus unavailable)"
-        elif is_v0_fallback:
-            selected_model = "v0_form"
-            selection_reason = "V0 ELO form fallback (no consensus odds available)"
-        else:
-            selected_model = "v1_consensus"
-            selection_reason = "V1 consensus is primary model"
-        
-        _pred_map = {'H': 'home_win', 'D': 'draw', 'A': 'away_win',
-                     'home': 'home_win', 'draw': 'draw', 'away': 'away_win',
-                     'home_win': 'home_win', 'away_win': 'away_win'}
 
-        # --- V2 entry ---
+        # --- V1 shadow entry (when V3 is primary) ---
+        v1_shadow_recommended = None
+        v1_shadow_conf = 0.0
+        if using_v3_primary and v1_shadow_available and v1_shadow_result:
+            v1s_probs = v1_shadow_result.get('probabilities', {})
+            v1s_h = v1s_probs.get('home', 0.0)
+            v1s_d = v1s_probs.get('draw', 0.0)
+            v1s_a = v1s_probs.get('away', 0.0)
+            v1s_h_norm, v1s_d_norm, v1s_a_norm = normalize_hda(v1s_h, v1s_d, v1s_a)
+            v1s_pred = v1_shadow_result.get('prediction', '')
+            v1_shadow_recommended = _pred_map.get(v1s_pred, v1s_pred)
+            v1_shadow_conf = float(v1_shadow_result.get('confidence', 0.0))
+            models_array.append({
+                "id": "v1_consensus",
+                "name": "Market Weighted Consensus",
+                "type": "ensemble",
+                "version": "1.0.0",
+                "status": "shadow",
+                "data_quality": "full",
+                "predictions": {
+                    "home_win": round(v1s_h_norm, 3),
+                    "draw": round(v1s_d_norm, 3),
+                    "away_win": round(v1s_a_norm, 3)
+                },
+                "confidence": round(v1_shadow_conf, 3),
+                "recommended_bet": v1_shadow_recommended,
+                "quality_metrics": {
+                    "metric": "multi_logloss",
+                    "value": 0.963475,
+                    "sample_size": 5415
+                },
+                "agreement": {
+                    "agrees_with_primary": v1_shadow_recommended == primary_recommended,
+                    "confidence_delta": round(v1_shadow_conf - confidence, 3)
+                }
+            })
+
+        # --- V2 entry (shadow comparison) ---
         v2_recommended = None
         v2_conf = 0.0
         if v2_available and v2_result:
@@ -2856,13 +3280,12 @@ async def predict_match(
             v2_pred_raw = v2_result.get('prediction', 'H')
             v2_recommended = _pred_map.get(v2_pred_raw, v2_pred_raw)
             v2_conf = v2_result.get('confidence', 0.0)
-            models_agree_v1_v2 = v1_recommended == v2_recommended
             models_array.append({
                 "id": "v2_unified",
                 "name": "Unified V2 Context Model",
                 "type": "lightgbm",
                 "version": "2.0.0",
-                "status": "active",
+                "status": "shadow",
                 "predictions": {
                     "home_win": round(v2_h_norm, 3),
                     "draw": round(v2_d_norm, 3),
@@ -2876,18 +3299,12 @@ async def predict_match(
                     "sample_size": 5415
                 },
                 "agreement": {
-                    "agrees_with_v1": models_agree_v1_v2,
+                    "agrees_with_primary": v2_recommended == primary_recommended,
                     "confidence_delta": round(v2_conf - confidence, 3)
                 }
             })
-            if not is_v0_fallback and not using_v3_fallback:
-                selected_model = "v1_consensus"
-                selection_reason = "V1 consensus is production model; V2 shown for comparison"
         else:
-            if using_v3_fallback:
-                v2_status = "skipped"
-                v2_reason = "Skipped - using V3 sharp fallback"
-            elif is_v0_fallback:
+            if is_v0_fallback:
                 v2_status = "skipped"
                 v2_reason = "Skipped - no odds data available (V0 form fallback active)"
             else:
@@ -2905,10 +3322,10 @@ async def predict_match(
                 "recommended_bet": None
             })
 
-        # --- V3 entry ---
+        # --- V3 shadow entry (when V1 is primary fallback) ---
         v3_recommended = None
         v3_conf = 0.0
-        if v3_shadow_available and v3_shadow_result:
+        if not using_v3_primary and v3_shadow_available and v3_shadow_result:
             v3_probs = v3_shadow_result.get('probabilities', {})
             v3_h = v3_probs.get('home', 0.0)
             v3_d = v3_probs.get('draw', 0.0)
@@ -2917,13 +3334,12 @@ async def predict_match(
             v3_pred_raw = v3_shadow_result.get('prediction', 'H')
             v3_recommended = _pred_map.get(v3_pred_raw, v3_pred_raw)
             v3_conf = float(v3_shadow_result.get('confidence', 0.0))
-            v3_status = "primary" if using_v3_fallback else ("shadow" if is_v0_fallback else "active")
             models_array.append({
                 "id": "v3_sharp",
                 "name": "V3 Sharp Intelligence Model",
                 "type": "lightgbm_ensemble",
                 "version": "3.0.0",
-                "status": v3_status,
+                "status": "shadow",
                 "draw_specialist": True,
                 "predictions": {
                     "home_win": round(v3_h_norm, 3),
@@ -2935,22 +3351,19 @@ async def predict_match(
                 "features_used": v3_shadow_result.get('features_used', 0),
                 "quality_metrics": {
                     "metric": "multi_logloss",
-                    "value": 1.09,
-                    "feature_count": 36
+                    "value": round(_v3_logloss, 4),
+                    "feature_count": _v3_n_features or 24
                 },
                 "agreement": {
-                    "agrees_with_v1": v3_recommended == v1_recommended,
-                    "agrees_with_v2": v3_recommended == v2_recommended if v2_recommended else None,
-                    "confidence_delta_vs_v1": round(v3_conf - confidence, 3)
+                    "agrees_with_primary": v3_recommended == primary_recommended,
+                    "confidence_delta": round(v3_conf - confidence, 3)
                 }
             })
-        else:
-            if using_v3_fallback:
-                v3_skip_reason = "primary"
-            elif is_v0_fallback:
+        elif not using_v3_primary:
+            if is_v0_fallback:
                 v3_skip_reason = "Skipped - no odds data available (V0 form fallback active)"
             else:
-                v3_skip_reason = "Sharp book data unavailable or model not loaded"
+                v3_skip_reason = "Model not loaded or prediction failed"
             models_array.append({
                 "id": "v3_sharp",
                 "name": "V3 Sharp Intelligence Model",
@@ -2964,18 +3377,36 @@ async def predict_match(
                 "recommended_bet": None
             })
 
-        # --- Log V3 shadow to prediction_log (T004) ---
-        if v3_shadow_available and v3_shadow_result and not using_v3_fallback:
-            try:
-                _league_id_for_log = match_details.get('league', {}).get('id', 0) if match_details else 0
-                _kickoff_raw = match_details.get('fixture', {}).get('date') if match_details else None
-                _kickoff_for_log = None
-                if _kickoff_raw:
-                    try:
-                        from datetime import datetime as _dt
-                        _kickoff_for_log = _dt.fromisoformat(str(_kickoff_raw).replace('Z', '+00:00')) if isinstance(_kickoff_raw, str) else _kickoff_raw
-                    except Exception:
-                        pass
+        # --- Log shadow models to prediction_log ---
+        try:
+            _league_id_for_log = match_details.get('league', {}).get('id', 0) if match_details else 0
+            _kickoff_raw = match_details.get('fixture', {}).get('date') if match_details else None
+            _kickoff_for_log = None
+            if _kickoff_raw:
+                try:
+                    from datetime import datetime as _dt
+                    _kickoff_for_log = _dt.fromisoformat(str(_kickoff_raw).replace('Z', '+00:00')) if isinstance(_kickoff_raw, str) else _kickoff_raw
+                except Exception:
+                    pass
+
+            if using_v3_primary and v1_shadow_available and v1_shadow_result:
+                # Log V1 as shadow when V3 is primary
+                _v1_pick = _pred_map.get(v1_shadow_result.get('prediction', ''), 'H')
+                _v1_pick = 'H' if _v1_pick == 'home_win' else ('A' if _v1_pick == 'away_win' else ('D' if _v1_pick == 'draw' else _v1_pick))
+                log_prediction(
+                    match_id=request.match_id,
+                    model_version='v1_consensus_shadow',
+                    prob_home=round(v1s_h_norm, 4),
+                    prob_draw=round(v1s_d_norm, 4),
+                    prob_away=round(v1s_a_norm, 4),
+                    pick=_v1_pick,
+                    confidence=round(v1_shadow_conf, 4),
+                    league_id=_league_id_for_log,
+                    kickoff_at=_kickoff_for_log,
+                    model_metadata={'source': 'shadow_inference', 'cascade_level': 3},
+                )
+            elif not using_v3_primary and v3_shadow_available and v3_shadow_result:
+                # Log V3 as shadow when V1 is primary
                 _v3_pick_raw = v3_shadow_result.get('prediction', 'H')
                 _v3_pick = _v3_pick_raw if _v3_pick_raw in ('H', 'D', 'A') else (
                     'H' if _v3_pick_raw in ('home', 'home_win') else
@@ -2994,18 +3425,18 @@ async def predict_match(
                     features_used=v3_shadow_result.get('features_used', 0),
                     model_metadata={'source': 'shadow_inference', 'cascade_level': 3},
                 )
-            except Exception as _log_err:
-                logger.warning(f"V3 shadow log failed (non-fatal): {_log_err}")
+        except Exception as _log_err:
+            logger.warning(f"Shadow log failed (non-fatal): {_log_err}")
 
-        # --- Conviction tier (all three models) ---
-        # Always initialise so final_decision can reference it safely
-        active_picks = [p for p in [v1_recommended, v2_recommended, v3_recommended] if p]
+        # --- Conviction tier (all models) ---
+        # Gather all picks from shadow + primary for agreement check
+        active_picks = [p for p in [primary_recommended, v1_shadow_recommended, v2_recommended, v3_recommended] if p and p != 'No Prediction']
         # V0 is a lone model with no odds cross-check — always standard
         if is_v0_fallback:
             conviction_tier = "standard"
         else:
-            active_confs = [c for c in [confidence, v2_conf, v3_conf] if c > 0]
-            all_agree = len(set(active_picks)) == 1 and len(active_picks) == 3
+            active_confs = [c for c in [confidence, v1_shadow_conf, v2_conf, v3_conf] if c > 0]
+            all_agree = len(set(active_picks)) == 1 and len(active_picks) >= 2
             any_two_agree = len(active_picks) >= 2 and len(set(active_picks)) < len(active_picks)
             all_high_conf = all(c >= 0.50 for c in active_confs) if active_confs else False
             any_high_conf = any(c >= 0.50 for c in active_confs) if active_confs else False
@@ -3018,12 +3449,12 @@ async def predict_match(
                 conviction_tier = "standard"
 
         # Final decision block with prediction source info
-        if using_v3_fallback:
-            strategy = "v3_sharp_fallback"
+        if using_v3_primary:
+            strategy = "v3_primary_v1_v2_transparency"
         elif is_v0_fallback:
             strategy = "v0_form_fallback"
         else:
-            strategy = "v1_primary_v2_v3_transparency"
+            strategy = "v1_fallback_v2_v3_transparency"
         final_decision = {
             "selected_model": selected_model,
             "strategy": strategy,
@@ -3046,18 +3477,19 @@ async def predict_match(
         }
         
         # Build response structure compatible with frontend expectations
-        if using_v3_fallback:
+        if using_v3_primary:
             model_info = {
-                "type": "v3_sharp_fallback",
+                "type": "v3_sharp_lgbm_ensemble",
                 "version": "3.0.0",
-                "performance": "0.9788 LogLoss (sharp book intelligence)",
-                "bookmaker_count": prediction_result.get('bookmaker_count', 1),
+                "performance": f"{_v3_logloss:.4f} LogLoss (V3 sharp intelligence, draw-enhanced)",
+                "bookmaker_count": prediction_result.get('bookmaker_count', 0),
                 "quality_score": prediction_result.get('quality_score', 0),
-                "data_quality": "limited",
-                "prediction_source": "v3_sharp_fallback",
+                "data_quality": "full",
+                "prediction_source": "v3_sharp",
                 "features_used": prediction_result.get('features_used', 0),
-                "total_features": prediction_result.get('total_features', 34),
-                "data_sources": ["Sharp Bookmakers", "League Statistics", "Real-time Injuries"]
+                "total_features": prediction_result.get('total_features', 24),
+                "confidence_method": prediction_result.get('confidence_method', 'entropy_calibrated'),
+                "data_sources": ["Odds Consensus", "League Statistics", "H2H History", "Draw Market Structure"]
             }
         elif is_v0_fallback:
             model_info = {
@@ -3073,10 +3505,11 @@ async def predict_match(
                 "data_sources": ["ELO Ratings", "Historical Form"]
             }
         else:
+            # V1 consensus as fallback
             model_info = {
                 "type": "simple_weighted_consensus",
                 "version": "1.0.0",
-                "performance": "0.963475 LogLoss (best performing)",
+                "performance": "0.963475 LogLoss (V1 consensus fallback)",
                 "bookmaker_count": prediction_result.get('bookmaker_count', 0),
                 "quality_score": prediction_result.get('quality_score', 0),
                 "data_quality": "full",
@@ -3089,7 +3522,7 @@ async def predict_match(
             "predictions": predictions,
             "model_info": model_info,
             "data_freshness": {
-                "collection_time": match_data.get('collection_timestamp'),
+                **compute_freshness(match_data.get('collection_timestamp')),
                 "home_injuries": len(match_data.get('home_team', {}).get('injuries', [])),
                 "away_injuries": len(match_data.get('away_team', {}).get('injuries', [])),
                 "form_matches": len(match_data.get('home_team', {}).get('recent_form', [])),
@@ -3108,7 +3541,7 @@ async def predict_match(
                     "draw": round(d_norm, 3),
                     "away_win": round(a_norm, 3)
                 },
-                "model_type": prediction_result.get('model_type', 'robust_weighted_consensus')
+                "model_type": prediction_result.get('model_type', 'v3_sharp_primary' if using_v3_primary else 'robust_weighted_consensus')
             },
             "ai_verdict": {
                 "recommended_outcome": prediction_result.get('prediction', 'No Prediction'),
@@ -3254,6 +3687,11 @@ async def predict_match(
         # Comprehensive completion logging
         metadata = prediction_result.get('metadata', {})
         logger.info(f"✅ PREDICTION COMPLETED | match_id={request.match_id} | {match_info['home_team']} vs {match_info['away_team']} | recommendation={predictions['recommended_bet']} | confidence={predictions['confidence']:.3f} | triplets={metadata.get('n_triplets_used', 0)} | books_raw={metadata.get('n_books_raw', 0)} | dispersion={metadata.get('dispersion', 0)} | prob_sum_valid={metadata.get('prob_sum_valid', False)} | reco_aligned={metadata.get('reco_aligned', False)} | processing_time={processing_time:.2f}s")
+
+        # Cache response (skip if AI analysis was included — those vary)
+        if not request.include_analysis:
+            _predict_cache.set(cache_key, response)
+
         return response
         
     except HTTPException:
@@ -4613,11 +5051,11 @@ async def get_prediction_examples():
 async def not_found_handler(request, exc):
     return JSONResponse(
         status_code=404,
-        content={
-            "error": "Not Found",
-            "message": "The requested resource was not found",
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        content=ErrorResponse(
+            error_code="NOT_FOUND",
+            message="The requested resource was not found",
+            suggestion="Check the URL and try again"
+        ).model_dump()
     )
 
 @app.exception_handler(500)
@@ -4625,11 +5063,23 @@ async def internal_error_handler(request, exc):
     logger.error(f"Internal server error: {exc}")
     return JSONResponse(
         status_code=500,
-        content={
-            "error": "Internal Server Error",
-            "message": "An unexpected error occurred",
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        content=ErrorResponse(
+            error_code="INTERNAL_ERROR",
+            message="An unexpected error occurred",
+            suggestion="Try again later or contact support"
+        ).model_dump()
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc):
+    logger.error(f"Unhandled exception on {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content=ErrorResponse(
+            error_code="INTERNAL_ERROR",
+            message="An unexpected error occurred",
+            suggestion="Try again later or contact support"
+        ).model_dump()
     )
 
 # ===== ACCURACY TRACKING APIs (100% Backend-Driven) =====
@@ -5570,7 +6020,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=5000,
+        port=int(os.environ.get("PORT", 5000)),
         reload=True,
         log_level="info"
     )
@@ -6481,6 +6931,545 @@ async def get_clv_summary(
 
 
 # ============================================================================
+# MODEL PERFORMANCE ENDPOINT — User-facing accuracy dashboard
+# ============================================================================
+
+@app.get("/performance")
+async def get_model_performance(
+    league: Optional[str] = Query(None, description="Filter by league name"),
+    window: str = Query("30d", description="Time window: 7d, 14d, 30d, 90d, or all"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    User-facing model performance dashboard.
+
+    Returns historical accuracy metrics including hit rate, Brier score,
+    league breakdown, confidence-band analysis, and recent streak.
+    Uses existing metrics_per_match, prediction_snapshots, and match_results tables.
+    """
+    import psycopg2
+
+    # Parse window to interval
+    window_map = {
+        "7d": "7 days", "14d": "14 days", "30d": "30 days",
+        "90d": "90 days", "all": "3650 days"
+    }
+    interval = window_map.get(window, "30 days")
+
+    try:
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'), connect_timeout=10)
+        cursor = conn.cursor()
+
+        # Overall metrics
+        cursor.execute(f"""
+            SELECT
+                COUNT(*) AS total,
+                AVG(hit::int) AS hit_rate,
+                AVG(brier) AS avg_brier,
+                AVG(logloss) AS avg_logloss
+            FROM metrics_per_match
+            WHERE computed_at > NOW() - INTERVAL '{interval}'
+        """)
+        overall_row = cursor.fetchone()
+        total = overall_row[0] or 0
+
+        overall = {
+            "total_predictions": total,
+            "hit_rate": round(float(overall_row[1]), 4) if overall_row[1] else None,
+            "brier_score": round(float(overall_row[2]), 4) if overall_row[2] else None,
+            "avg_logloss": round(float(overall_row[3]), 4) if overall_row[3] else None,
+            "window": window
+        }
+
+        # By league
+        league_filter = ""
+        params = []
+        if league:
+            league_filter = "AND m.league ILIKE %s"
+            params = [f"%{league}%"]
+
+        cursor.execute(f"""
+            SELECT
+                m.league,
+                COUNT(*) AS n,
+                AVG(m.hit::int) AS hit_rate,
+                AVG(m.brier) AS avg_brier
+            FROM metrics_per_match m
+            WHERE m.computed_at > NOW() - INTERVAL '{interval}'
+              {league_filter}
+            GROUP BY m.league
+            HAVING COUNT(*) >= 5
+            ORDER BY AVG(m.hit::int) DESC
+        """, params)
+
+        by_league = {}
+        for row in cursor.fetchall():
+            by_league[row[0] or "Unknown"] = {
+                "n": row[1],
+                "hit_rate": round(float(row[2]), 4) if row[2] else None,
+                "brier": round(float(row[3]), 4) if row[3] else None
+            }
+
+        # By confidence band
+        cursor.execute(f"""
+            SELECT
+                confidence_band,
+                COUNT(*) AS n,
+                AVG(hit::int) AS hit_rate
+            FROM metrics_per_match
+            WHERE computed_at > NOW() - INTERVAL '{interval}'
+              AND confidence_band IS NOT NULL
+            GROUP BY confidence_band
+            ORDER BY confidence_band
+        """)
+
+        by_confidence = {}
+        for row in cursor.fetchall():
+            by_confidence[row[0]] = {
+                "n": row[1],
+                "hit_rate": round(float(row[2]), 4) if row[2] else None
+            }
+
+        # Recent streak (last 10 and last 25)
+        cursor.execute(f"""
+            SELECT hit FROM metrics_per_match
+            WHERE computed_at > NOW() - INTERVAL '{interval}'
+            ORDER BY computed_at DESC
+            LIMIT 25
+        """)
+        recent_hits = [bool(row[0]) for row in cursor.fetchall()]
+
+        recent_streak = {
+            "last_10": {"hits": sum(recent_hits[:10]), "total": min(len(recent_hits), 10)},
+            "last_25": {"hits": sum(recent_hits[:25]), "total": min(len(recent_hits), 25)}
+        }
+
+        cursor.close()
+        conn.close()
+
+        return {
+            "overall": overall,
+            "by_league": by_league,
+            "by_confidence_band": by_confidence,
+            "recent_streak": recent_streak,
+            "roi": None,  # Future: compute from bet tracking data
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Performance endpoint error: {e}", exc_info=True)
+        raise_api_error(500, "PERFORMANCE_UNAVAILABLE",
+                        "Performance metrics temporarily unavailable",
+                        suggestion="Try again later")
+
+
+# ============================================================================
+# MODEL COMPARISON ENDPOINTS — Head-to-head model performance
+# ============================================================================
+
+@app.get("/performance/models")
+async def get_model_comparison(
+    window: str = Query("30d", description="Time window: 7d, 14d, 30d, 90d, or all"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Head-to-head comparison of all prediction models.
+
+    Queries prediction_log for per-model hit rate, log-loss, Brier score,
+    and recommends the best-performing model overall and per league.
+    """
+    import psycopg2
+    import math
+
+    window_map = {
+        "7d": "7 days", "14d": "14 days", "30d": "30 days",
+        "90d": "90 days", "all": "3650 days"
+    }
+    interval = window_map.get(window, "30 days")
+
+    try:
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'), connect_timeout=10)
+        cursor = conn.cursor()
+
+        # ── Per-model aggregate metrics ──
+        cursor.execute(f"""
+            SELECT
+                model_version,
+                COUNT(*) AS total,
+                COUNT(CASE WHEN actual_result IS NOT NULL THEN 1 END) AS settled,
+                AVG(CASE WHEN actual_result IS NOT NULL THEN
+                    CASE WHEN is_correct THEN 1.0 ELSE 0.0 END
+                END) AS hit_rate,
+                AVG(CASE WHEN actual_result IS NOT NULL THEN
+                    -(CASE actual_result
+                        WHEN 'H' THEN LN(GREATEST(prob_home, 0.001))
+                        WHEN 'D' THEN LN(GREATEST(prob_draw, 0.001))
+                        WHEN 'A' THEN LN(GREATEST(prob_away, 0.001))
+                    END)
+                END) AS avg_logloss,
+                AVG(CASE WHEN actual_result IS NOT NULL THEN
+                    CASE actual_result
+                        WHEN 'H' THEN POWER(1.0 - prob_home, 2) + POWER(prob_draw, 2) + POWER(prob_away, 2)
+                        WHEN 'D' THEN POWER(prob_home, 2) + POWER(1.0 - prob_draw, 2) + POWER(prob_away, 2)
+                        WHEN 'A' THEN POWER(prob_home, 2) + POWER(prob_draw, 2) + POWER(1.0 - prob_away, 2)
+                    END
+                END) AS avg_brier
+            FROM prediction_log
+            WHERE predicted_at > NOW() - INTERVAL '{interval}'
+            GROUP BY model_version
+            ORDER BY AVG(CASE WHEN actual_result IS NOT NULL AND is_correct THEN 1.0 ELSE 0.0 END) DESC NULLS LAST
+        """)
+
+        models = []
+        best_hit_rate = -1
+        best_model = None
+        for row in cursor.fetchall():
+            mv, total, settled, hr, ll, br = row
+            model_entry = {
+                "model": mv,
+                "total": total,
+                "settled": settled or 0,
+                "hit_rate": round(float(hr), 4) if hr else None,
+                "logloss": round(float(ll), 4) if ll else None,
+                "brier": round(float(br), 4) if br else None,
+            }
+            models.append(model_entry)
+            if hr and settled and settled >= 10 and float(hr) > best_hit_rate:
+                best_hit_rate = float(hr)
+                best_model = mv
+
+        # ── Best model per league (soccer only — uses league_id) ──
+        cursor.execute(f"""
+            SELECT
+                COALESCE(f.league_name, 'Unknown') AS league,
+                pl.model_version,
+                AVG(CASE WHEN pl.is_correct THEN 1.0 ELSE 0.0 END) AS hit_rate,
+                COUNT(*) AS n
+            FROM prediction_log pl
+            LEFT JOIN fixtures f ON pl.match_id = f.match_id
+            WHERE pl.predicted_at > NOW() - INTERVAL '{interval}'
+              AND pl.actual_result IS NOT NULL
+            GROUP BY COALESCE(f.league_name, 'Unknown'), pl.model_version
+            HAVING COUNT(*) >= 5
+            ORDER BY league, hit_rate DESC
+        """)
+
+        best_by_league = {}
+        for league, mv, hr, n in cursor.fetchall():
+            if league not in best_by_league or float(hr) > best_by_league[league]['hit_rate']:
+                best_by_league[league] = {'model': mv, 'hit_rate': round(float(hr), 4), 'n': n}
+
+        # Identify best multisport model
+        multisport_models = [m for m in models if m['model'].startswith('v3_') and m['model'] != 'v3_sharp']
+        best_multisport = max(multisport_models, key=lambda m: m.get('hit_rate') or 0)['model'] if multisport_models and any(m.get('hit_rate') for m in multisport_models) else None
+
+        cursor.close()
+        conn.close()
+
+        return {
+            "models": models,
+            "head_to_head": {
+                "best_overall": best_model,
+                "best_by_league": {k: v['model'] for k, v in best_by_league.items()},
+                "best_by_league_detail": best_by_league,
+                "best_multisport": best_multisport,
+            },
+            "window": window,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Model comparison error: {e}", exc_info=True)
+        raise_api_error(500, "PERFORMANCE_UNAVAILABLE",
+                        "Model comparison metrics temporarily unavailable",
+                        suggestion="Try again later")
+
+
+@app.get("/performance/models/{model_version}")
+async def get_model_detail(
+    model_version: str,
+    window: str = Query("30d", description="Time window: 7d, 14d, 30d, 90d, or all"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Detailed performance breakdown for a single model version.
+
+    Returns league breakdown, confidence bands, and recent prediction streak.
+    """
+    import psycopg2
+
+    window_map = {
+        "7d": "7 days", "14d": "14 days", "30d": "30 days",
+        "90d": "90 days", "all": "3650 days"
+    }
+    interval = window_map.get(window, "30 days")
+
+    try:
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'), connect_timeout=10)
+        cursor = conn.cursor()
+
+        # ── Overall for this model ──
+        cursor.execute(f"""
+            SELECT
+                COUNT(*) AS total,
+                COUNT(CASE WHEN actual_result IS NOT NULL THEN 1 END) AS settled,
+                AVG(CASE WHEN actual_result IS NOT NULL THEN
+                    CASE WHEN is_correct THEN 1.0 ELSE 0.0 END
+                END) AS hit_rate,
+                AVG(CASE WHEN actual_result IS NOT NULL THEN
+                    -(CASE actual_result
+                        WHEN 'H' THEN LN(GREATEST(prob_home, 0.001))
+                        WHEN 'D' THEN LN(GREATEST(prob_draw, 0.001))
+                        WHEN 'A' THEN LN(GREATEST(prob_away, 0.001))
+                    END)
+                END) AS avg_logloss,
+                AVG(CASE WHEN actual_result IS NOT NULL THEN
+                    CASE actual_result
+                        WHEN 'H' THEN POWER(1.0 - prob_home, 2) + POWER(prob_draw, 2) + POWER(prob_away, 2)
+                        WHEN 'D' THEN POWER(prob_home, 2) + POWER(1.0 - prob_draw, 2) + POWER(prob_away, 2)
+                        WHEN 'A' THEN POWER(prob_home, 2) + POWER(prob_draw, 2) + POWER(1.0 - prob_away, 2)
+                    END
+                END) AS avg_brier
+            FROM prediction_log
+            WHERE model_version = %s
+              AND predicted_at > NOW() - INTERVAL '{interval}'
+        """, (model_version,))
+
+        row = cursor.fetchone()
+        if not row or row[0] == 0:
+            cursor.close()
+            conn.close()
+            raise_api_error(404, "MODEL_NOT_FOUND",
+                            f"No predictions found for model '{model_version}' in window '{window}'",
+                            suggestion="Check /performance/models for available model versions")
+
+        overall = {
+            "total": row[0],
+            "settled": row[1] or 0,
+            "hit_rate": round(float(row[2]), 4) if row[2] else None,
+            "logloss": round(float(row[3]), 4) if row[3] else None,
+            "brier": round(float(row[4]), 4) if row[4] else None,
+        }
+
+        # ── By league ──
+        cursor.execute(f"""
+            SELECT
+                COALESCE(f.league_name, 'Unknown') AS league,
+                COUNT(*) AS n,
+                AVG(CASE WHEN pl.is_correct THEN 1.0 ELSE 0.0 END) AS hit_rate,
+                AVG(-(CASE pl.actual_result
+                    WHEN 'H' THEN LN(GREATEST(pl.prob_home, 0.001))
+                    WHEN 'D' THEN LN(GREATEST(pl.prob_draw, 0.001))
+                    WHEN 'A' THEN LN(GREATEST(pl.prob_away, 0.001))
+                END)) AS avg_logloss
+            FROM prediction_log pl
+            LEFT JOIN fixtures f ON pl.match_id = f.match_id
+            WHERE pl.model_version = %s
+              AND pl.actual_result IS NOT NULL
+              AND pl.predicted_at > NOW() - INTERVAL '{interval}'
+            GROUP BY COALESCE(f.league_name, 'Unknown')
+            ORDER BY COUNT(*) DESC
+        """, (model_version,))
+
+        by_league = {}
+        for league, n, hr, ll in cursor.fetchall():
+            by_league[league] = {
+                "n": n,
+                "hit_rate": round(float(hr), 4) if hr else None,
+                "logloss": round(float(ll), 4) if ll else None,
+            }
+
+        # ── By confidence band ──
+        cursor.execute(f"""
+            SELECT
+                CASE
+                    WHEN confidence >= 0.70 THEN 'high'
+                    WHEN confidence >= 0.50 THEN 'medium'
+                    ELSE 'low'
+                END AS band,
+                COUNT(*) AS n,
+                AVG(CASE WHEN is_correct THEN 1.0 ELSE 0.0 END) AS hit_rate
+            FROM prediction_log
+            WHERE model_version = %s
+              AND actual_result IS NOT NULL
+              AND predicted_at > NOW() - INTERVAL '{interval}'
+            GROUP BY 1
+            ORDER BY 1
+        """, (model_version,))
+
+        by_confidence = {}
+        for band, n, hr in cursor.fetchall():
+            by_confidence[band] = {
+                "n": n,
+                "hit_rate": round(float(hr), 4) if hr else None,
+            }
+
+        # ── Recent streak ──
+        cursor.execute(f"""
+            SELECT is_correct
+            FROM prediction_log
+            WHERE model_version = %s
+              AND actual_result IS NOT NULL
+              AND predicted_at > NOW() - INTERVAL '{interval}'
+            ORDER BY predicted_at DESC
+            LIMIT 25
+        """, (model_version,))
+
+        recent_hits = [bool(r[0]) for r in cursor.fetchall()]
+        recent_streak = {
+            "last_10": {"hits": sum(recent_hits[:10]), "total": min(len(recent_hits), 10)},
+            "last_25": {"hits": sum(recent_hits[:25]), "total": min(len(recent_hits), 25)},
+        }
+
+        cursor.close()
+        conn.close()
+
+        return {
+            "model_version": model_version,
+            "window": window,
+            "overall": overall,
+            "by_league": by_league,
+            "by_confidence_band": by_confidence,
+            "recent_streak": recent_streak,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Model detail error for {model_version}: {e}", exc_info=True)
+        raise_api_error(500, "PERFORMANCE_UNAVAILABLE",
+                        f"Model detail metrics temporarily unavailable for {model_version}",
+                        suggestion="Try again later")
+
+
+# ============================================================================
+# A/B TESTING RESULTS ENDPOINT
+# ============================================================================
+
+@app.get("/performance/ab")
+async def get_ab_results(
+    window: str = Query("30d", description="Time window: 7d, 14d, 30d, 90d, or all"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    A/B testing experiment results.
+
+    Shows per-variant metrics (hit rate, log-loss, Brier score) for each
+    active experiment, along with a recommendation for the best variant.
+    """
+    import psycopg2
+    from utils.ab_config import AB_EXPERIMENTS
+
+    window_map = {
+        "7d": "7 days", "14d": "14 days", "30d": "30 days",
+        "90d": "90 days", "all": "3650 days"
+    }
+    interval = window_map.get(window, "30 days")
+
+    try:
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'), connect_timeout=10)
+        cursor = conn.cursor()
+
+        experiments = []
+
+        for exp_id, config in AB_EXPERIMENTS.items():
+            if not config.get("active"):
+                continue
+
+            variant_names = list(config["variants"].keys())
+
+            # Query per-variant metrics from prediction_log
+            cursor.execute(f"""
+                SELECT
+                    ab_variant,
+                    COUNT(*) AS total,
+                    COUNT(CASE WHEN actual_result IS NOT NULL THEN 1 END) AS settled,
+                    AVG(CASE WHEN actual_result IS NOT NULL THEN
+                        CASE WHEN is_correct THEN 1.0 ELSE 0.0 END
+                    END) AS hit_rate,
+                    AVG(CASE WHEN actual_result IS NOT NULL THEN
+                        -(CASE actual_result
+                            WHEN 'H' THEN LN(GREATEST(prob_home, 0.001))
+                            WHEN 'D' THEN LN(GREATEST(prob_draw, 0.001))
+                            WHEN 'A' THEN LN(GREATEST(prob_away, 0.001))
+                        END)
+                    END) AS avg_logloss,
+                    AVG(CASE WHEN actual_result IS NOT NULL THEN
+                        CASE actual_result
+                            WHEN 'H' THEN POWER(1.0 - prob_home, 2) + POWER(prob_draw, 2) + POWER(prob_away, 2)
+                            WHEN 'D' THEN POWER(prob_home, 2) + POWER(1.0 - prob_draw, 2) + POWER(prob_away, 2)
+                            WHEN 'A' THEN POWER(prob_home, 2) + POWER(prob_draw, 2) + POWER(1.0 - prob_away, 2)
+                        END
+                    END) AS avg_brier
+                FROM prediction_log
+                WHERE ab_variant IS NOT NULL
+                  AND predicted_at > NOW() - INTERVAL '{interval}'
+                GROUP BY ab_variant
+                ORDER BY ab_variant
+            """)
+
+            variants = {}
+            best_variant = None
+            best_hr = -1
+
+            for row in cursor.fetchall():
+                ab_var, total, settled, hr, ll, br = row
+                # Only include variants that belong to this experiment
+                if ab_var not in variant_names:
+                    continue
+                variants[ab_var] = {
+                    "n": total,
+                    "settled": settled or 0,
+                    "hit_rate": round(float(hr), 4) if hr else None,
+                    "logloss": round(float(ll), 4) if ll else None,
+                    "brier": round(float(br), 4) if br else None,
+                }
+                if hr and settled and settled >= config.get("min_samples", 50) and float(hr) > best_hr:
+                    best_hr = float(hr)
+                    best_variant = ab_var
+
+            total_settled = sum(v.get("settled", 0) for v in variants.values())
+            min_samples = config.get("min_samples", 100)
+
+            if total_settled >= min_samples and best_variant:
+                status = "concluded"
+                confidence = min(0.99, 0.5 + (total_settled / (min_samples * 4)))
+            elif total_settled > 0:
+                status = "running"
+                confidence = min(0.5, total_settled / (min_samples * 2))
+            else:
+                status = "no_data"
+                confidence = 0.0
+
+            experiments.append({
+                "id": exp_id,
+                "description": config.get("description", ""),
+                "variants": variants,
+                "recommendation": best_variant,
+                "confidence": round(confidence, 2),
+                "status": status,
+                "min_samples": min_samples,
+                "total_settled": total_settled,
+            })
+
+        cursor.close()
+        conn.close()
+
+        return {
+            "experiments": experiments,
+            "window": window,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"A/B results error: {e}", exc_info=True)
+        raise_api_error(500, "AB_UNAVAILABLE",
+                        "A/B testing results temporarily unavailable",
+                        suggestion="Try again later")
+
+
+# ============================================================================
 # V2 ENDPOINTS: V2 LightGBM Predictions & Market Board
 # ============================================================================
 
@@ -6510,15 +7499,17 @@ async def predict_v2_select(
         match_data = get_enhanced_data_collector().collect_comprehensive_match_data(request.match_id)
         
         if not match_data:
-            raise HTTPException(404, f"Match {request.match_id} not found")
-        
+            raise_api_error(404, "MATCH_NOT_FOUND", f"Match {request.match_id} not found",
+                            suggestion="Check the match_id is correct via /market")
+
         # Step 2: Get market consensus
         market_consensus = await get_consensus_prediction_from_db(request.match_id)
         if not market_consensus:
             market_consensus = await build_on_demand_consensus(request.match_id)
-        
+
         if not market_consensus or market_consensus.get('confidence', 0) == 0:
-            raise HTTPException(422, "No market data available")
+            raise_api_error(422, "NO_MARKET_DATA", "No market data available for this match",
+                            suggestion="Try /predict for standard predictions instead")
         
         market_probs = {
             'home': market_consensus.get('probabilities', {}).get('home', 0.33),
@@ -6535,9 +7526,15 @@ async def predict_v2_select(
         
         # Step 4: Check V2 SELECT eligibility
         conf_v2 = v2_result['confidence']
-        ev_live = conf_v2 - max(market_probs.values())
-        
-        if conf_v2 < 0.62 or ev_live <= 0:
+        # EV = model_prob * (decimal_odds - 1) - (1 - model_prob)
+        # where decimal_odds = 1 / market_prob for the predicted outcome
+        predicted_outcome = v2_result.get('prediction', 'H')
+        outcome_to_key = {'H': 'home', 'D': 'draw', 'A': 'away'}
+        best_market_prob = market_probs.get(outcome_to_key.get(predicted_outcome, 'home'), 0.33)
+        best_decimal_odds = 1.0 / best_market_prob if best_market_prob > 0 else 1.0
+        ev_live = conf_v2 * (best_decimal_odds - 1) - (1 - conf_v2)
+
+        if conf_v2 < settings.V2_MIN_CONFIDENCE or ev_live <= 0:
             raise HTTPException(
                 status_code=403,
                 detail={
@@ -6545,7 +7542,7 @@ async def predict_v2_select(
                     "reason": "Match doesn't meet high-confidence criteria",
                     "conf_v2": conf_v2,
                     "ev_live": ev_live,
-                    "threshold": {"min_conf": 0.62, "min_ev": 0.0},
+                    "threshold": {"min_conf": settings.V2_MIN_CONFIDENCE, "min_ev": 0.0},
                     "suggestion": "Try /predict for standard predictions or check /market"
                 }
             )
@@ -6608,6 +7605,10 @@ async def predict_v2_select(
                 "draw": round(d_norm, 3),
                 "away_win": round(a_norm, 3),
                 "confidence": round(conf_v2, 3),
+                "calibrated_confidence": round(compute_unified_confidence(
+                    {'home': h_norm, 'draw': d_norm, 'away': a_norm}
+                )[0], 3),
+                "confidence_method": "entropy_calibrated",
                 "recommended_bet": recommended_bet,
                 "recommendation_tone": recommendation_tone,
                 "ev_live": round(ev_live, 3)
@@ -6616,14 +7617,30 @@ async def predict_v2_select(
                 "type": "v2_lightgbm_select",
                 "version": "1.0.0",
                 "performance": "75.9% hit rate @ 17.3% coverage",
-                "confidence_threshold": 0.62,
+                "confidence_threshold": settings.V2_MIN_CONFIDENCE,
                 "bookmaker_count": len(match_data.get('odds', {}).get('bookmakers', [])) if match_data.get('odds') else 0
             },
             "comprehensive_analysis": ai_analysis if ai_analysis else {},
             "processing_time": round(processing_time, 3),
             "timestamp": datetime.now().isoformat()
         }
-        
+
+        # ── Auto-track V2 prediction ──
+        try:
+            _v2_league_id = match_data['match_details']['league'].get('id')
+            _v2_kickoff = match_data['match_details']['fixture'].get('date')
+            log_v2_prediction(
+                match_id=request.match_id,
+                prob_home=h_norm,
+                prob_draw=d_norm,
+                prob_away=a_norm,
+                league_id=int(_v2_league_id) if _v2_league_id else None,
+                kickoff_at=None,  # raw string, not datetime
+                ev_live=ev_live,
+            )
+        except Exception as _log_err:
+            logger.warning(f"V2 auto-track failed for match {request.match_id}: {_log_err}")
+
     except HTTPException:
         raise
     except Exception as e:
@@ -6695,6 +7712,10 @@ async def predict_v3_sharp(
                 "draw": round(d_norm, 3),
                 "away_win": round(a_norm, 3),
                 "confidence": round(v3_result['confidence'], 3),
+                "calibrated_confidence": round(compute_unified_confidence(
+                    {'home': h_norm, 'draw': d_norm, 'away': a_norm}
+                )[0], 3),
+                "confidence_method": "entropy_calibrated",
                 "recommended_bet": recommended_bet
             },
             "model_info": {
@@ -6816,8 +7837,11 @@ async def predict_v3_status():
 
 class MultisportPredictRequest(BaseModel):
     event_id: str = Field(..., description="UUID event identifier from multisport_fixtures")
-    sport: str = Field(..., description="Sport key: basketball_nba or icehockey_nhl")
+    sport: str = Field(..., description="Sport key: basketball_nba, icehockey_nhl, or basketball_ncaab")
     include_analysis: bool = Field(True, description="Include GPT-4o AI analysis")
+
+# Supported multisport keys (centralized)
+_SUPPORTED_MULTISPORT = ("basketball_nba", "icehockey_nhl", "basketball_ncaab", "americanfootball_nfl")
 
 
 @app.post("/predict-multisport")
@@ -6838,8 +7862,9 @@ async def predict_multisport(
     start_time = datetime.now()
     sport_key = request.sport
 
-    if sport_key not in ("basketball_nba", "icehockey_nhl"):
-        raise HTTPException(400, f"Unsupported sport: {sport_key}. Use basketball_nba or icehockey_nhl.")
+    if sport_key not in _SUPPORTED_MULTISPORT:
+        raise_api_error(400, "INVALID_SPORT", f"Unsupported sport: {sport_key}",
+                        suggestion=f"Supported sports: {', '.join(_SUPPORTED_MULTISPORT)}")
 
     try:
         from models.multisport_v3_predictor import get_multisport_predictor
@@ -6888,12 +7913,12 @@ async def predict_multisport(
 
         odds_data = context.get("odds", {})
         mkt_prob = odds_data.get("home_prob") if pick == "H" else odds_data.get("away_prob")
-        edge = round(confidence - (mkt_prob or confidence), 4) if mkt_prob else None
+        edge = round(confidence - mkt_prob, 4) if mkt_prob else None
 
         conviction = "standard"
-        if confidence >= 0.65:
+        if confidence >= settings.CONFIDENCE_MEDIUM:
             conviction = "strong"
-        if confidence >= 0.72 and edge and edge > 0.03:
+        if confidence >= settings.CONFIDENCE_HIGH and edge is not None and edge > settings.EDGE_GATE_MIN:
             conviction = "premium"
 
         model_info_data = predictor.get_model_info()
@@ -6924,6 +7949,10 @@ async def predict_multisport(
                 "pick": pick,
                 "recommended_bet": rec_team,
                 "confidence": confidence,
+                "calibrated_confidence": round(compute_unified_confidence(
+                    {'home': prediction["prob_home"], 'away': prediction["prob_away"]}
+                )[0], 3),
+                "confidence_method": "entropy_calibrated",
                 "conviction_tier": conviction,
                 "edge_vs_market": edge,
             },
@@ -6976,13 +8005,26 @@ async def predict_multisport(
                 logger.warning(f"Multisport AI analysis failed: {e}")
                 response["analysis"] = {"error": str(e), "note": "AI analysis unavailable"}
 
+        # ── Auto-track multisport prediction ──
+        try:
+            log_multisport_prediction(
+                event_id=request.event_id,
+                sport_key=sport_key,
+                prob_home=prediction["prob_home"],
+                prob_away=prediction["prob_away"],
+                features_used=prediction.get("features_used"),
+            )
+        except Exception as _log_err:
+            logger.warning(f"Multisport auto-track failed for {request.event_id}: {_log_err}")
+
         return response
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"predict-multisport error: {e}", exc_info=True)
-        raise HTTPException(500, f"Multisport prediction failed: {str(e)}")
+        raise_api_error(500, "PREDICTION_FAILED", "Multisport prediction temporarily unavailable",
+                            suggestion="Try again or use /predict for soccer predictions")
 
 
 @app.get("/predict-multisport/available")
@@ -6996,8 +8038,9 @@ async def predict_multisport_available(
     """
     import psycopg2 as _pg2
 
-    if sport not in ("basketball_nba", "icehockey_nhl"):
-        raise HTTPException(400, f"Unsupported sport: {sport}")
+    if sport not in _SUPPORTED_MULTISPORT:
+        raise_api_error(400, "INVALID_SPORT", f"Unsupported sport: {sport}",
+                        suggestion=f"Supported sports: {', '.join(_SUPPORTED_MULTISPORT)}")
 
     try:
         from models.multisport_v3_predictor import get_multisport_predictor
@@ -7117,9 +8160,16 @@ async def get_market_data(
     """
     import psycopg2
     from models.v2_lgbm_predictor import get_v2_lgbm_predictor
-    
+
     is_lite_mode = mode.lower() == "lite"
-    
+
+    # Check TTL cache for market requests (30s for live, 60s otherwise)
+    market_cache_key = f"market:{status}:{league_id}:{match_id}:{limit}:{include_v2}:{mode}"
+    cached_market = _market_cache.get(market_cache_key)
+    if cached_market:
+        cached_market["_cached"] = True
+        return cached_market
+
     try:
         logger.info(f"📊 MARKET REQUEST | status={status}, league={league_id}, match={match_id}, limit={limit}, v2={include_v2}, mode={mode}")
         
@@ -7549,7 +8599,7 @@ async def get_market_data(
                     if matches_with_odds_no_consensus:
                         v3_predictor = get_v3_predictor_safe()
                         if v3_predictor:
-                            for mid in matches_with_odds_no_consensus[:10]:
+                            for mid in matches_with_odds_no_consensus:
                                 try:
                                     v3_result = v3_predictor.predict(mid)
                                     if v3_result:
@@ -7644,6 +8694,26 @@ async def get_market_data(
                             "data_quality": data_quality
                         }
                         
+                    # ── Auto-track lite-mode prediction with A/B variant ──
+                    if prediction and probs:
+                        try:
+                            _pick_hda = {'home': 'H', 'draw': 'D', 'away': 'A'}.get(prediction['pick'], 'H')
+                            _ab_var = allocate_variant("soccer_primary_model", mid)
+                            log_prediction(
+                                match_id=mid,
+                                model_version=prediction.get('model_version', 'v1_consensus'),
+                                prob_home=probs.get('home', 0.33),
+                                prob_draw=probs.get('draw', 0.33),
+                                prob_away=probs.get('away', 0.33),
+                                pick=_pick_hda,
+                                confidence=prediction['confidence'],
+                                league_id=lid,
+                                kickoff_at=kickoff_at,
+                                ab_variant=_ab_var,
+                            )
+                        except Exception:
+                            pass  # Never let logging break the response
+
                     lite_match = {
                         "match_id": mid,
                         "status": match_status,
@@ -7860,7 +8930,7 @@ async def get_market_data(
                 if v1_data and v2_data:
                     same_pick = (v1_data['pick'] == v2_data['pick'])
                     conf_delta = v2_data['confidence'] - v1_data['confidence']
-                    divergence = "high" if abs(conf_delta) > 0.15 else "low"
+                    divergence = "high" if abs(conf_delta) > settings.DIVERGENCE_THRESHOLD else "low"
                     
                     # V2 SELECT criteria
                     ev_live = v2_data['confidence'] - v1_data['confidence']
@@ -7896,7 +8966,43 @@ async def get_market_data(
                         v1_data['model_version'] = 'v0_form'
                     else:
                         v1_data['model_version'] = 'v1_consensus'
-                
+
+                # ── Auto-track full-mode prediction (V1/V3/V0 cascade) with A/B variant ──
+                if v1_data and v1_data.get('probs'):
+                    try:
+                        _full_probs = v1_data['probs']
+                        _full_pick = {'home': 'H', 'draw': 'D', 'away': 'A'}.get(v1_data['pick'], 'H')
+                        _ab_var = allocate_variant("soccer_primary_model", match_id)
+                        log_prediction(
+                            match_id=match_id,
+                            model_version=v1_data.get('model_version', 'v1_consensus'),
+                            prob_home=_full_probs.get('home', 0.33),
+                            prob_draw=_full_probs.get('draw', 0.33),
+                            prob_away=_full_probs.get('away', 0.33),
+                            pick=_full_pick,
+                            confidence=v1_data['confidence'],
+                            league_id=league_id,
+                            kickoff_at=kickoff_at,
+                            ab_variant=_ab_var,
+                        )
+                    except Exception:
+                        pass  # Never let logging break the response
+
+                # Also log V2 prediction if it was computed
+                if v2_data and v2_data.get('probs'):
+                    try:
+                        _v2_probs = v2_data['probs']
+                        log_v2_prediction(
+                            match_id=match_id,
+                            prob_home=_v2_probs.get('home', 0.33),
+                            prob_draw=_v2_probs.get('draw', 0.33),
+                            prob_away=_v2_probs.get('away', 0.33),
+                            league_id=league_id,
+                            kickoff_at=kickoff_at,
+                        )
+                    except Exception:
+                        pass
+
                 has_fresh_live_data = match_id in _live_data_set
                 
                 # Determine actual status based on kickoff time and live data
@@ -8068,49 +9174,10 @@ async def get_market_data(
                 if odds_velocity_data:
                     match_obj["odds"]["velocity"] = odds_velocity_data
                 
-                # FIX: Add MOMENTUM for live matches (Phase 2 feature)
-                if actual_status == "LIVE" and live_data:
-                    try:
-                        from models.momentum_calculator import MomentumCalculator
-                        momentum_calc = MomentumCalculator()
-                        
-                        result = momentum_calc.compute_momentum(match_id)
-                        if result:
-                            momentum_home, momentum_away, driver_summary = result
-                            
-                            # Ensure driver_summary has all required fields with defaults
-                            formatted_drivers = {
-                                "shots_on_target": driver_summary.get("shots_on_target", "balanced"),
-                                "possession": driver_summary.get("possession", "balanced"),
-                                "red_card": driver_summary.get("red_card", None)
-                            }
-                            
-                            match_obj["momentum"] = {
-                                "home": momentum_home,
-                                "away": momentum_away,
-                                "minute": live_data.get("minute", 0),  # Add current minute
-                                "driver_summary": formatted_drivers  # Rename from breakdown
-                            }
-                            logger.info(f"✅ Added momentum for match {match_id}: H={momentum_home}, A={momentum_away}")
-                    except Exception as e:
-                        logger.error(f"❌ Momentum calculation failed for match {match_id}: {e}")
-                        # Don't block response if momentum fails
-                
-                # FIX: Add MODEL_MARKETS for live matches (Phase 2 feature)
-                if actual_status == "LIVE" and live_data:
-                    try:
-                        from models.live_market_engine import LiveMarketEngine
-                        market_engine = LiveMarketEngine()
-                        
-                        minutes_elapsed = float(live_data.get('minute', 0))
-                        markets = market_engine.compute_live_markets(match_id, minutes_elapsed)
-                        
-                        if markets:
-                            match_obj["model_markets"] = markets
-                            logger.info(f"✅ Added live markets for match {match_id} at {minutes_elapsed} min")
-                    except Exception as e:
-                        logger.error(f"❌ Live markets calculation failed for match {match_id}: {e}")
-                        # Don't block response if markets fail
+                # Momentum and model_markets for live matches are loaded from
+                # the pre-computed DB tables (live_momentum / live_model_markets)
+                # further below.  Only fall back to real-time calculation if the
+                # DB rows are missing — see "PHASE 2" block after final_result.
                 
                 # BETTING INTELLIGENCE: Add CLV, edge, and Kelly sizing
                 betting_intel = None
@@ -8166,10 +9233,31 @@ async def get_market_data(
                             decimal_odds_live, market_probs_live, used_book = extract_odds_and_probs(books)
                             
                             if (decimal_odds_live or market_probs_live) and sum(model_probs_live.values()) > 0.9:
+                                # Fetch closing odds for CLV comparison
+                                closing_probs = None
+                                try:
+                                    cursor.execute("""
+                                        SELECT h_close_odds, d_close_odds, a_close_odds
+                                        FROM closing_odds
+                                        WHERE match_id = %s AND h_close_odds IS NOT NULL
+                                        LIMIT 1
+                                    """, (match_id,))
+                                    co_row = cursor.fetchone()
+                                    if co_row and all(o and o > 1 for o in co_row):
+                                        total_impl = sum(1.0 / o for o in co_row)
+                                        if total_impl > 0:
+                                            closing_probs = {
+                                                'home': round((1.0 / co_row[0]) / total_impl, 4),
+                                                'draw': round((1.0 / co_row[1]) / total_impl, 4),
+                                                'away': round((1.0 / co_row[2]) / total_impl, 4)
+                                            }
+                                except Exception:
+                                    pass  # Closing odds are optional, don't fail
+
                                 betting_intel = compute_live_intelligence(
                                     model_probs_live=model_probs_live,
                                     market_probs_live=novig_current,
-                                    market_probs_closing=None,  # TODO: Get from closing odds table
+                                    market_probs_closing=closing_probs,
                                     decimal_odds_live=decimal_odds_live,
                                     bankroll=None,
                                     kelly_frac=0.5
@@ -8206,7 +9294,7 @@ async def get_market_data(
                 if betting_intel:
                     match_obj["betting_intelligence"] = betting_intel
                 
-                # PHASE 2: Add momentum scores if available
+                # PHASE 2: Add momentum scores — prefer pre-computed DB, fallback to real-time
                 if status == "live":
                     cursor.execute("""
                         SELECT momentum_home, momentum_away, driver_summary, minute
@@ -8216,18 +9304,38 @@ async def get_market_data(
                         ORDER BY updated_at DESC
                         LIMIT 1
                     """, (match_id,))
-                    
+
                     momentum_row = cursor.fetchone()
-                    
+
                     if momentum_row:
                         match_obj["momentum"] = {
                             "home": float(momentum_row[0]) if momentum_row[0] else None,
                             "away": float(momentum_row[1]) if momentum_row[1] else None,
-                            "driver_summary": momentum_row[2] if momentum_row[2] else {},  # Already dict from JSONB
+                            "driver_summary": momentum_row[2] if momentum_row[2] else {},
                             "minute": int(momentum_row[3]) if momentum_row[3] else None
                         }
-                
-                # PHASE 2: Add model markets (in-play predictions) if available
+                    elif actual_status == "LIVE" and live_data:
+                        # Fallback: compute in real-time if DB has no recent data
+                        try:
+                            from models.momentum_calculator import MomentumCalculator
+                            momentum_calc = MomentumCalculator()
+                            result = momentum_calc.compute_momentum(match_id)
+                            if result:
+                                momentum_home, momentum_away, driver_summary = result
+                                match_obj["momentum"] = {
+                                    "home": momentum_home,
+                                    "away": momentum_away,
+                                    "minute": live_data.get("minute", 0),
+                                    "driver_summary": {
+                                        "shots_on_target": driver_summary.get("shots_on_target", "balanced"),
+                                        "possession": driver_summary.get("possession", "balanced"),
+                                        "red_card": driver_summary.get("red_card", None)
+                                    }
+                                }
+                        except Exception as e:
+                            logger.error(f"Momentum fallback failed for match {match_id}: {e}")
+
+                # PHASE 2: Add model markets — prefer pre-computed DB, fallback to real-time
                 if status == "live":
                     cursor.execute("""
                         SELECT wdw, ou, next_goal, updated_at
@@ -8237,16 +9345,27 @@ async def get_market_data(
                         ORDER BY updated_at DESC
                         LIMIT 1
                     """, (match_id,))
-                    
+
                     markets_row = cursor.fetchone()
-                    
+
                     if markets_row:
                         match_obj["model_markets"] = {
                             "updated_at": markets_row[3].isoformat() if markets_row[3] else None,
-                            "win_draw_win": markets_row[0] if markets_row[0] else None,  # Already dict from JSONB
-                            "over_under": markets_row[1] if markets_row[1] else None,     # Already dict from JSONB
-                            "next_goal": markets_row[2] if markets_row[2] else None       # Already dict from JSONB
+                            "win_draw_win": markets_row[0] if markets_row[0] else None,
+                            "over_under": markets_row[1] if markets_row[1] else None,
+                            "next_goal": markets_row[2] if markets_row[2] else None
                         }
+                    elif actual_status == "LIVE" and live_data:
+                        # Fallback: compute in real-time if DB has no recent data
+                        try:
+                            from models.live_market_engine import LiveMarketEngine
+                            market_engine = LiveMarketEngine()
+                            minutes_elapsed = float(live_data.get('minute', 0))
+                            markets = market_engine.compute_live_markets(match_id, minutes_elapsed)
+                            if markets:
+                                match_obj["model_markets"] = markets
+                        except Exception as e:
+                            logger.error(f"Live markets fallback failed for match {match_id}: {e}")
                 
                 matches.append(match_obj)
         
@@ -8256,16 +9375,22 @@ async def get_market_data(
         response_data = {
             "matches": matches,
             "total_count": len(matches),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "data_freshness": compute_freshness(datetime.utcnow())
         }
-        
+
+        # Cache with shorter TTL for live data
+        cache_ttl = 15 if status == "live" else 30
+        _market_cache.set(market_cache_key, response_data, ttl=cache_ttl)
+
         return response_data
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Market error: {e}", exc_info=True)
-        raise HTTPException(500, f"Market data unavailable: {str(e)}")
+        raise_api_error(500, "MARKET_UNAVAILABLE", "Market data temporarily unavailable",
+                            suggestion="Try again in a few moments")
 
 
 @app.get("/betting-intelligence")
@@ -8538,7 +9663,8 @@ async def get_betting_opportunities(
         raise
     except Exception as e:
         logger.error(f"Betting intelligence error: {e}", exc_info=True)
-        raise HTTPException(500, f"Betting intelligence unavailable: {str(e)}")
+        raise_api_error(500, "BETTING_INTEL_UNAVAILABLE", "Betting intelligence temporarily unavailable",
+                            suggestion="Try again in a few moments")
 
 
 @app.get("/betting-intelligence/{match_id}")
@@ -8724,7 +9850,8 @@ async def get_match_betting_intelligence(
         raise
     except Exception as e:
         logger.error(f"Match betting intelligence error: {e}", exc_info=True)
-        raise HTTPException(500, f"Betting intelligence unavailable: {str(e)}")
+        raise_api_error(500, "BETTING_INTEL_UNAVAILABLE", "Betting intelligence temporarily unavailable",
+                            suggestion="Try again in a few moments")
 
 
 def resolve_bookmaker_name(book_id: str, cursor) -> str:
