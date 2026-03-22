@@ -48,7 +48,7 @@ class MultiSportTrainingSync:
         """
         results = {}
         
-        for sport in ['basketball', 'hockey']:
+        for sport in ['basketball', 'hockey', 'american-football']:
             try:
                 result = self.sync_sport(sport)
                 results[sport] = result

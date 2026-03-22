@@ -91,18 +91,18 @@ class ConsensusBuilder:
         max_hours = bucket_config['max_hours']
         
         conn = self.get_db_connection()
-        
+
         # Build time window conditions
         time_conditions = []
         if min_hours is not None:
             time_conditions.append(f"secs_to_kickoff >= {min_hours * 3600}")
         if max_hours is not None:
             time_conditions.append(f"secs_to_kickoff <= {max_hours * 3600}")
-        
+
         time_filter = " AND ".join(time_conditions) if time_conditions else "TRUE"
-        
+
         query = f"""
-        SELECT 
+        SELECT
             match_id,
             book_id,
             ts_snapshot,
@@ -117,10 +117,12 @@ class ConsensusBuilder:
           AND odds_decimal > 1.0
         ORDER BY match_id, book_id, ts_snapshot DESC
         """
-        
-        df = pd.read_sql_query(query, conn, params=[match_ids])
-        conn.close()
-        
+
+        try:
+            df = pd.read_sql_query(query, conn, params=[match_ids])
+        finally:
+            conn.close()
+
         return df
     
     def build_consensus_for_bucket(self, match_ids: List[int], time_bucket: str,
@@ -217,9 +219,12 @@ class ConsensusBuilder:
             
             # Normalize to ensure sum = 1
             total = consensus_h + consensus_d + consensus_a
-            consensus_h /= total
-            consensus_d /= total
-            consensus_a /= total
+            if total <= 0:
+                consensus_h = consensus_d = consensus_a = 1/3
+            else:
+                consensus_h /= total
+                consensus_d /= total
+                consensus_a /= total
             
             # Calculate dispersion (uncertainty measure)
             disp_h = np.std(dispersion_data['H']) if len(dispersion_data['H']) > 1 else 0.0
@@ -263,58 +268,60 @@ class ConsensusBuilder:
             return
         
         conn = self.get_db_connection()
-        cursor = conn.cursor()
-        
-        # Create table if not exists
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS consensus_predictions (
-            match_id BIGINT,
-            time_bucket VARCHAR(16),
-            consensus_h DOUBLE PRECISION,
-            consensus_d DOUBLE PRECISION,
-            consensus_a DOUBLE PRECISION,
-            dispersion_h DOUBLE PRECISION,
-            dispersion_d DOUBLE PRECISION,
-            dispersion_a DOUBLE PRECISION,
-            n_books INT,
-            consensus_method VARCHAR(32),
-            created_at TIMESTAMP,
-            PRIMARY KEY(match_id, time_bucket)
-        );
-        """
-        cursor.execute(create_table_sql)
-        
-        # Insert predictions
-        insert_sql = """
-        INSERT INTO consensus_predictions 
-        (match_id, time_bucket, consensus_h, consensus_d, consensus_a,
-         dispersion_h, dispersion_d, dispersion_a, n_books, consensus_method, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (match_id, time_bucket) 
-        DO UPDATE SET 
-            consensus_h = EXCLUDED.consensus_h,
-            consensus_d = EXCLUDED.consensus_d,
-            consensus_a = EXCLUDED.consensus_a,
-            dispersion_h = EXCLUDED.dispersion_h,
-            dispersion_d = EXCLUDED.dispersion_d,
-            dispersion_a = EXCLUDED.dispersion_a,
-            n_books = EXCLUDED.n_books,
-            consensus_method = EXCLUDED.consensus_method,
-            created_at = EXCLUDED.created_at
-        """
-        
-        for _, row in consensus_df.iterrows():
-            cursor.execute(insert_sql, (
-                int(row['match_id']), row['time_bucket'],
-                float(row['consensus_h']), float(row['consensus_d']), float(row['consensus_a']),
-                float(row['dispersion_h']), float(row['dispersion_d']), float(row['dispersion_a']),
-                int(row['n_books']), row['consensus_method'], row['created_at']
-            ))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
+        try:
+            cursor = conn.cursor()
+
+            # Create table if not exists
+            create_table_sql = """
+            CREATE TABLE IF NOT EXISTS consensus_predictions (
+                match_id BIGINT,
+                time_bucket VARCHAR(16),
+                consensus_h DOUBLE PRECISION,
+                consensus_d DOUBLE PRECISION,
+                consensus_a DOUBLE PRECISION,
+                dispersion_h DOUBLE PRECISION,
+                dispersion_d DOUBLE PRECISION,
+                dispersion_a DOUBLE PRECISION,
+                n_books INT,
+                consensus_method VARCHAR(32),
+                created_at TIMESTAMP,
+                PRIMARY KEY(match_id, time_bucket)
+            );
+            """
+            cursor.execute(create_table_sql)
+
+            # Insert predictions
+            insert_sql = """
+            INSERT INTO consensus_predictions
+            (match_id, time_bucket, consensus_h, consensus_d, consensus_a,
+             dispersion_h, dispersion_d, dispersion_a, n_books, consensus_method, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (match_id, time_bucket)
+            DO UPDATE SET
+                consensus_h = EXCLUDED.consensus_h,
+                consensus_d = EXCLUDED.consensus_d,
+                consensus_a = EXCLUDED.consensus_a,
+                dispersion_h = EXCLUDED.dispersion_h,
+                dispersion_d = EXCLUDED.dispersion_d,
+                dispersion_a = EXCLUDED.dispersion_a,
+                n_books = EXCLUDED.n_books,
+                consensus_method = EXCLUDED.consensus_method,
+                created_at = EXCLUDED.created_at
+            """
+
+            for _, row in consensus_df.iterrows():
+                cursor.execute(insert_sql, (
+                    int(row['match_id']), row['time_bucket'],
+                    float(row['consensus_h']), float(row['consensus_d']), float(row['consensus_a']),
+                    float(row['dispersion_h']), float(row['dispersion_d']), float(row['dispersion_a']),
+                    int(row['n_books']), row['consensus_method'], row['created_at']
+                ))
+
+            conn.commit()
+            cursor.close()
+        finally:
+            conn.close()
+
         print(f"Saved {len(consensus_df)} consensus predictions to database")
 
 def main():

@@ -81,6 +81,28 @@ SPORT_CONFIGS = {
         'n_estimators':  500,
         'early_stopping': 50,
     },
+    'americanfootball_nfl': {
+        'name':       'NFL Football',
+        'output_dir': 'artifacts/models/v3_football',
+        'min_samples': 120,
+        'lgbm_params': {
+            'objective':        'binary',
+            'metric':           'binary_logloss',
+            'boosting_type':    'gbdt',
+            'num_leaves':       31,
+            'learning_rate':    0.05,
+            'feature_fraction': 0.8,
+            'bagging_fraction': 0.8,
+            'bagging_freq':     5,
+            'min_data_in_leaf': 10,
+            'lambda_l1':        0.1,
+            'lambda_l2':        0.1,
+            'verbose':          -1,
+            'n_jobs':           -1,
+        },
+        'n_estimators':  500,
+        'early_stopping': 50,
+    },
 }
 
 

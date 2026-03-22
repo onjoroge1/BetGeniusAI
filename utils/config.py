@@ -43,7 +43,59 @@ class Settings(BaseSettings):
     FEATURE_SCALING: bool = True
     OUTLIER_DETECTION: bool = True
     MIN_HISTORICAL_MATCHES: int = 5
-    
+
+    # ── Prediction Confidence Thresholds ──
+    V2_MIN_CONFIDENCE: float = 0.62
+    CONFIDENCE_MEDIUM: float = 0.65
+    CONFIDENCE_HIGH: float = 0.72
+    EDGE_GATE_MIN: float = 0.03
+    DIVERGENCE_THRESHOLD: float = 0.15
+
+    # ── Time Windows (seconds) ──
+    RECENT_MATCH_WINDOW_SEC: int = 14400       # 4 hours
+    FRESH_STATS_WINDOW_SEC: int = 600          # 10 minutes
+    VERY_FRESH_STATS_WINDOW_SEC: int = 300     # 5 minutes
+    DASHBOARD_LOOKBACK_SEC: int = 86400        # 24 hours
+
+    # ── Parlay Correlation Penalties ──
+    PARLAY_CORR_SAME_LEAGUE: float = 0.10
+    PARLAY_CORR_SAME_COUNTRY: float = 0.05
+    PARLAY_CORR_SAME_TIME: float = 0.03
+    PARLAY_CORR_FAVORITES: float = 0.05
+    PARLAY_MAX_CORRELATION: float = 0.40
+    PARLAY_EDGE_HIGH_MIN: float = 0.04
+    PARLAY_EDGE_HIGH_MAX_CORR: float = 0.15
+    PARLAY_EDGE_MEDIUM_MIN: float = 0.02
+    PARLAY_EDGE_MEDIUM_MAX_CORR: float = 0.25
+    PARLAY_EDGE_LOW_MIN: float = 0.01
+    PARLAY_EDGE_LOW_MAX_CORR: float = 0.40
+    PARLAY_FAVORITES_ODDS_THRESHOLD: float = 1.50
+    PARLAY_LEG_MIN_PROB: float = 0.20
+    PARLAY_LEG_MIN_EDGE: float = -0.05
+
+    # ── Kelly Criterion ──
+    KELLY_MAX_FRACTION: float = 0.05
+    KELLY_MAX_LIVE: float = 0.03
+    KELLY_RECOMMENDED_MAX_PCT: float = 3.0
+
+    # ── Totals Predictor ──
+    TOTALS_MAX_GOALS: int = 10
+    CORRECT_SCORE_MAX: int = 5
+
+    # ── Collection Delays (seconds) ──
+    COLLECTION_DELAY_LONG: float = 2.0
+    COLLECTION_DELAY_MEDIUM: float = 0.5
+    COLLECTION_DELAY_SHORT: float = 0.3
+
+    # ── Data Freshness Boundaries (seconds) ──
+    FRESHNESS_FRESH_SEC: int = 600             # < 10 min = fresh
+    FRESHNESS_STALE_SEC: int = 3600            # < 60 min = stale, else very_stale
+
+    # ── Edge Classification Thresholds ──
+    EDGE_STRONG: float = 0.10
+    EDGE_MEDIUM: float = 0.05
+    EDGE_LOW: float = 0.03
+
     # CLV Club Settings
     ENABLE_CLV_CLUB: bool = os.getenv("ENABLE_CLV_CLUB", "true").lower() == "true"
     CLV_MIN_BOOKS_DEFAULT: int = int(os.getenv("CLV_MIN_BOOKS_DEFAULT", "8"))

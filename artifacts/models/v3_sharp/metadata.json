@@ -1,158 +1,137 @@
 {
-  "model_type": "V3_Sharp_LightGBM",
-  "trained_at": "2026-03-11T20:04:18.670609+00:00",
-  "n_features": 36,
+  "model_type": "V3_Sharp_LightGBM_DrawEnhanced",
+  "trained_at": "2026-03-22T12:23:10.158679+00:00",
+  "training_window_start": "2024-07-01",
+  "n_features": 24,
+  "improvements": [
+    "Pruned 20 dead features (sharp, injury, timing, drift)",
+    "Added 13 draw-specific features (closeness, league draw, market structure, form)",
+    "Class-weighted training (inverse frequency)",
+    "np.nan for missing features (LightGBM native handling)",
+    "Tuned hyperparams for small-data regime",
+    "Expanded training window from 2025-10-01 to 2024-07-01"
+  ],
   "oof_metrics": {
-    "accuracy_3way": 0.513978494623656,
-    "logloss": 1.0182534516469997,
-    "brier_score": 0.6088643817230069,
-    "n_samples": 930,
-    "n_folds": 5
+    "accuracy_3way": 0.46951871657754013,
+    "logloss": 1.0351720722554612,
+    "brier_score": 0.6213018322485291,
+    "n_samples": 935,
+    "n_folds": 5,
+    "per_class_accuracy": {
+      "Home": {
+        "accuracy": 0.5481651376146789,
+        "n": 436
+      },
+      "Draw": {
+        "accuracy": 0.4247787610619469,
+        "n": 226
+      },
+      "Away": {
+        "accuracy": 0.38095238095238093,
+        "n": 273
+      }
+    },
+    "draw_precision": 0.3076923076923077,
+    "draw_recall": 0.4247787610619469,
+    "draw_f1": 0.35687732342007433,
+    "draw_predictions_made": 312
   },
   "feature_importance": [
     {
-      "feature": "prob_away",
-      "importance": 524.0527161195874
+      "feature": "prob_home",
+      "importance": 552.6702413827181
     },
     {
       "feature": "odds_volatility_home",
-      "importance": 425.1244952969253
+      "importance": 551.0410612342879
+    },
+    {
+      "feature": "prob_away",
+      "importance": 517.5242610618473
     },
     {
       "feature": "odds_volatility_draw",
-      "importance": 417.01559819728135
+      "importance": 507.3730501904909
     },
     {
       "feature": "odds_volatility_away",
-      "importance": 348.23557591438293
+      "importance": 417.00755672231315
     },
     {
-      "feature": "prob_home",
-      "importance": 334.463676495105
-    },
-    {
-      "feature": "league_historical_edge",
-      "importance": 262.26898372620343
+      "feature": "league_draw_rate",
+      "importance": 394.12894686162474
     },
     {
       "feature": "book_dispersion_away",
-      "importance": 187.4479581657797
-    },
-    {
-      "feature": "book_dispersion_draw",
-      "importance": 170.12831058502198
-    },
-    {
-      "feature": "prob_draw",
-      "importance": 169.85339594334363
-    },
-    {
-      "feature": "book_dispersion_home",
-      "importance": 156.25351676493884
-    },
-    {
-      "feature": "market_overround",
-      "importance": 150.13505678661167
+      "importance": 312.3402484981343
     },
     {
       "feature": "league_ece",
-      "importance": 127.00116686075926
+      "importance": 288.19453742951157
     },
     {
-      "feature": "book_coverage",
-      "importance": 60.24362869313918
+      "feature": "league_historical_edge",
+      "importance": 258.36681789793073
+    },
+    {
+      "feature": "league_draw_deviation",
+      "importance": 253.50750859938563
+    },
+    {
+      "feature": "book_dispersion_draw",
+      "importance": 237.61454950496554
+    },
+    {
+      "feature": "ha_prob_gap",
+      "importance": 227.04144691377877
+    },
+    {
+      "feature": "book_dispersion_home",
+      "importance": 217.76740286648274
+    },
+    {
+      "feature": "draw_dispersion_ratio",
+      "importance": 202.49468936137856
+    },
+    {
+      "feature": "market_overround",
+      "importance": 198.35580102056264
+    },
+    {
+      "feature": "draw_overround_share",
+      "importance": 162.12391298115253
+    },
+    {
+      "feature": "prob_draw",
+      "importance": 133.11139442399144
     },
     {
       "feature": "h2h_draw_rate",
-      "importance": 45.85186465680599
+      "importance": 127.9981667459011
+    },
+    {
+      "feature": "favourite_strength",
+      "importance": 111.37020469158888
+    },
+    {
+      "feature": "implied_competitiveness",
+      "importance": 110.13373397886753
+    },
+    {
+      "feature": "book_coverage",
+      "importance": 100.6844287276268
     },
     {
       "feature": "h2h_matches_used",
-      "importance": 44.21002008505165
+      "importance": 39.18347141444683
+    },
+    {
+      "feature": "draw_vs_nondraw_ratio",
+      "importance": 38.69391439557076
     },
     {
       "feature": "league_tier_weight",
-      "importance": 8.451449739933015
-    },
-    {
-      "feature": "prob_drift_draw",
-      "importance": 0.0
-    },
-    {
-      "feature": "prob_drift_away",
-      "importance": 0.0
-    },
-    {
-      "feature": "drift_magnitude",
-      "importance": 0.0
-    },
-    {
-      "feature": "prob_drift_home",
-      "importance": 0.0
-    },
-    {
-      "feature": "sharp_prob_away",
-      "importance": 0.0
-    },
-    {
-      "feature": "sharp_prob_draw",
-      "importance": 0.0
-    },
-    {
-      "feature": "sharp_prob_home",
-      "importance": 0.0
-    },
-    {
-      "feature": "closing_line_captured",
-      "importance": 0.0
-    },
-    {
-      "feature": "time_decay_weight",
-      "importance": 0.0
-    },
-    {
-      "feature": "away_injury_impact",
-      "importance": 0.0
-    },
-    {
-      "feature": "home_injury_impact",
-      "importance": 0.0
-    },
-    {
-      "feature": "soft_vs_sharp_divergence",
-      "importance": 0.0
-    },
-    {
-      "feature": "away_key_players_out",
-      "importance": 0.0
-    },
-    {
-      "feature": "home_key_players_out",
-      "importance": 0.0
-    },
-    {
-      "feature": "injury_advantage",
-      "importance": 0.0
-    },
-    {
-      "feature": "total_squad_impact",
-      "importance": 0.0
-    },
-    {
-      "feature": "steam_move_detected",
-      "importance": 0.0
-    },
-    {
-      "feature": "movement_velocity_24h",
-      "importance": 0.0
-    },
-    {
-      "feature": "time_to_kickoff_bucket",
-      "importance": 0.0
-    },
-    {
-      "feature": "reverse_line_movement",
-      "importance": 0.0
+      "importance": 11.00599287301302
     }
   ]
 }

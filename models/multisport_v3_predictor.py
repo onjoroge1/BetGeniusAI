@@ -27,6 +27,7 @@ SPORT_MODEL_DIRS = {
     'basketball_nba':       'artifacts/models/v3_basketball',
     'icehockey_nhl':        'artifacts/models/v3_hockey',
     'basketball_euroleague': 'artifacts/models/v3_basketball',   # fallback to NBA model
+    'americanfootball_nfl':  'artifacts/models/v3_football',
 }
 
 _predictor_cache: Dict[str, 'MultisportV3Predictor'] = {}

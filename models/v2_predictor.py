@@ -211,40 +211,45 @@ class V2Predictor:
             return p_home, p_draw, p_away
     
     def _apply_guardrails(
-        self, 
-        p_home: float, 
-        p_draw: float, 
-        p_away: float, 
+        self,
+        p_home: float,
+        p_draw: float,
+        p_away: float,
         features: Dict,
         reason: str
     ) -> Tuple[float, float, float, str]:
         """
-        Apply safety guardrails:
-        1. KL divergence cap (max distance from market)
-        2. Max probability cap (prevent extreme confidence)
+        Apply safety guardrails POST-calibration.
+
+        These intentionally run after calibration as a safety net to prevent
+        extreme outputs.  The blend factors are kept small (0.3 / 0.15) to
+        minimise distortion of calibrated probabilities while still capping
+        egregious divergence from the market.
         """
-        
+
         pm = self._extract_market_probs(features)[0]
         probs = np.array([p_home, p_draw, p_away])
-        
+
         eps = 1e-9
         probs_safe = np.clip(probs, eps, 1-eps)
         pm_safe = np.clip(pm, eps, 1-eps)
         kl = np.sum(probs_safe * np.log(probs_safe / pm_safe))
-        
+
         if kl > MAX_KL_DIVERGENCE:
-            blend_factor = 0.5
+            # Conservative blend — only nudge 30% toward market to preserve calibration
+            blend_factor = 0.3
             probs = (1 - blend_factor) * probs + blend_factor * pm
             probs = probs / probs.sum()
             reason = f"{reason}+KL_CAPPED"
-        
+
         max_prob = np.max(probs)
         if max_prob > MAX_PROB_CAP:
-            shrink_factor = 0.2
+            # Light shrinkage — 15% toward market to cap extreme confidence
+            shrink_factor = 0.15
             probs = (1 - shrink_factor) * probs + shrink_factor * pm
             probs = probs / probs.sum()
             reason = f"{reason}+MAX_PROB_CAPPED"
-        
+
         return probs[0], probs[1], probs[2], reason
     
     def load_models(self, model_path: Optional[str] = None):

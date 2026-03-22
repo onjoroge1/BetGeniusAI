@@ -9,6 +9,7 @@ Provides utility functions for:
 """
 
 from typing import Dict, Optional, Tuple
+from utils.config import settings
 
 
 def normalize_from_decimal_odds(odds: Dict[str, float]) -> Dict[str, float]:
@@ -59,7 +60,7 @@ def kelly_fraction(
     model_prob: float,
     decimal_odds: float,
     fraction: float = 0.5,
-    max_kelly: float = 0.05
+    max_kelly: float = None
 ) -> float:
     """
     Calculate Kelly Criterion bet sizing
@@ -83,9 +84,12 @@ def kelly_fraction(
         >>> kelly_fraction(0.55, 2.0, fraction=0.5)
         0.025  # Bet 2.5% of bankroll
     """
+    if max_kelly is None:
+        max_kelly = settings.KELLY_MAX_FRACTION
+
     b = decimal_odds - 1.0
     q = 1.0 - model_prob
-    
+
     # Calculate full Kelly
     if b <= 0:
         return 0.0
@@ -107,7 +111,7 @@ def compute_betting_intelligence(
     decimal_odds: Optional[Dict[str, float]] = None,
     bankroll: Optional[float] = None,
     kelly_frac: float = 0.5,
-    max_kelly: float = 0.05
+    max_kelly: float = None
 ) -> Dict:
     """
     Compute complete betting intelligence for a match
@@ -123,32 +127,35 @@ def compute_betting_intelligence(
     Returns:
         Dict with CLV, edge, best bet, and optional Kelly sizing
     """
+    if max_kelly is None:
+        max_kelly = settings.KELLY_MAX_FRACTION
+
     if market_probs is None and decimal_odds is None:
         raise ValueError("Must provide either market_probs or decimal_odds")
-    
+
     # Normalize market odds if needed
     if market_probs is None:
         market_probs = normalize_from_decimal_odds(decimal_odds)
-    
+
     # Calculate edge (CLV) for each outcome
     outcomes = ['home', 'draw', 'away']
     clv = {
         outcome: round(model_probs[outcome] - market_probs[outcome], 4)
         for outcome in outcomes
     }
-    
+
     # Find best bet
     best_pick = max(outcomes, key=lambda k: clv[k])
     edge = clv[best_pick]
-    
+
     # Determine confidence level and recommendation
-    if edge >= 0.10:
+    if edge >= settings.EDGE_STRONG:
         confidence = "high"
         recommendation = "STRONG BET"
-    elif edge >= 0.05:
+    elif edge >= settings.EDGE_MEDIUM:
         confidence = "medium"
         recommendation = "VALUE BET"
-    elif edge >= 0.03:
+    elif edge >= settings.EDGE_LOW:
         confidence = "low"
         recommendation = "LEAN"
     else:
@@ -192,7 +199,7 @@ def compute_betting_intelligence(
         max_stake_pct = max_kelly * 100  # 5% → 5.0
         
         # Cap at 3% for recommended (more conservative than max_kelly)
-        recommended_stake_pct = min(fractional_kelly_pct, 3.0)
+        recommended_stake_pct = min(fractional_kelly_pct, settings.KELLY_RECOMMENDED_MAX_PCT)
         
         result["kelly_sizing"] = {
             "full_kelly": round(full_kelly_value, 4),  # As decimal (0.08 = 8%)
@@ -253,17 +260,19 @@ def compute_live_intelligence(
             for outcome in outcomes
         }
     
-    # Recommendation logic
-    if edge >= 0.08:
+    # Recommendation logic (live thresholds are tighter than pre-match)
+    live_strong = settings.EDGE_STRONG - 0.02  # 0.08
+    live_lean = settings.EDGE_MEDIUM - 0.01    # 0.04
+    if edge >= live_strong:
         recommendation = "STRONG LIVE BET"
         confidence = "high"
-    elif edge >= 0.04:
+    elif edge >= live_lean:
         recommendation = "LEAN"
         confidence = "medium"
     else:
         recommendation = "PASS"
         confidence = "low"
-    
+
     result = {
         "edge_live": edge_live,
         "best_bet_live": {
@@ -274,39 +283,39 @@ def compute_live_intelligence(
             "note": "Live in-play edge - smaller than pre-match but actionable" if edge > 0.02 else "Limited edge in current state"
         }
     }
-    
+
     if clv_vs_closing:
         result["clv_vs_closing"] = clv_vs_closing
         closing_move = clv_vs_closing[best_pick]
         result["best_bet_live"]["closing_line_move"] = round(closing_move, 4)
         result["best_bet_live"]["beating_closing"] = closing_move > 0.02
-    
+
     # Kelly sizing for live bets (if provided)
     if decimal_odds_live and bankroll and edge > 0:
         stake_fraction = kelly_fraction(
             model_probs_live[best_pick],
             decimal_odds_live[best_pick],
             kelly_frac,
-            max_kelly=0.03  # Lower cap for live bets
+            max_kelly=settings.KELLY_MAX_LIVE
         )
-        
+
         result["kelly_sizing"] = {
             "fractional_kelly": round(stake_fraction, 4),
             "bankroll_stake": round(bankroll * stake_fraction, 2),
             "confidence_level": confidence,
-            "note": "Live bet sizing more conservative (3% cap)"
+            "note": f"Live bet sizing more conservative ({settings.KELLY_MAX_LIVE * 100:.0f}% cap)"
         }
-    
+
     return result
 
 
 def get_confidence_tier(edge: float) -> str:
     """Map edge value to confidence tier"""
-    if edge >= 0.10:
+    if edge >= settings.EDGE_STRONG:
         return "high"
-    elif edge >= 0.05:
+    elif edge >= settings.EDGE_MEDIUM:
         return "medium"
-    elif edge >= 0.03:
+    elif edge >= settings.EDGE_LOW:
         return "low"
     else:
         return "none"
@@ -315,18 +324,20 @@ def get_confidence_tier(edge: float) -> str:
 def get_recommendation(edge: float, is_live: bool = False) -> str:
     """Get betting recommendation based on edge"""
     if is_live:
-        if edge >= 0.08:
+        live_strong = settings.EDGE_STRONG - 0.02
+        live_lean = settings.EDGE_MEDIUM - 0.01
+        if edge >= live_strong:
             return "STRONG LIVE BET"
-        elif edge >= 0.04:
+        elif edge >= live_lean:
             return "LEAN"
         else:
             return "PASS"
     else:
-        if edge >= 0.10:
+        if edge >= settings.EDGE_STRONG:
             return "STRONG BET"
-        elif edge >= 0.05:
+        elif edge >= settings.EDGE_MEDIUM:
             return "VALUE BET"
-        elif edge >= 0.03:
+        elif edge >= settings.EDGE_LOW:
             return "LEAN"
         else:
             return "PASS"

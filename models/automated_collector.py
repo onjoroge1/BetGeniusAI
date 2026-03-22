@@ -13,6 +13,7 @@ import aiohttp
 import psycopg2
 from .training_data_collector import TrainingDataCollector
 from .database import DatabaseManager
+from utils.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ class AutomatedCollector:
                             logger.warning(f"No database available or no matches to save for {league_name}")
                     
                     # Rate limiting between leagues
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(settings.COLLECTION_DELAY_LONG)
                     
                 except Exception as e:
                     error_msg = f"Failed to collect from league {league_id}: {e}"
@@ -488,7 +489,7 @@ class AutomatedCollector:
                         logger.debug(f"📭 No upcoming matches found for {league_name}")
                     
                     # Reduced rate limiting for faster collection
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(settings.COLLECTION_DELAY_MEDIUM)
                     
                 except Exception as league_error:
                     error_msg = f"Failed to collect odds for league {league_id}: {league_error}"
@@ -671,7 +672,7 @@ class AutomatedCollector:
                         ApiFootballIngestion.refresh_consensus_for_match(match_id)
                     
                     # Rate limiting: 0.3s between fixtures (~200 req/min max)
-                    await asyncio.sleep(0.3)
+                    await asyncio.sleep(settings.COLLECTION_DELAY_SHORT)
                     
                 except Exception as match_error:
                     error_msg = f"Failed to collect odds for match {match_id}: {match_error}"
@@ -865,7 +866,7 @@ class AutomatedCollector:
                             conn.rollback()
                             seed_summary["errors"].append(str(fixture_err))
                     
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(settings.COLLECTION_DELAY_MEDIUM)
                     
                 except Exception as league_err:
                     error_msg = f"Failed to seed fixtures for league {league_id}: {league_err}"
@@ -1451,7 +1452,7 @@ class AutomatedCollector:
                             failed += 1
                     
                     # Rate limiting
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(settings.COLLECTION_DELAY_MEDIUM)
                     
                 except Exception as e:
                     logger.error(f"Error enriching fixture {match_id}: {e}")
@@ -1526,7 +1527,7 @@ class AutomatedCollector:
                             logger.info(f"⏭️ Skipped fixture {match_id} (no team data available)")
                         
                         # Rate limiting (API-Football has limits)
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(settings.COLLECTION_DELAY_MEDIUM)
                         
                     except Exception as e:
                         error_msg = f"Error enriching fixture {match_id}: {e}"
