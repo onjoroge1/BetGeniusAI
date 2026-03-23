@@ -231,6 +231,9 @@ app.include_router(trending_router, tags=["PHASE 1 - Trending & Hot Matches"])
 from routes.api_tester import router as api_tester_router
 app.include_router(api_tester_router)
 
+from routes.multisport_market import router as multisport_market_router
+app.include_router(multisport_market_router)
+
 from routes.parlays import router as parlays_router, router_v2 as parlays_router_v2
 app.include_router(parlays_router, tags=["Parlay Recommendations"])
 app.include_router(parlays_router_v2, tags=["Parlay Recommendations V2"])
@@ -7933,6 +7936,180 @@ async def predict_multisport(
             "season_context": 2,
         }
 
+        # ── Build deterministic analysis from available data ──
+        fv = prediction.get("feature_values", {})
+        home_ctx = context.get("home_team", {})
+        away_ctx = context.get("away_team", {})
+        home_stats = home_ctx.get("season_stats", {})
+        away_stats = away_ctx.get("season_stats", {})
+        home_form = home_ctx.get("recent_form", [])
+        away_form = away_ctx.get("recent_form", [])
+
+        # Key factors (5 bullet points derived from features)
+        key_factors = []
+        if fv.get("elo_diff", 0) > 100:
+            key_factors.append(f"{home_team} has a significant ELO rating advantage ({fv.get('elo_diff', 0):.0f} points)")
+        elif fv.get("elo_diff", 0) < -100:
+            key_factors.append(f"{away_team} has a significant ELO rating advantage ({abs(fv.get('elo_diff', 0)):.0f} points)")
+        if fv.get("home_win_rate_l10", 0) >= 0.7:
+            key_factors.append(f"{home_team} in strong recent form ({fv['home_win_rate_l10']*100:.0f}% win rate last 10)")
+        elif fv.get("away_win_rate_l10", 0) >= 0.7:
+            key_factors.append(f"{away_team} in strong recent form ({fv['away_win_rate_l10']*100:.0f}% win rate last 10)")
+        if fv.get("home_is_b2b") or fv.get("away_is_b2b"):
+            tired = home_team if fv.get("home_is_b2b") else away_team
+            key_factors.append(f"{tired} on back-to-back — fatigue could be a factor")
+        if fv.get("rest_advantage", 0) > 1:
+            rested = home_team if fv.get("home_rest_days", 0) > fv.get("away_rest_days", 0) else away_team
+            key_factors.append(f"{rested} has a rest advantage ({fv['rest_advantage']:.1f} days more)")
+        spread_val = fv.get("spread_line") or odds_data.get("home_spread")
+        if spread_val and abs(spread_val) >= 8:
+            fav = home_team if (spread_val or 0) < 0 else away_team
+            key_factors.append(f"Market expects lopsided game — spread at {spread_val:+.1f}")
+        if edge and edge > 0.05:
+            key_factors.append(f"Model finds {edge*100:.1f}% edge over market for {rec_team}")
+        elif edge and edge < -0.03:
+            key_factors.append(f"Market odds slightly favour this side more than our model")
+        home_home_wr = fv.get("home_home_win_rate", 0)
+        away_away_wr = fv.get("away_away_win_rate", 0)
+        if home_home_wr > 0.65:
+            key_factors.append(f"{home_team} dominant at home ({home_home_wr*100:.0f}% home win rate)")
+        if away_away_wr > 0.55:
+            key_factors.append(f"{away_team} strong on the road ({away_away_wr*100:.0f}% away win rate)")
+        key_factors = key_factors[:5]  # Cap at 5
+        if len(key_factors) < 3:
+            key_factors.append(f"Model assigns {confidence*100:.0f}% probability to {rec_team}")
+            if odds_data.get("total_line"):
+                key_factors.append(f"Total line set at {odds_data['total_line']} points")
+
+        # Team analysis
+        def _team_analysis(name, stats, form_list, is_home):
+            strengths, weaknesses = [], []
+            wr = stats.get("wins", 0) / max(stats.get("wins", 0) + stats.get("losses", 1), 1)
+            if wr > 0.6:
+                strengths.append(f"Strong season record ({stats.get('wins', 0)}W-{stats.get('losses', 0)}L)")
+            elif wr < 0.4:
+                weaknesses.append(f"Struggling season ({stats.get('wins', 0)}W-{stats.get('losses', 0)}L)")
+            recent_wins = sum(1 for r in form_list[-5:] if (r if isinstance(r, str) else r.get("result", "")) == "W")
+            if recent_wins >= 4:
+                strengths.append(f"Hot streak — {recent_wins} of last {len(form_list[-5:])} won")
+            elif recent_wins <= 1:
+                weaknesses.append(f"Cold streak — only {recent_wins} of last {len(form_list[-5:])} won")
+            loc_wr = fv.get(f"{'home_home' if is_home else 'away_away'}_win_rate", 0)
+            if loc_wr > 0.6:
+                strengths.append(f"Strong {'home' if is_home else 'road'} record ({loc_wr*100:.0f}%)")
+            elif loc_wr < 0.35:
+                weaknesses.append(f"Poor {'home' if is_home else 'road'} record ({loc_wr*100:.0f}%)")
+            pts_diff = fv.get(f"{'home' if is_home else 'away'}_pts_diff_avg", 0)
+            if pts_diff > 5:
+                strengths.append(f"Outscoring opponents by {pts_diff:.1f} ppg")
+            elif pts_diff < -5:
+                weaknesses.append(f"Being outscored by {abs(pts_diff):.1f} ppg")
+            rest = fv.get(f"{'home' if is_home else 'away'}_rest_days", 0)
+            rest_note = "well-rested" if rest > 2 else "back-to-back" if fv.get(f"{'home' if is_home else 'away'}_is_b2b") else "normal rest"
+            return {
+                "strengths": strengths or ["Competitive squad"],
+                "weaknesses": weaknesses or ["No major weaknesses identified"],
+                "form": [r if isinstance(r, str) else r.get("result", "?") for r in form_list[-10:]],
+                "rest_impact": rest_note,
+            }
+
+        # Prediction analysis
+        conf_level = "High" if confidence >= 0.75 else "Medium" if confidence >= 0.55 else "Low"
+        risk_factors = []
+        if confidence < 0.6:
+            risk_factors.append("Model confidence below 60% — closer game expected")
+        if fv.get("home_is_b2b") or fv.get("away_is_b2b"):
+            risk_factors.append("Back-to-back fatigue introduces variance")
+        if abs(fv.get("spread_line", 0)) <= 3:
+            risk_factors.append("Tight spread suggests competitive matchup")
+        if not risk_factors:
+            risk_factors.append("No major risk factors identified")
+
+        # Betting recommendations
+        alt_bets = []
+        if odds_data.get("total_line"):
+            alt_bets.append({
+                "market": "Total",
+                "selection": f"Over {odds_data['total_line']}" if fv.get("home_pts_diff_avg", 0) + fv.get("away_pts_diff_avg", 0) > 0 else f"Under {odds_data['total_line']}",
+                "reasoning": "Based on offensive/defensive pace metrics",
+            })
+        if spread_val:
+            alt_bets.append({
+                "market": "Spread",
+                "selection": f"{home_team} {spread_val:+.1f}" if pick == "H" else f"{away_team} {-spread_val:+.1f}",
+                "reasoning": "Spread aligned with model edge" if edge and edge > 0 else "Spread covers for tighter games",
+            })
+        stake_level = "2-3 units" if conviction == "premium" else "1-2 units" if conviction == "strong" else "0.5-1 unit"
+
+        analysis = {
+            "match_overview": f"{home_team} host {away_team} in a {sport_key.replace('_', ' ').title()} matchup. The model assigns a {confidence*100:.0f}% probability to {rec_team}, placing this as a {conviction} conviction pick{' with a ' + str(round(edge*100, 1)) + '% edge over market odds' if edge and edge > 0 else ''}.",
+            "key_factors": key_factors,
+            "team_analysis": {
+                "home": {
+                    "team": home_team,
+                    **_team_analysis(home_team, home_stats, home_form, True),
+                },
+                "away": {
+                    "team": away_team,
+                    **_team_analysis(away_team, away_stats, away_form, False),
+                },
+            },
+            "prediction_analysis": {
+                "model_assessment": f"V3 LightGBM ensemble using {prediction.get('features_used', 0)} features across odds, form, ELO, rest, and schedule data",
+                "confidence_level": conf_level,
+                "confidence_score": round(confidence * 100, 1),
+                "risk_factors": risk_factors,
+                "value_assessment": f"{'Positive' if edge and edge > 0.02 else 'Neutral' if edge and edge > -0.02 else 'Negative'} expected value — model{'finds' if edge and edge > 0 else 'sees no'} edge vs market",
+            },
+            "betting_recommendations": {
+                "primary_bet": {
+                    "market": "Moneyline",
+                    "selection": rec_team,
+                    "odds": odds_data.get("home_odds") if pick == "H" else odds_data.get("away_odds"),
+                    "model_probability": round(confidence * 100, 1),
+                    "edge_vs_market": round(edge * 100, 1) if edge else None,
+                    "conviction": conviction,
+                },
+                "alternatives": alt_bets,
+                "risk_level": "Low" if confidence >= 0.75 else "Medium" if confidence >= 0.55 else "High",
+                "suggested_stake": stake_level,
+            },
+            "final_verdict": f"{'Strong' if conviction == 'premium' else 'Moderate' if conviction == 'strong' else 'Lean'} {rec_team} — {conf_level.lower()} confidence at {confidence*100:.0f}%. {('Edge of ' + str(round(edge*100, 1)) + '% over market.') if edge and edge > 0 else 'No clear edge over market.'} {'Recommended bet.' if conviction in ('premium', 'strong') else 'Consider small stake only.'}",
+        }
+
+        # ── Build structured markets with edges ──
+        structured_markets = []
+        if odds_data.get("home_odds"):
+            ml_edge_h = round((confidence - odds_data.get("home_prob", 0)) * 100, 1) if pick == "H" and odds_data.get("home_prob") else None
+            ml_edge_a = round((confidence - odds_data.get("away_prob", 0)) * 100, 1) if pick == "A" and odds_data.get("away_prob") else None
+            structured_markets.append({
+                "market": "Moneyline",
+                "type": "h2h",
+                "options": [
+                    {"label": home_team, "odds": odds_data.get("home_odds"), "prob_market": round(odds_data.get("home_prob", 0) * 100, 1), "prob_model": round(prediction["prob_home"] * 100, 1), "edge": ml_edge_h if pick == "H" else None, "pick": pick == "H"},
+                    {"label": away_team, "odds": odds_data.get("away_odds"), "prob_market": round(odds_data.get("away_prob", 0) * 100, 1), "prob_model": round(prediction["prob_away"] * 100, 1), "edge": ml_edge_a if pick == "A" else None, "pick": pick == "A"},
+                ],
+            })
+        if spread_val is not None:
+            structured_markets.append({
+                "market": "Spread",
+                "type": "spreads",
+                "options": [
+                    {"label": f"{home_team} {spread_val:+.1f}", "odds": odds_data.get("home_spread_odds", 1.91)},
+                    {"label": f"{away_team} {-spread_val:+.1f}", "odds": odds_data.get("away_spread_odds", 1.91)},
+                ],
+            })
+        if odds_data.get("total_line"):
+            structured_markets.append({
+                "market": "Total",
+                "type": "totals",
+                "line": odds_data["total_line"],
+                "options": [
+                    {"label": f"Over {odds_data['total_line']}", "odds": odds_data.get("over_odds", 1.91)},
+                    {"label": f"Under {odds_data['total_line']}", "odds": odds_data.get("under_odds", 1.91)},
+                ],
+            })
+
         response = {
             "match_info": {
                 "event_id": request.event_id,
@@ -7971,23 +8148,25 @@ async def predict_multisport(
                 "features_used": prediction.get("features_used", 0),
                 "top_features": model_info_data.get("top_features", []),
             },
+            "analysis": analysis,
             "team_context": {
                 "home": context["home_team"],
                 "away": context["away_team"],
             },
             "h2h": context.get("h2h", []),
             "odds": odds_data,
-            "markets": markets,
+            "markets": structured_markets,
             "feature_values": prediction.get("feature_values", {}),
             "processing_time": round((datetime.now() - start_time).total_seconds(), 3),
             "timestamp": datetime.now().isoformat(),
         }
 
+        # ── Optional: Enhance analysis with GPT-4o if available and requested ──
         if request.include_analysis:
             try:
                 loop = asyncio.get_event_loop()
                 analyzer = get_enhanced_ai_analyzer()
-                analysis = await asyncio.wait_for(
+                ai_analysis = await asyncio.wait_for(
                     loop.run_in_executor(
                         None,
                         analyzer.analyze_multisport_match,
@@ -7997,13 +8176,16 @@ async def predict_multisport(
                     ),
                     timeout=30.0,
                 )
-                response["analysis"] = analysis
-                response["processing_time"] = round(
-                    (datetime.now() - start_time).total_seconds(), 3
-                )
+                # Merge AI narrative into existing analysis if successful
+                if ai_analysis and not ai_analysis.get("error"):
+                    response["analysis"]["ai_enhanced"] = True
+                    if ai_analysis.get("match_overview"):
+                        response["analysis"]["match_overview"] = ai_analysis["match_overview"]
+                    if ai_analysis.get("final_verdict"):
+                        response["analysis"]["final_verdict"] = ai_analysis["final_verdict"]
             except Exception as e:
-                logger.warning(f"Multisport AI analysis failed: {e}")
-                response["analysis"] = {"error": str(e), "note": "AI analysis unavailable"}
+                logger.debug(f"GPT-4o analysis unavailable: {e}")
+                # Deterministic analysis already in place — no error needed
 
         # ── Auto-track multisport prediction ──
         try:
