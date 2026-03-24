@@ -455,6 +455,10 @@ class BackgroundScheduler:
                 # 🌱 Fixture Seeding - runs every 4 hours to discover new upcoming matches
                 if "fixture_seeding" not in self.last_run or (now - self.last_run["fixture_seeding"]).total_seconds() >= 14400:
                     await self._spawn("fixture_seeding", self._run_fixture_seeding, timeout=300)
+
+                # 🎯 Odds Gap Filler - runs every 6 hours to fill missing odds for upcoming matches
+                if "odds_gap_filler" not in self.last_run or (now - self.last_run["odds_gap_filler"]).total_seconds() >= 21600:
+                    await self._spawn("odds_gap_filler", self._run_odds_gap_filler, timeout=600)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -557,6 +561,148 @@ class BackgroundScheduler:
         except Exception as e:
             logger.error(f"🌱 Fixture seeding error: {e}")
     
+    async def _run_odds_gap_filler(self):
+        """Fill missing odds for upcoming matches using The Odds API directly.
+        Runs every 6 hours as a safety net for matches the regular collector missed."""
+        try:
+            import os
+            import psycopg2
+            import requests
+            import statistics
+            import unicodedata
+
+            odds_api_key = os.environ.get("ODDS_API_KEY") or os.environ.get("THE_ODDS_API_KEY")
+            database_url = os.environ.get("DATABASE_URL")
+            if not odds_api_key or not database_url:
+                logger.debug("🎯 Odds gap filler: API key or DB not configured, skipping")
+                return
+
+            conn = psycopg2.connect(database_url, connect_timeout=10)
+            cur = conn.cursor()
+
+            # Find upcoming matches without odds_consensus
+            cur.execute("""
+                SELECT f.match_id, f.home_team, f.away_team, f.kickoff_at, f.league_id
+                FROM fixtures f
+                LEFT JOIN odds_consensus oc ON f.match_id = oc.match_id
+                WHERE f.kickoff_at > NOW()
+                  AND f.kickoff_at < NOW() + INTERVAL '10 days'
+                  AND oc.match_id IS NULL
+                ORDER BY f.kickoff_at
+            """)
+            missing = cur.fetchall()
+
+            if not missing:
+                logger.debug("🎯 Odds gap filler: All upcoming matches have odds")
+                conn.close()
+                return
+
+            logger.info(f"🎯 Odds gap filler: {len(missing)} matches need odds")
+
+            LEAGUE_SPORT_MAP = {
+                39: "soccer_epl", 140: "soccer_spain_la_liga",
+                78: "soccer_germany_bundesliga", 135: "soccer_italy_serie_a",
+                61: "soccer_france_ligue_one", 88: "soccer_netherlands_eredivisie",
+                94: "soccer_portugal_primeira_liga", 2: "soccer_uefa_champs_league",
+                3: "soccer_uefa_europa_league", 71: "soccer_brazil_campeonato",
+            }
+
+            def normalize(name):
+                nfkd = unicodedata.normalize("NFKD", name)
+                n = "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+                for sfx in [" fc", " cf", " sc", " ac"]:
+                    if n.endswith(sfx): n = n[:-len(sfx)].strip()
+                for pfx in ["fc ", "sc ", "ac "]:
+                    if n.startswith(pfx): n = n[len(pfx):].strip()
+                return n
+
+            by_league = {}
+            for mid, home, away, ko, lid in missing:
+                by_league.setdefault(lid, []).append((mid, home, away, ko))
+
+            filled = 0
+            for league_id, matches in by_league.items():
+                sport_key = LEAGUE_SPORT_MAP.get(league_id)
+                if not sport_key:
+                    continue
+                try:
+                    resp = requests.get(
+                        f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds",
+                        params={"apiKey": odds_api_key, "regions": "us,eu,uk,au",
+                                "markets": "h2h", "oddsFormat": "decimal"},
+                        timeout=15
+                    )
+                    if resp.status_code != 200:
+                        continue
+                    events = resp.json()
+
+                    for mid, home, away, ko in matches:
+                        nh, na = normalize(home), normalize(away)
+                        best_event, best_score = None, 0
+                        for ev in events:
+                            eh, ea = normalize(ev["home_team"]), normalize(ev["away_team"])
+                            s = 0
+                            # Word overlap + substring
+                            wh = set(nh.split()) & set(eh.split())
+                            wa = set(na.split()) & set(ea.split())
+                            s = (len(wh)/max(len(nh.split()),1) + len(wa)/max(len(na.split()),1)) / 2
+                            if s < 0.5 and (nh in eh or eh in nh): s = max(s, 0.4)
+                            if s < 0.5 and (na in ea or ea in na): s = max(s, 0.4)
+                            if s > best_score:
+                                best_score, best_event = s, ev
+                        if not best_event or best_score < 0.3:
+                            continue
+
+                        all_h, all_d, all_a = [], [], []
+                        api_h, api_a = best_event["home_team"], best_event["away_team"]
+                        for bm in best_event.get("bookmakers", []):
+                            outs = {o["name"]: o["price"] for m in bm.get("markets",[]) if m["key"]=="h2h" for o in m.get("outcomes",[])}
+                            ho = outs.get(api_h) or outs.get("Home Team")
+                            do = outs.get("Draw")
+                            ao = outs.get(api_a) or outs.get("Away Team")
+                            if ho and do and ao:
+                                t = 1/ho + 1/do + 1/ao
+                                all_h.append(1/ho/t); all_d.append(1/do/t); all_a.append(1/ao/t)
+                        if not all_h:
+                            continue
+
+                        ph = statistics.median(all_h)
+                        pd = statistics.median(all_d)
+                        pa = statistics.median(all_a)
+                        nb = len(all_h)
+                        try:
+                            cur.execute("""
+                                INSERT INTO odds_consensus
+                                (match_id, horizon_hours, ts_effective, ph_cons, pd_cons, pa_cons,
+                                 disph, dispd, dispa, n_books, market_margin_avg, created_at, league_id)
+                                VALUES (%s, EXTRACT(EPOCH FROM (%s::timestamptz - NOW()))/3600,
+                                        NOW(), %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+                                ON CONFLICT (match_id) DO UPDATE SET
+                                    ph_cons=EXCLUDED.ph_cons, pd_cons=EXCLUDED.pd_cons, pa_cons=EXCLUDED.pa_cons,
+                                    n_books=EXCLUDED.n_books, ts_effective=NOW(), created_at=NOW()
+                            """, (mid, ko, ph, pd, pa,
+                                  statistics.stdev(all_h) if nb>1 else 0.02,
+                                  statistics.stdev(all_d) if nb>1 else 0.015,
+                                  statistics.stdev(all_a) if nb>1 else 0.02,
+                                  nb, ph+pd+pa-1.0, league_id))
+                            conn.commit()
+                            filled += 1
+                        except Exception:
+                            conn.rollback()
+
+                    import time; time.sleep(1)
+                except Exception as e:
+                    logger.warning(f"🎯 Odds gap filler: League {league_id} error: {e}")
+
+            conn.close()
+            if filled > 0:
+                logger.info(f"🎯 Odds gap filler: Filled {filled}/{len(missing)} matches")
+            else:
+                logger.debug(f"🎯 Odds gap filler: No new odds found (checked {len(missing)} matches)")
+
+        except Exception as e:
+            logger.error(f"🎯 Odds gap filler error: {e}")
+
     async def _run_safety_net(self):
         """Run the 15-minute safety net to fill missing buckets"""
         try:
@@ -673,7 +819,7 @@ class BackgroundScheduler:
             try:
                 from models.database import DatabaseManager
                 db_manager = DatabaseManager()
-                consensus_refreshed = db_manager.refresh_odds_consensus_from_snapshots(lookback_minutes=10)
+                consensus_refreshed = db_manager.refresh_odds_consensus_from_snapshots(lookback_minutes=1440)
                 if consensus_refreshed > 0:
                     logger.info(f"🔄 Phase B: Refreshed {consensus_refreshed} odds_consensus rows")
             except Exception as refresh_error:

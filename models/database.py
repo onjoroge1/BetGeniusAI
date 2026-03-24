@@ -583,14 +583,14 @@ class DatabaseManager:
         
         return saved_count
     
-    def refresh_odds_consensus_from_snapshots(self, lookback_minutes: int = 10) -> int:
+    def refresh_odds_consensus_from_snapshots(self, lookback_minutes: int = 1440) -> int:
         """
         Refresh odds_consensus table from recent odds_snapshots for upcoming matches
         This ensures predictions and CLV alerts have fresh consensus data
-        
+
         Args:
-            lookback_minutes: How far back to look for fresh odds (default: 10min)
-            
+            lookback_minutes: How far back to look for fresh odds (default: 1440min = 24h)
+
         Returns:
             Number of consensus rows refreshed
         """
@@ -663,7 +663,7 @@ class DatabaseManager:
                       AND os.ts_snapshot > NOW() - INTERVAL '%s minutes'
                       AND os.outcome IN ('H', 'D', 'A')
                     GROUP BY os.match_id
-                    HAVING COUNT(DISTINCT CASE WHEN os.outcome IN ('H','D','A') THEN os.book_id END) >= 2
+                    HAVING COUNT(DISTINCT CASE WHEN os.outcome IN ('H','D','A') THEN os.book_id END) >= 1
                 )
                 INSERT INTO odds_consensus 
                 (match_id, horizon_hours, ts_effective, ph_cons, pd_cons, pa_cons,
@@ -702,13 +702,98 @@ class DatabaseManager:
             
             cursor.execute(refresh_sql % (lookback_minutes, lookback_minutes))
             refreshed_count = cursor.rowcount
-            
             conn.commit()
+
+            # ── Fallback: Fill gaps from consensus_predictions for upcoming matches ──
+            # If odds_snapshots doesn't have data but consensus_predictions does,
+            # use that as a source for odds_consensus
+            fallback_sql = """
+                WITH gaps AS (
+                    SELECT f.match_id, f.kickoff_at
+                    FROM fixtures f
+                    WHERE f.kickoff_at > NOW()
+                      AND f.kickoff_at < NOW() + INTERVAL '168 hours'
+                      AND f.status IN ('NS', 'scheduled')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM odds_consensus oc WHERE oc.match_id = f.match_id
+                      )
+                ),
+                cp_best AS (
+                    SELECT DISTINCT ON (cp.match_id)
+                        cp.match_id,
+                        cp.consensus_h, cp.consensus_d, cp.consensus_a,
+                        cp.dispersion_h, cp.dispersion_d, cp.dispersion_a,
+                        cp.n_books, cp.created_at,
+                        g.kickoff_at
+                    FROM consensus_predictions cp
+                    JOIN gaps g ON cp.match_id = g.match_id
+                    WHERE cp.consensus_h IS NOT NULL
+                      AND cp.consensus_d IS NOT NULL
+                      AND cp.consensus_a IS NOT NULL
+                    ORDER BY cp.match_id, cp.n_books DESC, cp.created_at DESC
+                )
+                INSERT INTO odds_consensus
+                (match_id, horizon_hours, ts_effective, ph_cons, pd_cons, pa_cons,
+                 disph, dispd, dispa, n_books, market_margin_avg, created_at)
+                SELECT
+                    match_id,
+                    EXTRACT(EPOCH FROM (kickoff_at - NOW())) / 3600,
+                    created_at,
+                    consensus_h, consensus_d, consensus_a,
+                    COALESCE(dispersion_h, 0.02), COALESCE(dispersion_d, 0.015), COALESCE(dispersion_a, 0.02),
+                    COALESCE(n_books, 1),
+                    COALESCE((consensus_h + consensus_d + consensus_a) - 1.0, 0.05),
+                    NOW()
+                FROM cp_best
+                ON CONFLICT (match_id) DO NOTHING
+            """
+            cursor.execute(fallback_sql)
+            fallback_count = cursor.rowcount
+            conn.commit()
+
+            # ── Fallback 2: Fill from sharp_book_odds for any remaining gaps ──
+            sharp_fallback_sql = """
+                WITH gaps AS (
+                    SELECT f.match_id, f.kickoff_at, f.league_id
+                    FROM fixtures f
+                    WHERE f.kickoff_at > NOW()
+                      AND f.kickoff_at < NOW() + INTERVAL '168 hours'
+                      AND f.status IN ('NS', 'scheduled')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM odds_consensus oc WHERE oc.match_id = f.match_id
+                      )
+                )
+                INSERT INTO odds_consensus
+                (match_id, horizon_hours, ts_effective, ph_cons, pd_cons, pa_cons,
+                 disph, dispd, dispa, n_books, market_margin_avg, created_at, league_id)
+                SELECT DISTINCT ON (sbo.match_id)
+                    sbo.match_id,
+                    EXTRACT(EPOCH FROM (g.kickoff_at - NOW())) / 3600,
+                    sbo.ts_recorded,
+                    sbo.prob_home, sbo.prob_draw, sbo.prob_away,
+                    0.01, 0.01, 0.01,
+                    1,
+                    COALESCE((sbo.prob_home + sbo.prob_draw + sbo.prob_away) - 1.0, 0.02),
+                    NOW(),
+                    g.league_id
+                FROM sharp_book_odds sbo
+                JOIN gaps g ON sbo.match_id = g.match_id
+                WHERE sbo.prob_home IS NOT NULL
+                  AND sbo.prob_draw IS NOT NULL
+                  AND sbo.prob_away IS NOT NULL
+                ORDER BY sbo.match_id, sbo.ts_recorded DESC
+                ON CONFLICT (match_id) DO NOTHING
+            """
+            cursor.execute(sharp_fallback_sql)
+            sharp_count = cursor.rowcount
+            conn.commit()
+
             cursor.close()
             conn.close()
-            
-            if refreshed_count > 0:
-                logger.info(f"🔄 [CONSENSUS REFRESH] Updated {refreshed_count} odds_consensus rows from snapshots")
+
+            total = refreshed_count + fallback_count + sharp_count
+            if total > 0:
+                logger.info(f"🔄 [CONSENSUS REFRESH] Updated {refreshed_count} from snapshots, {fallback_count} from consensus_predictions, {sharp_count} from sharp books")
             else:
                 logger.debug(f"🔄 [CONSENSUS REFRESH] No consensus updates needed (lookback: {lookback_minutes}min)")
             

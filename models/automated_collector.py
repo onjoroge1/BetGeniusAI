@@ -916,7 +916,7 @@ class AutomatedCollector:
                 url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds"
                 params = {
                     'apiKey': odds_api_key,  # API key as parameter (correct case)
-                    'regions': 'eu',  # European bookmakers
+                    'regions': 'us,eu,uk,au',  # All major regions for maximum bookmaker coverage
                     'markets': 'h2h',  # Head-to-head (match winner)
                     'oddsFormat': 'decimal',
                     'dateFormat': 'iso'
