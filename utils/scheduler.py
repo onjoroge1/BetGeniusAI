@@ -459,6 +459,11 @@ class BackgroundScheduler:
                 # 🎯 Odds Gap Filler - runs every 6 hours to fill missing odds for upcoming matches
                 if "odds_gap_filler" not in self.last_run or (now - self.last_run["odds_gap_filler"]).total_seconds() >= 21600:
                     await self._spawn("odds_gap_filler", self._run_odds_gap_filler, timeout=600)
+
+                # 🔄 Full Collection Cycle - runs every 6 hours (same as manual trigger)
+                # Collects recent finished matches for training data + rebuilds consensus
+                if "full_collection_cycle" not in self.last_run or (now - self.last_run["full_collection_cycle"]).total_seconds() >= 21600:
+                    await self._spawn("full_collection_cycle", self._run_full_collection_cycle, timeout=900)
                 
                 # Check every 1 second for responsive scheduling (background tasks run independently)
                 await asyncio.sleep(1)
@@ -702,6 +707,47 @@ class BackgroundScheduler:
 
         except Exception as e:
             logger.error(f"🎯 Odds gap filler error: {e}")
+
+    async def _run_full_collection_cycle(self):
+        """Run full collection cycle every 6 hours — same as manual trigger_manual_collection.
+        Collects recent finished matches (training data), rebuilds consensus, and
+        populates odds_consensus from sharp books for any gaps."""
+        try:
+            logger.info("🔄 Full collection cycle: Starting (automated 6h cycle)...")
+
+            # Step 1: Collect recent matches (training data)
+            try:
+                results = await self.collector.daily_collection_cycle()
+                new_matches = results.get('new_matches_collected', 0)
+                if new_matches > 0:
+                    logger.info(f"🔄 Full collection: {new_matches} new matches collected")
+                else:
+                    logger.info("🔄 Full collection: No new matches found")
+            except Exception as e:
+                logger.warning(f"🔄 Full collection: daily_collection_cycle error: {e}")
+
+            # Step 2: Build consensus predictions from fresh odds
+            try:
+                consensus_count = self.build_consensus_predictions()
+                if consensus_count > 0:
+                    logger.info(f"🔄 Full collection: Built {consensus_count} consensus predictions")
+            except Exception as e:
+                logger.warning(f"🔄 Full collection: consensus building error: {e}")
+
+            # Step 3: Populate odds_consensus from sharp books for any remaining gaps
+            try:
+                from models.database import DatabaseManager
+                db = DatabaseManager()
+                sharp_count = db.populate_consensus_from_sharp_books()
+                if sharp_count > 0:
+                    logger.info(f"🔄 Full collection: {sharp_count} consensus rows from sharp books")
+            except Exception as e:
+                logger.warning(f"🔄 Full collection: sharp book consensus error: {e}")
+
+            logger.info("🔄 Full collection cycle: Complete")
+
+        except Exception as e:
+            logger.error(f"🔄 Full collection cycle error: {e}")
 
     async def _run_safety_net(self):
         """Run the 15-minute safety net to fill missing buckets"""
