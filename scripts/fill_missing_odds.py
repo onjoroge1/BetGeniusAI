@@ -123,14 +123,21 @@ def main():
                 best_score = 0
 
                 for event in events:
-                    # Simple fuzzy match on team names
-                    eh = event.get("home_team", "").lower()
-                    ea = event.get("away_team", "").lower()
-                    h_match = _fuzzy_score(home.lower(), eh)
-                    a_match = _fuzzy_score(away.lower(), ea)
+                    # Fuzzy match on team names (handles diacritics, suffixes like "CF", "FC")
+                    eh = _normalize(event.get("home_team", ""))
+                    ea = _normalize(event.get("away_team", ""))
+                    nh = _normalize(home)
+                    na = _normalize(away)
+                    h_match = _fuzzy_score(nh, eh)
+                    a_match = _fuzzy_score(na, ea)
+                    # Also try substring containment
+                    if h_match < 0.5 and (nh in eh or eh in nh):
+                        h_match = 0.8
+                    if a_match < 0.5 and (na in ea or ea in na):
+                        a_match = 0.8
                     score = (h_match + a_match) / 2
 
-                    if score > best_score and score > 0.6:
+                    if score > best_score and score > 0.4:
                         best_score = score
                         best_match = event
 
@@ -140,12 +147,17 @@ def main():
 
                 # Extract bookmaker odds and build consensus
                 bookmakers = best_match.get("bookmakers", [])
+                api_home = best_match.get("home_team", "")
+                api_away = best_match.get("away_team", "")
                 all_h, all_d, all_a = [], [], []
 
                 for bm in bookmakers:
                     outcomes = {o["name"]: o["price"] for m in bm.get("markets", []) if m["key"] == "h2h" for o in m.get("outcomes", [])}
-                    if "Home Team" in outcomes and "Draw" in outcomes and "Away Team" in outcomes:
-                        h_odds, d_odds, a_odds = outcomes["Home Team"], outcomes["Draw"], outcomes["Away Team"]
+                    # The Odds API uses actual team names as outcome keys, OR "Home Team"/"Away Team"
+                    h_odds = outcomes.get(api_home) or outcomes.get("Home Team")
+                    d_odds = outcomes.get("Draw")
+                    a_odds = outcomes.get(api_away) or outcomes.get("Away Team")
+                    if h_odds and d_odds and a_odds:
                         total = 1/h_odds + 1/d_odds + 1/a_odds
                         all_h.append(1/h_odds / total)
                         all_d.append(1/d_odds / total)
@@ -224,14 +236,34 @@ def main():
     conn.close()
 
 
+def _normalize(name: str) -> str:
+    """Normalize team name: remove diacritics, common suffixes, lowercase."""
+    import unicodedata
+    # Remove diacritics (Atlético → Atletico)
+    nfkd = unicodedata.normalize("NFKD", name)
+    ascii_name = "".join(c for c in nfkd if not unicodedata.combining(c))
+    # Lowercase and strip common suffixes
+    n = ascii_name.lower().strip()
+    for suffix in [" fc", " cf", " sc", " ac", " afc", " ssc", " bsc"]:
+        if n.endswith(suffix):
+            n = n[: -len(suffix)].strip()
+    for prefix in ["fc ", "sc ", "ac ", "afc "]:
+        if n.startswith(prefix):
+            n = n[len(prefix):].strip()
+    return n
+
+
 def _fuzzy_score(a: str, b: str) -> float:
-    """Simple word overlap fuzzy matching."""
+    """Word overlap fuzzy matching with partial credit."""
     words_a = set(a.split())
     words_b = set(b.split())
     if not words_a or not words_b:
         return 0.0
     overlap = len(words_a & words_b)
-    return overlap / max(len(words_a), len(words_b))
+    # Full match bonus
+    if a == b:
+        return 1.0
+    return overlap / min(len(words_a), len(words_b)) if overlap > 0 else 0.0
 
 
 if __name__ == "__main__":
