@@ -673,7 +673,7 @@ class BackgroundScheduler:
             try:
                 from models.database import DatabaseManager
                 db_manager = DatabaseManager()
-                consensus_refreshed = db_manager.refresh_odds_consensus_from_snapshots(lookback_minutes=10)
+                consensus_refreshed = db_manager.refresh_odds_consensus_from_snapshots(lookback_minutes=1440)
                 if consensus_refreshed > 0:
                     logger.info(f"🔄 Phase B: Refreshed {consensus_refreshed} odds_consensus rows")
             except Exception as refresh_error:
