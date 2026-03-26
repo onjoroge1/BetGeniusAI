@@ -15,26 +15,41 @@ from sqlalchemy import create_engine, text
 logger = logging.getLogger(__name__)
 
 MODEL_DIR = Path("artifacts/models/player_v2")
+ML_MODEL_DIR = Path("artifacts/models/player_soccer")
+
+POSITION_MAP = {
+    "Attacker": 3, "Forward": 3, "F": 3,
+    "Midfielder": 2, "M": 2,
+    "Defender": 1, "D": 1,
+    "Goalkeeper": 0, "G": 0,
+}
 
 
 class PlayerPropsService:
     """Service for player prop predictions integrated with parlay system"""
-    
+
     def __init__(self):
         self.database_url = os.environ.get('DATABASE_URL')
         if not self.database_url:
             raise ValueError("DATABASE_URL environment variable required")
-        
+
         self.engine = create_engine(
             self.database_url,
             pool_pre_ping=True,
             pool_recycle=300
         )
-        
+
         self.goal_involvement_model = None
         self.goals_model = None
         self.feature_cols = None
+
+        # ML models (new LightGBM)
+        self.ml_scored_models = None
+        self.ml_scored_calibrator = None
+        self.ml_involved_models = None
+        self.ml_involved_calibrator = None
         self._load_models()
+        self._load_ml_models()
     
     def _load_models(self):
         """Load trained Player V2 models"""
@@ -64,6 +79,107 @@ class PlayerPropsService:
         except Exception as e:
             logger.error(f"Failed to load Player V2 models: {e}")
     
+    def _load_ml_models(self):
+        """Load trained LightGBM player goal models."""
+        try:
+            scored_path = ML_MODEL_DIR / "scored_lgbm_ensemble.pkl"
+            cal_path = ML_MODEL_DIR / "scored_calibrator.pkl"
+            involved_path = ML_MODEL_DIR / "involved_lgbm_ensemble.pkl"
+            inv_cal_path = ML_MODEL_DIR / "involved_calibrator.pkl"
+
+            if scored_path.exists():
+                with open(scored_path, "rb") as f:
+                    self.ml_scored_models = pickle.load(f)
+                with open(cal_path, "rb") as f:
+                    self.ml_scored_calibrator = pickle.load(f)
+                logger.info(f"Loaded ML scored model ({len(self.ml_scored_models)} folds)")
+
+            if involved_path.exists():
+                with open(involved_path, "rb") as f:
+                    self.ml_involved_models = pickle.load(f)
+                with open(inv_cal_path, "rb") as f:
+                    self.ml_involved_calibrator = pickle.load(f)
+                logger.info(f"Loaded ML involved model ({len(self.ml_involved_models)} folds)")
+        except Exception as e:
+            logger.warning(f"Failed to load ML player models: {e}")
+
+    def _ml_predict(self, player_id: int, league_id: int = None,
+                    is_home: bool = False, is_starter: bool = True) -> Optional[Dict]:
+        """Run ML model prediction for a player. Returns calibrated probabilities."""
+        if not self.ml_scored_models:
+            return None
+
+        try:
+            form_3 = self.get_player_form(player_id, lookback_games=3)
+            form_5 = self.get_player_form(player_id, lookback_games=5)
+            player = self.get_player_info(player_id)
+            if not player or form_5["games"] < 3:
+                return None
+
+            position = player.get("position", "")
+            pos_encoded = POSITION_MAP.get(position, 1)
+
+            # Season stats from full history
+            season = self.get_player_form(player_id, lookback_games=50)
+
+            total_mins = season["avg_minutes"] * season["games"] if season["games"] > 0 else 1
+            goals_per_90 = (season["total_goals"] / max(total_mins, 1)) * 90
+            shots_per_90 = (season["avg_shots"] * season["games"] / max(total_mins, 1)) * 90
+
+            # League stats (simple defaults if unknown)
+            league_avg_goals = 2.6
+            league_scorer_pct = 0.07
+            league_goal_rate = 0.09
+
+            if league_id:
+                with self.engine.connect() as conn:
+                    result = conn.execute(text("""
+                        SELECT COUNT(DISTINCT game_id),
+                               SUM((stats->>'goals')::int),
+                               COUNT(*),
+                               COUNT(*) FILTER (WHERE (stats->>'goals')::int > 0)
+                        FROM player_game_stats
+                        WHERE sport_key = 'soccer' AND league_id = :lid AND minutes_played >= 15
+                    """), {"lid": league_id})
+                    row = result.fetchone()
+                    if row and row[0] > 0:
+                        league_avg_goals = (row[1] or 0) / max(row[0], 1)
+                        league_scorer_pct = (row[3] or 0) / max(row[2], 1)
+                        league_goal_rate = (row[1] or 0) / max(row[2], 1)
+
+            features = np.array([[
+                form_3["total_goals"], form_5["total_goals"],
+                form_3["total_assists"], form_5["total_assists"],
+                form_3["avg_shots"], form_5["avg_shots"],
+                form_5["avg_rating"], form_5["avg_minutes"],
+                season["total_goals"], season["total_assists"], season["games"],
+                goals_per_90, shots_per_90,
+                1 if is_home else 0, 1 if is_starter else 0,
+                season["avg_minutes"], 7,  # rest_days default
+                league_avg_goals / 2, 0.25,  # opp defaults
+                pos_encoded, 1,  # age_bucket default
+                league_id or 0, league_avg_goals, league_scorer_pct, league_goal_rate,
+            ]], dtype=np.float32)
+
+            # Ensemble average
+            scored_probs = np.mean([m.predict(features)[0] for m in self.ml_scored_models])
+            involved_probs = np.mean([m.predict(features)[0] for m in self.ml_involved_models])
+
+            # Calibrate
+            scored_cal = float(self.ml_scored_calibrator.predict([scored_probs])[0])
+            involved_cal = float(self.ml_involved_calibrator.predict([involved_probs])[0])
+
+            return {
+                "scored_probability": round(max(0.01, min(0.50, scored_cal)), 4),
+                "involved_probability": round(max(0.01, min(0.60, involved_cal)), 4),
+                "scored_raw": round(scored_probs, 4),
+                "involved_raw": round(involved_probs, 4),
+                "method": "ml_lightgbm",
+            }
+        except Exception as e:
+            logger.debug(f"ML prediction failed for player {player_id}: {e}")
+            return None
+
     def get_player_form(self, player_id: int, lookback_games: int = 5) -> Dict:
         """Get player's recent form statistics"""
         with self.engine.connect() as conn:
@@ -137,16 +253,39 @@ class PlayerPropsService:
                 }
         return None
     
-    def predict_anytime_scorer(self, player_id: int, match_id: int = None) -> Dict:
-        """Predict probability of player scoring (anytime scorer)"""
+    def predict_anytime_scorer(self, player_id: int, match_id: int = None,
+                               league_id: int = None, is_home: bool = False) -> Dict:
+        """Predict probability of player scoring (anytime scorer).
+        Uses ML model when available, falls back to heuristic."""
         player = self.get_player_info(player_id)
         if not player:
             return {'error': 'Player not found', 'probability': 0}
-        
+
         form = self.get_player_form(player_id)
-        
+
+        # ── Try ML model first ──
+        ml_result = self._ml_predict(player_id, league_id=league_id, is_home=is_home)
+        if ml_result:
+            return {
+                'player_id': player_id,
+                'player_name': player['name'],
+                'position': player['position'],
+                'market': 'anytime_scorer',
+                'probability': ml_result['scored_probability'],
+                'involved_probability': ml_result['involved_probability'],
+                'confidence': min(1.0, form['games'] / 5),
+                'method': 'ml_lightgbm',
+                'form': {
+                    'games_played': form['games'],
+                    'goals_last_5': form['total_goals'],
+                    'avg_shots': round(form['avg_shots'], 1),
+                    'avg_rating': round(form['avg_rating'], 1)
+                }
+            }
+
+        # ── Heuristic fallback ──
         base_prob = 0.05
-        
+
         position = player.get('position', '').lower()
         if 'forward' in position or 'attacker' in position or 'striker' in position:
             base_prob = 0.18
@@ -156,28 +295,28 @@ class PlayerPropsService:
             base_prob = 0.04
         elif 'goalkeeper' in position:
             base_prob = 0.001
-        
+
         if form['games'] >= 3:
             form_adjustment = form['avg_goals'] * 0.25
             base_prob = base_prob * 0.65 + (base_prob + form_adjustment) * 0.35
-        
+
         if form['avg_shots'] > 3:
             base_prob *= 1.10
         elif form['avg_shots'] > 2:
             base_prob *= 1.05
-        
+
         if form['avg_rating'] > 7.5:
             base_prob *= 1.08
         elif form['avg_rating'] < 6.5:
             base_prob *= 0.92
-        
+
         if form['avg_minutes'] < 60:
             base_prob *= form['avg_minutes'] / 90
-        
+
         probability = max(0.01, min(0.28, base_prob))
-        
+
         confidence = min(1.0, form['games'] / 5)
-        
+
         return {
             'player_id': player_id,
             'player_name': player['name'],
@@ -185,6 +324,7 @@ class PlayerPropsService:
             'market': 'anytime_scorer',
             'probability': round(probability, 4),
             'confidence': round(confidence, 2),
+            'method': 'heuristic',
             'form': {
                 'games_played': form['games'],
                 'goals_last_5': form['total_goals'],

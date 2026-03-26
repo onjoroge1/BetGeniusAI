@@ -234,6 +234,9 @@ app.include_router(api_tester_router)
 from routes.multisport_market import router as multisport_market_router
 app.include_router(multisport_market_router)
 
+from routes.player_predictions import router as player_predictions_router
+app.include_router(player_predictions_router, tags=["Player Scorer Predictions (ML)"])
+
 from routes.parlays import router as parlays_router, router_v2 as parlays_router_v2
 app.include_router(parlays_router, tags=["Parlay Recommendations"])
 app.include_router(parlays_router_v2, tags=["Parlay Recommendations V2"])

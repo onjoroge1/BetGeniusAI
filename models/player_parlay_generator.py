@@ -115,6 +115,168 @@ class PlayerParlayGenerator:
             conn.commit()
             logger.info("PlayerParlayGenerator: Tables ensured")
 
+    def _ml_scorer_prob(self, player_id: int, league_id: int = None,
+                        is_home: bool = False) -> Optional[float]:
+        """Get ML-based scoring probability if model available."""
+        # Check batch cache first (populated by _batch_ml_predictions)
+        if hasattr(self, '_ml_cache') and self._ml_cache:
+            return self._ml_cache.get(player_id)
+
+        # Fallback to individual prediction
+        if not hasattr(self, '_ml_service'):
+            try:
+                from models.player_props_service import PlayerPropsService
+                self._ml_service = PlayerPropsService()
+                if not self._ml_service.ml_scored_models:
+                    self._ml_service = None
+            except Exception:
+                self._ml_service = None
+
+        if not self._ml_service:
+            return None
+
+        try:
+            result = self._ml_service._ml_predict(
+                player_id, league_id=league_id, is_home=is_home
+            )
+            if result:
+                return result["scored_probability"]
+        except Exception:
+            pass
+        return None
+
+    def _batch_ml_predictions(self, fixtures: List[Dict]) -> Dict[int, float]:
+        """Batch-compute ML probabilities for all players in upcoming fixtures.
+        Returns {player_id: scored_probability}. Much faster than per-player calls."""
+        cache = {}
+
+        try:
+            import pickle
+            import numpy as np
+            from pathlib import Path
+
+            model_dir = Path("artifacts/models/player_soccer")
+            scored_path = model_dir / "scored_lgbm_ensemble.pkl"
+            cal_path = model_dir / "scored_calibrator.pkl"
+
+            if not scored_path.exists():
+                return cache
+
+            with open(scored_path, "rb") as f:
+                models = pickle.load(f)
+            with open(cal_path, "rb") as f:
+                calibrator = pickle.load(f)
+
+            POSITION_MAP = {"Attacker": 3, "Forward": 3, "F": 3,
+                            "Midfielder": 2, "M": 2, "Defender": 1, "D": 1,
+                            "Goalkeeper": 0, "G": 0}
+
+            # Collect all team IDs from fixtures
+            all_team_ids = set()
+            fixture_league = {}  # team_id -> league_id
+            fixture_home = {}    # team_id -> is_home
+            for fix in fixtures:
+                htid = fix.get("home_team_id")
+                atid = fix.get("away_team_id")
+                lid = fix.get("league_id")
+                if htid:
+                    all_team_ids.add(htid)
+                    fixture_league[htid] = lid
+                    fixture_home[htid] = True
+                if atid:
+                    all_team_ids.add(atid)
+                    fixture_league[atid] = lid
+                    fixture_home[atid] = False
+
+            if not all_team_ids:
+                return cache
+
+            # Batch query: get player stats for all teams at once
+            with self.engine.connect() as conn:
+                tid_list = list(all_team_ids)
+                placeholders = ",".join([str(t) for t in tid_list])
+
+                result = conn.execute(text(f"""
+                    SELECT pgs.player_id, pu.position, pgs.team_id,
+                           COUNT(*) as games,
+                           SUM((pgs.stats->>'goals')::int) as total_goals,
+                           SUM((pgs.stats->>'assists')::int) as total_assists,
+                           AVG((pgs.stats->>'shots')::float) as avg_shots,
+                           AVG(pgs.rating) as avg_rating,
+                           AVG(pgs.minutes_played) as avg_minutes
+                    FROM player_game_stats pgs
+                    JOIN players_unified pu ON pgs.player_id = pu.player_id AND pu.sport_key = 'soccer'
+                    WHERE pgs.sport_key = 'soccer'
+                      AND pgs.minutes_played >= 15
+                      AND pgs.team_id IN ({placeholders})
+                      AND pu.position IS NOT NULL
+                      AND pu.position NOT IN ('Goalkeeper', 'G')
+                    GROUP BY pgs.player_id, pu.position, pgs.team_id
+                    HAVING COUNT(*) >= 3
+                """))
+
+                rows = result.fetchall()
+
+            if not rows:
+                return cache
+
+            # Build feature matrix for all players at once
+            feature_rows = []
+            player_ids = []
+
+            for row in rows:
+                pid, position, team_id, games, goals, assists, avg_shots, avg_rating, avg_minutes = row
+                goals = float(goals or 0)
+                assists = float(assists or 0)
+                avg_shots = float(avg_shots or 0)
+                avg_rating = float(avg_rating or 6.5)
+                avg_minutes = float(avg_minutes or 60)
+                games = int(games or 1)
+
+                total_mins = avg_minutes * games
+                goals_per_90 = (goals / max(total_mins, 1)) * 90
+                shots_per_90 = (avg_shots * games / max(total_mins, 1)) * 90
+                pos_enc = POSITION_MAP.get(position, 1)
+                lid = fixture_league.get(team_id, 0)
+                is_home = 1 if fixture_home.get(team_id, False) else 0
+
+                # Approximate form features from aggregates (not rolling, but good enough for batch)
+                goals_last_3 = min(goals, 3)  # rough approximation
+                goals_last_5 = min(goals, 5)
+
+                features = [
+                    goals_last_3, goals_last_5, min(assists, 2), min(assists, 3),
+                    avg_shots, avg_shots, avg_rating, avg_minutes,
+                    goals, assists, games, goals_per_90, shots_per_90,
+                    is_home, 1, avg_minutes, 7,  # rest days default
+                    1.2, 0.25,  # opponent defaults
+                    pos_enc, 1,  # age bucket default
+                    lid or 0, 2.6, 0.07, 0.09,  # league defaults
+                ]
+                feature_rows.append(features)
+                player_ids.append(pid)
+
+            if not feature_rows:
+                return cache
+
+            X = np.array(feature_rows, dtype=np.float32)
+
+            # Batch predict
+            preds = np.mean([m.predict(X) for m in models], axis=0)
+
+            # Calibrate
+            cal_preds = calibrator.predict(preds)
+
+            for pid, prob in zip(player_ids, cal_preds):
+                cache[pid] = round(float(max(0.01, min(0.50, prob))), 4)
+
+            logger.info(f"Batch ML predictions: {len(cache)} players computed")
+
+        except Exception as e:
+            logger.warning(f"Batch ML prediction failed: {e}")
+
+        return cache
+
     def _poisson_prob(self, goals: int, games_played: int) -> float:
         """
         Compute P(goals >= 1) using Poisson with Bayesian shrinkage.
@@ -280,10 +442,21 @@ class PlayerParlayGenerator:
             )
 
             for player in players:
-                prob = self._poisson_prob(
-                    player.get('season_goals', 0),
-                    player.get('games_played', 0)
+                # Try ML model first (batch cache), fall back to Poisson
+                ml_prob = self._ml_scorer_prob(
+                    player.get('player_id'),
+                    league_id=fixture.get('league_id'),
+                    is_home=(player.get('team_id') == fixture.get('home_team_id'))
                 )
+                if ml_prob is not None:
+                    prob = ml_prob
+                    prob_source = "ml_lightgbm"
+                else:
+                    prob = self._poisson_prob(
+                        player.get('season_goals', 0),
+                        player.get('games_played', 0)
+                    )
+                    prob_source = "poisson"
 
                 if prob < MIN_PROB:
                     continue
@@ -330,6 +503,7 @@ class PlayerParlayGenerator:
                     'has_market_odds': has_market_odds,
                     'season_goals': player.get('season_goals', 0),
                     'games_played': player.get('games_played', 0),
+                    'prob_method': prob_source,
                 })
 
         if odds_enriched > 0:
@@ -569,7 +743,14 @@ class PlayerParlayGenerator:
 
         fixtures = fixtures[:20]
 
+        # Batch-compute ML probabilities for all players (fast vectorized approach)
+        self._ml_cache = self._batch_ml_predictions(fixtures)
+        self._used_ml = len(self._ml_cache) > 0
+
         all_legs = self._generate_candidate_legs(fixtures)
+
+        # Clear cache after use
+        self._ml_cache = {}
         logger.info(f"PlayerParlay: {len(all_legs)} candidate legs from {len(fixtures)} fixtures")
 
         if len(all_legs) < 2:
@@ -635,7 +816,7 @@ class PlayerParlayGenerator:
             'parlays_generated': parlays_generated,
             'by_risk_tier': by_risk,
             'avg_combined_prob_pct': round(avg_prob, 3),
-            'prob_method': 'poisson_shrinkage'
+            'prob_method': 'ml_lightgbm_batch' if getattr(self, '_used_ml', False) else 'poisson_shrinkage'
         }
 
     def get_best_parlays(self, limit: int = 10, min_edge: float = -50, leg_count: int = None) -> List[Dict]:

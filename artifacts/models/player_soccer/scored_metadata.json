@@ -1,0 +1,132 @@
+{
+  "model_type": "player_soccer_goal",
+  "label": "scored",
+  "framework": "lightgbm",
+  "n_features": 25,
+  "n_models": 5,
+  "trained_at": "2026-03-26T11:04:56.374152+00:00",
+  "metrics": {
+    "auc": 0.7195,
+    "logloss": 0.3116,
+    "f1": 0.2879,
+    "precision": 0.1886,
+    "recall": 0.608,
+    "threshold": 0.14,
+    "positive_rate": 0.0978,
+    "n_samples": 11975,
+    "calibrated_auc": 0.7171
+  },
+  "feature_importance": [
+    {
+      "name": "shots_per_90",
+      "importance": 7616.0
+    },
+    {
+      "name": "position_encoded",
+      "importance": 5506.9
+    },
+    {
+      "name": "shots_avg_5",
+      "importance": 2071.8
+    },
+    {
+      "name": "is_starter",
+      "importance": 1004.0
+    },
+    {
+      "name": "minutes_played_avg",
+      "importance": 919.1
+    },
+    {
+      "name": "minutes_avg_5",
+      "importance": 790.3
+    },
+    {
+      "name": "shots_avg_3",
+      "importance": 682.9
+    },
+    {
+      "name": "rating_avg_5",
+      "importance": 487.5
+    },
+    {
+      "name": "goals_per_90",
+      "importance": 416.1
+    },
+    {
+      "name": "season_appearances",
+      "importance": 180.7
+    },
+    {
+      "name": "age_bucket",
+      "importance": 180.4
+    },
+    {
+      "name": "rest_days",
+      "importance": 154.9
+    },
+    {
+      "name": "season_goals",
+      "importance": 108.4
+    },
+    {
+      "name": "league_scorer_pct",
+      "importance": 97.3
+    },
+    {
+      "name": "opp_goals_conceded_avg",
+      "importance": 67.4
+    },
+    {
+      "name": "assists_last_5",
+      "importance": 43.6
+    },
+    {
+      "name": "assists_last_3",
+      "importance": 43.5
+    },
+    {
+      "name": "league_goal_rate",
+      "importance": 26.6
+    },
+    {
+      "name": "season_assists",
+      "importance": 25.9
+    },
+    {
+      "name": "league_avg_goals",
+      "importance": 22.9
+    },
+    {
+      "name": "goals_last_5",
+      "importance": 10.3
+    },
+    {
+      "name": "goals_last_3",
+      "importance": 10.1
+    },
+    {
+      "name": "is_home",
+      "importance": 0.0
+    },
+    {
+      "name": "opp_clean_sheet_pct",
+      "importance": 0.0
+    },
+    {
+      "name": "league_id_cat",
+      "importance": 0.0
+    }
+  ],
+  "position_map": {
+    "Attacker": 3,
+    "Forward": 3,
+    "F": 3,
+    "Midfielder": 2,
+    "M": 2,
+    "Defender": 1,
+    "D": 1,
+    "Goalkeeper": 0,
+    "G": 0
+  }
+}
