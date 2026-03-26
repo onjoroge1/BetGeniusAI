@@ -226,11 +226,12 @@ class PlayerParlayGenerator:
 
             for row in rows:
                 pid, position, team_id, games, goals, assists, avg_shots, avg_rating, avg_minutes = row
-                goals = goals or 0
-                assists = assists or 0
-                avg_shots = avg_shots or 0
-                avg_rating = avg_rating or 6.5
-                avg_minutes = avg_minutes or 60
+                goals = float(goals or 0)
+                assists = float(assists or 0)
+                avg_shots = float(avg_shots or 0)
+                avg_rating = float(avg_rating or 6.5)
+                avg_minutes = float(avg_minutes or 60)
+                games = int(games or 1)
 
                 total_mins = avg_minutes * games
                 goals_per_90 = (goals / max(total_mins, 1)) * 90
