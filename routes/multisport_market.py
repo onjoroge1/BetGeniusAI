@@ -408,3 +408,243 @@ async def list_sports(api_key: str = Depends(verify_api_key_dep)):
     except Exception as e:
         logger.error(f"market-multisport/sports error: {e}", exc_info=True)
         raise HTTPException(500, str(e))
+
+
+@router.get("/predict-multisport/results")
+async def get_multisport_results(
+    sport: str = Query("basketball_nba", description="Sport key"),
+    days: int = Query(7, ge=1, le=90, description="Lookback window in days"),
+    limit: int = Query(50, ge=1, le=200),
+    api_key: str = Depends(verify_api_key_dep),
+):
+    """
+    Finished match results with model accuracy summary.
+
+    Returns per-match predictions vs actual results, plus aggregate stats
+    (accuracy, home/away split, confidence buckets, streak).
+    """
+    if sport not in SUPPORTED_SPORTS:
+        raise HTTPException(400, f"Unsupported sport: {sport}. Supported: {', '.join(SUPPORTED_SPORTS.keys())}")
+
+    start_time = datetime.now()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    try:
+        conn = psycopg2.connect(os.environ.get("DATABASE_URL"), connect_timeout=10)
+        cur = conn.cursor()
+
+        # ── Training sample count for confidence note ──
+        cur.execute("SELECT COUNT(*) FROM multisport_training WHERE sport_key = %s", (sport,))
+        training_count = cur.fetchone()[0]
+
+        # ── Finished fixtures in window ──
+        cur.execute("""
+            SELECT f.event_id, f.home_team, f.away_team, f.commence_time,
+                   f.league_name, f.home_score, f.away_score, f.outcome
+            FROM multisport_fixtures f
+            WHERE f.sport_key = %s
+              AND f.status IN ('finished', 'completed')
+              AND f.commence_time >= %s
+            ORDER BY f.commence_time DESC
+            LIMIT %s
+        """, (sport, cutoff, limit))
+        fixtures = cur.fetchall()
+        event_ids = [r[0] for r in fixtures]
+
+        # ── Match results (more reliable scores) ──
+        results_map = {}
+        if event_ids:
+            ph = ",".join(["%s"] * len(event_ids))
+            cur.execute(f"""
+                SELECT event_id, home_score, away_score, result, overtime
+                FROM multisport_match_results
+                WHERE event_id IN ({ph})
+            """, event_ids)
+            for r in cur.fetchall():
+                results_map[r[0]] = {
+                    "home_score": r[1], "away_score": r[2],
+                    "result": r[3], "overtime": r[4],
+                }
+
+        # ── Consensus odds ──
+        consensus_map = {}
+        if event_ids:
+            ph = ",".join(["%s"] * len(event_ids))
+            cur.execute(f"""
+                SELECT DISTINCT ON (event_id)
+                    event_id, home_odds, away_odds, home_prob, away_prob,
+                    home_spread, total_line
+                FROM multisport_odds_snapshots
+                WHERE event_id IN ({ph}) AND is_consensus = true
+                ORDER BY event_id, ts_recorded DESC
+            """, event_ids)
+            for r in cur.fetchall():
+                consensus_map[r[0]] = {
+                    "home_odds": float(r[1]) if r[1] else None,
+                    "away_odds": float(r[2]) if r[2] else None,
+                    "home_prob": float(r[3]) if r[3] else None,
+                    "away_prob": float(r[4]) if r[4] else None,
+                    "home_spread": float(r[5]) if r[5] else None,
+                    "total_line": float(r[6]) if r[6] else None,
+                }
+
+        conn.close()
+
+        # ── V3 model predictions ──
+        predictor = None
+        try:
+            from models.multisport_v3_predictor import get_multisport_predictor
+            predictor = get_multisport_predictor(sport)
+        except Exception:
+            pass
+
+        # ── Build match results with predictions ──
+        matches = []
+        predicted_results = []  # for aggregation
+
+        for fix in fixtures:
+            eid, home, away, ct, league, f_hs, f_as, f_outcome = fix
+
+            # Get result (prefer match_results table, fallback to fixture)
+            res = results_map.get(eid)
+            if not res and f_hs is not None and f_as is not None:
+                res = {"home_score": f_hs, "away_score": f_as, "result": f_outcome, "overtime": None}
+            if not res:
+                continue  # skip matches without results
+
+            # Get model prediction
+            pred = None
+            if predictor:
+                try:
+                    from dateutil.parser import parse as _dt_parse
+                    game_dt = ct if isinstance(ct, datetime) else _dt_parse(str(ct))
+                    raw = predictor.predict(
+                        sport_key=sport, event_id=eid,
+                        home_team=home, away_team=away, game_date=game_dt
+                    )
+                    if raw:
+                        pred = {
+                            "pick": raw.get("pick", "H"),
+                            "confidence": round(raw.get("confidence", 0), 3),
+                            "home_prob": round(raw["prob_home"], 3),
+                            "away_prob": round(raw["prob_away"], 3),
+                        }
+                except Exception:
+                    pass
+
+            correct = None
+            if pred and res["result"]:
+                correct = pred["pick"] == res["result"]
+
+            odds = consensus_map.get(eid, {})
+
+            match_obj = {
+                "event_id": eid,
+                "home_team": home,
+                "away_team": away,
+                "commence_time": ct.isoformat() if ct else None,
+                "league": league or SUPPORTED_SPORTS[sport]["name"],
+                "score": {"home": res["home_score"], "away": res["away_score"]},
+                "result": res["result"],
+                "overtime": res.get("overtime", False),
+                "prediction": pred,
+                "odds": odds if odds else None,
+                "correct": correct,
+            }
+            matches.append(match_obj)
+
+            if pred and correct is not None:
+                predicted_results.append({
+                    "correct": correct,
+                    "pick": pred["pick"],
+                    "confidence": pred["confidence"],
+                })
+
+        # ── Aggregate summary ──
+        total_matches = len(matches)
+        predicted = len(predicted_results)
+        correct_count = sum(1 for r in predicted_results if r["correct"])
+
+        home_picks = [r for r in predicted_results if r["pick"] == "H"]
+        away_picks = [r for r in predicted_results if r["pick"] == "A"]
+        home_correct = sum(1 for r in home_picks if r["correct"])
+        away_correct = sum(1 for r in away_picks if r["correct"])
+
+        avg_conf = round(sum(r["confidence"] for r in predicted_results) / max(predicted, 1), 3)
+        high_conf = [r for r in predicted_results if r["confidence"] >= 0.70]
+        high_conf_correct = sum(1 for r in high_conf if r["correct"])
+
+        # Current streak (from most recent)
+        streak_type, streak_count = None, 0
+        for r in predicted_results:
+            outcome = "W" if r["correct"] else "L"
+            if streak_type is None:
+                streak_type = outcome
+                streak_count = 1
+            elif outcome == streak_type:
+                streak_count += 1
+            else:
+                break
+
+        # Confidence buckets
+        buckets = [
+            {"range": "50-60%", "min": 0.50, "max": 0.60},
+            {"range": "60-70%", "min": 0.60, "max": 0.70},
+            {"range": "70-80%", "min": 0.70, "max": 0.80},
+            {"range": "80%+", "min": 0.80, "max": 1.01},
+        ]
+        confidence_buckets = []
+        for b in buckets:
+            in_bucket = [r for r in predicted_results if b["min"] <= r["confidence"] < b["max"]]
+            bucket_correct = sum(1 for r in in_bucket if r["correct"])
+            confidence_buckets.append({
+                "range": b["range"],
+                "total": len(in_bucket),
+                "correct": bucket_correct,
+                "accuracy": round(bucket_correct / max(len(in_bucket), 1), 3),
+            })
+
+        summary = {
+            "total_matches": total_matches,
+            "predicted": predicted,
+            "correct": correct_count,
+            "accuracy": round(correct_count / max(predicted, 1), 3),
+            "home_picks": len(home_picks),
+            "home_correct": home_correct,
+            "home_accuracy": round(home_correct / max(len(home_picks), 1), 3),
+            "away_picks": len(away_picks),
+            "away_correct": away_correct,
+            "away_accuracy": round(away_correct / max(len(away_picks), 1), 3),
+            "avg_confidence": avg_conf,
+            "high_confidence_accuracy": round(high_conf_correct / max(len(high_conf), 1), 3),
+            "high_confidence_total": len(high_conf),
+            "current_streak": {"type": streak_type or "N/A", "count": streak_count},
+        }
+
+        processing_time = round((datetime.now() - start_time).total_seconds(), 3)
+
+        return {
+            "sport": sport,
+            "sport_name": SUPPORTED_SPORTS[sport]["name"],
+            "period": {
+                "days": days,
+                "from": cutoff.strftime("%Y-%m-%d"),
+                "to": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            },
+            "summary": summary,
+            "confidence_buckets": confidence_buckets,
+            "model_info": {
+                "type": "v3_multisport_lgbm",
+                "training_samples": training_count,
+                "confidence_note": _get_model_confidence_note(sport, training_count),
+            },
+            "matches": matches,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "processing_time": processing_time,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"predict-multisport/results error: {e}", exc_info=True)
+        raise HTTPException(500, f"Results temporarily unavailable: {str(e)}")
