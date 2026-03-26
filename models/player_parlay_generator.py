@@ -115,6 +115,31 @@ class PlayerParlayGenerator:
             conn.commit()
             logger.info("PlayerParlayGenerator: Tables ensured")
 
+    def _ml_scorer_prob(self, player_id: int, league_id: int = None,
+                        is_home: bool = False) -> Optional[float]:
+        """Get ML-based scoring probability if model available."""
+        if not hasattr(self, '_ml_service'):
+            try:
+                from models.player_props_service import PlayerPropsService
+                self._ml_service = PlayerPropsService()
+                if not self._ml_service.ml_scored_models:
+                    self._ml_service = None
+            except Exception:
+                self._ml_service = None
+
+        if not self._ml_service:
+            return None
+
+        try:
+            result = self._ml_service._ml_predict(
+                player_id, league_id=league_id, is_home=is_home
+            )
+            if result:
+                return result["scored_probability"]
+        except Exception:
+            pass
+        return None
+
     def _poisson_prob(self, goals: int, games_played: int) -> float:
         """
         Compute P(goals >= 1) using Poisson with Bayesian shrinkage.
@@ -280,10 +305,19 @@ class PlayerParlayGenerator:
             )
 
             for player in players:
-                prob = self._poisson_prob(
-                    player.get('season_goals', 0),
-                    player.get('games_played', 0)
+                # Try ML model first, fall back to Poisson
+                ml_prob = self._ml_scorer_prob(
+                    player.get('player_id'),
+                    league_id=fixture.get('league_id'),
+                    is_home=(player.get('team_id') == fixture.get('home_team_id'))
                 )
+                if ml_prob is not None:
+                    prob = ml_prob
+                else:
+                    prob = self._poisson_prob(
+                        player.get('season_goals', 0),
+                        player.get('games_played', 0)
+                    )
 
                 if prob < MIN_PROB:
                     continue
