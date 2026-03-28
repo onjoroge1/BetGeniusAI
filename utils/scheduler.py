@@ -1940,6 +1940,22 @@ class BackgroundScheduler:
                 logger.info(f"✅ GAME STATS: {players_collected} player stats from {games_collected} fixtures")
             except Exception as e:
                 logger.warning(f"⚠️ GAME STATS: Game-by-game collection failed - {e}")
+
+            # 🏀 NBA game-by-game stats (for player model training)
+            try:
+                logger.info("🏀 GAME STATS: Collecting NBA game-by-game player stats...")
+                nba_game = collector.collect_nba_game_stats_batch(days_back=7, limit=30)
+                logger.info(f"✅ NBA GAME STATS: {nba_game.get('players', 0)} stats from {nba_game.get('games', 0)} games")
+            except Exception as e:
+                logger.warning(f"⚠️ NBA GAME STATS: Collection failed - {e}")
+
+            # 🏒 NHL game-by-game stats (for player model training)
+            try:
+                logger.info("🏒 GAME STATS: Collecting NHL game-by-game player stats...")
+                nhl_game = collector.collect_nhl_game_stats_batch(days_back=7, limit=30)
+                logger.info(f"✅ NHL GAME STATS: {nhl_game.get('players', 0)} stats from {nhl_game.get('games', 0)} games")
+            except Exception as e:
+                logger.warning(f"⚠️ NHL GAME STATS: Collection failed - {e}")
             
             try:
                 logger.info("🎰 PARLAY STATS: Collecting player stats for pending player parlays...")

@@ -869,7 +869,7 @@ class MultiSportPlayerCollector:
         
         try:
             cur.execute("""
-                SELECT 
+                SELECT
                     sport_key,
                     COUNT(DISTINCT player_id) as total_players,
                     COUNT(*) as total_stat_records,
@@ -877,11 +877,291 @@ class MultiSportPlayerCollector:
                 FROM player_season_stats
                 GROUP BY sport_key
             """)
-            
+
             return {
                 'by_sport': cur.fetchall(),
                 'metrics': self.metrics
             }
-            
+
+        finally:
+            conn.close()
+
+    # ═══════════════════════════════════════════════════════════
+    # NBA / NHL GAME-BY-GAME STATS COLLECTION
+    # ═══════════════════════════════════════════════════════════
+
+    def collect_nba_game_stats_batch(self, days_back: int = 7, limit: int = 30) -> Dict:
+        """
+        Collect NBA player game stats for recently finished games.
+        Discovers API-Sports game IDs via /games endpoint, then fetches per-game player stats.
+        """
+        logger.info(f"🏀 Collecting NBA game-by-game stats (last {days_back} days)...")
+        conn = psycopg2.connect(self.db_url)
+        cur = conn.cursor()
+
+        try:
+            # Find finished NBA games not yet in player_game_stats
+            cur.execute("""
+                SELECT f.event_id, f.home_team, f.away_team,
+                       f.home_score, f.away_score, f.commence_time::date as game_date
+                FROM multisport_fixtures f
+                WHERE f.sport_key = 'basketball_nba'
+                  AND f.status IN ('finished', 'completed')
+                  AND f.commence_time > NOW() - INTERVAL '%s days'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM player_game_stats pgs
+                      WHERE pgs.game_id = f.event_id AND pgs.sport_key = 'nba'
+                  )
+                ORDER BY f.commence_time DESC
+                LIMIT %s
+            """, (days_back, limit))
+            games = cur.fetchall()
+            logger.info(f"  Found {len(games)} NBA games needing player stats")
+
+            # Discover API-Sports game IDs by querying /games by date
+            dates_needed = sorted(set(str(g[5]) for g in games))
+            api_game_map = {}  # (date, home_lower) -> api_game_id
+            for date_str in dates_needed[:5]:  # max 5 API calls for date lookups
+                try:
+                    data = self._make_request('nba', '/games', {'league': 12, 'season': '2025-2026', 'date': date_str})
+                    if data and data.get('response'):
+                        for g in data['response']:
+                            teams = g.get('teams', {})
+                            home_name = teams.get('home', {}).get('name', '').lower()
+                            api_game_map[(date_str, home_name)] = g.get('id')
+                    time.sleep(0.3)
+                except Exception as e:
+                    logger.debug(f"  NBA date lookup {date_str} failed: {e}")
+
+            # Now resolve event_id -> api_game_id
+            resolved_games = []
+            for event_id, home, away, hs, as_, game_date in games:
+                api_id = api_game_map.get((str(game_date), home.lower()))
+                if not api_id:
+                    # Try fuzzy match
+                    for (d, h), gid in api_game_map.items():
+                        if d == str(game_date) and (home.lower() in h or h in home.lower()):
+                            api_id = gid
+                            break
+                if api_id:
+                    resolved_games.append((event_id, api_id, home, away, hs, as_, game_date))
+
+            logger.info(f"  Resolved {len(resolved_games)}/{len(games)} games to API-Sports IDs")
+            games = resolved_games
+
+            total_players = 0
+            games_processed = 0
+
+            for eid, api_id, home, away, hs, as_, game_date in games:
+                try:
+                    data = self._make_request('nba', '/players/statistics', {'game': api_id})
+                    if not data or not data.get('response'):
+                        continue
+
+                    for ps in data['response']:
+                        player = ps.get('player', {})
+                        team = ps.get('team', {})
+                        if not player.get('id'):
+                            continue
+
+                        minutes = self._parse_minutes(ps.get('min'))
+                        if minutes < 1:
+                            continue
+
+                        stats_json = {
+                            'points': ps.get('points') or 0,
+                            'rebounds': (ps.get('totReb') or 0),
+                            'assists': ps.get('assists') or 0,
+                            'steals': ps.get('steals') or 0,
+                            'blocks': ps.get('blocks') or 0,
+                            'turnovers': ps.get('turnovers') or 0,
+                            'fg_made': ps.get('fgm') or 0,
+                            'fg_attempted': ps.get('fga') or 0,
+                            'three_made': ps.get('tpm') or 0,
+                            'three_attempted': ps.get('tpa') or 0,
+                            'ft_made': ps.get('ftm') or 0,
+                            'ft_attempted': ps.get('fta') or 0,
+                            'fouls': ps.get('pFouls') or 0,
+                            'plus_minus': ps.get('plusMinus') or 0,
+                        }
+
+                        # Upsert player
+                        cur.execute("""
+                            INSERT INTO players_unified (sport_key, external_id, player_name, team_id, team_name, position)
+                            VALUES ('nba', %s, %s, %s, %s, %s)
+                            ON CONFLICT (sport_key, external_id)
+                            DO UPDATE SET player_name=EXCLUDED.player_name, team_id=EXCLUDED.team_id, team_name=EXCLUDED.team_name
+                            RETURNING player_id
+                        """, (player['id'], player.get('name'), team.get('id'), team.get('name'), ps.get('pos')))
+                        pid = cur.fetchone()[0]
+
+                        is_home = team.get('name', '').lower() in home.lower() or home.lower() in team.get('name', '').lower()
+                        opp_name = away if is_home else home
+
+                        # Use event_id as game_id (consistent with fixture lookup)
+                        cur.execute("""
+                            INSERT INTO player_game_stats
+                                (player_id, sport_key, game_id, league_id, team_id, team_name,
+                                 opponent_team_id, opponent_name, game_date, is_home, is_starter,
+                                 minutes_played, stats, rating, source)
+                            VALUES (%s, 'nba', %s, 12, %s, %s, NULL, %s, %s, %s, %s, %s, %s, NULL, 'api-basketball')
+                            ON CONFLICT (player_id, sport_key, game_id) DO NOTHING
+                        """, (pid, eid, team.get('id'), team.get('name'),
+                              opp_name, game_date, is_home, ps.get('pos') is not None,
+                              minutes, Json(stats_json)))
+                        total_players += 1
+
+                    conn.commit()
+                    games_processed += 1
+                    time.sleep(0.3)
+
+                except Exception as e:
+                    conn.rollback()
+                    logger.warning(f"  NBA game {api_id} failed: {e}")
+
+            logger.info(f"✅ NBA game stats: {total_players} player stats from {games_processed} games")
+            return {'sport': 'nba', 'games': games_processed, 'players': total_players}
+
+        except Exception as e:
+            logger.error(f"NBA game stats batch failed: {e}", exc_info=True)
+            return {'sport': 'nba', 'games': 0, 'players': 0, 'error': str(e)}
+        finally:
+            conn.close()
+
+    def collect_nhl_game_stats_batch(self, days_back: int = 7, limit: int = 30) -> Dict:
+        """
+        Collect NHL player game stats for recently finished games.
+        Discovers API-Sports game IDs via /games endpoint, then fetches per-game player stats.
+        """
+        logger.info(f"🏒 Collecting NHL game-by-game stats (last {days_back} days)...")
+        conn = psycopg2.connect(self.db_url)
+        cur = conn.cursor()
+
+        try:
+            cur.execute("""
+                SELECT f.event_id, f.home_team, f.away_team,
+                       f.home_score, f.away_score, f.commence_time::date as game_date
+                FROM multisport_fixtures f
+                WHERE f.sport_key = 'icehockey_nhl'
+                  AND f.status IN ('finished', 'completed')
+                  AND f.commence_time > NOW() - INTERVAL '%s days'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM player_game_stats pgs
+                      WHERE pgs.game_id = f.event_id AND pgs.sport_key = 'nhl'
+                  )
+                ORDER BY f.commence_time DESC
+                LIMIT %s
+            """, (days_back, limit))
+            games_raw = cur.fetchall()
+            logger.info(f"  Found {len(games_raw)} NHL games needing player stats")
+
+            # Resolve API-Sports game IDs by date
+            dates_needed = sorted(set(str(g[5]) for g in games_raw))
+            api_game_map = {}
+            for date_str in dates_needed[:5]:
+                try:
+                    data = self._make_request('hockey', '/games', {'league': 57, 'season': 2025, 'date': date_str})
+                    if data and data.get('response'):
+                        for g in data['response']:
+                            teams = g.get('teams', {})
+                            home_name = teams.get('home', {}).get('name', '').lower()
+                            api_game_map[(date_str, home_name)] = g.get('id')
+                    time.sleep(0.3)
+                except Exception as e:
+                    logger.debug(f"  NHL date lookup {date_str} failed: {e}")
+
+            games = []
+            for event_id, home, away, hs, as_, game_date in games_raw:
+                api_id = api_game_map.get((str(game_date), home.lower()))
+                if not api_id:
+                    for (d, h), gid in api_game_map.items():
+                        if d == str(game_date) and (home.lower() in h or h in home.lower()):
+                            api_id = gid
+                            break
+                if api_id:
+                    games.append((event_id, api_id, home, away, hs, as_, game_date))
+
+            logger.info(f"  Resolved {len(games)}/{len(games_raw)} games to API-Sports IDs")
+
+            total_players = 0
+            games_processed = 0
+
+            for eid, api_id, home, away, hs, as_, game_date in games:
+                try:
+                    data = self._make_request('hockey', '/players/statistics', {'game': api_id})
+                    if not data or not data.get('response'):
+                        continue
+
+                    for ps in data['response']:
+                        player = ps.get('player', {})
+                        team = ps.get('team', {})
+                        statistics = ps.get('statistics', [{}])
+                        stat = statistics[0] if statistics else {}
+
+                        if not player.get('id'):
+                            continue
+
+                        goals = stat.get('goals') or 0
+                        assists = stat.get('assists') or 0
+                        shots = stat.get('shots', {}).get('total') or 0
+                        toi = stat.get('time', '0:00')
+                        minutes = self._parse_minutes(toi)
+                        if minutes < 1:
+                            continue
+
+                        stats_json = {
+                            'goals': goals,
+                            'assists': assists,
+                            'points': goals + assists,
+                            'shots': shots,
+                            'plus_minus': stat.get('plusMinus') or 0,
+                            'penalty_minutes': stat.get('penaltyMinutes') or 0,
+                            'hits': stat.get('hits') or 0,
+                            'blocked_shots': stat.get('blockedShots') or 0,
+                            'takeaways': stat.get('takeaways') or 0,
+                            'giveaways': stat.get('giveaways') or 0,
+                            'faceoff_wins': stat.get('faceoffs', {}).get('won') or 0,
+                            'faceoff_losses': stat.get('faceoffs', {}).get('lost') or 0,
+                        }
+
+                        # Upsert player
+                        cur.execute("""
+                            INSERT INTO players_unified (sport_key, external_id, player_name, team_id, team_name, position)
+                            VALUES ('nhl', %s, %s, %s, %s, %s)
+                            ON CONFLICT (sport_key, external_id)
+                            DO UPDATE SET player_name=EXCLUDED.player_name, team_id=EXCLUDED.team_id, team_name=EXCLUDED.team_name
+                            RETURNING player_id
+                        """, (player['id'], player.get('name'), team.get('id'), team.get('name'),
+                              stat.get('position') or player.get('position')))
+                        pid = cur.fetchone()[0]
+
+                        is_home = team.get('name', '').lower() in home.lower() or home.lower() in team.get('name', '').lower()
+                        opp_name = away if is_home else home
+
+                        cur.execute("""
+                            INSERT INTO player_game_stats
+                                (player_id, sport_key, game_id, league_id, team_id, team_name,
+                                 opponent_team_id, opponent_name, game_date, is_home, is_starter,
+                                 minutes_played, stats, rating, source)
+                            VALUES (%s, 'nhl', %s, 57, %s, %s, NULL, %s, %s, %s, TRUE, %s, %s, NULL, 'api-hockey')
+                            ON CONFLICT (player_id, sport_key, game_id) DO NOTHING
+                        """, (pid, eid, team.get('id'), team.get('name'),
+                              opp_name, game_date, is_home, minutes, Json(stats_json)))
+                        total_players += 1
+
+                    conn.commit()
+                    games_processed += 1
+                    time.sleep(0.3)
+
+                except Exception as e:
+                    conn.rollback()
+                    logger.warning(f"  NHL game {api_id} failed: {e}")
+
+            logger.info(f"✅ NHL game stats: {total_players} player stats from {games_processed} games")
+            return {'sport': 'nhl', 'games': games_processed, 'players': total_players}
+
+        except Exception as e:
+            logger.error(f"NHL game stats batch failed: {e}", exc_info=True)
+            return {'sport': 'nhl', 'games': 0, 'players': 0, 'error': str(e)}
         finally:
             conn.close()
