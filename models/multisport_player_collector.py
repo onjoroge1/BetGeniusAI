@@ -923,7 +923,10 @@ class MultiSportPlayerCollector:
             api_game_map = {}  # (date, home_lower) -> api_game_id
             for date_str in dates_needed[:5]:  # max 5 API calls for date lookups
                 try:
-                    data = self._make_request('nba', '/games', {'league': 12, 'season': '2025-2026', 'date': date_str})
+                    from datetime import datetime as _dt
+                    _yr = _dt.now().year
+                    _nba_season = f"{_yr-1}-{_yr}" if _dt.now().month < 9 else f"{_yr}-{_yr+1}"
+                    data = self._make_request('nba', '/games', {'league': 12, 'season': _nba_season, 'date': date_str})
                     if data and data.get('response'):
                         for g in data['response']:
                             teams = g.get('teams', {})
@@ -1060,7 +1063,7 @@ class MultiSportPlayerCollector:
             api_game_map = {}
             for date_str in dates_needed[:5]:
                 try:
-                    data = self._make_request('hockey', '/games', {'league': 57, 'season': 2025, 'date': date_str})
+                    data = self._make_request('nhl', '/games', {'league': 57, 'season': 2025, 'date': date_str})
                     if data and data.get('response'):
                         for g in data['response']:
                             teams = g.get('teams', {})
@@ -1088,7 +1091,7 @@ class MultiSportPlayerCollector:
 
             for eid, api_id, home, away, hs, as_, game_date in games:
                 try:
-                    data = self._make_request('hockey', '/players/statistics', {'game': api_id})
+                    data = self._make_request('nhl', '/players/statistics', {'game': api_id})
                     if not data or not data.get('response'):
                         continue
 
