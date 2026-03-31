@@ -1914,7 +1914,7 @@ class BackgroundScheduler:
             
             try:
                 logger.info("🏀 PLAYER STATS: Collecting NBA data...")
-                nba_result = collector.collect_nba_player_stats(league_id=12, season="2024-2025")
+                nba_result = collector.collect_nba_player_stats(league_id=12, season="2025-2026")
                 nba_players = nba_result.get('players', 0)
                 total_players += nba_players
                 logger.info(f"✅ PLAYER STATS: NBA - {nba_players} players")
@@ -1923,7 +1923,7 @@ class BackgroundScheduler:
             
             try:
                 logger.info("🏒 PLAYER STATS: Collecting NHL data...")
-                nhl_result = collector.collect_nhl_player_stats(league_id=57, season=2024)
+                nhl_result = collector.collect_nhl_player_stats(league_id=57, season=2025)
                 nhl_players = nhl_result.get('players', 0)
                 total_players += nhl_players
                 logger.info(f"✅ PLAYER STATS: NHL - {nhl_players} players")
@@ -1940,6 +1940,22 @@ class BackgroundScheduler:
                 logger.info(f"✅ GAME STATS: {players_collected} player stats from {games_collected} fixtures")
             except Exception as e:
                 logger.warning(f"⚠️ GAME STATS: Game-by-game collection failed - {e}")
+
+            # 🏀 NBA game-by-game stats (for player model training)
+            try:
+                logger.info("🏀 GAME STATS: Collecting NBA game-by-game player stats...")
+                nba_game = collector.collect_nba_game_stats_batch(days_back=30, limit=50)
+                logger.info(f"✅ NBA GAME STATS: {nba_game.get('players', 0)} stats from {nba_game.get('games', 0)} games")
+            except Exception as e:
+                logger.warning(f"⚠️ NBA GAME STATS: Collection failed - {e}")
+
+            # 🏒 NHL game-by-game stats (for player model training)
+            try:
+                logger.info("🏒 GAME STATS: Collecting NHL game-by-game player stats...")
+                nhl_game = collector.collect_nhl_game_stats_batch(days_back=30, limit=50)
+                logger.info(f"✅ NHL GAME STATS: {nhl_game.get('players', 0)} stats from {nhl_game.get('games', 0)} games")
+            except Exception as e:
+                logger.warning(f"⚠️ NHL GAME STATS: Collection failed - {e}")
             
             try:
                 logger.info("🎰 PARLAY STATS: Collecting player stats for pending player parlays...")
