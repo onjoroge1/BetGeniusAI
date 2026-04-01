@@ -43,14 +43,14 @@ class ClosingOddsCapture:
                 # Average across all bookmakers to get consensus closing line
                 capture_query = """
                 WITH kickoff_matches AS (
-                    -- Find matches in kickoff window
+                    -- Find matches in kickoff window (±10 min for resilience)
                     SELECT match_id, kickoff_at
                     FROM fixtures
-                    WHERE kickoff_at BETWEEN NOW() - INTERVAL '90 seconds' AND NOW() + INTERVAL '90 seconds'
-                      AND status = 'scheduled'
+                    WHERE kickoff_at BETWEEN NOW() - INTERVAL '10 minutes' AND NOW() + INTERVAL '10 minutes'
+                      AND status IN ('scheduled', 'live')
                 ),
                 latest_odds AS (
-                    -- Get most recent odds snapshot for each match/book/outcome (last 5 minutes)
+                    -- Get most recent odds snapshot for each match/book/outcome (last 30 min)
                     SELECT DISTINCT ON (os.match_id, os.book_id, os.outcome)
                         os.match_id,
                         os.book_id,
@@ -59,7 +59,7 @@ class ClosingOddsCapture:
                         os.ts_snapshot
                     FROM odds_snapshots os
                     JOIN kickoff_matches km USING(match_id)
-                    WHERE os.ts_snapshot > NOW() - INTERVAL '5 minutes'
+                    WHERE os.ts_snapshot > NOW() - INTERVAL '30 minutes'
                       AND os.market = 'h2h'
                     ORDER BY os.match_id, os.book_id, os.outcome, os.ts_snapshot DESC
                 ),

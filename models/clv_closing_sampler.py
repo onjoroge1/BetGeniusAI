@@ -24,9 +24,10 @@ class CLVClosingSampler:
         self.engine = CLVClubEngine()
         self.database_url = os.environ.get('DATABASE_URL')
         
-        # Sampling window: 6 minutes before KO to 2 minutes after
-        self.PRE_KO_MINUTES = 6
-        self.POST_KO_MINUTES = 2
+        # Sampling window: 20 minutes before KO to 5 minutes after
+        # Wider window is more forgiving of server restarts and sparse data
+        self.PRE_KO_MINUTES = 20
+        self.POST_KO_MINUTES = 5
     
     def _get_fixtures_near_kickoff(self) -> List[Dict[str, Any]]:
         """
