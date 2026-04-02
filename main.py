@@ -85,6 +85,12 @@ def compute_freshness(timestamp) -> dict:
         return {"last_updated": None, "data_age_seconds": None, "freshness_status": "unknown"}
     from datetime import timezone as _tz
     now = datetime.now(_tz.utc)
+    # Handle string timestamps (e.g. from JSON) — parse before calling .replace()
+    if isinstance(timestamp, str):
+        try:
+            timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            return {"last_updated": str(timestamp), "data_age_seconds": None, "freshness_status": "unknown"}
     ts = timestamp if getattr(timestamp, 'tzinfo', None) else timestamp.replace(tzinfo=_tz.utc)
     age = (now - ts).total_seconds()
     if age < settings.FRESHNESS_FRESH_SEC:
