@@ -140,7 +140,15 @@ class V3Predictor:
                 h, d, a = ensemble_preds[0]/total, ensemble_preds[1]/total, ensemble_preds[2]/total
 
             probs = {'home': float(h), 'draw': float(d), 'away': float(a)}
-            prediction = max(probs, key=probs.get)
+
+            # Draw decision boost: apply 15% boost to draw probability for pick decision only
+            # This doesn't change calibrated probabilities — only the argmax decision.
+            # Rationale: V3 draw prob ≥ 36% hits 60% of the time, but argmax rarely
+            # picks draw because home/away probs are usually higher.
+            adjusted = np.array([h, d * 1.15, a])
+            adjusted /= adjusted.sum()
+            prediction = ['home', 'draw', 'away'][np.argmax(adjusted)]
+
             raw_confidence = max(probs.values())
 
             # Extract calibration data from features for confidence calibration
@@ -152,10 +160,16 @@ class V3Predictor:
             book_coverage = features.get('book_coverage', 0)
             bookmaker_count = int(book_coverage) if book_coverage and not (isinstance(book_coverage, float) and np.isnan(book_coverage)) else 0
 
+            # Odds confidence cap: without real odds data, accuracy drops from 52% to 40.8%
+            odds_available = features.get('odds_available', 0.0)
+            if odds_available is not None and not (isinstance(odds_available, float) and np.isnan(odds_available)):
+                if odds_available < 0.5:
+                    raw_confidence = min(raw_confidence, 0.35)
+
             return {
                 'probabilities': probs,
                 'confidence': raw_confidence,
-                'raw_confidence': raw_confidence,
+                'raw_confidence': max(probs.values()),
                 'prediction': prediction,
                 'model': 'v3_sharp',
                 'features_used': non_nan_features,

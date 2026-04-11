@@ -160,13 +160,14 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
             closeness_f = builder._build_closeness_features(v2_f)
             league_draw_f = builder._build_league_draw_features(cursor, match_info['league_id'], v2_f)
             draw_market_f = builder._build_draw_market_features(v2_f)
+            meta_f = builder._build_meta_features(v2_f, league_draw_f)
             form_f = builder._build_form_features(cursor, match_info, cutoff_time) if builder.FORM_FEATURE_NAMES else {}
 
             cursor.close()
             conn.close()
 
             features = {**v2_f, **ece_f, **h2h_f, **closeness_f,
-                        **league_draw_f, **draw_market_f, **form_f}
+                        **league_draw_f, **draw_market_f, **meta_f, **form_f}
             features['match_id'] = match_id
             features['outcome'] = outcome
             records.append(features)

@@ -3440,6 +3440,39 @@ async def predict_match(
         except Exception as _log_err:
             logger.warning(f"Shadow log failed (non-fatal): {_log_err}")
 
+        # --- V1/V3 Ensemble Override ---
+        # When V3 is primary and V1 disagrees, V1 is right 47% vs V3's 29%.
+        # Override V3's pick with V1's when V1 has higher confidence in disagreement.
+        model_agreement = None
+        if using_v3_primary and v1_shadow_available and v1_shadow_recommended:
+            v3_v1_agree = (primary_recommended == v1_shadow_recommended)
+            model_agreement = {
+                "v3_v1_agree": v3_v1_agree,
+                "v3_pick": primary_recommended,
+                "v1_pick": v1_shadow_recommended,
+                "override_applied": False,
+            }
+            if not v3_v1_agree and v1_shadow_conf > confidence:
+                # V1 disagrees AND has higher confidence — use V1's pick
+                logger.info(f"V1/V3 disagreement: V3={primary_recommended}({confidence:.3f}) vs V1={v1_shadow_recommended}({v1_shadow_conf:.3f}) → using V1")
+                primary_recommended = v1_shadow_recommended
+                recommended_bet = v1_shadow_recommended
+                model_agreement["override_applied"] = True
+                model_agreement["override_reason"] = "V1 higher confidence in disagreement (V1 47% vs V3 29% historically)"
+
+        # --- Draw Alert ---
+        # V3 draw prob ≥ 36% → 60% draw rate. Premium signal.
+        draw_alert = None
+        if d_norm >= 0.36:
+            draw_alert = {"level": "high", "draw_prob": round(d_norm, 3), "expected_accuracy": 0.60,
+                          "note": "V3 draw probability ≥ 36% — historically 60% draw rate"}
+        elif d_norm >= 0.30 and confidence < 0.40:
+            draw_alert = {"level": "moderate", "draw_prob": round(d_norm, 3), "expected_accuracy": 0.34,
+                          "note": "V3 draw ≥ 30% with low confidence — elevated draw risk"}
+        elif confidence < 0.30 and abs(h_norm - a_norm) < 0.20:
+            draw_alert = {"level": "signal", "draw_prob": round(d_norm, 3), "expected_accuracy": 0.33,
+                          "note": "Very low V3 confidence with close match — 1 in 3 chance of draw"}
+
         # --- Conviction tier (all models) ---
         # Gather all picks from shadow + primary for agreement check
         active_picks = [p for p in [primary_recommended, v1_shadow_recommended, v2_recommended, v3_recommended] if p and p != 'No Prediction']
@@ -3475,6 +3508,8 @@ async def predict_match(
             "data_quality": data_quality,
             "conviction_tier": conviction_tier,
             "models_in_agreement": len(set(active_picks)) == 1 if active_picks else False,
+            "model_agreement": model_agreement,
+            "draw_alert": draw_alert,
         }
         
         predictions = {
