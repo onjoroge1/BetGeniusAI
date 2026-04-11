@@ -21,21 +21,47 @@ logger = logging.getLogger(__name__)
 
 class LiveAIAnalyzer:
     """Generates AI analysis for live matches with intelligent triggers"""
-    
+
+    # Circuit breaker: stop calling OpenAI after repeated failures
+    _circuit_open = False
+    _circuit_open_until = None
+    _consecutive_failures = 0
+    _MAX_FAILURES = 3  # Open circuit after 3 consecutive failures
+    _CIRCUIT_COOLDOWN_MINUTES = 30  # Wait 30 min before retrying
+
     def __init__(self, db_url: str):
         self.db_url = db_url
-        self.openai_client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+        api_key = os.environ.get('OPENAI_API_KEY')
+        self.openai_client = OpenAI(api_key=api_key) if api_key else None
         self.velocity_calculator = OddsVelocityCalculator(db_url)
-        
+
         # Trigger thresholds
         self.time_interval_minutes = 4  # Analyze every 4 minutes
         self.odds_movement_threshold = 5  # 5% odds change triggers analysis
+
+        if not api_key:
+            logger.warning("OPENAI_API_KEY not set — AI analysis disabled")
+            LiveAIAnalyzer._circuit_open = True
+            LiveAIAnalyzer._circuit_open_until = datetime.max
     
     def should_trigger_analysis(self, match_id: int) -> Tuple[bool, str]:
         """
         Determine if AI analysis should be triggered for this match
         Returns: (should_trigger, trigger_reason)
         """
+        # Circuit breaker check — stop hammering OpenAI when quota is exhausted
+        if LiveAIAnalyzer._circuit_open:
+            if LiveAIAnalyzer._circuit_open_until and datetime.now() < LiveAIAnalyzer._circuit_open_until:
+                return False, f"circuit_open (retry after {LiveAIAnalyzer._circuit_open_until.strftime('%H:%M')})"
+            else:
+                # Cooldown expired — half-open, allow one attempt
+                logger.info("🔌 AI circuit breaker: cooldown expired, allowing retry")
+                LiveAIAnalyzer._circuit_open = False
+                LiveAIAnalyzer._consecutive_failures = 0
+
+        if not self.openai_client:
+            return False, "openai_client_not_configured"
+
         try:
             with psycopg2.connect(self.db_url) as conn:
                 cursor = conn.cursor()
@@ -259,7 +285,11 @@ Format as JSON:
             
             # Parse JSON response
             analysis_data = json.loads(ai_content)
-            
+
+            # Success — reset circuit breaker
+            LiveAIAnalyzer._consecutive_failures = 0
+            LiveAIAnalyzer._circuit_open = False
+
             return {
                 'success': True,
                 'analysis': analysis_data,
@@ -268,7 +298,24 @@ Format as JSON:
             }
             
         except Exception as e:
-            logger.error(f"Error generating AI analysis: {e}", exc_info=True)
+            # Circuit breaker: track consecutive failures
+            error_str = str(e)
+            is_quota_error = '429' in error_str or 'insufficient_quota' in error_str or 'rate_limit' in error_str.lower()
+
+            LiveAIAnalyzer._consecutive_failures += 1
+
+            if is_quota_error or LiveAIAnalyzer._consecutive_failures >= LiveAIAnalyzer._MAX_FAILURES:
+                LiveAIAnalyzer._circuit_open = True
+                cooldown = LiveAIAnalyzer._CIRCUIT_COOLDOWN_MINUTES
+                LiveAIAnalyzer._circuit_open_until = datetime.now() + timedelta(minutes=cooldown)
+                logger.warning(
+                    f"🔴 AI circuit breaker OPEN — {LiveAIAnalyzer._consecutive_failures} failures. "
+                    f"No OpenAI calls for {cooldown} min (until {LiveAIAnalyzer._circuit_open_until.strftime('%H:%M')}). "
+                    f"Error: {error_str[:100]}"
+                )
+            else:
+                logger.error(f"Error generating AI analysis: {e}", exc_info=True)
+
             return {
                 'success': False,
                 'error': str(e),
