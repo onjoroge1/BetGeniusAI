@@ -803,10 +803,13 @@ class AutomatedCollector:
             
             for league_id in priority_leagues:
                 try:
+                    # next_count=50 is the API-Football max per request.
+                    # 20 was too low — major leagues publish 3-4 weeks ahead (>20 fixtures).
+                    # 50 fixtures = ~2-3 weeks of matches for most leagues.
                     fixtures = client.get_upcoming_fixtures_by_league(
                         league_id=league_id,
                         season=current_season,
-                        next_count=20
+                        next_count=50
                     )
                     
                     if not fixtures:

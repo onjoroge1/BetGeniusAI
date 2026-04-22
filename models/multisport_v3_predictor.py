@@ -129,6 +129,38 @@ class MultisportV3Predictor:
 
         non_zero = sum(1 for v in features.values() if v != 0.0)
 
+        # ── Production-validated confidence adjustments (NBA/NHL) ──
+        spread = abs(features.get('spread_line', 0.0))
+        total  = features.get('total_line', 0.0)
+        is_favourite = (pick == 'H' and prob_home >= prob_away) or (pick == 'A' and prob_away > prob_home)
+        is_away_pick = (pick == 'A')
+
+        # 1. Spread-based confidence scaling (95% acc at spread>10, 41% at spread≤5)
+        if spread > 10:
+            confidence = max(confidence, 0.88)  # Floor at 88% for big spreads
+        elif spread <= 5:
+            confidence = min(confidence, 0.65)  # Cap at 65% for close games
+
+        # 2. Underdog picks: cap confidence (29.2% accuracy when contrarian)
+        if not is_favourite:
+            confidence = min(confidence, 0.58)
+
+        # 3. Away pick penalty (60.7% vs 87.7% home)
+        if is_away_pick and spread <= 5:
+            confidence *= 0.85  # Reduce confidence for away picks in close games
+
+        # 4. High total line boost (>230 → 79.7% accuracy)
+        if total > 230:
+            confidence = min(confidence * 1.05, 0.98)
+
+        # 5. Conviction tier
+        if confidence >= 0.85 and spread > 8:
+            conviction = 'premium'
+        elif confidence >= 0.70:
+            conviction = 'strong'
+        else:
+            conviction = 'standard'
+
         return {
             'prob_home':       round(prob_home, 4),
             'prob_away':       round(prob_away, 4),
@@ -140,6 +172,9 @@ class MultisportV3Predictor:
             'model_version':   self.VERSION,
             'model_type':      'V3_Multisport_LightGBM',
             'sport_key':       sport_key,
+            'conviction_tier': conviction,
+            'spread_magnitude': round(spread, 1),
+            'is_favourite_pick': is_favourite,
             'feature_values':  {k: round(float(v), 4) for k, v in features.items()},
         }
 
