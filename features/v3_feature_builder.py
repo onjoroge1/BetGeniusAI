@@ -1,14 +1,13 @@
 """
 V3 Feature Builder - Enhanced Draw Prediction + Pruned Dead Features
 
-Feature Categories (28 active):
+Feature Categories (24 active):
 - V2 Core (11): Market probs, dispersion, volatility, coverage, overround
 - League ECE (3): Calibration, tier weight, historical edge
 - H2H (2): Draw rate, matches used
 - Match Closeness (4): ha_prob_gap, favourite_strength, draw_vs_nondraw_ratio, implied_competitiveness
 - League Draw Context (2): league_draw_rate, league_draw_deviation
 - Draw Market Structure (2): draw_dispersion_ratio, draw_overround_share
-- Meta Features (4): goal_expectancy, market_consensus_strength, odds_available, league_cluster
 
 Pruned (20 dead features with 0.0 importance):
 - Sharp book features (4): Data too sparse, always 0.0
@@ -82,15 +81,15 @@ class V3FeatureBuilder:
         'draw_overround_share',     # What fraction of overround is loaded onto draw
     ]
 
-    # Meta features — model confidence signals and league clustering
-    META_FEATURE_NAMES = [
-        'goal_expectancy',            # Implied total goals from market probs (lower = draw-prone)
-        'market_consensus_strength',  # max(prob_home, prob_away) — strong favourite = fewer draws
-        'odds_available',             # Binary: 1 if real odds exist, 0 if imputed
-        'league_cluster',             # Categorical: 0=low-draw (<20%), 1=medium (20-28%), 2=high-draw (>28%)
-    ]
-
     # NOTE: Form features disabled — only 10% population rate due to sparse matches table.
+    # Re-enable when matches table has more historical team data (need 3+ home/away matches per team).
+    # FORM_FEATURE_NAMES = [
+    #     'home_draw_rate_last10',    # Home team's draw rate in last 10 home matches
+    #     'away_draw_rate_last10',    # Away team's draw rate in last 10 away matches
+    #     'combined_goal_expectation',# Sum of both teams' scoring avgs — low = draw-prone
+    #     'home_goals_scored_avg',    # Home team avg goals scored (last 10)
+    #     'away_goals_scored_avg',    # Away team avg goals scored (last 10)
+    # ]
     FORM_FEATURE_NAMES: list = []
 
     def __init__(self, database_url: Optional[str] = None):
@@ -99,14 +98,14 @@ class V3FeatureBuilder:
         if not self.db_url:
             raise ValueError("DATABASE_URL not provided")
 
-        logger.info("✅ V3FeatureBuilder initialized (28 features, draw-enhanced + meta)")
+        logger.info("✅ V3FeatureBuilder initialized (24 features, draw-enhanced)")
 
     def get_all_feature_names(self) -> List[str]:
-        """Get list of all active V3 feature names (28 with meta features)"""
+        """Get list of all active V3 feature names (24 when form features disabled)"""
         names = (self.V2_CORE_FEATURE_NAMES + self.ECE_FEATURE_NAMES +
                  self.H2H_FEATURE_NAMES + self.CLOSENESS_FEATURE_NAMES +
                  self.LEAGUE_DRAW_FEATURE_NAMES + self.DRAW_MARKET_FEATURE_NAMES +
-                 self.META_FEATURE_NAMES + self.FORM_FEATURE_NAMES)
+                 self.FORM_FEATURE_NAMES)
         return names
 
     def get_feature_names(self) -> List[str]:
@@ -146,7 +145,6 @@ class V3FeatureBuilder:
             closeness_features = self._build_closeness_features(v2_features)
             league_draw_features = self._build_league_draw_features(cursor, match_info['league_id'], v2_features)
             draw_market_features = self._build_draw_market_features(v2_features)
-            meta_features = self._build_meta_features(v2_features, league_draw_features)
             form_features = self._build_form_features(cursor, match_info, cutoff_time) if self.FORM_FEATURE_NAMES else {}
 
             cursor.close()
@@ -160,7 +158,6 @@ class V3FeatureBuilder:
                 **closeness_features,
                 **league_draw_features,
                 **draw_market_features,
-                **meta_features,
                 **form_features,
             }
 
@@ -425,50 +422,6 @@ class V3FeatureBuilder:
                 raw_draw = pd_
                 draw_excess = raw_draw - fair_draw
                 features['draw_overround_share'] = draw_excess / excess if excess > 0.001 else np.nan
-
-        return features
-
-    def _build_meta_features(self, v2_features: Dict[str, float],
-                              league_draw_features: Dict[str, float]) -> Dict[str, float]:
-        """
-        Build meta features — model confidence signals and league clustering.
-        These capture patterns the user's 90-day analysis identified:
-        - goal_expectancy: low-scoring matches have 38% draw rate
-        - market_consensus_strength: contrarian picks only 28.4% accurate
-        - odds_available: without odds, accuracy drops 11.2pp
-        - league_cluster: accuracy varies 35% (Ligue 1) to 66% (Bundesliga)
-        """
-        features = {name: np.nan for name in self.META_FEATURE_NAMES}
-
-        ph = v2_features.get('prob_home')
-        pd_ = v2_features.get('prob_draw')
-        pa = v2_features.get('prob_away')
-
-        if ph is not None and pd_ is not None and pa is not None and not any(np.isnan(x) for x in [ph, pd_, pa]):
-            # Goal expectancy: derived from match outcome probabilities
-            # Higher draw prob + lower favourite strength = fewer expected goals
-            # Approximate: home_prob and away_prob correlate with scoring potential
-            features['goal_expectancy'] = (ph + pa) * 3.0  # Scale: ~1.5-2.5 range
-
-            # Market consensus strength: how strong the favourite is
-            features['market_consensus_strength'] = max(ph, pa)
-
-            # Odds available: 1 if real odds data, 0 if imputed defaults
-            book_coverage = v2_features.get('book_coverage', 0)
-            if book_coverage is not None and not np.isnan(book_coverage):
-                features['odds_available'] = 1.0 if book_coverage > 0 else 0.0
-            else:
-                features['odds_available'] = 0.0
-
-        # League cluster based on historical draw rate
-        league_dr = league_draw_features.get('league_draw_rate')
-        if league_dr is not None and not np.isnan(league_dr):
-            if league_dr < 0.20:
-                features['league_cluster'] = 0.0  # Low-draw (Serie A, UCL)
-            elif league_dr < 0.28:
-                features['league_cluster'] = 1.0  # Medium-draw (EPL, La Liga)
-            else:
-                features['league_cluster'] = 2.0  # High-draw (Ligue 1, Eredivisie)
 
         return features
 
