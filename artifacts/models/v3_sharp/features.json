@@ -22,9 +22,5 @@
   "league_draw_rate",
   "league_draw_deviation",
   "draw_dispersion_ratio",
-  "draw_overround_share",
-  "goal_expectancy",
-  "market_consensus_strength",
-  "odds_available",
-  "league_cluster"
+  "draw_overround_share"
 ]
