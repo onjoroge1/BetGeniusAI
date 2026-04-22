@@ -1,72 +1,72 @@
 {
   "model_type": "V3_Sharp_LightGBM_LeakFree",
-  "trained_at": "2026-04-22T02:48:48.017671+00:00",
-  "n_features": 31,
+  "trained_at": "2026-04-22T02:39:56.804353+00:00",
+  "n_features": 24,
   "train_size": 778,
   "holdout_size": 138,
   "cutoff_buffer_hours": 1,
   "data_source": "fixtures+matches only (no training_matches due to leakage)",
   "oof_metrics": {
-    "accuracy": 0.6077519379844961,
-    "logloss": 0.8716183913955524,
+    "accuracy": 0.49612403100775193,
+    "logloss": 1.0138879210624692,
     "per_class": {
       "H": {
-        "accuracy": 0.770764119601329,
+        "accuracy": 0.7375415282392026,
         "n_actual": 301
       },
       "D": {
-        "accuracy": 0.25625,
+        "accuracy": 0.125,
         "n_actual": 160
       },
       "A": {
-        "accuracy": 0.6467391304347826,
+        "accuracy": 0.42391304347826086,
         "n_actual": 184
       }
     },
     "pick_dist_pct": {
-      "H": 49.76744186046512,
-      "D": 15.658914728682172,
-      "A": 34.57364341085271
+      "H": 61.55038759689923,
+      "D": 10.852713178294573,
+      "A": 27.596899224806204
     },
     "actual_dist_pct": {
       "H": 46.666666666666664,
       "D": 24.8062015503876,
       "A": 28.527131782945737
     },
-    "max_skew_pp": 9.147286821705427,
-    "draw_pred_rate": 0.15658914728682172
+    "max_skew_pp": 14.883720930232563,
+    "draw_pred_rate": 0.10852713178294573
   },
   "holdout_metrics": {
-    "accuracy": 0.5362318840579711,
-    "logloss": 0.9382180400089296,
+    "accuracy": 0.5289855072463768,
+    "logloss": 0.9887108449770841,
     "per_class": {
       "H": {
-        "accuracy": 0.6818181818181818,
+        "accuracy": 0.6666666666666666,
         "n_actual": 66
       },
       "D": {
-        "accuracy": 0.18518518518518517,
+        "accuracy": 0.14814814814814814,
         "n_actual": 27
       },
       "A": {
-        "accuracy": 0.5333333333333333,
+        "accuracy": 0.5555555555555556,
         "n_actual": 45
       }
     },
     "pick_dist_pct": {
-      "H": 46.3768115942029,
-      "D": 21.73913043478261,
-      "A": 31.88405797101449
+      "H": 53.62318840579711,
+      "D": 10.869565217391305,
+      "A": 35.507246376811594
     },
     "actual_dist_pct": {
       "H": 47.82608695652174,
       "D": 19.565217391304348,
       "A": 32.608695652173914
     },
-    "max_skew_pp": 2.1739130434782616,
-    "draw_pred_rate": 0.21739130434782608
+    "max_skew_pp": 8.695652173913043,
+    "draw_pred_rate": 0.10869565217391304
   },
-  "fold_variance": 0.10077519379844968,
+  "fold_variance": 0.16279069767441862,
   "gate_passed": true,
   "gate_reasons": []
 }

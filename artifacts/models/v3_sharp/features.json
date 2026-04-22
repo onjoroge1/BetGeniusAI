@@ -22,12 +22,5 @@
   "league_draw_rate",
   "league_draw_deviation",
   "draw_dispersion_ratio",
-  "draw_overround_share",
-  "home_elo",
-  "away_elo",
-  "elo_diff",
-  "elo_expected_home",
-  "z_prob_home",
-  "z_prob_draw",
-  "z_ha_gap"
+  "draw_overround_share"
 ]
