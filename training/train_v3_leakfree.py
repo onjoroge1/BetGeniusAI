@@ -32,9 +32,14 @@ from sklearn.metrics import accuracy_score, log_loss
 
 sys.path.append('.')
 from features.v3_feature_builder import V3FeatureBuilder
+from features.v3_enhanced_features import build_enhanced_features, ENHANCED_FEATURE_NAMES
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Phase A toggle — set True to include ELO + Z-score features (31 total features)
+# Set False for pure 24-feature baseline
+ENABLE_ENHANCED_FEATURES = True
 
 OUTPUT_DIR = Path("artifacts/models/v3_sharp_candidate")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -112,9 +117,15 @@ def build_features_for_matches(matches):
             cls = builder._build_closeness_features(v2)
             ld = builder._build_league_draw_features(cur, match_info['league_id'], v2)
             dm = builder._build_draw_market_features(v2)
+
+            # Phase A: ELO + Z-score features (optional)
+            enhanced = {}
+            if ENABLE_ENHANCED_FEATURES:
+                enhanced = build_enhanced_features(cur, match_info, v2)
+
             cur.close(); conn.close()
 
-            feats = {**v2, **ece, **h2h, **cls, **ld, **dm}
+            feats = {**v2, **ece, **h2h, **cls, **ld, **dm, **enhanced}
             feats['match_id'] = mid
             feats['outcome'] = outcome
             records.append(feats)
