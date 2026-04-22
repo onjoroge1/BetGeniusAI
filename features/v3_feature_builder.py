@@ -211,19 +211,23 @@ class V3FeatureBuilder:
         }
 
     def _build_v2_core_features(self, cursor, match_id: int, cutoff_time: datetime) -> Dict[str, float]:
-        """Build V2 core odds-based features from odds_consensus (pruned — no drift/timing/sharp)"""
+        """Build V2 core odds-based features from odds_consensus (pruned — no drift/timing/sharp)
+
+        IMPORTANT: Uses strict < cutoff_time to prevent data leakage. Post-kickoff
+        odds_consensus rows contain the outcome baked in (market closed/settled).
+        """
 
         # Use np.nan for missing instead of 0.0 — LightGBM handles NaN natively
         features = {name: np.nan for name in self.V2_CORE_FEATURE_NAMES}
 
-        # Get latest odds consensus before cutoff
+        # Get latest odds consensus STRICTLY before cutoff (leak-safe)
         cursor.execute("""
             SELECT
                 ph_cons, pd_cons, pa_cons,
                 n_books, market_margin_avg,
                 disph, dispd, dispa
             FROM odds_consensus
-            WHERE match_id = %s AND ts_effective <= %s
+            WHERE match_id = %s AND ts_effective < %s
             ORDER BY ts_effective DESC
             LIMIT 1
         """, (match_id, cutoff_time))
@@ -239,13 +243,13 @@ class V3FeatureBuilder:
             features['book_dispersion_draw'] = float(row[6]) if row[6] else np.nan
             features['book_dispersion_away'] = float(row[7]) if row[7] else np.nan
 
-        # Get odds volatility from individual snapshots
+        # Get odds volatility from individual snapshots (strict < cutoff, leak-safe)
         cursor.execute("""
             SELECT
                 outcome,
                 MAX(implied_prob) - MIN(implied_prob) as volatility
             FROM odds_snapshots
-            WHERE match_id = %s AND ts_snapshot <= %s
+            WHERE match_id = %s AND ts_snapshot < %s
             GROUP BY outcome
         """, (match_id, cutoff_time))
 
