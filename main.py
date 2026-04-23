@@ -8355,7 +8355,7 @@ async def get_market_data(
     status: str = "all",
     league_id: Optional[int] = None,
     match_id: Optional[str] = None,
-    limit: int = 100,
+    limit: int = 500,
     include_v2: bool = False,
     mode: str = "full",
     api_key: str = Depends(verify_api_key)
