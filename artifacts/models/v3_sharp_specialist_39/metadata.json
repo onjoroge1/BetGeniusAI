@@ -1,0 +1,27 @@
+{
+  "model_type": "V3_Specialist_E0",
+  "league_id": 39,
+  "league_code": "E0",
+  "trained_at": "2026-04-27T12:10:57.027447+00:00",
+  "n_features": 20,
+  "n_train_samples": 3035,
+  "n_holdout_samples": 536,
+  "data_source": "historical_odds (3420) + training_matches (151)",
+  "holdout_metrics": {
+    "accuracy": 0.5055970149253731,
+    "pick_dist_pct": {
+      "H": 52.23880597014925,
+      "D": 11.007462686567164,
+      "A": 36.75373134328358
+    },
+    "actual_dist_pct": {
+      "H": 41.417910447761194,
+      "D": 25.0,
+      "A": 33.582089552238806
+    },
+    "max_skew_pp": 13.992537313432836,
+    "draw_pred_rate": 0.11007462686567164,
+    "fold_variance": 0.07524752475247531
+  },
+  "gate_passed": true
+}

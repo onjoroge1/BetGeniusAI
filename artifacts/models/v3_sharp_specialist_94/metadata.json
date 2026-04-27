@@ -1,0 +1,27 @@
+{
+  "model_type": "V3_Specialist_P1",
+  "league_id": 94,
+  "league_code": "P1",
+  "trained_at": "2026-04-27T12:12:36.979929+00:00",
+  "n_features": 20,
+  "n_train_samples": 1624,
+  "n_holdout_samples": 287,
+  "data_source": "historical_odds (1836) + training_matches (75)",
+  "holdout_metrics": {
+    "accuracy": 0.5156794425087108,
+    "pick_dist_pct": {
+      "H": 42.1602787456446,
+      "D": 17.770034843205575,
+      "A": 40.069686411149824
+    },
+    "actual_dist_pct": {
+      "H": 40.41811846689895,
+      "D": 25.78397212543554,
+      "A": 33.79790940766551
+    },
+    "max_skew_pp": 8.013937282229964,
+    "draw_pred_rate": 0.17770034843205576,
+    "fold_variance": 0.1333333333333333
+  },
+  "gate_passed": true
+}

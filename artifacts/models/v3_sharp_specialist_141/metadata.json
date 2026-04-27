@@ -1,0 +1,27 @@
+{
+  "model_type": "V3_Specialist_SP2",
+  "league_id": 141,
+  "league_code": "SP2",
+  "trained_at": "2026-04-27T13:40:58.962868+00:00",
+  "n_features": 20,
+  "n_train_samples": 2437,
+  "n_holdout_samples": 431,
+  "data_source": "historical_odds (2772) + training_matches (96)",
+  "holdout_metrics": {
+    "accuracy": 0.4593967517401392,
+    "pick_dist_pct": {
+      "H": 67.51740139211137,
+      "D": 21.34570765661253,
+      "A": 11.1368909512761
+    },
+    "actual_dist_pct": {
+      "H": 47.09976798143852,
+      "D": 27.1461716937355,
+      "A": 25.754060324825982
+    },
+    "max_skew_pp": 20.41763341067285,
+    "draw_pred_rate": 0.21345707656612528,
+    "fold_variance": 0.1748768472906404
+  },
+  "gate_passed": true
+}
