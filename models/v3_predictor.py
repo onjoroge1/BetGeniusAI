@@ -286,6 +286,7 @@ class V3Predictor:
             return {
                 'probabilities': probs,
                 'confidence': calibrated_conf,
+                'calibrated_confidence': calibrated_conf,  # explicit alias for /predict response
                 'raw_confidence': raw_confidence,
                 'prediction': pick,
                 'model': model_id,

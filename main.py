@@ -2860,6 +2860,12 @@ async def predict_match(
                         'features_used': v3_primary_result.get('features_used', 0),
                         'total_features': v3_primary_result.get('total_features', 24),
                         'confidence_method': cal_method,
+                        # Preserve V3 specialist + surface fields for response
+                        'should_surface': v3_primary_result.get('should_surface'),
+                        'surface_reason': v3_primary_result.get('surface_reason'),
+                        'specialist_check': v3_primary_result.get('specialist_check'),
+                        'league_multiplier': v3_primary_result.get('league_multiplier'),
+                        'calibrated_confidence': v3_primary_result.get('calibrated_confidence'),
                     }
                     prediction_source = "v3_sharp"
                     data_quality = "full"
@@ -3120,24 +3126,31 @@ async def predict_match(
         # SMART CONFIDENCE GATING (per analysis recommendations)
         confidence = prediction_result['confidence']
         raw_prediction = prediction_result.get('prediction', 'No Prediction')
-        
-        # Apply confidence-based recommendation gating
-        if confidence < 0.15:
-            # Very low confidence - no betting recommendation
-            recommended_bet = "No bet - Info only"
-            recommendation_tone = "avoid"
+
+        # Canonicalize raw_prediction to "home"/"draw"/"away"
+        # Predictor returns "home"/"draw"/"away", but normalize defensively for legacy
+        _CANONICAL = {
+            'H': 'home', 'D': 'draw', 'A': 'away',
+            'home_win': 'home', 'away_win': 'away',
+            'home': 'home', 'draw': 'draw', 'away': 'away',
+        }
+        canonical_pick = _CANONICAL.get(raw_prediction)
+
+        # Compute canonical recommended_bet + tone
+        # recommended_bet ALWAYS one of: "home" | "draw" | "away" | None
+        # recommendation_tone: "commit" | "lean" | "skip"
+        if canonical_pick is None:
+            recommended_bet = None
+            recommendation_tone = "skip"
+        elif confidence < 0.15:
+            recommended_bet = canonical_pick  # always present, even on skip
+            recommendation_tone = "skip"
         elif confidence < 0.30:
-            # Low-medium confidence - lean recommendation with caution
-            if raw_prediction and raw_prediction != 'No Prediction':
-                recommended_bet = f"Lean: {raw_prediction} (small stake)"
-                recommendation_tone = "lean"
-            else:
-                recommended_bet = "No clear lean - Info only"
-                recommendation_tone = "avoid"
+            recommended_bet = canonical_pick
+            recommendation_tone = "lean"
         else:
-            # High confidence - full recommendation
-            recommended_bet = raw_prediction if raw_prediction != 'No Prediction' else 'No Prediction'
-            recommendation_tone = "confident"
+            recommended_bet = canonical_pick
+            recommendation_tone = "commit"
         
         # Build models array for transparency
         models_array = []
@@ -3456,7 +3469,8 @@ async def predict_match(
                 # V1 disagrees AND has higher confidence — use V1's pick
                 logger.info(f"V1/V3 disagreement: V3={primary_recommended}({confidence:.3f}) vs V1={v1_shadow_recommended}({v1_shadow_conf:.3f}) → using V1")
                 primary_recommended = v1_shadow_recommended
-                recommended_bet = v1_shadow_recommended
+                # Canonicalize the V1 override too (was leaking 'home_win'/'away_win' to recommended_bet)
+                recommended_bet = _CANONICAL.get(v1_shadow_recommended, v1_shadow_recommended)
                 model_agreement["override_applied"] = True
                 model_agreement["override_reason"] = "V1 higher confidence in disagreement (V1 47% vs V3 29% historically)"
 
@@ -3512,6 +3526,32 @@ async def predict_match(
             "draw_alert": draw_alert,
         }
         
+        # ── Pull V3 surface flags from prediction_result (set by v3_predictor) ──
+        # These are computed in v3_predictor.predict() but only when V3 is primary.
+        # Defaults provided so frontend always gets a stable schema.
+        _v3_should_surface = prediction_result.get('should_surface')
+        _v3_surface_reason = prediction_result.get('surface_reason')
+        _v3_specialist_check = prediction_result.get('specialist_check')
+        _v3_league_multiplier = prediction_result.get('league_multiplier')
+        _v3_calibrated_confidence = prediction_result.get('calibrated_confidence')
+
+        # Normalize specialist_check picks to canonical home/draw/away strings
+        # (predictor stores them but may use legacy formats)
+        if isinstance(_v3_specialist_check, dict):
+            sc = dict(_v3_specialist_check)
+            for k in ('main_pick', 'specialist_pick'):
+                if k in sc and sc[k] is not None:
+                    sc[k] = _CANONICAL.get(sc[k], sc[k])
+            _v3_specialist_check = sc
+        else:
+            _v3_specialist_check = None
+
+        # Surface defaults when not present (e.g. V0/V1 fallback path)
+        if _v3_should_surface is None:
+            # Without V3 metadata, compute should_surface from confidence + tone
+            _v3_should_surface = (recommendation_tone == "commit")
+            _v3_surface_reason = "ok" if _v3_should_surface else "low_conviction"
+
         predictions = {
             "home_win": round(h_norm, 3),
             "draw": round(d_norm, 3),
@@ -3519,6 +3559,13 @@ async def predict_match(
             "confidence": confidence,
             "recommended_bet": recommended_bet,
             "recommendation_tone": recommendation_tone,
+            # New surface gate fields (Tier 1 — required by frontend)
+            "should_surface": bool(_v3_should_surface),
+            "surface_reason": _v3_surface_reason or "ok",
+            # New diagnostic fields (Tier 2 — strongly recommended)
+            "specialist_check": _v3_specialist_check,
+            "league_multiplier": float(_v3_league_multiplier) if _v3_league_multiplier is not None else 1.0,
+            "calibrated_confidence": round(float(_v3_calibrated_confidence), 4) if _v3_calibrated_confidence is not None else None,
             "models": models_array,
             "final_decision": final_decision
         }
