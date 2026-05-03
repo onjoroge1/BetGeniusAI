@@ -20,6 +20,55 @@ logger = logging.getLogger(__name__)
 RAPIDAPI_KEY = os.getenv('RAPIDAPI_KEY', '')
 RAPIDAPI_HOST = "api-football-v1.p.rapidapi.com"
 
+
+# League → calendar convention used by API-Football's `season` parameter.
+#   "european"  : Aug→May campaigns. Season = year the campaign STARTS.
+#                 (e.g. May 2026 is in the 2025-26 season → season=2025)
+#   "calendar"  : Single-year campaigns (Feb-Dec or Apr-Nov). Season = current year.
+#
+# This is the source of truth for which leagues we seed upcoming fixtures for.
+# Adding a league here is the only step needed to start ingesting it.
+LEAGUE_SEASON_CONFIG: Dict[int, str] = {
+    # ── Top 5 European ──
+    39:  "european",  # Premier League (England)
+    140: "european",  # La Liga (Spain)
+    78:  "european",  # Bundesliga (Germany)
+    135: "european",  # Serie A (Italy)
+    61:  "european",  # Ligue 1 (France)
+    # ── Other European top flights ──
+    88:  "european",  # Eredivisie (Netherlands)
+    94:  "european",  # Primeira Liga (Portugal)
+    144: "european",  # Jupiler Pro League (Belgium)
+    203: "european",  # Süper Lig (Turkey)
+    # ── European cup competitions ──
+    2:   "european",  # UEFA Champions League
+    3:   "european",  # UEFA Europa League
+    848: "european",  # UEFA Conference League
+    # ── Summer-schedule leagues (cover the May-Aug European off-season) ──
+    253: "calendar",  # MLS (USA/Canada) — Feb-Dec
+    71:  "calendar",  # Brasileirão Série A — Apr-Dec
+    98:  "calendar",  # J1 League (Japan) — Feb-Dec
+    292: "calendar",  # K League 1 (South Korea) — Feb-Dec
+    103: "calendar",  # Eliteserien (Norway) — Apr-Nov
+    113: "calendar",  # Allsvenskan (Sweden) — Apr-Nov
+}
+
+
+def resolve_league_season(league_id: int, today: Optional[datetime] = None) -> int:
+    """Return the API-Football `season` value for a given league at a point in time.
+
+    Replaces the previously hardcoded `current_season = 2025`, which silently broke
+    every July when European seasons rolled over and never worked for summer-schedule
+    leagues like MLS or Brasileirão.
+    """
+    today = today or datetime.utcnow()
+    schedule = LEAGUE_SEASON_CONFIG.get(league_id, "european")
+    if schedule == "calendar":
+        return today.year
+    # European: rolls forward in July (most leagues kick off late Jul/early Aug).
+    return today.year if today.month >= 7 else today.year - 1
+
+
 class AutomatedCollector:
     """
     Automated system for continuous data collection and model updates
@@ -29,7 +78,10 @@ class AutomatedCollector:
     def __init__(self):
         self.training_collector = TrainingDataCollector()
         self.db_manager = None
-        self.current_season = 2025  # Updated for current season
+        # Default season for legacy callers — derived dynamically so that on July 1st
+        # the European seasons roll over without a code change. Per-league callers
+        # should prefer `resolve_league_season(league_id)` for correctness.
+        self.current_season = resolve_league_season(39)  # Anchor on EPL convention
         self.collection_log_file = "data/collection_log.json"
         self.internal_api_base = "http://localhost:8000"  # Use internal API for upcoming matches
         self._league_rotation_offset = 0  # Rotating offset for non-priority leagues
@@ -159,7 +211,7 @@ class AutomatedCollector:
             url = f"{self.training_collector.base_url}/fixtures"
             params = {
                 "league": league_id,
-                "season": self.current_season,
+                "season": resolve_league_season(league_id),
                 "status": "FT",  # Full Time only
                 "from": start_date.strftime("%Y-%m-%d"),
                 "to": end_date.strftime("%Y-%m-%d")
@@ -795,25 +847,34 @@ class AutomatedCollector:
                 logger.error("DATABASE_URL not set")
                 return seed_summary
             
-            priority_leagues = [39, 140, 78, 135, 61, 71, 88, 94, 2, 3, 1]
-            current_season = 2025
-            
+            # Pull priority leagues from the season-config map. Adding a league there
+            # (and to specialist training, if relevant) is the only step needed to
+            # start ingesting it. Includes summer-schedule leagues so the fixtures
+            # table doesn't go empty during the May-Aug European off-season.
+            priority_leagues = list(LEAGUE_SEASON_CONFIG.keys())
+
             conn = psycopg2.connect(db_url)
             cursor = conn.cursor()
-            
+
             for league_id in priority_leagues:
+                # Resolve the right `season` value PER LEAGUE — European leagues use
+                # the campaign start year (Aug-May), summer leagues use current year.
+                league_season = resolve_league_season(league_id)
                 try:
                     # next_count=50 is the API-Football max per request.
                     # 20 was too low — major leagues publish 3-4 weeks ahead (>20 fixtures).
                     # 50 fixtures = ~2-3 weeks of matches for most leagues.
                     fixtures = client.get_upcoming_fixtures_by_league(
                         league_id=league_id,
-                        season=current_season,
+                        season=league_season,
                         next_count=50
                     )
-                    
+
                     if not fixtures:
-                        logger.debug(f"No upcoming fixtures found for league {league_id}")
+                        logger.info(
+                            f"🌱 No upcoming fixtures returned for league {league_id} "
+                            f"(season={league_season}) — likely off-season or sync gap"
+                        )
                         continue
                     
                     seed_summary["leagues_processed"] += 1
@@ -857,7 +918,7 @@ class AutomatedCollector:
                                 home_team,
                                 away_team,
                                 kickoff_at,
-                                current_season,
+                                league_season,
                                 'scheduled'
                             ))
                             
