@@ -392,14 +392,15 @@ class V3Predictor:
             if self.hist_predictor and db_url:
                 hist_result = self.hist_predictor.predict(match_id, db_url)
                 if hist_result:
-                    # Weighted blend: 40% v3_sharp + 60% hist_36k (hist has better OOF)
+                    # Weighted blend: 20% v3_sharp + 80% hist_36k
+                    # hist has 50.3% OOF vs v3_sharp 45.5% calibrated and better draw recall
                     hh = hist_result["probabilities"]["home"]
                     hd = hist_result["probabilities"]["draw"]
                     ha = hist_result["probabilities"]["away"]
                     blended = {
-                        "home": 0.4 * main_probs["home"] + 0.6 * hh,
-                        "draw": 0.4 * main_probs["draw"] + 0.6 * hd,
-                        "away": 0.4 * main_probs["away"] + 0.6 * ha,
+                        "home": 0.2 * main_probs["home"] + 0.8 * hh,
+                        "draw": 0.2 * main_probs["draw"] + 0.8 * hd,
+                        "away": 0.2 * main_probs["away"] + 0.8 * ha,
                     }
                     total = sum(blended.values())
                     main_probs = {k: v / total for k, v in blended.items()}

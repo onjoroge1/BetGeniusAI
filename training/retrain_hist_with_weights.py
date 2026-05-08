@@ -29,7 +29,9 @@ CLASS_TO_IDX = {'H': 0, 'D': 1, 'A': 2}
 IDX_TO_CLASS = ['H', 'D', 'A']
 
 # Draw/away class weight boost (H=1.0 baseline)
-CLASS_WEIGHTS = {0: 1.0, 1: 1.35, 2: 1.15}
+# Diagnostic shows draw prob averages 0.352 on actual draws but home wins at 0.372
+# — the 1.35x weight wasn't enough to push draw above home. 2.0x should close the gap.
+CLASS_WEIGHTS = {0: 1.0, 1: 2.0, 2: 1.2}
 
 LGBM_PARAMS = {
     "objective": "multiclass",
