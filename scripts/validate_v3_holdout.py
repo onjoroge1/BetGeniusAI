@@ -94,7 +94,8 @@ query = """
 
         UNION
 
-        -- Source 2: training_matches (historical, 8x more data)
+        -- Source 2: training_matches — exclude synthetic template odds backfilled from outcomes
+        -- (fix_odds_consensus_backfill.py inserted ph=0.65/pd=0.25/pa=0.10 etc. based on known result)
         SELECT match_id, league_id, kickoff_at, outcome FROM (
             SELECT DISTINCT ON (tm.match_id)
                 tm.match_id,
@@ -111,6 +112,9 @@ query = """
             WHERE tm.outcome IS NOT NULL
               AND oc.ph_cons IS NOT NULL
               AND tm.match_date >= %(cutoff)s
+              AND NOT (ABS(oc.ph_cons - 0.650) < 0.001 AND ABS(oc.pd_cons - 0.250) < 0.001 AND ABS(oc.pa_cons - 0.100) < 0.001)
+              AND NOT (ABS(oc.ph_cons - 0.100) < 0.001 AND ABS(oc.pd_cons - 0.250) < 0.001 AND ABS(oc.pa_cons - 0.650) < 0.001)
+              AND NOT (ABS(oc.ph_cons - 0.300) < 0.001 AND ABS(oc.pd_cons - 0.400) < 0.001 AND ABS(oc.pa_cons - 0.300) < 0.001)
             ORDER BY tm.match_id, tm.match_date
         ) tm2
         WHERE outcome IS NOT NULL
