@@ -227,7 +227,7 @@ class V3FeatureBuilder:
                 n_books, market_margin_avg,
                 disph, dispd, dispa
             FROM odds_consensus
-            WHERE match_id = %s AND ts_effective < %s
+            WHERE match_id = %s AND ts_effective <= %s
             ORDER BY ts_effective DESC
             LIMIT 1
         """, (match_id, cutoff_time))

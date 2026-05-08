@@ -19,6 +19,7 @@ import os
 import json
 import pickle
 import logging
+import warnings
 import numpy as np
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -28,6 +29,7 @@ import sys
 sys.path.append('.')
 from features.v3_feature_builder import V3FeatureBuilder
 from features.historical_odds_adapter import SPECIALIST_FEATURE_NAMES
+from models.hist_predictor import HistPredictor
 from utils.league_calibration import (
     apply_league_calibration, compute_should_surface,
     LEAGUE_CONFIDENCE_MULTIPLIERS,
@@ -66,10 +68,12 @@ class V3Predictor:
         self.stacked_model = None       # v3_stacked meta-learner (optional)
         self.binary_experts = {}        # home/draw/away binary classifiers for stacked features
         self.stacked_feature_cols = []  # expected feature order for stacked model
+        self.hist_predictor = None      # 36k historical model (50.7% OOF)
         self._load_model()
         self._init_feature_builder()
         self._load_specialists()
         self._load_stacked()
+        self._load_hist_predictor()
 
     def _load_specialists(self):
         """Load all available league specialist models."""
@@ -130,7 +134,9 @@ class V3Predictor:
             calibrator_path = self.model_dir / "calibrator.pkl"
             if calibrator_path.exists():
                 with open(calibrator_path, "rb") as f:
-                    self.calibrators = pickle.load(f)
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore", category=UserWarning, module=r"sklearn\.utils")
+                        self.calibrators = pickle.load(f)
                 logger.info(f"✅ Isotonic calibrators loaded ({len(self.calibrators)} per-class)")
             else:
                 logger.info("ℹ️  No calibrator.pkl found — retrain to enable isotonic calibration")
@@ -234,6 +240,16 @@ class V3Predictor:
         except Exception as e:
             logger.info(f"ℹ️  v3_stacked not available: {e}")
             self.stacked_model = None
+
+    def _load_hist_predictor(self):
+        """Load the 36k historical model (best-effort)."""
+        try:
+            self.hist_predictor = HistPredictor()
+            if self.hist_predictor.models is None:
+                self.hist_predictor = None
+        except Exception as e:
+            logger.info(f"ℹ️  hist_predictor not available: {e}")
+            self.hist_predictor = None
 
     def _run_stacked(self, v3_features: Dict, v3_probs: Dict) -> Optional[Dict]:
         """
@@ -370,6 +386,25 @@ class V3Predictor:
             # 1. Run main V3 (+ stacked as secondary)
             main_probs, main_conf, main_pick = self._run_main_model(features)
             stacked_result = self._run_stacked(features, main_probs)
+
+            # 1b. Blend with historical 36k model when available (50.7% OOF vs 45.5% calibrated)
+            db_url = os.getenv("DATABASE_URL", "")
+            if self.hist_predictor and db_url:
+                hist_result = self.hist_predictor.predict(match_id, db_url)
+                if hist_result:
+                    # Weighted blend: 40% v3_sharp + 60% hist_36k (hist has better OOF)
+                    hh = hist_result["probabilities"]["home"]
+                    hd = hist_result["probabilities"]["draw"]
+                    ha = hist_result["probabilities"]["away"]
+                    blended = {
+                        "home": 0.4 * main_probs["home"] + 0.6 * hh,
+                        "draw": 0.4 * main_probs["draw"] + 0.6 * hd,
+                        "away": 0.4 * main_probs["away"] + 0.6 * ha,
+                    }
+                    total = sum(blended.values())
+                    main_probs = {k: v / total for k, v in blended.items()}
+                    main_pick = max(main_probs, key=main_probs.get)
+                    main_conf = main_probs[main_pick]
 
             # 2. Run specialist if available
             specialist_probs = None
