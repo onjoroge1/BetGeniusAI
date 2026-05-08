@@ -2840,14 +2840,25 @@ async def predict_match(
             if v3_primary_predictor:
                 v3_primary_result = v3_primary_predictor.predict(match_id=request.match_id)
                 if v3_primary_result and v3_primary_result.get('confidence', 0) > 0:
-                    # Calibrate confidence using dispersion + book count from features
                     v3_dispersions = v3_primary_result.get('dispersions')
                     v3_book_count = v3_primary_result.get('bookmaker_count', 0)
-                    cal_conf, cal_method = compute_unified_confidence(
-                        v3_primary_result['probabilities'],
-                        n_books=v3_book_count if v3_book_count > 0 else None,
-                        dispersions=v3_dispersions if v3_dispersions else None
-                    )
+                    # Use V3's own league-calibrated confidence (max_prob × league_multiplier).
+                    # The entropy formula `compute_unified_confidence` compresses 63% → 17% for
+                    # balanced matches, making every prediction appear low-confidence. Skip it
+                    # for V3 and only fall back to entropy+consensus when book data is rich.
+                    v3_calibrated = v3_primary_result.get('calibrated_confidence')
+                    if v3_calibrated and v3_calibrated > 0:
+                        cal_conf = v3_calibrated
+                        cal_method = "v3_league_calibrated"
+                    elif v3_book_count > 0 and v3_dispersions:
+                        cal_conf, cal_method = compute_unified_confidence(
+                            v3_primary_result['probabilities'],
+                            n_books=v3_book_count,
+                            dispersions=v3_dispersions
+                        )
+                    else:
+                        cal_conf = max(v3_primary_result['probabilities'].values())
+                        cal_method = "v3_max_prob"
                     prediction_result = {
                         'probabilities': v3_primary_result['probabilities'],
                         'confidence': cal_conf,
@@ -2866,6 +2877,7 @@ async def predict_match(
                         'specialist_check': v3_primary_result.get('specialist_check'),
                         'league_multiplier': v3_primary_result.get('league_multiplier'),
                         'calibrated_confidence': v3_primary_result.get('calibrated_confidence'),
+                        'v3_stacked': v3_primary_result.get('v3_stacked'),  # secondary comparison model
                     }
                     prediction_source = "v3_sharp"
                     data_quality = "full"

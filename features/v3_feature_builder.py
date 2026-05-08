@@ -519,7 +519,7 @@ class V3FeatureBuilder:
                 cursor = conn.cursor()
 
                 # Get kickoff time
-                cursor.execute("SELECT kickoff_at FROM fixtures WHERE id = %s", (match_id,))
+                cursor.execute("SELECT kickoff_at FROM fixtures WHERE match_id = %s", (match_id,))
                 row = cursor.fetchone()
 
                 if row and row[0]:
