@@ -168,6 +168,18 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
 
             features = {**v2_f, **ece_f, **h2h_f, **closeness_f,
                         **league_draw_f, **draw_market_f, **form_f}
+
+            # Skip if core market probabilities are missing.
+            # For training_matches, odds_consensus rows are often added after kickoff so
+            # the temporal cutoff (oc.timestamp <= kickoff) returns nothing → all probs NaN.
+            # LightGBM would then learn home-bias from those empty rows.
+            core = [features.get('ph_cons'), features.get('pd_cons'), features.get('pa_cons')]
+            if any(v is None or (isinstance(v, float) and np.isnan(v)) for v in core):
+                errors += 1  # counted as skipped
+                cursor.close()
+                conn.close()
+                continue
+
             features['match_id'] = match_id
             features['outcome'] = outcome
             records.append(features)
