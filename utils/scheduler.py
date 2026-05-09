@@ -310,15 +310,15 @@ class BackgroundScheduler:
                 # Group C (loop % 3 == 2): Live data + resolver
                 group = self._loop_count % 3
                 
-                # GROUP A: Odds collection tasks
+                # GROUP A: Odds collection tasks (30-min intervals to reduce Neon compute)
                 if group == 0:
-                    if "phase_b" not in self.last_run or (now - self.last_run["phase_b"]).total_seconds() >= 55:
+                    if "phase_b" not in self.last_run or (now - self.last_run["phase_b"]).total_seconds() >= 1800:
                         await self._spawn("phase_b", self._run_phase_b_fresh_odds, timeout=300)
-                    
-                    if "theodds_phase_b" not in self.last_run or (now - self.last_run["theodds_phase_b"]).total_seconds() >= 55:
+
+                    if "theodds_phase_b" not in self.last_run or (now - self.last_run["theodds_phase_b"]).total_seconds() >= 1800:
                         await self._spawn("theodds_phase_b", self._run_theodds_phase_b, timeout=600)
-                    
-                    if "api_football_phase_b" not in self.last_run or (now - self.last_run["api_football_phase_b"]).total_seconds() >= 55:
+
+                    if "api_football_phase_b" not in self.last_run or (now - self.last_run["api_football_phase_b"]).total_seconds() >= 1800:
                         await self._spawn("api_football_phase_b", self._run_api_football_phase_b, timeout=300)
                 
                 # GROUP B: CLV + settlement tasks
@@ -362,24 +362,24 @@ class BackgroundScheduler:
                     if "live_markets" not in self.last_run or (now - self.last_run["live_markets"]).total_seconds() >= 55:
                         await self._spawn("live_markets", self._run_live_market_engine, timeout=30)
                 
-                # TBD resolver runs every 5 min regardless of group
-                if "tbd_resolver" not in self.last_run or (now - self.last_run["tbd_resolver"]).total_seconds() >= 300:
+                # TBD resolver runs every 30 min (non-urgent, slowed to reduce DB wakeups)
+                if "tbd_resolver" not in self.last_run or (now - self.last_run["tbd_resolver"]).total_seconds() >= 1800:
                     await self._spawn("tbd_resolver", self._run_tbd_fixture_resolver, timeout=60)
-                
+
                 # 🗑️ PHASE 2: Stale data cleanup - runs every 30 minutes to remove old live data
                 if "stale_cleanup" not in self.last_run or (now - self.last_run["stale_cleanup"]).total_seconds() >= 1800:
                     await self._spawn("stale_cleanup", self._cleanup_stale_live_data, timeout=30)
-                
-                # 🔨 Match Context Builder (V2) - runs every 5 minutes to populate match_context_v2
-                if "context_builder" not in self.last_run or (now - self.last_run["context_builder"]).total_seconds() >= 300:
+
+                # 🔨 Match Context Builder (V2) - runs every 30 minutes (slowed from 5 min)
+                if "context_builder" not in self.last_run or (now - self.last_run["context_builder"]).total_seconds() >= 1800:
                     await self._spawn("context_builder", self._run_match_context_builder, timeout=60)
-                
-                # 🔥 PHASE 1: Trending Scores Computation - runs every 5 minutes to pre-compute hot/trending scores
-                if "trending_scores" not in self.last_run or (now - self.last_run["trending_scores"]).total_seconds() >= 300:
+
+                # 🔥 PHASE 1: Trending Scores Computation - runs every 30 minutes (slowed from 5 min)
+                if "trending_scores" not in self.last_run or (now - self.last_run["trending_scores"]).total_seconds() >= 1800:
                     await self._spawn("trending_scores", self._run_trending_scores_computation, timeout=120)
                 
-                # 🎰 Parlay Generation - runs every 5 minutes to generate AI-curated parlays
-                if "parlay_generation" not in self.last_run or (now - self.last_run["parlay_generation"]).total_seconds() >= 300:
+                # 🎰 Parlay Generation - runs every 30 minutes (slowed from 5 min)
+                if "parlay_generation" not in self.last_run or (now - self.last_run["parlay_generation"]).total_seconds() >= 1800:
                     await self._spawn("parlay_generation", self._run_parlay_generation, timeout=60)
                 
                 # 🎰 Parlay Settlement - runs every 15 minutes to settle finished parlays
@@ -405,8 +405,8 @@ class BackgroundScheduler:
                     if "elo_update" not in self.last_run or (now - self.last_run["elo_update"]).total_seconds() >= 86400:
                         await self._spawn("elo_update", self._run_elo_update, timeout=300)
                 
-                # 🎯 V3: Sharp Book Collection - runs every 5 minutes to track Pinnacle odds
-                if "sharp_book" not in self.last_run or (now - self.last_run["sharp_book"]).total_seconds() >= 300:
+                # 🎯 V3: Sharp Book Collection - runs every 30 minutes (slowed from 5 min to curb DB growth)
+                if "sharp_book" not in self.last_run or (now - self.last_run["sharp_book"]).total_seconds() >= 1800:
                     await self._spawn("sharp_book", self._run_sharp_book_collection, timeout=120)
                 
                 # 🏀🏒 Multi-Sport Odds Collection - runs every 60 minutes for NBA/NHL/MLB (reduced from 5min to slow DB growth)
