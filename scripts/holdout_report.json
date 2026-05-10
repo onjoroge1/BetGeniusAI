@@ -1,0 +1,77 @@
+{
+  "generated_at": "2026-05-08T18:39:30.516714+00:00",
+  "days": 60,
+  "n_matches": 283,
+  "accuracy_3way": 0.8728,
+  "brier_score": 0.1429,
+  "log_loss": 0.7537,
+  "mean_confidence": 0.4988,
+  "median_confidence": 0.5213,
+  "avg_feature_coverage": 0.6764,
+  "per_class": {
+    "home": {
+      "n_actual": 133,
+      "n_predicted": 135,
+      "accuracy": 0.9098,
+      "precision": 0.8963,
+      "recall": 0.9098,
+      "f1": 0.903
+    },
+    "draw": {
+      "n_actual": 65,
+      "n_predicted": 71,
+      "accuracy": 0.8462,
+      "precision": 0.7746,
+      "recall": 0.8462,
+      "f1": 0.8088
+    },
+    "away": {
+      "n_actual": 85,
+      "n_predicted": 77,
+      "accuracy": 0.8353,
+      "precision": 0.9221,
+      "recall": 0.8353,
+      "f1": 0.8765
+    }
+  },
+  "by_confidence_tier": {
+    "<40%": {
+      "n": 25,
+      "accuracy": 0.32,
+      "avg_conf": 0.3666
+    },
+    "40-55%": {
+      "n": 239,
+      "accuracy": 0.9372,
+      "avg_conf": 0.5021
+    },
+    "55-70%": {
+      "n": 17,
+      "accuracy": 0.7647,
+      "avg_conf": 0.6189
+    },
+    ">70%": {
+      "n": 2,
+      "accuracy": 1.0,
+      "avg_conf": 0.7378
+    }
+  },
+  "model_breakdown": {
+    "v3_sharp": {
+      "n": 280,
+      "accuracy": 0.8786
+    },
+    "v3_specialist": {
+      "n": 3,
+      "accuracy": 0.3333
+    }
+  },
+  "specialist": {
+    "n_spec_matches": 55,
+    "n_overrides": 3
+  },
+  "surfaced": {
+    "n": 247,
+    "accuracy": 0.9595
+  }
+}

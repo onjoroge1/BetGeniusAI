@@ -227,7 +227,7 @@ class V3FeatureBuilder:
                 n_books, market_margin_avg,
                 disph, dispd, dispa
             FROM odds_consensus
-            WHERE match_id = %s AND ts_effective < %s
+            WHERE match_id = %s AND ts_effective <= %s
             ORDER BY ts_effective DESC
             LIMIT 1
         """, (match_id, cutoff_time))
@@ -519,7 +519,7 @@ class V3FeatureBuilder:
                 cursor = conn.cursor()
 
                 # Get kickoff time
-                cursor.execute("SELECT kickoff_at FROM fixtures WHERE id = %s", (match_id,))
+                cursor.execute("SELECT kickoff_at FROM fixtures WHERE match_id = %s", (match_id,))
                 row = cursor.fetchone()
 
                 if row and row[0]:

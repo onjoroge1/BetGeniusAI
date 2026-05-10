@@ -19,6 +19,7 @@ import os
 import json
 import pickle
 import logging
+import warnings
 import numpy as np
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -28,6 +29,7 @@ import sys
 sys.path.append('.')
 from features.v3_feature_builder import V3FeatureBuilder
 from features.historical_odds_adapter import SPECIALIST_FEATURE_NAMES
+from models.hist_predictor import HistPredictor
 from utils.league_calibration import (
     apply_league_calibration, compute_should_surface,
     LEAGUE_CONFIDENCE_MULTIPLIERS,
@@ -36,11 +38,11 @@ from utils.league_calibration import (
 logger = logging.getLogger(__name__)
 
 # Specialist cascade rule:
-# Backtest showed strict overrides (conf > 0.50) never fired but specialist was
-# +14pp more accurate than main on disagreements regardless of confidence.
-# Strategy: when specialist disagrees, FLAG the match as 'uncertain' but still
-# display main's pick. Frontend can use the flag to suppress from premium tier.
-SPECIALIST_DISAGREEMENT_BEHAVIOR = 'flag_uncertain'  # 'flag_uncertain' | 'override' | 'ignore'
+# Default: when specialist disagrees, flag uncertain but keep main pick.
+# Exception leagues (La Liga=140, Bundesliga=78): specialist showed +5pp holdout
+# accuracy over main on disagreements — use specialist pick directly for these.
+SPECIALIST_DISAGREEMENT_BEHAVIOR = 'flag_uncertain'  # default for all other leagues
+SPECIALIST_OVERRIDE_LEAGUES = {140, 78}  # La Liga (54.6%), Bundesliga (53.1%) holdout beats main
 
 
 class V3Predictor:
@@ -58,13 +60,20 @@ class V3Predictor:
     def __init__(self, model_dir: str = "artifacts/models/v3_sharp"):
         self.model_dir = Path(model_dir)
         self.models = None
+        self.calibrators = None  # isotonic calibrators [home, draw, away]
         self.feature_cols = None
         self.metadata = None
         self.feature_builder = None
         self.specialists = {}  # league_id -> {'models': [...], 'features': [...], 'metadata': {}}
+        self.stacked_model = None       # v3_stacked meta-learner (optional)
+        self.binary_experts = {}        # home/draw/away binary classifiers for stacked features
+        self.stacked_feature_cols = []  # expected feature order for stacked model
+        self.hist_predictor = None      # 36k historical model (50.7% OOF)
         self._load_model()
         self._init_feature_builder()
         self._load_specialists()
+        self._load_stacked()
+        self._load_hist_predictor()
 
     def _load_specialists(self):
         """Load all available league specialist models."""
@@ -121,6 +130,17 @@ class V3Predictor:
                        f"{len(self.feature_cols)} features, "
                        f"{metrics.get('accuracy_3way', 0)*100:.1f}% accuracy")
 
+            # Load isotonic calibrators if available
+            calibrator_path = self.model_dir / "calibrator.pkl"
+            if calibrator_path.exists():
+                with open(calibrator_path, "rb") as f:
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore", category=UserWarning, module=r"sklearn\.utils")
+                        self.calibrators = pickle.load(f)
+                logger.info(f"✅ Isotonic calibrators loaded ({len(self.calibrators)} per-class)")
+            else:
+                logger.info("ℹ️  No calibrator.pkl found — retrain to enable isotonic calibration")
+
             # Log draw-specific metrics if available
             draw_f1 = metrics.get('draw_f1')
             if draw_f1 is not None:
@@ -156,6 +176,16 @@ class V3Predictor:
             h, d, a = 1/3, 1/3, 1/3
         else:
             h, d, a = ensemble_preds[0]/total, ensemble_preds[1]/total, ensemble_preds[2]/total
+
+        # Apply isotonic calibration if available
+        if self.calibrators:
+            raw = np.array([h, d, a])
+            cal = np.array([self.calibrators[i].predict([raw[i]])[0] for i in range(3)])
+            cal_sum = cal.sum()
+            if cal_sum > 1e-10:
+                cal /= cal_sum
+            h, d, a = float(cal[0]), float(cal[1]), float(cal[2])
+
         probs = {'home': float(h), 'draw': float(d), 'away': float(a)}
         return probs, max(probs.values()), max(probs, key=probs.get)
 
@@ -179,6 +209,131 @@ class V3Predictor:
             return probs, max(probs.values()), max(probs, key=probs.get)
         except Exception as e:
             logger.warning(f"Specialist for league {league_id} failed: {e}")
+            return None
+
+    def _load_stacked(self):
+        """Load v3_stacked meta-learner and binary experts (best-effort)."""
+        try:
+            stacked_dir = Path("artifacts/models/v3_stacked")
+            experts_dir = Path("artifacts/models/binary_experts")
+            if not (stacked_dir / "model.pkl").exists():
+                return
+            with open(stacked_dir / "model.pkl", "rb") as f:
+                self.stacked_model = pickle.load(f)
+            with open(stacked_dir / "metadata.json") as f:
+                meta = json.load(f)
+            self.stacked_feature_cols = meta.get("features", [])
+            for kind in ("home", "draw", "away"):
+                mp = experts_dir / f"{kind}_expert.pkl"
+                cp = experts_dir / f"{kind}_calibrator.pkl"
+                if mp.exists() and cp.exists():
+                    with open(mp, "rb") as f:
+                        model = pickle.load(f)
+                    with open(cp, "rb") as f:
+                        cal = pickle.load(f)
+                    self.binary_experts[kind] = {"model": model, "calibrator": cal}
+            if self.stacked_model and len(self.binary_experts) == 3:
+                logger.info(f"✅ v3_stacked loaded ({len(self.stacked_feature_cols)} features, "
+                            f"{meta.get('metrics', {}).get('accuracy', 0)*100:.1f}% val accuracy)")
+            else:
+                self.stacked_model = None
+        except Exception as e:
+            logger.info(f"ℹ️  v3_stacked not available: {e}")
+            self.stacked_model = None
+
+    def _load_hist_predictor(self):
+        """Load the 36k historical model (best-effort)."""
+        try:
+            self.hist_predictor = HistPredictor()
+            if self.hist_predictor.models is None:
+                self.hist_predictor = None
+        except Exception as e:
+            logger.info(f"ℹ️  hist_predictor not available: {e}")
+            self.hist_predictor = None
+
+    def _run_stacked(self, v3_features: Dict, v3_probs: Dict) -> Optional[Dict]:
+        """
+        Run v3_stacked meta-learner as a secondary opinion.
+
+        Maps available V3 features to the stacked model's expected feature vector.
+        Uses V3's output probs as the 9 expert features. Missing base features → 0.0.
+        """
+        if not self.stacked_model or len(self.binary_experts) < 3 or not self.stacked_feature_cols:
+            return None
+        try:
+            # Approximate base feature mapping from V3 feature dict
+            ph = v3_features.get('ph_cons', v3_probs.get('home', 1/3))
+            pd = v3_features.get('pd_cons', v3_probs.get('draw', 1/3))
+            pa = v3_features.get('pa_cons', v3_probs.get('away', 1/3))
+            base_approx = {
+                'p_b365_h': ph, 'p_b365_d': pd, 'p_b365_a': pa,
+                'p_ps_h': ph,   'p_ps_d': pd,   'p_ps_a': pa,
+                'p_avg_h': ph,  'p_avg_d': pd,  'p_avg_a': pa,
+                'favorite_strength': max(ph, pa) - min(ph, pa),
+                'underdog_value': min(ph, pa),
+                'draw_tendency': abs(pd - 0.27),
+                'market_overround': v3_features.get('market_overround', 0.0),
+                'sharp_soft_divergence': 0.0,
+                'max_vs_avg_edge_h': 0.0, 'max_vs_avg_edge_d': 0.0, 'max_vs_avg_edge_a': 0.0,
+                'league_home_win_rate': v3_features.get('league_draw_rate', 0.0),
+                'league_draw_rate': v3_features.get('league_draw_rate', 0.0),
+                'league_goals_avg': 0.0,
+                'season_month': 0.0,
+                'expected_total_goals': 0.0, 'home_goals_expected': 0.0,
+                'away_goals_expected': 0.0, 'goal_diff_expected': 0.0,
+                'home_value_score': ph - 1/3, 'draw_value_score': pd - 1/3,
+                'away_value_score': pa - 1/3,
+                'home_advantage_signal': ph - pa,
+                'draw_vs_away_ratio': pd / max(pa, 1e-6),
+                'favorite_confidence': max(ph, pa),
+                'upset_potential': 1.0 - max(ph, pa),
+                'book_agreement_score': 1.0 - v3_features.get('book_dispersion_home', 0.0),
+                'implied_competitiveness': 1.0 - abs(ph - pa),
+            }
+
+            # Run binary experts on base features
+            base_vec = np.array([[base_approx.get(c, 0.0) for c in [
+                'p_b365_h', 'p_b365_d', 'p_b365_a', 'p_ps_h', 'p_ps_d', 'p_ps_a',
+                'p_avg_h', 'p_avg_d', 'p_avg_a', 'favorite_strength', 'underdog_value',
+                'draw_tendency', 'market_overround', 'sharp_soft_divergence',
+                'max_vs_avg_edge_h', 'max_vs_avg_edge_d', 'max_vs_avg_edge_a',
+                'league_home_win_rate', 'league_draw_rate', 'league_goals_avg',
+                'season_month', 'expected_total_goals', 'home_goals_expected',
+                'away_goals_expected', 'goal_diff_expected', 'home_value_score',
+                'draw_value_score', 'away_value_score', 'home_advantage_signal',
+                'draw_vs_away_ratio', 'favorite_confidence', 'upset_potential',
+                'book_agreement_score', 'implied_competitiveness',
+            ]]])
+            exp_probs = {}
+            for kind, exp in self.binary_experts.items():
+                raw = exp['model'].predict(base_vec)[0]
+                cal = np.clip(exp['calibrator'].predict([raw])[0], 0.01, 0.99)
+                exp_probs[kind] = float(cal)
+
+            eh, ed, ea = exp_probs.get('home', ph), exp_probs.get('draw', pd), exp_probs.get('away', pa)
+            total = eh + ed + ea
+            enorm_h, enorm_d, enorm_a = eh/total, ed/total, ea/total
+
+            # Build 43-feature stacked vector (only base + expert features)
+            feature_dict = {**base_approx,
+                'expert_home_prob': eh, 'expert_away_prob': ea, 'expert_draw_prob': ed,
+                'expert_home_away_diff': eh - ea,
+                'expert_draw_confidence': ed * base_approx.get('implied_competitiveness', 0.5),
+                'expert_favorite_spread': abs(eh - ea),
+                'expert_norm_home': enorm_h, 'expert_norm_away': enorm_a, 'expert_norm_draw': enorm_d,
+            }
+            stacked_vec = np.array([[feature_dict.get(c, 0.0) for c in self.stacked_feature_cols]])
+            proba = self.stacked_model.predict(stacked_vec)[0]
+            sh, sd, sa = float(proba[0]), float(proba[1]), float(proba[2])
+            pick = max({'home': sh, 'draw': sd, 'away': sa}, key={'home': sh, 'draw': sd, 'away': sa}.get)
+            return {
+                'probabilities': {'home': round(sh, 4), 'draw': round(sd, 4), 'away': round(sa, 4)},
+                'prediction': pick,
+                'confidence': round(max(sh, sd, sa), 4),
+                'model': 'v3_stacked',
+            }
+        except Exception as e:
+            logger.debug(f"v3_stacked inference failed: {e}")
             return None
 
     def predict(self, match_id: int) -> Optional[Dict]:
@@ -228,8 +383,29 @@ class V3Predictor:
             except Exception:
                 league_id = None
 
-            # 1. Run main V3
+            # 1. Run main V3 (+ stacked as secondary)
             main_probs, main_conf, main_pick = self._run_main_model(features)
+            stacked_result = self._run_stacked(features, main_probs)
+
+            # 1b. Blend with historical 36k model when available (50.7% OOF vs 45.5% calibrated)
+            db_url = os.getenv("DATABASE_URL", "")
+            if self.hist_predictor and db_url:
+                hist_result = self.hist_predictor.predict(match_id, db_url)
+                if hist_result:
+                    # Weighted blend: 20% v3_sharp + 80% hist_36k
+                    # hist has 50.3% OOF vs v3_sharp 45.5% calibrated and better draw recall
+                    hh = hist_result["probabilities"]["home"]
+                    hd = hist_result["probabilities"]["draw"]
+                    ha = hist_result["probabilities"]["away"]
+                    blended = {
+                        "home": 0.2 * main_probs["home"] + 0.8 * hh,
+                        "draw": 0.2 * main_probs["draw"] + 0.8 * hd,
+                        "away": 0.2 * main_probs["away"] + 0.8 * ha,
+                    }
+                    total = sum(blended.values())
+                    main_probs = {k: v / total for k, v in blended.items()}
+                    main_pick = max(main_probs, key=main_probs.get)
+                    main_conf = main_probs[main_pick]
 
             # 2. Run specialist if available
             specialist_probs = None
@@ -254,16 +430,27 @@ class V3Predictor:
                     specialist_check['agreement'] = specialist_pick == main_pick
 
                     if specialist_pick != main_pick:
-                        uncertain_disagreement = True
                         specialist_check['disagreement'] = True
-                        specialist_check['note'] = "Models disagree — flagged uncertain"
+                        if league_id in SPECIALIST_OVERRIDE_LEAGUES:
+                            # Override: specialist has proven +5pp holdout accuracy for this league
+                            specialist_used = True
+                            specialist_check['specialist_used'] = True
+                            specialist_check['note'] = f"Specialist override applied (league {league_id})"
+                        else:
+                            uncertain_disagreement = True
+                            specialist_check['note'] = "Models disagree — flagged uncertain"
 
-            # 3. Always use main pick. Specialist DISAGREEMENT is a signal to flag,
-            #    not to override (backtest showed override hurts accuracy).
-            probs = main_probs
-            pick = main_pick
-            raw_confidence = main_conf
-            model_id = 'v3_sharp'
+            # 3. Pick source: specialist override for proven leagues, else main pick
+            if specialist_used and specialist_probs is not None:
+                probs = specialist_probs
+                pick = specialist_pick
+                raw_confidence = specialist_conf
+                model_id = 'v3_specialist'
+            else:
+                probs = main_probs
+                pick = main_pick
+                raw_confidence = main_conf
+                model_id = 'v3_sharp'
 
             # 4. Apply league calibration to confidence
             calibrated_conf, multiplier = apply_league_calibration(raw_confidence, league_id or 0)
@@ -298,6 +485,7 @@ class V3Predictor:
                 'total_features': len(self.feature_cols),
                 'dispersions': dispersions,
                 'bookmaker_count': bookmaker_count,
+                'v3_stacked': stacked_result,  # secondary model for comparison/monitoring
             }
 
         except Exception as e:

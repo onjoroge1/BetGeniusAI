@@ -35,6 +35,7 @@ from typing import Dict, List, Tuple
 import psycopg2
 import lightgbm as lgb
 from sklearn.model_selection import TimeSeriesSplit
+from sklearn.isotonic import IsotonicRegression
 
 sys.path.append('.')
 from features.v3_feature_builder import V3FeatureBuilder
@@ -167,6 +168,18 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
 
             features = {**v2_f, **ece_f, **h2h_f, **closeness_f,
                         **league_draw_f, **draw_market_f, **form_f}
+
+            # Skip if core market probabilities are missing.
+            # For training_matches, odds_consensus rows are often added after kickoff so
+            # the temporal cutoff (oc.timestamp <= kickoff) returns nothing → all probs NaN.
+            # LightGBM would then learn home-bias from those empty rows.
+            core = [features.get('ph_cons'), features.get('pd_cons'), features.get('pa_cons')]
+            if any(v is None or (isinstance(v, float) and np.isnan(v)) for v in core):
+                errors += 1  # counted as skipped
+                cursor.close()
+                conn.close()
+                continue
+
             features['match_id'] = match_id
             features['outcome'] = outcome
             records.append(features)
@@ -286,6 +299,23 @@ def train_v3_model(df: pd.DataFrame, n_splits: int = 5) -> Dict:
     valid_preds = oof_preds[oof_mask]
     valid_y = y[oof_mask]
 
+    # Fit per-class isotonic calibrators on OOF predictions
+    calibrators = []
+    calibrated_preds = np.zeros_like(valid_preds)
+    for cls in range(3):
+        y_binary = (valid_y == cls).astype(float)
+        iso = IsotonicRegression(out_of_bounds='clip')
+        iso.fit(valid_preds[:, cls], y_binary)
+        calibrated_preds[:, cls] = iso.predict(valid_preds[:, cls])
+        calibrators.append(iso)
+    # Renormalize so calibrated probs sum to 1
+    row_sums = calibrated_preds.sum(axis=1, keepdims=True).clip(min=1e-10)
+    calibrated_preds /= row_sums
+
+    cal_predicted = np.argmax(calibrated_preds, axis=1)
+    cal_accuracy = np.mean(cal_predicted == valid_y)
+    logger.info(f"Isotonic calibration: OOF accuracy before={np.mean(np.argmax(valid_preds,axis=1)==valid_y)*100:.2f}%  after={cal_accuracy*100:.2f}%")
+
     predicted_classes = np.argmax(valid_preds, axis=1)
     accuracy = np.mean(predicted_classes == valid_y)
 
@@ -357,6 +387,7 @@ def train_v3_model(df: pd.DataFrame, n_splits: int = 5) -> Dict:
 
     return {
         'models': models,
+        'calibrators': calibrators,
         'feature_cols': feature_cols,
         'metrics': {
             'accuracy_3way': accuracy,
@@ -369,6 +400,7 @@ def train_v3_model(df: pd.DataFrame, n_splits: int = 5) -> Dict:
             'draw_recall': draw_recall,
             'draw_f1': draw_f1,
             'draw_predictions_made': int(draw_pred_count),
+            'calibrated_accuracy': float(cal_accuracy),
         },
         'feature_importance': feature_importance.to_dict('records')
     }
@@ -383,6 +415,11 @@ def save_model(result: Dict):
     with open(OUTPUT_DIR / "features.json", "w") as f:
         json.dump(result['feature_cols'], f, indent=2)
 
+    if result.get('calibrators'):
+        with open(OUTPUT_DIR / "calibrator.pkl", "wb") as f:
+            pickle.dump(result['calibrators'], f)
+        logger.info(f"✅ Isotonic calibrators saved to {OUTPUT_DIR / 'calibrator.pkl'}")
+
     metadata = {
         'model_type': 'V3_Sharp_LightGBM_DrawEnhanced',
         'trained_at': datetime.now(timezone.utc).isoformat(),
@@ -395,6 +432,7 @@ def save_model(result: Dict):
             'np.nan for missing features (LightGBM native handling)',
             'Tuned hyperparams for small-data regime',
             'Expanded training window from 2025-10-01 to 2024-07-01',
+            'Isotonic calibration: per-class OOF calibrators for probability reliability',
         ],
         'oof_metrics': result['metrics'],
         'feature_importance': result['feature_importance']
