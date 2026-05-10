@@ -2834,57 +2834,67 @@ async def predict_match(
         using_v1_fallback = False
         is_v0_fallback = False
 
+        V3_MIN_FEATURES = 8  # 33% of 24 — below this LightGBM returns its training prior, not a real prediction
         # TIER 1: V3 Sharp as PRIMARY model
         try:
             v3_primary_predictor = get_v3_predictor_safe()
             if v3_primary_predictor:
                 v3_primary_result = v3_primary_predictor.predict(match_id=request.match_id)
                 if v3_primary_result and v3_primary_result.get('confidence', 0) > 0:
-                    v3_dispersions = v3_primary_result.get('dispersions')
-                    v3_book_count = v3_primary_result.get('bookmaker_count', 0)
-                    # Use V3's own league-calibrated confidence (max_prob × league_multiplier).
-                    # The entropy formula `compute_unified_confidence` compresses 63% → 17% for
-                    # balanced matches, making every prediction appear low-confidence. Skip it
-                    # for V3 and only fall back to entropy+consensus when book data is rich.
-                    v3_calibrated = v3_primary_result.get('calibrated_confidence')
-                    if v3_calibrated and v3_calibrated > 0:
-                        cal_conf = v3_calibrated
-                        cal_method = "v3_league_calibrated"
-                    elif v3_book_count > 0 and v3_dispersions:
-                        cal_conf, cal_method = compute_unified_confidence(
-                            v3_primary_result['probabilities'],
-                            n_books=v3_book_count,
-                            dispersions=v3_dispersions
+                    _v3_features_used = v3_primary_result.get('features_used', 0)
+                    if _v3_features_used < V3_MIN_FEATURES:
+                        logger.warning(
+                            f"V3 insufficient features for match {request.match_id}: "
+                            f"{_v3_features_used}/{v3_primary_result.get('total_features', 24)} — "
+                            f"cascading to V1 (prior vector suppressed)"
                         )
+                        # leave prediction_result = None → cascade falls through to V1 / V0
                     else:
-                        cal_conf = max(v3_primary_result['probabilities'].values())
-                        cal_method = "v3_max_prob"
-                    prediction_result = {
-                        'probabilities': v3_primary_result['probabilities'],
-                        'confidence': cal_conf,
-                        'raw_confidence': v3_primary_result.get('raw_confidence', v3_primary_result['confidence']),
-                        'prediction': v3_primary_result['prediction'],
-                        'quality_score': min(v3_primary_result.get('features_used', 0) / max(v3_primary_result.get('total_features', 24), 1), 1.0),
-                        'bookmaker_count': v3_book_count,
-                        'model_type': 'v3_sharp_primary',
-                        'data_source': 'v3_sharp_intelligence',
-                        'features_used': v3_primary_result.get('features_used', 0),
-                        'total_features': v3_primary_result.get('total_features', 24),
-                        'confidence_method': cal_method,
-                        # Preserve V3 specialist + surface fields for response
-                        'should_surface': v3_primary_result.get('should_surface'),
-                        'surface_reason': v3_primary_result.get('surface_reason'),
-                        'specialist_check': v3_primary_result.get('specialist_check'),
-                        'league_multiplier': v3_primary_result.get('league_multiplier'),
-                        'calibrated_confidence': v3_primary_result.get('calibrated_confidence'),
-                        'v3_stacked': v3_primary_result.get('v3_stacked'),  # secondary comparison model
-                    }
-                    prediction_source = "v3_sharp"
-                    data_quality = "full"
-                    using_v3_primary = True
-                    logger.info(f"✅ Using V3 sharp PRIMARY for match {request.match_id} "
-                               f"(features: {v3_primary_result.get('features_used')}/{v3_primary_result.get('total_features')}, "
-                               f"conf: {cal_conf:.3f} [{cal_method}])")
+                        v3_dispersions = v3_primary_result.get('dispersions')
+                        v3_book_count = v3_primary_result.get('bookmaker_count', 0)
+                        # Use V3's own league-calibrated confidence (max_prob × league_multiplier).
+                        # The entropy formula `compute_unified_confidence` compresses 63% → 17% for
+                        # balanced matches, making every prediction appear low-confidence. Skip it
+                        # for V3 and only fall back to entropy+consensus when book data is rich.
+                        v3_calibrated = v3_primary_result.get('calibrated_confidence')
+                        if v3_calibrated and v3_calibrated > 0:
+                            cal_conf = v3_calibrated
+                            cal_method = "v3_league_calibrated"
+                        elif v3_book_count > 0 and v3_dispersions:
+                            cal_conf, cal_method = compute_unified_confidence(
+                                v3_primary_result['probabilities'],
+                                n_books=v3_book_count,
+                                dispersions=v3_dispersions
+                            )
+                        else:
+                            cal_conf = max(v3_primary_result['probabilities'].values())
+                            cal_method = "v3_max_prob"
+                        prediction_result = {
+                            'probabilities': v3_primary_result['probabilities'],
+                            'confidence': cal_conf,
+                            'raw_confidence': v3_primary_result.get('raw_confidence', v3_primary_result['confidence']),
+                            'prediction': v3_primary_result['prediction'],
+                            'quality_score': min(v3_primary_result.get('features_used', 0) / max(v3_primary_result.get('total_features', 24), 1), 1.0),
+                            'bookmaker_count': v3_book_count,
+                            'model_type': 'v3_sharp_primary',
+                            'data_source': 'v3_sharp_intelligence',
+                            'features_used': v3_primary_result.get('features_used', 0),
+                            'total_features': v3_primary_result.get('total_features', 24),
+                            'confidence_method': cal_method,
+                            # Preserve V3 specialist + surface fields for response
+                            'should_surface': v3_primary_result.get('should_surface'),
+                            'surface_reason': v3_primary_result.get('surface_reason'),
+                            'specialist_check': v3_primary_result.get('specialist_check'),
+                            'league_multiplier': v3_primary_result.get('league_multiplier'),
+                            'calibrated_confidence': v3_primary_result.get('calibrated_confidence'),
+                            'v3_stacked': v3_primary_result.get('v3_stacked'),  # secondary comparison model
+                        }
+                        prediction_source = "v3_sharp"
+                        data_quality = "full"
+                        using_v3_primary = True
+                        logger.info(f"✅ Using V3 sharp PRIMARY for match {request.match_id} "
+                                   f"(features: {_v3_features_used}/{v3_primary_result.get('total_features')}, "
+                                   f"conf: {cal_conf:.3f} [{cal_method}])")
                 else:
                     logger.info(f"V3 returned no valid prediction for match {request.match_id}, falling back to V1...")
             else:
@@ -3469,22 +3479,33 @@ async def predict_match(
         # When V3 is primary and V1 disagrees, V1 is right 47% vs V3's 29%.
         # Override V3's pick with V1's when V1 has higher confidence in disagreement.
         model_agreement = None
-        if using_v3_primary and v1_shadow_available and v1_shadow_recommended:
-            v3_v1_agree = (primary_recommended == v1_shadow_recommended)
-            model_agreement = {
-                "v3_v1_agree": v3_v1_agree,
-                "v3_pick": primary_recommended,
-                "v1_pick": v1_shadow_recommended,
-                "override_applied": False,
-            }
-            if not v3_v1_agree and v1_shadow_conf > confidence:
-                # V1 disagrees AND has higher confidence — use V1's pick
-                logger.info(f"V1/V3 disagreement: V3={primary_recommended}({confidence:.3f}) vs V1={v1_shadow_recommended}({v1_shadow_conf:.3f}) → using V1")
-                primary_recommended = v1_shadow_recommended
-                # Canonicalize the V1 override too (was leaking 'home_win'/'away_win' to recommended_bet)
-                recommended_bet = _CANONICAL.get(v1_shadow_recommended, v1_shadow_recommended)
-                model_agreement["override_applied"] = True
-                model_agreement["override_reason"] = "V1 higher confidence in disagreement (V1 47% vs V3 29% historically)"
+        if using_v3_primary:
+            if v1_shadow_available and v1_shadow_recommended:
+                v3_v1_agree = (primary_recommended == v1_shadow_recommended)
+                model_agreement = {
+                    "v3_pick": primary_recommended,
+                    "v1_pick": v1_shadow_recommended,
+                    "v3_v1_agree": v3_v1_agree,
+                    "override_applied": False,
+                    "v1_unavailable": False,
+                }
+                if not v3_v1_agree and v1_shadow_conf > confidence:
+                    # V1 disagrees AND has higher confidence — use V1's pick
+                    logger.info(f"V1/V3 disagreement: V3={primary_recommended}({confidence:.3f}) vs V1={v1_shadow_recommended}({v1_shadow_conf:.3f}) → using V1")
+                    primary_recommended = v1_shadow_recommended
+                    # Canonicalize the V1 override too (was leaking 'home_win'/'away_win' to recommended_bet)
+                    recommended_bet = _CANONICAL.get(v1_shadow_recommended, v1_shadow_recommended)
+                    model_agreement["override_applied"] = True
+                    model_agreement["override_reason"] = "V1 higher confidence in disagreement (V1 47% vs V3 29% historically)"
+            else:
+                # V1 shadow unavailable — still expose v3_pick so the frontend isn't blind
+                model_agreement = {
+                    "v3_pick": primary_recommended,
+                    "v1_pick": None,
+                    "v3_v1_agree": None,
+                    "override_applied": False,
+                    "v1_unavailable": True,
+                }
 
         # --- Draw Alert ---
         # V3 draw prob ≥ 36% → 60% draw rate. Premium signal.
