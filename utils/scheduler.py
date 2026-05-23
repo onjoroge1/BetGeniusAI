@@ -394,12 +394,19 @@ class BackgroundScheduler:
                 if "team_linkage" not in self.last_run or (now - self.last_run["team_linkage"]).total_seconds() >= 900:
                     await self._spawn("team_linkage", self._run_team_linkage, timeout=60)
                 
-                # 🤖 Auto-Retrain Check - runs once per day at 03:00 UTC
+                # 🗄️ Cold Storage Archive - runs daily at 02:00 UTC
+                # Archives sharp_book_odds (>7d) and cold tables (>30d) from Neon → Supabase,
+                # then deletes archived rows from Neon to free storage.
                 current_hour = now.hour
+                if current_hour == 2:
+                    if "cold_archive" not in self.last_run or (now - self.last_run["cold_archive"]).total_seconds() >= 86400:
+                        await self._spawn("cold_archive", self._run_cold_archive, timeout=3600)
+
+                # 🤖 Auto-Retrain Check - runs once per day at 03:00 UTC
                 if current_hour == 3:
                     if "auto_retrain" not in self.last_run or (now - self.last_run["auto_retrain"]).total_seconds() >= 86400:
                         await self._spawn("auto_retrain", self._run_auto_retrain_check, timeout=1800)
-                
+
                 # 📊 V0: ELO Update - runs once per day at 04:00 UTC to update team ratings
                 if current_hour == 4:
                     if "elo_update" not in self.last_run or (now - self.last_run["elo_update"]).total_seconds() >= 86400:
@@ -1680,6 +1687,94 @@ class BackgroundScheduler:
             logger.warning("⚠️ ELO: team_elo module not found - skipping")
         except Exception as e:
             logger.error(f"❌ ELO: Update failed - {e}", exc_info=True)
+
+    async def _run_cold_archive(self):
+        """
+        🗄️ Cold Storage Archive Job
+        Archives old rows from Neon → Supabase, then deletes them from Neon.
+
+        Retention windows:
+          - sharp_book_odds           : 7 days  (high-volume, ~2M rows/month)
+          - multisport_odds_snapshots : 30 days
+          - odds_snapshots            : 30 days
+          - player_prop_odds          : 30 days
+          - live_ai_analysis          : 30 days
+          - player_game_stats         : 30 days
+          - clv_alerts_history        : 30 days
+
+        Runs daily at 02:00 UTC. Timeout: 3600s (1 hour) for large batches.
+        Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in environment.
+        """
+        import asyncio
+        import sys
+        import os
+        from pathlib import Path
+
+        REPO = Path(__file__).parent.parent
+
+        # Bail early if Supabase credentials are missing
+        supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+        supabase_key = (
+            os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            or os.environ.get("SUPABASE_KEY")
+            or os.environ.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+        )
+        if not supabase_url or not supabase_key:
+            logger.warning(
+                "🗄️ Cold archive skipped — SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. "
+                "Add these to Replit Secrets to enable automatic archiving."
+            )
+            return
+
+        async def _run_script(script_name: str, extra_args: list = None) -> tuple:
+            """Run a scripts/ file and return (returncode, stdout+stderr text)."""
+            cmd = [sys.executable, str(REPO / "scripts" / script_name)] + (extra_args or [])
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=str(REPO),
+            )
+            stdout, _ = await proc.communicate()
+            return proc.returncode, (stdout or b"").decode("utf-8", errors="replace").strip()
+
+        logger.info("🗄️ Cold archive: starting daily Neon → Supabase archival run")
+
+        # Step 1: Archive sharp_book_odds (7-day retention)
+        logger.info("🗄️ Cold archive [1/4]: archiving sharp_book_odds (>7 days)…")
+        rc, out = await _run_script("archive_to_supabase.py", ["--days", "7"])
+        for line in out.splitlines():
+            logger.info(f"  archive_to_supabase: {line}")
+        if rc != 0:
+            logger.error(f"❌ Cold archive [1/4] failed (exit {rc}) — skipping cleanup to protect data")
+            return
+
+        # Step 2: Delete archived sharp_book_odds from Neon
+        logger.info("🗄️ Cold archive [2/4]: deleting sharp_book_odds from Neon…")
+        rc, out = await _run_script("cleanup_neon_cold_data.py", ["--confirm"])
+        for line in out.splitlines():
+            logger.info(f"  cleanup_neon: {line}")
+        if rc != 0:
+            logger.warning(f"⚠️ Cold archive [2/4] exited {rc} — some rows may remain in Neon")
+
+        # Step 3: Archive cold tables (30-day retention)
+        logger.info("🗄️ Cold archive [3/4]: archiving cold tables (>30 days)…")
+        rc, out = await _run_script("archive_cold_tables.py", ["--days", "30"])
+        for line in out.splitlines():
+            logger.info(f"  archive_cold_tables: {line}")
+        if rc != 0:
+            logger.error(f"❌ Cold archive [3/4] failed (exit {rc}) — skipping cold table cleanup")
+            return
+
+        # Step 4: Delete archived cold table rows from Neon
+        logger.info("🗄️ Cold archive [4/4]: deleting cold table rows from Neon…")
+        rc, out = await _run_script("cleanup_cold_tables.py", ["--confirm"])
+        for line in out.splitlines():
+            logger.info(f"  cleanup_cold: {line}")
+        if rc != 0:
+            logger.warning(f"⚠️ Cold archive [4/4] exited {rc} — some rows may remain in Neon")
+
+        logger.info("✅ Cold archive: daily run complete")
 
     async def _run_sharp_book_collection(self):
         """
