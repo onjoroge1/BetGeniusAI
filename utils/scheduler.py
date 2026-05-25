@@ -353,14 +353,19 @@ class BackgroundScheduler:
                     if "live_data" not in self.last_run or (now - self.last_run["live_data"]).total_seconds() >= 55:
                         await self._spawn("live_data", self._run_live_data_collection, timeout=60)
                     
-                    if "ai_analysis" not in self.last_run or (now - self.last_run["ai_analysis"]).total_seconds() >= 55:
-                        await self._spawn("ai_analysis", self._run_live_ai_analysis, timeout=90)
-                    
-                    if "momentum_calc" not in self.last_run or (now - self.last_run["momentum_calc"]).total_seconds() >= 55:
-                        await self._spawn("momentum_calc", self._run_momentum_calculator, timeout=30)
-                    
-                    if "live_markets" not in self.last_run or (now - self.last_run["live_markets"]).total_seconds() >= 55:
-                        await self._spawn("live_markets", self._run_live_market_engine, timeout=30)
+                    # ── DISABLED 2026-05-10: 30-day compute trial ──────────────────────
+                    # ai_analysis, momentum_calc, live_markets are experimental features
+                    # with no confirmed frontend traffic. Disabled to measure Replit
+                    # Autoscale CU reduction. Re-enable after 2026-06-10 if needed.
+                    # if "ai_analysis" not in self.last_run or (now - self.last_run["ai_analysis"]).total_seconds() >= 55:
+                    #     await self._spawn("ai_analysis", self._run_live_ai_analysis, timeout=90)
+                    #
+                    # if "momentum_calc" not in self.last_run or (now - self.last_run["momentum_calc"]).total_seconds() >= 55:
+                    #     await self._spawn("momentum_calc", self._run_momentum_calculator, timeout=30)
+                    #
+                    # if "live_markets" not in self.last_run or (now - self.last_run["live_markets"]).total_seconds() >= 55:
+                    #     await self._spawn("live_markets", self._run_live_market_engine, timeout=30)
+                    # ── END DISABLED ────────────────────────────────────────────────────
                 
                 # TBD resolver runs every 30 min (non-urgent, slowed to reduce DB wakeups)
                 if "tbd_resolver" not in self.last_run or (now - self.last_run["tbd_resolver"]).total_seconds() >= 1800:
