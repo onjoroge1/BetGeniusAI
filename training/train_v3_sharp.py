@@ -63,6 +63,18 @@ def get_trainable_matches(min_sharp_odds: int = 0) -> List[Tuple[int, str]]:
     conn = psycopg2.connect(os.getenv('DATABASE_URL'))
     cursor = conn.cursor()
 
+    # ── Synthetic odds filter ──────────────────────────────────────────────
+    # fix_odds_consensus_backfill.py injected 3 hardcoded probability templates
+    # into odds_consensus (NOT real collected odds). Training on these teaches the
+    # model to "predict the template" — holdout proved this: 87.3% on contaminated
+    # rows vs 52.0% on real odds. This filter excludes all 3 templates.
+    # (Matches scripts/validate_v3_holdout.py lines 115-117.)
+    SYNTHETIC_FILTER = """
+          AND NOT (ABS(oc.ph_cons - 0.650) < 0.001 AND ABS(oc.pd_cons - 0.250) < 0.001 AND ABS(oc.pa_cons - 0.100) < 0.001)
+          AND NOT (ABS(oc.ph_cons - 0.100) < 0.001 AND ABS(oc.pd_cons - 0.250) < 0.001 AND ABS(oc.pa_cons - 0.650) < 0.001)
+          AND NOT (ABS(oc.ph_cons - 0.300) < 0.001 AND ABS(oc.pd_cons - 0.400) < 0.001 AND ABS(oc.pa_cons - 0.300) < 0.001)
+    """
+
     # Source 1: fixtures + matches (original)
     cursor.execute("""
         SELECT
@@ -80,9 +92,9 @@ def get_trainable_matches(min_sharp_odds: int = 0) -> List[Tuple[int, str]]:
           AND m.home_goals IS NOT NULL
           AND m.away_goals IS NOT NULL
           AND oc.ph_cons IS NOT NULL
-    """)
+    """ + SYNTHETIC_FILTER)
     source1 = {row[0]: (row[0], row[1], row[2]) for row in cursor.fetchall()}
-    logger.info(f"Source 1 (fixtures+matches): {len(source1):,} matches")
+    logger.info(f"Source 1 (fixtures+matches, synthetic-filtered): {len(source1):,} matches")
 
     # Source 2: training_matches (much larger, includes historical)
     cursor.execute("""
@@ -99,6 +111,7 @@ def get_trainable_matches(min_sharp_odds: int = 0) -> List[Tuple[int, str]]:
         JOIN odds_consensus oc ON tm.match_id = oc.match_id
         WHERE tm.outcome IS NOT NULL
           AND oc.ph_cons IS NOT NULL
+    """ + SYNTHETIC_FILTER + """
         ORDER BY tm.match_id, tm.match_date
     """)
     source2_new = 0
@@ -207,17 +220,29 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
     return df
 
 
-def compute_sample_weights(y: np.ndarray) -> np.ndarray:
+def compute_sample_weights(y: np.ndarray, draw_boost: float = 1.5) -> np.ndarray:
     """
-    Compute inverse-frequency class weights to address draw imbalance.
-    Draws (~27%) get ~1.2x weight, Home (~45%) gets ~0.74x weight.
+    Compute class weights to address draw imbalance.
+
+    Updated 2026-05-10 (council review): full inverse-frequency weighting was too
+    weak to fix draw under-prediction — the model still predicted draws only ~2-3%
+    of the time vs ~27% actual (catastrophic in high-draw leagues like Serie A).
+
+    New scheme: sqrt(inverse-frequency) for gentler base weighting, then an explicit
+    draw_boost multiplier on the draw class (index 1). sqrt avoids over-weighting the
+    home class down to near-zero while the explicit boost forces the model to actually
+    predict draws.
     """
     class_counts = np.bincount(y, minlength=3)
     total = len(y)
-    # Inverse frequency weighting: total / (n_classes * count_per_class)
-    class_weights = total / (3.0 * class_counts.clip(min=1))
+    # sqrt(inverse frequency) — gentler than raw inverse frequency
+    inv_freq = total / (3.0 * class_counts.clip(min=1))
+    class_weights = np.sqrt(inv_freq)
+    # Explicit draw boost (class index 1) — forces draw prediction in high-draw leagues
+    class_weights[1] *= draw_boost
 
-    logger.info(f"Class weights: H={class_weights[0]:.3f}, D={class_weights[1]:.3f}, A={class_weights[2]:.3f}")
+    logger.info(f"Class weights (sqrt + {draw_boost}x draw boost): "
+                f"H={class_weights[0]:.3f}, D={class_weights[1]:.3f}, A={class_weights[2]:.3f}")
 
     sample_weights = np.array([class_weights[label] for label in y])
     return sample_weights
