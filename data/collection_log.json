@@ -1,72 +1,148 @@
 [
   {
-    "timestamp": "2026-03-21T20:00:00.622505",
+    "timestamp": "2026-06-02T02:11:11.472047",
     "days_back": 3,
-    "leagues_processed": [],
+    "leagues_processed": [
+      {
+        "league_id": 71,
+        "league_name": "League 71",
+        "matches_found": 10,
+        "matches_processed": 10,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 98,
+        "league_name": "League 98",
+        "matches_found": 10,
+        "matches_processed": 10,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 103,
+        "league_name": "League 103",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 113,
+        "league_name": "League 113",
+        "matches_found": 6,
+        "matches_processed": 6,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 141,
+        "league_name": "League 141",
+        "matches_found": 11,
+        "matches_processed": 11,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      }
+    ],
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
     "errors": []
   },
   {
-    "timestamp": "2026-03-22T02:09:34.540791",
+    "timestamp": "2026-06-02T02:13:46.822932",
     "days_back": 3,
-    "leagues_processed": [],
-    "new_matches_collected": 0,
-    "total_matches_in_db": 0,
-    "errors": []
-  },
-  {
-    "timestamp": "2026-03-22T23:00:00.068997",
-    "days_back": 3,
-    "leagues_processed": [],
-    "new_matches_collected": 0,
-    "total_matches_in_db": 0,
-    "errors": []
-  },
-  {
-    "timestamp": "2026-03-23T02:00:00.337751",
-    "days_back": 3,
-    "leagues_processed": [],
-    "new_matches_collected": 0,
-    "total_matches_in_db": 0,
-    "errors": []
-  },
-  {
-    "timestamp": "2026-03-23T08:00:00.081366",
-    "days_back": 3,
-    "leagues_processed": [],
-    "new_matches_collected": 0,
-    "total_matches_in_db": 0,
-    "errors": []
-  },
-  {
-    "timestamp": "2026-03-23T14:00:00.228654",
-    "days_back": 3,
-    "leagues_processed": [],
-    "new_matches_collected": 0,
-    "total_matches_in_db": 0,
-    "errors": []
-  },
-  {
-    "timestamp": "2026-03-23T17:41:51.727763",
-    "days_back": 3,
-    "leagues_processed": [],
-    "new_matches_collected": 0,
-    "total_matches_in_db": 0,
-    "errors": []
-  },
-  {
-    "timestamp": "2026-03-23T18:15:36.401506",
-    "days_back": 3,
-    "leagues_processed": [],
-    "new_matches_collected": 0,
-    "total_matches_in_db": 0,
-    "errors": []
-  },
-  {
-    "timestamp": "2026-03-23T18:49:11.311113",
-    "days_back": 3,
-    "leagues_processed": [],
+    "leagues_processed": [
+      {
+        "league_id": 71,
+        "league_name": "League 71",
+        "matches_found": 10,
+        "matches_processed": 10,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 98,
+        "league_name": "League 98",
+        "matches_found": 10,
+        "matches_processed": 10,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 103,
+        "league_name": "League 103",
+        "matches_found": 1,
+        "matches_processed": 1,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 113,
+        "league_name": "League 113",
+        "matches_found": 6,
+        "matches_processed": 6,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      },
+      {
+        "league_id": 141,
+        "league_name": "League 141",
+        "matches_found": 11,
+        "matches_processed": 11,
+        "matches_saved": 0,
+        "target_tables": [
+          "training_matches",
+          "odds_consensus"
+        ],
+        "training_saved": 0,
+        "consensus_saved": 0
+      }
+    ],
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
     "errors": []
