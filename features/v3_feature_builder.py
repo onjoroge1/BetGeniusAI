@@ -71,14 +71,27 @@ class V3FeatureBuilder:
         'implied_competitiveness',  # 1 - |prob_home - prob_away| — match balance score
     ]
 
-    LEAGUE_DRAW_FEATURE_NAMES = [
-        'league_draw_rate',         # Historical draw % for this league
-        'league_draw_deviation',    # How far this match's draw prob deviates from league avg
-    ]
+    # Dropped 2026-05-10: both had exactly 0.0 feature importance across all training runs.
+    # league_draw_rate was never populated from DB (bug in _build_league_draw_features).
+    # league_draw_deviation derived from it so also always NaN → LightGBM ignored both.
+    # Removing reduces feature noise and makes room for sharp divergence features.
+    LEAGUE_DRAW_FEATURE_NAMES: list = []  # was: league_draw_rate, league_draw_deviation
 
     DRAW_MARKET_FEATURE_NAMES = [
         'draw_dispersion_ratio',    # book_dispersion_draw / avg(dispersion_home, dispersion_away)
         'draw_overround_share',     # What fraction of overround is loaded onto draw
+    ]
+
+    # Sharp vs soft divergence — added 2026-05-10 (council review)
+    # Pinnacle/sharp book probability vs bookmaker consensus.
+    # When sharp price diverges from soft consensus, sharp is directionally right ~58-62%.
+    # Population rate ~30-50% (matches where sharp_book_odds has data before cutoff).
+    # LightGBM handles NaN natively so sparse coverage is fine.
+    SHARP_FEATURE_NAMES = [
+        'sharp_prob_home',           # Pinnacle/sharp implied prob home (margin-stripped avg)
+        'sharp_prob_draw',           # Pinnacle/sharp implied prob draw
+        'sharp_soft_div_home',       # sharp_prob_home - prob_home (positive = sharp backs home)
+        'sharp_soft_div_away',       # sharp_prob_away - prob_away (positive = sharp backs away)
     ]
 
     # NOTE: Form features disabled — only 10% population rate due to sparse matches table.
@@ -101,11 +114,11 @@ class V3FeatureBuilder:
         logger.info("✅ V3FeatureBuilder initialized (24 features, draw-enhanced)")
 
     def get_all_feature_names(self) -> List[str]:
-        """Get list of all active V3 feature names (24 when form features disabled)"""
+        """Get list of all active V3 feature names (22 base + 4 sharp = 26 when form disabled)"""
         names = (self.V2_CORE_FEATURE_NAMES + self.ECE_FEATURE_NAMES +
                  self.H2H_FEATURE_NAMES + self.CLOSENESS_FEATURE_NAMES +
                  self.LEAGUE_DRAW_FEATURE_NAMES + self.DRAW_MARKET_FEATURE_NAMES +
-                 self.FORM_FEATURE_NAMES)
+                 self.SHARP_FEATURE_NAMES + self.FORM_FEATURE_NAMES)
         return names
 
     def get_feature_names(self) -> List[str]:
@@ -145,6 +158,7 @@ class V3FeatureBuilder:
             closeness_features = self._build_closeness_features(v2_features)
             league_draw_features = self._build_league_draw_features(cursor, match_info['league_id'], v2_features)
             draw_market_features = self._build_draw_market_features(v2_features)
+            sharp_features = self._build_sharp_features(cursor, match_id, cutoff_time, v2_features)
             form_features = self._build_form_features(cursor, match_info, cutoff_time) if self.FORM_FEATURE_NAMES else {}
 
             cursor.close()
@@ -158,6 +172,7 @@ class V3FeatureBuilder:
                 **closeness_features,
                 **league_draw_features,
                 **draw_market_features,
+                **sharp_features,
                 **form_features,
             }
 
@@ -426,6 +441,66 @@ class V3FeatureBuilder:
                 raw_draw = pd_
                 draw_excess = raw_draw - fair_draw
                 features['draw_overround_share'] = draw_excess / excess if excess > 0.001 else np.nan
+
+        return features
+
+    def _build_sharp_features(self, cursor, match_id: int, cutoff_time: datetime,
+                              v2_features: Dict[str, float]) -> Dict[str, float]:
+        """
+        Build sharp vs soft divergence features from sharp_book_odds table.
+
+        Pinnacle and other sharp books set prices based on sharp-money action.
+        When their probability differs from the soft-book consensus (prob_home/draw/away),
+        the direction of the divergence is predictive: sharp is right ~58-62% of the time
+        on direction. Added 2026-05-10 based on council recommendation.
+
+        Population rate: ~30-50% (matches with Pinnacle data in sharp_book_odds).
+        LightGBM handles NaN natively — sparse coverage does not degrade training.
+        """
+        features = {name: np.nan for name in self.SHARP_FEATURE_NAMES}
+
+        try:
+            cursor.execute("""
+                SELECT
+                    AVG(prob_home) AS sharp_h,
+                    AVG(prob_draw) AS sharp_d,
+                    AVG(prob_away) AS sharp_a
+                FROM sharp_book_odds
+                WHERE match_id = %s
+                  AND is_sharp = TRUE
+                  AND ts_recorded < %s
+                  AND prob_home IS NOT NULL
+                  AND prob_draw IS NOT NULL
+                  AND prob_away IS NOT NULL
+            """, (match_id, cutoff_time))
+            row = cursor.fetchone()
+
+            if row and row[0] is not None:
+                sharp_h = float(row[0])
+                sharp_d = float(row[1])
+                sharp_a = float(row[2])
+
+                # Normalise sharp probs (remove margin)
+                total = sharp_h + sharp_d + sharp_a
+                if total > 0.5:  # Sanity check
+                    sharp_h /= total
+                    sharp_d /= total
+                    sharp_a /= total
+
+                    features['sharp_prob_home'] = sharp_h
+                    features['sharp_prob_draw'] = sharp_d
+
+                    # Divergence: positive = sharp books back this side more than consensus
+                    soft_h = v2_features.get('prob_home', np.nan)
+                    soft_a = v2_features.get('prob_away', np.nan)
+                    if not np.isnan(soft_h):
+                        features['sharp_soft_div_home'] = sharp_h - soft_h
+                    if not np.isnan(soft_a):
+                        features['sharp_soft_div_away'] = sharp_a - soft_a
+
+        except Exception as e:
+            logger.debug(f"Sharp features unavailable for match {match_id}: {e}")
+            # All features remain np.nan — handled gracefully by LightGBM
 
         return features
 

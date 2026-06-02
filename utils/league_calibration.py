@@ -1,27 +1,40 @@
 """
 Per-league confidence calibration multipliers.
 
-Derived from the 67-match post-cutoff backtest (April 22-26, 2026).
-Multipliers adjust V3 confidence based on observed accuracy per league.
-A multiplier of 1.10 means "trust this league's V3 prediction 10% more."
+Originally derived from the 67-match post-cutoff backtest (April 22-26, 2026).
+Updated 2026-05-10 by council review against 90-day live data (986 settled predictions):
 
-Applied AFTER prediction, BEFORE returning to /predict response.
-Specialist override (when specialist disagrees with main) bypasses this multiplier
-and uses the specialist's own confidence directly.
+  League              Old mult  New mult  Reason
+  Primeira Liga (94)  1.10      0.80      39% live accuracy (n=41) — was set from n=8 noise
+  Premier League (39) 1.05      1.00      50% live (n=56) — not enough signal to boost
+  Bundesliga (78)     1.05      1.05      52.5% live (n=40) — marginal, keep modest boost
+  La Liga (140)       1.00      1.00      50% live (n=58) — coin flip, neutral
+  Ligue 1 (61)        0.95      0.95      no change — sparse data
+  Eredivisie (88)     0.90      0.90      no change — sparse data
+  Serie A (135)       0.85      0.75      40% live (n=70) — specialist now overrides main;
+                                           low multiplier suppresses residual surfacing
+  Eliteserien (103)   (none)    1.15      67.9% live (n=28) — strong signal, trust more
+  Champions League    1.00      1.00      no change
+  Europa League       1.00      1.00      no change
+
+Note: Primeira Liga multiplier drop from 1.10→0.80 is the most material change.
+The original 1.10 was based on n=8 backtest (±17pp std error) that contradicts
+41-match live reality (39% accuracy). 0.80 means only raw_conf ≥0.625 will clear
+the ≥50% gate, drastically reducing surfaced Primeira Liga picks.
 """
 
 # League ID → confidence multiplier
-# Based on post-cutoff accuracy: higher acc = higher multiplier
 LEAGUE_CONFIDENCE_MULTIPLIERS = {
-    94:  1.10,   # Primeira Liga (87.5% accuracy in backtest, n=8)
-    39:  1.05,   # Premier League (75.0%, n=8)
-    78:  1.05,   # Bundesliga (66.7%, n=9)
-    140: 1.00,   # La Liga (53.3%, n=15)
-    61:  0.95,   # Ligue 1 (50.0%, n=10)
-    88:  0.90,   # Eredivisie (44.4%, n=9)
-    135: 0.85,   # Serie A (37.5%, n=8) — main weak; specialist exists
-    2:   1.00,   # Champions League — neutral (no specific signal)
-    3:   1.00,   # Europa League
+    94:  0.80,   # Primeira Liga — 39% live (n=41); was 1.10 from noisy n=8 backtest
+    39:  1.00,   # Premier League — 50% live (n=56); remove false boost
+    78:  1.05,   # Bundesliga — 52.5% live (n=40); modest boost retained
+    140: 1.00,   # La Liga — 50% live (n=58); coin flip, neutral
+    61:  0.95,   # Ligue 1 — sparse live data, conservative
+    88:  0.90,   # Eredivisie — sparse live data, conservative
+    135: 0.75,   # Serie A — 40% live (n=70); specialist overrides main, suppress residual
+    103: 1.15,   # Eliteserien — 67.9% live (n=28); strong V3 signal, surface more
+    2:   1.00,   # Champions League — neutral
+    3:   1.00,   # Europa League — neutral
 }
 
 # Defaults
