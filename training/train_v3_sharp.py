@@ -151,22 +151,22 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
 
     logger.info(f"Building features for {len(matches)} matches...")
 
+    # PERF 2026-06-02: open ONE connection for the whole loop instead of one per match.
+    # The old code opened a fresh Neon connection (full SSL handshake) per match — 3500+
+    # handshakes turned a ~2 min job into ~40 min against a remote DB. On a per-match error
+    # we rollback the shared connection so the next match starts clean.
+    conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+
     for i, (match_id, outcome) in enumerate(matches):
         try:
-            conn = psycopg2.connect(os.getenv('DATABASE_URL'))
             cursor = conn.cursor()
 
             match_info = builder._get_match_info(cursor, match_id)
-            if not match_info:
+            if not match_info or match_info['kickoff_time'] is None:
                 cursor.close()
-                conn.close()
                 continue
 
             cutoff_time = match_info['kickoff_time']
-            if cutoff_time is None:
-                cursor.close()
-                conn.close()
-                continue
 
             v2_f = builder._build_v2_core_features(cursor, match_id, cutoff_time)
             ece_f = builder._build_ece_features(cursor, match_info['league_id'])
@@ -177,7 +177,6 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
             form_f = builder._build_form_features(cursor, match_info, cutoff_time) if builder.FORM_FEATURE_NAMES else {}
 
             cursor.close()
-            conn.close()
 
             features = {**v2_f, **ece_f, **h2h_f, **closeness_f,
                         **league_draw_f, **draw_market_f, **form_f}
@@ -186,30 +185,29 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
             # For training_matches, odds_consensus rows are often added after kickoff so
             # the temporal cutoff (oc.timestamp <= kickoff) returns nothing → all probs NaN.
             # LightGBM would then learn home-bias from those empty rows.
-            core = [features.get('ph_cons'), features.get('pd_cons'), features.get('pa_cons')]
+            # BUGFIX 2026-06-02: skip check used DB column names (ph_cons/pd_cons/pa_cons)
+            # but the feature builder emits prob_home/prob_draw/prob_away. The old keys were
+            # always None → every match skipped → "No training data could be built".
+            core = [features.get('prob_home'), features.get('prob_draw'), features.get('prob_away')]
             if any(v is None or (isinstance(v, float) and np.isnan(v)) for v in core):
                 errors += 1  # counted as skipped
-                cursor.close()
-                conn.close()
                 continue
 
             features['match_id'] = match_id
             features['outcome'] = outcome
             records.append(features)
 
-            if (i + 1) % 100 == 0:
-                logger.info(f"  Progress: {i+1}/{len(matches)} matches (errors: {errors})")
+            if (i + 1) % 250 == 0:
+                logger.info(f"  Progress: {i+1}/{len(matches)} matches ({len(records)} built, {errors} skipped)")
 
         except Exception as e:
             errors += 1
-            try:
-                cursor.close()
-                conn.close()
-            except Exception:
-                pass
+            conn.rollback()  # clear any aborted-transaction state on the shared connection
             if errors <= 10:
                 logger.warning(f"  Skip match {match_id}: {e}")
             continue
+
+    conn.close()
 
     if not records:
         raise ValueError("No training data could be built")
