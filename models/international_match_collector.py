@@ -541,6 +541,133 @@ class InternationalMatchCollector:
                 conn.close()
 
 
+    def collect_wc2026_squads(self) -> Dict:
+        """
+        Collect official WC 2026 squad lists for all 32 nations.
+        Calls API-Football /players/squads?league=1&season=2026.
+        Populates national_team_squads table.
+        Returns summary dict with counts per team.
+        """
+        logger.info("👥 Collecting WC 2026 squad data for all 32 nations...")
+
+        data = self._make_api_request("players/squads", params={"league": 1, "season": 2026})
+        if not data or not data.get("response"):
+            logger.warning("No squad data returned from API-Football for WC 2026")
+            return {"teams_processed": 0, "players_inserted": 0, "errors": 0}
+
+        squads = data["response"]  # list of {team: {...}, players: [...]}
+        teams_processed = 0
+        players_inserted = 0
+        errors = 0
+
+        conn = None
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cur = conn.cursor()
+
+            for entry in squads:
+                team = entry.get("team", {})
+                players = entry.get("players", [])
+                team_id = team.get("id")
+                team_name = team.get("name", "Unknown")
+
+                if not team_id:
+                    continue
+
+                teams_processed += 1
+                for p in players:
+                    try:
+                        player_id = p.get("id")
+                        player_name = p.get("name", "")
+                        position = p.get("position", "")
+                        # age from DOB is not always present; skip safely
+                        cur.execute("""
+                            INSERT INTO national_team_squads (
+                                team_id, team_name, player_id, player_name,
+                                tournament_id, tournament_name, season,
+                                squad_announced_date, position
+                            ) VALUES (%s, %s, %s, %s, 1, 'FIFA World Cup', 2026,
+                                      CURRENT_DATE, %s)
+                            ON CONFLICT DO NOTHING
+                        """, (team_id, team_name, player_id, player_name, position))
+                        players_inserted += cur.rowcount
+                    except Exception as e:
+                        logger.warning(f"  Squad insert error for {team_name}/{p.get('name')}: {e}")
+                        errors += 1
+
+                conn.commit()
+                logger.info(f"  ✅ {team_name}: {len(players)} players stored")
+                time.sleep(0.2)
+
+        except Exception as e:
+            logger.error(f"Squad collection failed: {e}")
+            errors += 1
+        finally:
+            if conn:
+                conn.close()
+
+        summary = {
+            "teams_processed": teams_processed,
+            "players_inserted": players_inserted,
+            "errors": errors,
+        }
+        logger.info(f"👥 Squad collection complete: {teams_processed} teams, {players_inserted} players")
+        return summary
+
+    def verify_league_map(self) -> Dict:
+        """
+        Ensure league_map has entries for WC 2026 and all qualifier confederations.
+        Inserts missing rows so odds collection picks them up automatically.
+        """
+        REQUIRED = [
+            (1,  'FIFA World Cup',           'soccer_fifa_world_cup'),
+            (4,  'UEFA Euro',                'soccer_uefa_euro_qualification'),
+            (6,  'Africa Cup of Nations',    'soccer_africa_cup_of_nations'),
+            (9,  'Copa America',             'soccer_conmebol_copa_america'),
+            (29, 'WC Qualifiers - CAF',      'soccer_fifa_world_cup_qualification_africa'),
+            (30, 'WC Qualifiers - AFC',      'soccer_fifa_world_cup_qualification_asia'),
+            (31, 'WC Qualifiers - CONCACAF', 'soccer_fifa_world_cup_qualification_concacaf'),
+            (32, 'WC Qualifiers - UEFA',     'soccer_fifa_world_cup_qualification_europe'),
+            (34, 'WC Qualifiers - CONMEBOL', 'soccer_fifa_world_cup_qualification_south_america'),
+        ]
+
+        conn = None
+        inserted = 0
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cur = conn.cursor()
+
+            # Ensure table exists (in case migration hasn't run)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS league_map (
+                    league_id INTEGER PRIMARY KEY,
+                    league_name VARCHAR(200),
+                    theodds_sport_key VARCHAR(200)
+                )
+            """)
+
+            for league_id, league_name, sport_key in REQUIRED:
+                cur.execute("""
+                    INSERT INTO league_map (league_id, league_name, theodds_sport_key)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (league_id) DO UPDATE
+                        SET league_name = EXCLUDED.league_name,
+                            theodds_sport_key = EXCLUDED.theodds_sport_key
+                """, (league_id, league_name, sport_key))
+                inserted += cur.rowcount
+
+            conn.commit()
+            logger.info(f"✅ league_map verified — {inserted} rows upserted for WC leagues")
+            return {"upserted": inserted, "leagues": [r[0] for r in REQUIRED]}
+
+        except Exception as e:
+            logger.error(f"league_map verify failed: {e}")
+            return {"upserted": 0, "error": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+
 def test_collector():
     """Test the collector with a small sample."""
     collector = InternationalMatchCollector()

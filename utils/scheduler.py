@@ -446,10 +446,15 @@ class BackgroundScheduler:
                 if "injury_collection" not in self.last_run or (now - self.last_run["injury_collection"]).total_seconds() >= 21600:
                     await self._spawn("injury_collection", self._run_injury_collection, timeout=300)
                 
-                # 🌍 WC 2026 Prep: International Qualifier Collection - runs daily at 04:00 UTC
+                # 🌍 WC 2026: International Qualifier Collection - runs daily at 04:00 UTC
                 if current_hour == 4:
                     if "intl_qualifiers" not in self.last_run or (now - self.last_run["intl_qualifiers"]).total_seconds() >= 86400:
                         await self._spawn("intl_qualifiers", self._run_intl_qualifier_collection, timeout=600)
+
+                # 🏆 WC 2026: Main tournament match collection - runs every 6h during tournament
+                # (June 11 – July 19 2026). Captures group stage + knockout results same-day.
+                if "wc2026_matches" not in self.last_run or (now - self.last_run["wc2026_matches"]).total_seconds() >= 21600:
+                    await self._spawn("wc2026_matches", self._run_wc2026_match_collection, timeout=300)
                 
                 # ⚽🏀 Player Stats Collection - runs daily at 05:00 UTC
                 if current_hour == 5:
@@ -1965,6 +1970,38 @@ class BackgroundScheduler:
             logger.warning("⚠️ INTL: international_match_collector module not found - skipping")
         except Exception as e:
             logger.error(f"❌ INTL: Qualifier collection failed - {e}", exc_info=True)
+
+    async def _run_wc2026_match_collection(self):
+        """
+        🏆 WC 2026: Main Tournament Match Collection
+        Collects FIFA World Cup 2026 match results (league_id=1, season=2026).
+        Runs every 6 hours. No-ops outside June 11 – July 19 2026.
+        """
+        from datetime import date
+        tournament_start = date(2026, 6, 11)
+        tournament_end   = date(2026, 7, 19)
+        today = date.today()
+
+        # Only run during the tournament window (±1 day buffer each side)
+        if not (tournament_start.replace(day=tournament_start.day - 1) <= today
+                <= tournament_end.replace(day=min(tournament_end.day + 1, 31))):
+            return  # Silent no-op outside tournament window
+
+        try:
+            from models.international_match_collector import InternationalMatchCollector
+            logger.info("🏆 WC2026: Collecting tournament match data (league_id=1, season=2026)…")
+            collector = InternationalMatchCollector()
+            result = collector.collect_league_season(1, 2026)
+            inserted = result.get("inserted", 0)
+            total    = result.get("matches", 0)
+            if inserted > 0:
+                logger.info(f"✅ WC2026: {total} matches checked, {inserted} new/updated")
+            else:
+                logger.info(f"✅ WC2026: {total} matches checked, nothing new")
+        except ImportError:
+            logger.warning("⚠️ WC2026: international_match_collector not found — skipping")
+        except Exception as e:
+            logger.error(f"❌ WC2026: Match collection failed — {e}", exc_info=True)
 
     async def _run_player_stats_collection(self):
         """

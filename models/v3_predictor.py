@@ -39,10 +39,26 @@ logger = logging.getLogger(__name__)
 
 # Specialist cascade rule:
 # Default: when specialist disagrees, flag uncertain but keep main pick.
-# Exception leagues (La Liga=140, Bundesliga=78): specialist showed +5pp holdout
-# accuracy over main on disagreements — use specialist pick directly for these.
+# Exception leagues: specialist showed holdout accuracy > main on disagreements.
+# Council review 2026-05-10: added Serie A (135) — live 40% from main blend,
+# specialist at 51% holdout; main blend was poisoning predictions with hist_36k bias.
 SPECIALIST_DISAGREEMENT_BEHAVIOR = 'flag_uncertain'  # default for all other leagues
-SPECIALIST_OVERRIDE_LEAGUES = {140, 78}  # La Liga (54.6%), Bundesliga (53.1%) holdout beats main
+SPECIALIST_OVERRIDE_LEAGUES = {140, 78, 135}  # La Liga (54.6%), Bundesliga (53.1%), Serie A (51%)
+
+# Per-league historical model blend weights.
+# Format: league_id → hist_36k_weight (V3 weight = 1 - hist_weight)
+# Global default is 0.8 hist / 0.2 V3.
+# Leagues where the main blend was degrading live accuracy get reduced hist weight.
+# Council review 2026-05-10:
+#   Serie A (135):      hist_weight=0.0  — 40% live; specialist runs on pure V3 signal
+#   Primeira Liga (94): hist_weight=0.3  — 39% live; reduce hist dominance
+#   Eliteserien (103):  hist_weight=0.5  — 67.9% live; V3 contributing strongly, give it more weight
+HIST_BLEND_WEIGHTS: dict = {
+    135: 0.0,   # Serie A — disable hist blend; specialist takes over
+    94:  0.3,   # Primeira Liga — 39% live, reduce hist influence
+    103: 0.5,   # Eliteserien — V3 performing well (67.9%), increase V3 weight
+}
+HIST_DEFAULT_WEIGHT = 0.8
 
 
 class V3Predictor:
@@ -387,20 +403,23 @@ class V3Predictor:
             main_probs, main_conf, main_pick = self._run_main_model(features)
             stacked_result = self._run_stacked(features, main_probs)
 
-            # 1b. Blend with historical 36k model when available (50.7% OOF vs 45.5% calibrated)
+            # 1b. Blend with historical 36k model (per-league adaptive weights)
+            # Global default: 80% hist / 20% V3. Overridden per league based on live accuracy.
+            # Council review 2026-05-10: Serie A=0% hist (live 40%), PL94=30% hist (live 39%),
+            # Eliteserien=50% hist (live 67.9%, V3 contributing strongly).
             db_url = os.getenv("DATABASE_URL", "")
-            if self.hist_predictor and db_url:
+            hist_weight = HIST_BLEND_WEIGHTS.get(league_id, HIST_DEFAULT_WEIGHT)
+            if self.hist_predictor and db_url and hist_weight > 0.0:
                 hist_result = self.hist_predictor.predict(match_id, db_url)
                 if hist_result:
-                    # Weighted blend: 20% v3_sharp + 80% hist_36k
-                    # hist has 50.3% OOF vs v3_sharp 45.5% calibrated and better draw recall
                     hh = hist_result["probabilities"]["home"]
                     hd = hist_result["probabilities"]["draw"]
                     ha = hist_result["probabilities"]["away"]
+                    v3_weight = 1.0 - hist_weight
                     blended = {
-                        "home": 0.2 * main_probs["home"] + 0.8 * hh,
-                        "draw": 0.2 * main_probs["draw"] + 0.8 * hd,
-                        "away": 0.2 * main_probs["away"] + 0.8 * ha,
+                        "home": v3_weight * main_probs["home"] + hist_weight * hh,
+                        "draw": v3_weight * main_probs["draw"] + hist_weight * hd,
+                        "away": v3_weight * main_probs["away"] + hist_weight * ha,
                     }
                     total = sum(blended.values())
                     main_probs = {k: v / total for k, v in blended.items()}
