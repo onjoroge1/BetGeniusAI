@@ -543,19 +543,25 @@ class InternationalMatchCollector:
 
     def collect_wc2026_squads(self) -> Dict:
         """
-        Collect official WC 2026 squad lists for all 32 nations.
-        Calls API-Football /players/squads?league=1&season=2026.
-        Populates national_team_squads table.
-        Returns summary dict with counts per team.
-        """
-        logger.info("👥 Collecting WC 2026 squad data for all 32 nations...")
+        Collect WC 2026 squad lists for all qualified nations.
 
-        data = self._make_api_request("players/squads", params={"league": 1, "season": 2026})
-        if not data or not data.get("response"):
-            logger.warning("No squad data returned from API-Football for WC 2026")
+        Two-step flow (API-Football's /players/squads takes a `team` param, NOT
+        league/season):
+          1. GET /teams?league=1&season=2026  → list of WC 2026 national teams
+          2. GET /players/squads?team={id}     → current squad per team
+        Populates national_team_squads. Returns summary dict.
+        """
+        logger.info("👥 Collecting WC 2026 squads (step 1: fetch qualified teams)…")
+
+        teams_data = self._make_api_request("teams", params={"league": 1, "season": 2026})
+        if not teams_data or not teams_data.get("response"):
+            logger.warning("No WC 2026 teams returned from API-Football — squads not available yet")
             return {"teams_processed": 0, "players_inserted": 0, "errors": 0}
 
-        squads = data["response"]  # list of {team: {...}, players: [...]}
+        wc_teams = [(t["team"]["id"], t["team"]["name"]) for t in teams_data["response"]
+                    if t.get("team", {}).get("id")]
+        logger.info(f"  Found {len(wc_teams)} WC 2026 national teams")
+
         teams_processed = 0
         players_inserted = 0
         errors = 0
@@ -565,22 +571,18 @@ class InternationalMatchCollector:
             conn = psycopg2.connect(self.db_url)
             cur = conn.cursor()
 
-            for entry in squads:
-                team = entry.get("team", {})
-                players = entry.get("players", [])
-                team_id = team.get("id")
-                team_name = team.get("name", "Unknown")
-
-                if not team_id:
+            for team_id, team_name in wc_teams:
+                squad_data = self._make_api_request("players/squads", params={"team": team_id})
+                if not squad_data or not squad_data.get("response"):
+                    logger.warning(f"  ⚠️  No squad for {team_name} (team {team_id})")
+                    time.sleep(0.3)
                     continue
 
+                # /players/squads response: [{team:{...}, players:[{id,name,position,...}]}]
+                players = squad_data["response"][0].get("players", []) if squad_data["response"] else []
                 teams_processed += 1
                 for p in players:
                     try:
-                        player_id = p.get("id")
-                        player_name = p.get("name", "")
-                        position = p.get("position", "")
-                        # age from DOB is not always present; skip safely
                         cur.execute("""
                             INSERT INTO national_team_squads (
                                 team_id, team_name, player_id, player_name,
@@ -589,15 +591,15 @@ class InternationalMatchCollector:
                             ) VALUES (%s, %s, %s, %s, 1, 'FIFA World Cup', 2026,
                                       CURRENT_DATE, %s)
                             ON CONFLICT DO NOTHING
-                        """, (team_id, team_name, player_id, player_name, position))
+                        """, (team_id, team_name, p.get("id"), p.get("name", ""), p.get("position", "")))
                         players_inserted += cur.rowcount
                     except Exception as e:
-                        logger.warning(f"  Squad insert error for {team_name}/{p.get('name')}: {e}")
+                        logger.warning(f"  Squad insert error {team_name}/{p.get('name')}: {e}")
                         errors += 1
 
                 conn.commit()
-                logger.info(f"  ✅ {team_name}: {len(players)} players stored")
-                time.sleep(0.2)
+                logger.info(f"  ✅ {team_name}: {len(players)} players")
+                time.sleep(0.3)  # rate-limit courtesy
 
         except Exception as e:
             logger.error(f"Squad collection failed: {e}")
