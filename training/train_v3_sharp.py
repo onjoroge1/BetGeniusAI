@@ -63,6 +63,18 @@ def get_trainable_matches(min_sharp_odds: int = 0) -> List[Tuple[int, str]]:
     conn = psycopg2.connect(os.getenv('DATABASE_URL'))
     cursor = conn.cursor()
 
+    # ── Synthetic odds filter ──────────────────────────────────────────────
+    # fix_odds_consensus_backfill.py injected 3 hardcoded probability templates
+    # into odds_consensus (NOT real collected odds). Training on these teaches the
+    # model to "predict the template" — holdout proved this: 87.3% on contaminated
+    # rows vs 52.0% on real odds. This filter excludes all 3 templates.
+    # (Matches scripts/validate_v3_holdout.py lines 115-117.)
+    SYNTHETIC_FILTER = """
+          AND NOT (ABS(oc.ph_cons - 0.650) < 0.001 AND ABS(oc.pd_cons - 0.250) < 0.001 AND ABS(oc.pa_cons - 0.100) < 0.001)
+          AND NOT (ABS(oc.ph_cons - 0.100) < 0.001 AND ABS(oc.pd_cons - 0.250) < 0.001 AND ABS(oc.pa_cons - 0.650) < 0.001)
+          AND NOT (ABS(oc.ph_cons - 0.300) < 0.001 AND ABS(oc.pd_cons - 0.400) < 0.001 AND ABS(oc.pa_cons - 0.300) < 0.001)
+    """
+
     # Source 1: fixtures + matches (original)
     cursor.execute("""
         SELECT
@@ -80,9 +92,9 @@ def get_trainable_matches(min_sharp_odds: int = 0) -> List[Tuple[int, str]]:
           AND m.home_goals IS NOT NULL
           AND m.away_goals IS NOT NULL
           AND oc.ph_cons IS NOT NULL
-    """)
+    """ + SYNTHETIC_FILTER)
     source1 = {row[0]: (row[0], row[1], row[2]) for row in cursor.fetchall()}
-    logger.info(f"Source 1 (fixtures+matches): {len(source1):,} matches")
+    logger.info(f"Source 1 (fixtures+matches, synthetic-filtered): {len(source1):,} matches")
 
     # Source 2: training_matches (much larger, includes historical)
     cursor.execute("""
@@ -99,6 +111,7 @@ def get_trainable_matches(min_sharp_odds: int = 0) -> List[Tuple[int, str]]:
         JOIN odds_consensus oc ON tm.match_id = oc.match_id
         WHERE tm.outcome IS NOT NULL
           AND oc.ph_cons IS NOT NULL
+    """ + SYNTHETIC_FILTER + """
         ORDER BY tm.match_id, tm.match_date
     """)
     source2_new = 0
@@ -138,22 +151,22 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
 
     logger.info(f"Building features for {len(matches)} matches...")
 
+    # PERF 2026-06-02: open ONE connection for the whole loop instead of one per match.
+    # The old code opened a fresh Neon connection (full SSL handshake) per match — 3500+
+    # handshakes turned a ~2 min job into ~40 min against a remote DB. On a per-match error
+    # we rollback the shared connection so the next match starts clean.
+    conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+
     for i, (match_id, outcome) in enumerate(matches):
         try:
-            conn = psycopg2.connect(os.getenv('DATABASE_URL'))
             cursor = conn.cursor()
 
             match_info = builder._get_match_info(cursor, match_id)
-            if not match_info:
+            if not match_info or match_info['kickoff_time'] is None:
                 cursor.close()
-                conn.close()
                 continue
 
             cutoff_time = match_info['kickoff_time']
-            if cutoff_time is None:
-                cursor.close()
-                conn.close()
-                continue
 
             v2_f = builder._build_v2_core_features(cursor, match_id, cutoff_time)
             ece_f = builder._build_ece_features(cursor, match_info['league_id'])
@@ -164,7 +177,6 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
             form_f = builder._build_form_features(cursor, match_info, cutoff_time) if builder.FORM_FEATURE_NAMES else {}
 
             cursor.close()
-            conn.close()
 
             features = {**v2_f, **ece_f, **h2h_f, **closeness_f,
                         **league_draw_f, **draw_market_f, **form_f}
@@ -173,30 +185,29 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
             # For training_matches, odds_consensus rows are often added after kickoff so
             # the temporal cutoff (oc.timestamp <= kickoff) returns nothing → all probs NaN.
             # LightGBM would then learn home-bias from those empty rows.
-            core = [features.get('ph_cons'), features.get('pd_cons'), features.get('pa_cons')]
+            # BUGFIX 2026-06-02: skip check used DB column names (ph_cons/pd_cons/pa_cons)
+            # but the feature builder emits prob_home/prob_draw/prob_away. The old keys were
+            # always None → every match skipped → "No training data could be built".
+            core = [features.get('prob_home'), features.get('prob_draw'), features.get('prob_away')]
             if any(v is None or (isinstance(v, float) and np.isnan(v)) for v in core):
                 errors += 1  # counted as skipped
-                cursor.close()
-                conn.close()
                 continue
 
             features['match_id'] = match_id
             features['outcome'] = outcome
             records.append(features)
 
-            if (i + 1) % 100 == 0:
-                logger.info(f"  Progress: {i+1}/{len(matches)} matches (errors: {errors})")
+            if (i + 1) % 250 == 0:
+                logger.info(f"  Progress: {i+1}/{len(matches)} matches ({len(records)} built, {errors} skipped)")
 
         except Exception as e:
             errors += 1
-            try:
-                cursor.close()
-                conn.close()
-            except Exception:
-                pass
+            conn.rollback()  # clear any aborted-transaction state on the shared connection
             if errors <= 10:
                 logger.warning(f"  Skip match {match_id}: {e}")
             continue
+
+    conn.close()
 
     if not records:
         raise ValueError("No training data could be built")
@@ -207,17 +218,29 @@ def build_training_dataset(matches: List[Tuple[int, str]], cutoff_hours: float =
     return df
 
 
-def compute_sample_weights(y: np.ndarray) -> np.ndarray:
+def compute_sample_weights(y: np.ndarray, draw_boost: float = 1.5) -> np.ndarray:
     """
-    Compute inverse-frequency class weights to address draw imbalance.
-    Draws (~27%) get ~1.2x weight, Home (~45%) gets ~0.74x weight.
+    Compute class weights to address draw imbalance.
+
+    Updated 2026-05-10 (council review): full inverse-frequency weighting was too
+    weak to fix draw under-prediction — the model still predicted draws only ~2-3%
+    of the time vs ~27% actual (catastrophic in high-draw leagues like Serie A).
+
+    New scheme: sqrt(inverse-frequency) for gentler base weighting, then an explicit
+    draw_boost multiplier on the draw class (index 1). sqrt avoids over-weighting the
+    home class down to near-zero while the explicit boost forces the model to actually
+    predict draws.
     """
     class_counts = np.bincount(y, minlength=3)
     total = len(y)
-    # Inverse frequency weighting: total / (n_classes * count_per_class)
-    class_weights = total / (3.0 * class_counts.clip(min=1))
+    # sqrt(inverse frequency) — gentler than raw inverse frequency
+    inv_freq = total / (3.0 * class_counts.clip(min=1))
+    class_weights = np.sqrt(inv_freq)
+    # Explicit draw boost (class index 1) — forces draw prediction in high-draw leagues
+    class_weights[1] *= draw_boost
 
-    logger.info(f"Class weights: H={class_weights[0]:.3f}, D={class_weights[1]:.3f}, A={class_weights[2]:.3f}")
+    logger.info(f"Class weights (sqrt + {draw_boost}x draw boost): "
+                f"H={class_weights[0]:.3f}, D={class_weights[1]:.3f}, A={class_weights[2]:.3f}")
 
     sample_weights = np.array([class_weights[label] for label in y])
     return sample_weights

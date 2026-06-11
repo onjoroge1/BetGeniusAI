@@ -71,11 +71,16 @@ class V3FeatureBuilder:
         'implied_competitiveness',  # 1 - |prob_home - prob_away| — match balance score
     ]
 
-    # Dropped 2026-05-10: both had exactly 0.0 feature importance across all training runs.
-    # league_draw_rate was never populated from DB (bug in _build_league_draw_features).
-    # league_draw_deviation derived from it so also always NaN → LightGBM ignored both.
-    # Removing reduces feature noise and makes room for sharp divergence features.
-    LEAGUE_DRAW_FEATURE_NAMES: list = []  # was: league_draw_rate, league_draw_deviation
+    # Resurrected + fixed 2026-05-10 (council deep-dive): these had 0.0 importance NOT
+    # because they're useless but because of a double-cursor.fetchone() bug that left them
+    # always NaN. The bug is now fixed in _build_league_draw_features. Serie A (highest
+    # draw rate in Europe, ~30%) specifically needs these to stop under-predicting draws.
+    # Added league_rolling_draw_rate (last 20 matches) to capture in-season draw drift.
+    LEAGUE_DRAW_FEATURE_NAMES = [
+        'league_draw_rate',          # Historical draw % for this league (all-time)
+        'league_draw_deviation',     # This match's draw prob minus league average
+        'league_rolling_draw_rate',  # Draw % over league's last 20 completed matches (seasonal)
+    ]
 
     DRAW_MARKET_FEATURE_NAMES = [
         'draw_dispersion_ratio',    # book_dispersion_draw / avg(dispersion_home, dispersion_away)
@@ -111,7 +116,7 @@ class V3FeatureBuilder:
         if not self.db_url:
             raise ValueError("DATABASE_URL not provided")
 
-        logger.info("✅ V3FeatureBuilder initialized (24 features, draw-enhanced)")
+        logger.info("✅ V3FeatureBuilder initialized (29 features: draw-enhanced + sharp divergence)")
 
     def get_all_feature_names(self) -> List[str]:
         """Get list of all active V3 feature names (22 base + 4 sharp = 26 when form disabled)"""
@@ -368,7 +373,11 @@ class V3FeatureBuilder:
 
         try:
             # Get league draw rate — try training_matches first (much richer data),
-            # then fall back to fixtures+matches
+            # then fall back to fixtures+matches.
+            # BUGFIX 2026-05-10: previously a second cursor.fetchone() ran on the
+            # exhausted cursor whenever training_matches HAD data, wiping `row` to None
+            # and leaving league_draw_rate permanently NaN. Now we capture each result
+            # immediately and never double-fetch.
             cursor.execute("""
                 SELECT
                     COUNT(*) as total,
@@ -377,8 +386,8 @@ class V3FeatureBuilder:
                 WHERE league_id = %s
                   AND outcome IS NOT NULL
             """, (league_id,))
-
             row = cursor.fetchone()
+
             # Fall back to fixtures+matches if training_matches has insufficient data
             if not row or not row[0] or row[0] < 20:
                 cursor.execute("""
@@ -391,8 +400,8 @@ class V3FeatureBuilder:
                       AND f.status = 'finished'
                       AND m.home_goals IS NOT NULL
                 """, (league_id,))
+                row = cursor.fetchone()  # capture the fallback result
 
-            row = cursor.fetchone()
             if row and row[0] and row[0] >= 20:  # Need minimum sample
                 league_draw_rate = row[1] / row[0]
                 features['league_draw_rate'] = round(league_draw_rate, 4)
@@ -400,7 +409,26 @@ class V3FeatureBuilder:
                 # How far this match's draw prob deviates from league average
                 pd_ = v2_features.get('prob_draw')
                 if pd_ is not None and not np.isnan(pd_):
-                    features['league_draw_deviation'] = pd_ - league_draw_rate
+                    features['league_draw_deviation'] = round(pd_ - league_draw_rate, 4)
+
+            # Rolling draw rate: draw % over the league's last 20 completed matches.
+            # Captures seasonal draw drift (draws rise in winter, fall in spring run-ins).
+            cursor.execute("""
+                SELECT COUNT(*) FILTER (WHERE outcome IN ('D', 'Draw'))::float
+                       / NULLIF(COUNT(*), 0) AS rolling_draw_rate
+                FROM (
+                    SELECT outcome
+                    FROM training_matches
+                    WHERE league_id = %s
+                      AND outcome IS NOT NULL
+                    ORDER BY match_date DESC
+                    LIMIT 20
+                ) recent
+            """, (league_id,))
+            roll = cursor.fetchone()
+            if roll and roll[0] is not None:
+                features['league_rolling_draw_rate'] = round(float(roll[0]), 4)
+
         except Exception as e:
             logger.warning(f"League draw features failed for league {league_id}: {e}")
 

@@ -1,0 +1,21 @@
+{
+  "trained_at": "2026-06-11T21:51:47.376468+00:00",
+  "n_train": 3057,
+  "n_holdout": 765,
+  "trained_acc": 0.5882352941176471,
+  "elo_acc": 0.611764705882353,
+  "majority_acc": 0.4588235294117647,
+  "trained_brier": 0.5186912249307427,
+  "elo_brier": 0.5223657198290056,
+  "recommended": "elo",
+  "features": [
+    "elo_diff",
+    "expected_home",
+    "neutral",
+    "is_knockout",
+    "home_form",
+    "away_form",
+    "form_diff",
+    "h2h_home_rate"
+  ]
+}

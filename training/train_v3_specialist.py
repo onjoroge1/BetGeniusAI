@@ -231,12 +231,18 @@ def train_specialist(league_code: str):
     y_train, y_hold = y[:split], y[split:]
     logger.info(f"Train: {len(y_train)}  |  Holdout: {len(y_hold)}")
 
-    # Sqrt class weights (proven safe from main retrain)
+    # Sqrt class weights + explicit draw boost.
+    # 2026-05-10 (council): specialists were predicting draws only ~2.8% of the time
+    # vs ~30% actual in high-draw leagues (Serie A). sqrt weighting alone was too weak.
+    # Add a 1.5x draw boost so the specialist actually learns to predict draws.
+    DRAW_BOOST = 1.5
     class_counts = np.bincount(y_train, minlength=3)
     raw_weights = len(y_train) / (3.0 * class_counts.clip(min=1))
     sqrt_weights = np.sqrt(raw_weights)
+    sqrt_weights[1] *= DRAW_BOOST  # boost draw class (index 1)
     sample_weights = np.array([sqrt_weights[label] for label in y_train])
-    logger.info(f"Sqrt class weights: H={sqrt_weights[0]:.3f}, D={sqrt_weights[1]:.3f}, A={sqrt_weights[2]:.3f}")
+    logger.info(f"Sqrt class weights (+{DRAW_BOOST}x draw boost): "
+                f"H={sqrt_weights[0]:.3f}, D={sqrt_weights[1]:.3f}, A={sqrt_weights[2]:.3f}")
 
     # LightGBM params (slightly smaller for specialist)
     params = {

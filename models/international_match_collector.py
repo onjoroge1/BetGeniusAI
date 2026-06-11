@@ -543,19 +543,25 @@ class InternationalMatchCollector:
 
     def collect_wc2026_squads(self) -> Dict:
         """
-        Collect official WC 2026 squad lists for all 32 nations.
-        Calls API-Football /players/squads?league=1&season=2026.
-        Populates national_team_squads table.
-        Returns summary dict with counts per team.
-        """
-        logger.info("👥 Collecting WC 2026 squad data for all 32 nations...")
+        Collect WC 2026 squad lists for all qualified nations.
 
-        data = self._make_api_request("players/squads", params={"league": 1, "season": 2026})
-        if not data or not data.get("response"):
-            logger.warning("No squad data returned from API-Football for WC 2026")
+        Two-step flow (API-Football's /players/squads takes a `team` param, NOT
+        league/season):
+          1. GET /teams?league=1&season=2026  → list of WC 2026 national teams
+          2. GET /players/squads?team={id}     → current squad per team
+        Populates national_team_squads. Returns summary dict.
+        """
+        logger.info("👥 Collecting WC 2026 squads (step 1: fetch qualified teams)…")
+
+        teams_data = self._make_api_request("teams", params={"league": 1, "season": 2026})
+        if not teams_data or not teams_data.get("response"):
+            logger.warning("No WC 2026 teams returned from API-Football — squads not available yet")
             return {"teams_processed": 0, "players_inserted": 0, "errors": 0}
 
-        squads = data["response"]  # list of {team: {...}, players: [...]}
+        wc_teams = [(t["team"]["id"], t["team"]["name"]) for t in teams_data["response"]
+                    if t.get("team", {}).get("id")]
+        logger.info(f"  Found {len(wc_teams)} WC 2026 national teams")
+
         teams_processed = 0
         players_inserted = 0
         errors = 0
@@ -565,22 +571,18 @@ class InternationalMatchCollector:
             conn = psycopg2.connect(self.db_url)
             cur = conn.cursor()
 
-            for entry in squads:
-                team = entry.get("team", {})
-                players = entry.get("players", [])
-                team_id = team.get("id")
-                team_name = team.get("name", "Unknown")
-
-                if not team_id:
+            for team_id, team_name in wc_teams:
+                squad_data = self._make_api_request("players/squads", params={"team": team_id})
+                if not squad_data or not squad_data.get("response"):
+                    logger.warning(f"  ⚠️  No squad for {team_name} (team {team_id})")
+                    time.sleep(0.3)
                     continue
 
+                # /players/squads response: [{team:{...}, players:[{id,name,position,...}]}]
+                players = squad_data["response"][0].get("players", []) if squad_data["response"] else []
                 teams_processed += 1
                 for p in players:
                     try:
-                        player_id = p.get("id")
-                        player_name = p.get("name", "")
-                        position = p.get("position", "")
-                        # age from DOB is not always present; skip safely
                         cur.execute("""
                             INSERT INTO national_team_squads (
                                 team_id, team_name, player_id, player_name,
@@ -589,15 +591,15 @@ class InternationalMatchCollector:
                             ) VALUES (%s, %s, %s, %s, 1, 'FIFA World Cup', 2026,
                                       CURRENT_DATE, %s)
                             ON CONFLICT DO NOTHING
-                        """, (team_id, team_name, player_id, player_name, position))
+                        """, (team_id, team_name, p.get("id"), p.get("name", ""), p.get("position", "")))
                         players_inserted += cur.rowcount
                     except Exception as e:
-                        logger.warning(f"  Squad insert error for {team_name}/{p.get('name')}: {e}")
+                        logger.warning(f"  Squad insert error {team_name}/{p.get('name')}: {e}")
                         errors += 1
 
                 conn.commit()
-                logger.info(f"  ✅ {team_name}: {len(players)} players stored")
-                time.sleep(0.2)
+                logger.info(f"  ✅ {team_name}: {len(players)} players")
+                time.sleep(0.3)  # rate-limit courtesy
 
         except Exception as e:
             logger.error(f"Squad collection failed: {e}")
@@ -613,6 +615,92 @@ class InternationalMatchCollector:
         }
         logger.info(f"👥 Squad collection complete: {teams_processed} teams, {players_inserted} players")
         return summary
+
+    def seed_wc2026_fixtures(self) -> Dict:
+        """
+        Seed upcoming WC 2026 tournament fixtures into the `fixtures` table so they
+        are addressable by match_id through the standard /predict flow (which routes
+        international league_ids to the national-team ELO model).
+
+        Pulls GET /fixtures?league=1&season=2026 and upserts each into `fixtures`
+        with home_team_id/away_team_id (required by the ELO predictor) + neutral
+        venue handling. Idempotent (ON CONFLICT on match_id).
+        """
+        logger.info("🗓️  Seeding WC 2026 fixtures into `fixtures` table…")
+
+        # Step 0: ensure the 48 national teams exist in `teams` (fixtures has an FK
+        # to teams.team_id; national-team ids aren't there from club seeding).
+        teams_data = self._make_api_request("teams", params={"league": 1, "season": 2026})
+        conn = None
+        try:
+            conn = psycopg2.connect(self.db_url)
+            cur = conn.cursor()
+            n_teams = 0
+            for t in (teams_data.get("response", []) if teams_data else []):
+                team = t.get("team", {})
+                if not team.get("id"):
+                    continue
+                cur.execute("""
+                    INSERT INTO teams (team_id, api_football_team_id, name, league_id, country, logo_url, created_at, updated_at)
+                    VALUES (%s, %s, %s, 1, %s, %s, NOW(), NOW())
+                    ON CONFLICT (team_id) DO UPDATE
+                      SET name = EXCLUDED.name, updated_at = NOW()
+                """, (team["id"], team["id"], team.get("name", "Unknown"),
+                      team.get("country"), team.get("logo")))
+                n_teams += 1
+            conn.commit()
+            logger.info(f"  ✅ Ensured {n_teams} national teams in `teams`")
+        except Exception as e:
+            logger.error(f"National team seeding failed: {e}")
+            if conn:
+                conn.close()
+            return {"fixtures_seeded": 0, "error": f"team seed failed: {e}"}
+
+        data = self._make_api_request("fixtures", params={"league": 1, "season": 2026})
+        if not data or not data.get("response"):
+            logger.warning("No WC 2026 fixtures returned from API-Football")
+            conn.close()
+            return {"fixtures_seeded": 0}
+
+        fixtures = data["response"]
+        seeded = 0
+        try:
+            cur = conn.cursor()
+            for f in fixtures:
+                fi = f["fixture"]
+                t = f["teams"]
+                lg = f["league"]
+                match_id = fi["id"]
+                status = (fi.get("status") or {}).get("short", "NS")
+                cur.execute("""
+                    INSERT INTO fixtures (
+                        match_id, league_id, league_name, season,
+                        home_team, away_team, home_team_id, away_team_id,
+                        kickoff_at, country, status, created_at, updated_at
+                    ) VALUES (%s, 1, 'FIFA World Cup', 2026, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    ON CONFLICT (match_id) DO UPDATE
+                      SET kickoff_at = EXCLUDED.kickoff_at,
+                          status = EXCLUDED.status,
+                          home_team = EXCLUDED.home_team,
+                          away_team = EXCLUDED.away_team,
+                          home_team_id = EXCLUDED.home_team_id,
+                          away_team_id = EXCLUDED.away_team_id,
+                          updated_at = NOW()
+                """, (match_id, t["home"]["name"], t["away"]["name"],
+                      t["home"]["id"], t["away"]["id"], fi["date"],
+                      (fi.get("venue") or {}).get("name") or lg.get("country"), status))
+                seeded += 1
+            conn.commit()
+            cur.close()
+        except Exception as e:
+            logger.error(f"WC fixture seeding failed: {e}")
+            return {"fixtures_seeded": seeded, "error": str(e)}
+        finally:
+            if conn:
+                conn.close()
+
+        logger.info(f"✅ Seeded {seeded} WC 2026 fixtures into `fixtures`")
+        return {"fixtures_seeded": seeded}
 
     def verify_league_map(self) -> Dict:
         """

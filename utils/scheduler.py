@@ -1973,24 +1973,24 @@ class BackgroundScheduler:
 
     async def _run_wc2026_match_collection(self):
         """
-        🏆 WC 2026: Main Tournament Match Collection
-        Collects FIFA World Cup 2026 match results (league_id=1, season=2026).
-        Runs every 6 hours. No-ops outside June 11 – July 19 2026.
+        🏆 WC 2026: Main Tournament Fixtures + Results
+        Seeds upcoming WC fixtures (so they're predictable by match_id) and collects
+        results. Runs every 6 hours. Active from 2 weeks pre-kickoff through the final.
         """
         from datetime import date
-        tournament_start = date(2026, 6, 11)
-        tournament_end   = date(2026, 7, 19)
         today = date.today()
-
-        # Only run during the tournament window (±1 day buffer each side)
-        if not (tournament_start.replace(day=tournament_start.day - 1) <= today
-                <= tournament_end.replace(day=min(tournament_end.day + 1, 31))):
-            return  # Silent no-op outside tournament window
+        # Active 2026-05-28 (pre-tournament seeding) → 2026-07-21 (final +2 days)
+        if not (date(2026, 5, 28) <= today <= date(2026, 7, 21)):
+            return  # Silent no-op outside the window
 
         try:
             from models.international_match_collector import InternationalMatchCollector
-            logger.info("🏆 WC2026: Collecting tournament match data (league_id=1, season=2026)…")
+            logger.info("🏆 WC2026: Collecting tournament fixtures + results (league_id=1, season=2026)…")
             collector = InternationalMatchCollector()
+            # Seed/refresh upcoming fixtures first (knockout bracket fills in over the tournament)
+            seed = collector.seed_wc2026_fixtures()
+            logger.info(f"🗓️  WC2026: {seed.get('fixtures_seeded', 0)} fixtures seeded/refreshed")
+            # Then collect completed-match results
             result = collector.collect_league_season(1, 2026)
             inserted = result.get("inserted", 0)
             total    = result.get("matches", 0)
