@@ -195,7 +195,13 @@ class NationalEloModel:
         remaining = 1.0 - p_draw
         p_home = remaining * exp_h
         p_away = remaining * (1.0 - exp_h)
-        return {"home": round(p_home, 4), "draw": round(p_draw, 4), "away": round(p_away, 4)}
+        # Round to 4dp but guarantee the three sum to exactly 1.0 (frontend relies on it):
+        # absorb any rounding residual into the largest component.
+        rounded = {"home": round(p_home, 4), "draw": round(p_draw, 4), "away": round(p_away, 4)}
+        residual = round(1.0 - sum(rounded.values()), 4)
+        kmax = max(rounded, key=rounded.get)
+        rounded[kmax] = round(rounded[kmax] + residual, 4)
+        return rounded
 
     def load_ratings(self):
         """Load persisted ratings from DB (for inference without rebuilding)."""

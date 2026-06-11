@@ -10,8 +10,26 @@ import psycopg2
 from datetime import datetime, timezone
 
 def backfill_odds_consensus():
-    """Backfill missing records in odds_consensus from training_matches"""
-    
+    """
+    ⛔ DISABLED 2026-06-03 — DO NOT USE.
+
+    This script fabricated odds_consensus rows by reading each match's KNOWN
+    OUTCOME and writing probabilities that favour the actual winner (0.65 toward
+    home/away, or 0.30/0.40/0.30 for draws). That is catastrophic target leakage:
+    it inserts "consensus" that already knows the result.
+
+    These synthetic rows contaminated V3 training (holdout proved 87% on fakes vs
+    52% on real odds) and were purged. The model now trains only on real collected
+    odds. Re-enabling this would re-poison the data — it stays disabled.
+
+    If a match genuinely has no odds, the correct behaviour is to have NO
+    odds_consensus row (the cascade falls back to V0/ELO), not a fabricated one.
+    """
+    print("⛔ fix_odds_consensus_backfill is permanently DISABLED — it fabricated "
+          "outcome-leaking synthetic rows. See the docstring. Refusing to run.")
+    return False
+
+    # --- original implementation retained below but unreachable ---
     # Database connection
     database_url = os.environ.get('DATABASE_URL')
     if not database_url:

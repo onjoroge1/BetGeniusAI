@@ -2739,47 +2739,6 @@ async def get_consensus_prediction_from_db(match_id: int):
         logger.error(f'Error getting consensus prediction for match {match_id}: {e}')
         return None
 
-def build_wc_response(match_id: int, home_team: str, away_team: str,
-                      wc_result: dict, neutral: bool) -> dict:
-    """Shared WC/international response builder (used by /predict TIER-0 and /predict-wc)."""
-    probs = wc_result["probabilities"]
-    return {
-        "match_info": {
-            "match_id": match_id,
-            "home_team": home_team,
-            "away_team": away_team,
-            "competition": "International / World Cup",
-            "neutral_venue": neutral,
-        },
-        "predictions": {
-            "home_win": probs["home"],
-            "draw": probs["draw"],
-            "away_win": probs["away"],
-            "recommended_bet": wc_result["recommended_bet"],
-            "confidence": wc_result["confidence"],
-        },
-        "models": [{
-            "id": "wc_elo",
-            "name": "National-Team ELO",
-            "type": "elo",
-            "status": "primary",
-            "predictions": probs,
-            "recommended_bet": wc_result["recommended_bet"],
-            "confidence": wc_result["confidence"],
-            "elo_home": wc_result["elo_home"],
-            "elo_away": wc_result["elo_away"],
-            "elo_diff": wc_result["elo_diff"],
-        }],
-        "selected_model": "wc_elo",
-        "final_decision": {
-            "recommended_bet": wc_result["recommended_bet"],
-            "confidence": wc_result["confidence"],
-            "model_agreement": {"wc_pick": wc_result["prediction"]},
-        },
-        "provenance": wc_result["note"],
-    }
-
-
 @app.post("/predict")
 async def predict_match(
     request: PredictionRequest,
@@ -2876,35 +2835,13 @@ async def predict_match(
         # WC fixtures are seeded into `fixtures` with league_id in the international set.
         # These don't use the club V3/V1/V0 cascade (V3 isn't trained on internationals
         # and would just echo thin WC odds). Route to the validated ELO model and return.
-        _wc_league_id = match_details.get('league', {}).get('id', 0)
+        # Routing logic lives in models.wc_predictor (testable without web deps).
         try:
-            from models.wc_predictor import get_wc_predictor, WCPredictor
-            if WCPredictor.is_international(_wc_league_id):
-                _wc = get_wc_predictor()
-                if _wc.is_available():
-                    _hid = _aid = None
-                    try:
-                        with _pg2.connect(os.environ.get('DATABASE_URL'), connect_timeout=5) as _wc_conn:
-                            with _wc_conn.cursor() as _wc_cur:
-                                _wc_cur.execute(
-                                    "SELECT home_team_id, away_team_id FROM fixtures WHERE match_id=%s LIMIT 1",
-                                    (request.match_id,))
-                                _row = _wc_cur.fetchone()
-                                if _row:
-                                    _hid, _aid = _row
-                    except Exception as _wc_lookup_err:
-                        logger.warning(f"WC team-id lookup failed: {_wc_lookup_err}")
-                    _neutral = (_wc_league_id == 1)  # WC tournament = neutral venues; qualifiers home/away
-                    _wc_res = _wc.predict(_hid, _aid, neutral=_neutral) if (_hid and _aid) else None
-                    if _wc_res:
-                        logger.info(f"🌍 WC ELO prediction for match {request.match_id}: "
-                                    f"{_wc_res['recommended_bet']} @ {_wc_res['confidence']:.2f} "
-                                    f"(ELO {_wc_res['elo_home']:.0f} vs {_wc_res['elo_away']:.0f})")
-                        return build_wc_response(request.match_id, match_info['home_team'],
-                                                 match_info['away_team'], _wc_res, _neutral)
-                    else:
-                        logger.info(f"WC match {request.match_id} but no ELO rating for teams — "
-                                    f"falling through to club cascade")
+            from models.wc_predictor import route_wc_by_match_id
+            _wc_league_id = match_details.get('league', {}).get('id', 0)
+            _wc_resp = route_wc_by_match_id(request.match_id, league_id=_wc_league_id)
+            if _wc_resp:
+                return _wc_resp
         except Exception as _wc_err:
             logger.warning(f"WC routing failed (non-fatal), continuing to club cascade: {_wc_err}")
 

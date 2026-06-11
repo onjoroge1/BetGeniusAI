@@ -98,6 +98,101 @@ def get_wc_predictor() -> WCPredictor:
     return _wc_predictor
 
 
+def build_wc_response(match_id: int, home_team: str, away_team: str,
+                      wc_result: dict, neutral: bool) -> dict:
+    """
+    Shared WC/international response builder. Pure dict construction (no web deps)
+    so it's importable by both the FastAPI handler and the test suite.
+    """
+    probs = wc_result["probabilities"]
+    return {
+        "match_info": {
+            "match_id": match_id,
+            "home_team": home_team,
+            "away_team": away_team,
+            "competition": "International / World Cup",
+            "neutral_venue": neutral,
+        },
+        "predictions": {
+            "home_win": probs["home"],
+            "draw": probs["draw"],
+            "away_win": probs["away"],
+            "recommended_bet": wc_result["recommended_bet"],
+            "confidence": wc_result["confidence"],
+        },
+        "models": [{
+            "id": "wc_elo",
+            "name": "National-Team ELO",
+            "type": "elo",
+            "status": "primary",
+            "predictions": probs,
+            "recommended_bet": wc_result["recommended_bet"],
+            "confidence": wc_result["confidence"],
+            "elo_home": wc_result["elo_home"],
+            "elo_away": wc_result["elo_away"],
+            "elo_diff": wc_result["elo_diff"],
+        }],
+        "selected_model": "wc_elo",
+        "final_decision": {
+            "recommended_bet": wc_result["recommended_bet"],
+            "confidence": wc_result["confidence"],
+            "model_agreement": {"wc_pick": wc_result["prediction"]},
+        },
+        "provenance": wc_result["note"],
+    }
+
+
+def route_wc_by_match_id(match_id: int, league_id: Optional[int] = None,
+                         db_url: Optional[str] = None) -> Optional[dict]:
+    """
+    TIER-0 routing logic, extracted from the /predict handler so it's testable.
+
+    Returns a complete WC response dict if `match_id` is an international match
+    whose teams have ELO ratings; otherwise returns None (caller falls through
+    to the club cascade). `league_id` may be passed if already known to skip a
+    lookup; otherwise it's read from the fixtures row.
+    """
+    import psycopg2
+    db_url = db_url or os.getenv("DATABASE_URL")
+    if not db_url:
+        return None
+
+    home = away = None
+    hid = aid = None
+    lid = league_id
+    try:
+        with psycopg2.connect(db_url, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT home_team, away_team, home_team_id, away_team_id, league_id
+                    FROM fixtures WHERE match_id = %s LIMIT 1
+                """, (match_id,))
+                row = cur.fetchone()
+                if not row:
+                    return None
+                home, away, hid, aid, lid_row = row
+                if lid is None:
+                    lid = lid_row
+    except Exception as e:
+        logger.warning(f"WC route lookup failed for match {match_id}: {e}")
+        return None
+
+    if not WCPredictor.is_international(lid):
+        return None
+
+    wc = get_wc_predictor()
+    if not wc.is_available() or not hid or not aid:
+        return None
+
+    neutral = (lid == 1)  # WC tournament = neutral venues; qualifiers home/away
+    result = wc.predict(hid, aid, neutral=neutral)
+    if not result:
+        return None
+    logger.info(f"🌍 WC ELO route for match {match_id}: {result['recommended_bet']} "
+                f"@ {result['confidence']:.2f}")
+    return build_wc_response(match_id, home, away, result, neutral)
+
+
 if __name__ == "__main__":
     import re, logging as _l
     from pathlib import Path
