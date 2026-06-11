@@ -696,6 +696,14 @@ class PredictionRequest(BaseModel):
     include_additional_markets: bool = Field(True, description="Include additional betting markets")
     include_sgp: bool = Field(False, description="Include Same-Game Parlay recommendation")
 
+class WCPredictionRequest(BaseModel):
+    """International / World Cup prediction via national-team ELO (non-market model)."""
+    home_team: Optional[str] = Field(None, description="Home national team name (e.g. 'Spain')")
+    away_team: Optional[str] = Field(None, description="Away national team name (e.g. 'Argentina')")
+    home_team_id: Optional[int] = Field(None, description="API-Football home team id (overrides name)")
+    away_team_id: Optional[int] = Field(None, description="API-Football away team id (overrides name)")
+    neutral: bool = Field(True, description="Neutral venue (true for tournament matches)")
+
 class MatchInfo(BaseModel):
     match_id: int
     home_team: str
@@ -3829,6 +3837,82 @@ async def predict_match(
             status_code=500,
             detail=f"Error generating enhanced prediction: {str(e)}"
         )
+
+@app.post("/predict-wc", tags=["Prediction"])
+async def predict_world_cup(
+    request: WCPredictionRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    World Cup / international-match prediction via national-team ELO.
+
+    This is a SEPARATE, non-market model from /predict (which is club-only and
+    market-derived). WC matches live in `international_matches`, not `fixtures`,
+    so they don't flow through /predict. This endpoint serves the validated
+    national-team ELO model (holdout 61.2% vs 45.9% baseline — a genuine
+    non-market signal, unlike the club V3 which only echoed the betting line).
+
+    Call by team name or API-Football team id. neutral=true for tournament games.
+    """
+    try:
+        from models.wc_predictor import get_wc_predictor
+        wc = get_wc_predictor()
+        if not wc.is_available():
+            raise HTTPException(status_code=503,
+                                detail="WC model unavailable — national_team_elo not populated")
+
+        if request.home_team_id and request.away_team_id:
+            result = wc.predict(request.home_team_id, request.away_team_id, neutral=request.neutral)
+        elif request.home_team and request.away_team:
+            result = wc.predict_by_name(request.home_team, request.away_team, neutral=request.neutral)
+        else:
+            raise HTTPException(status_code=400,
+                                detail="Provide home_team/away_team names or home_team_id/away_team_id")
+
+        if not result:
+            raise HTTPException(status_code=404,
+                                detail="One or both teams have no ELO rating (unknown national team)")
+
+        probs = result["probabilities"]
+        return {
+            "match_info": {
+                "home_team": request.home_team or str(request.home_team_id),
+                "away_team": request.away_team or str(request.away_team_id),
+                "competition": "International / World Cup",
+                "neutral_venue": request.neutral,
+            },
+            "predictions": {
+                "home_win": probs["home"],
+                "draw": probs["draw"],
+                "away_win": probs["away"],
+                "recommended_bet": result["recommended_bet"],
+                "confidence": result["confidence"],
+            },
+            "models": [{
+                "id": "wc_elo",
+                "name": "National-Team ELO",
+                "type": "elo",
+                "status": "primary",
+                "predictions": probs,
+                "recommended_bet": result["recommended_bet"],
+                "confidence": result["confidence"],
+                "elo_home": result["elo_home"],
+                "elo_away": result["elo_away"],
+                "elo_diff": result["elo_diff"],
+            }],
+            "selected_model": "wc_elo",
+            "final_decision": {
+                "recommended_bet": result["recommended_bet"],
+                "confidence": result["confidence"],
+                "model_agreement": {"wc_pick": result["prediction"]},
+            },
+            "provenance": result["note"],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"WC prediction failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"WC prediction error: {str(e)}")
 
 @app.get("/consensus/sync")
 async def sync_consensus_predictions(
