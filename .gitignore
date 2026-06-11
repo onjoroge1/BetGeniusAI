@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.*
+!.env.example          # keep the placeholder template
 *.key
 
 # Python
