@@ -50,7 +50,15 @@ class ClosingOddsCapture:
                       AND status IN ('scheduled', 'live')
                 ),
                 latest_odds AS (
-                    -- Get most recent odds snapshot for each match/book/outcome (last 30 min)
+                    -- Most recent odds snapshot per match/book/outcome.
+                    -- BUGFIX 2026-06-12: odds_snapshots.outcome stores 'H'/'D'/'A',
+                    -- NOT 'home'/'draw'/'away' — the old CASE matched nothing, so every
+                    -- aggregate was NULL and closing_odds stayed empty forever.
+                    -- Lookback widened 30 min → 6 h: league-rotation collection never
+                    -- samples closer than ~2 h to kickoff (median gap 2.9 h), so this is
+                    -- a last-pre-kickoff PROXY for the close, not a T-90s close. The
+                    -- actual snapshot time is recorded in closing_time and the method
+                    -- label says 'last_prekickoff' so consumers can see the staleness.
                     SELECT DISTINCT ON (os.match_id, os.book_id, os.outcome)
                         os.match_id,
                         os.book_id,
@@ -59,17 +67,17 @@ class ClosingOddsCapture:
                         os.ts_snapshot
                     FROM odds_snapshots os
                     JOIN kickoff_matches km USING(match_id)
-                    WHERE os.ts_snapshot > NOW() - INTERVAL '30 minutes'
+                    WHERE os.ts_snapshot > NOW() - INTERVAL '6 hours'
                       AND os.market = 'h2h'
                     ORDER BY os.match_id, os.book_id, os.outcome, os.ts_snapshot DESC
                 ),
                 aggregated_closing AS (
                     -- Aggregate across bookmakers to get consensus closing line
-                    SELECT 
+                    SELECT
                         match_id,
-                        AVG(CASE WHEN outcome = 'home' THEN odds_decimal END) as h_close_odds,
-                        AVG(CASE WHEN outcome = 'draw' THEN odds_decimal END) as d_close_odds,
-                        AVG(CASE WHEN outcome = 'away' THEN odds_decimal END) as a_close_odds,
+                        AVG(CASE WHEN outcome IN ('H', 'home') THEN odds_decimal END) as h_close_odds,
+                        AVG(CASE WHEN outcome IN ('D', 'draw') THEN odds_decimal END) as d_close_odds,
+                        AVG(CASE WHEN outcome IN ('A', 'away') THEN odds_decimal END) as a_close_odds,
                         MAX(ts_snapshot) as closing_time,
                         COUNT(DISTINCT book_id) as num_books,
                         COUNT(*) as samples_used
@@ -96,7 +104,7 @@ class ClosingOddsCapture:
                     ac.a_close_odds,
                     ac.closing_time,
                     ac.num_books,
-                    '90s_snapshot' as method_used,
+                    'last_prekickoff' as method_used,
                     ac.samples_used,
                     NOW() as created_at
                 FROM aggregated_closing ac
