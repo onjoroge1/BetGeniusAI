@@ -671,7 +671,19 @@ class InternationalMatchCollector:
                 t = f["teams"]
                 lg = f["league"]
                 match_id = fi["id"]
-                status = (fi.get("status") or {}).get("short", "NS")
+                # Map API-Football short codes to platform-convention statuses.
+                # BUGFIX 2026-06-12: raw codes ('NS') were stored, which the live data
+                # collector and other tasks filter on 'scheduled'/'live'/'finished' —
+                # WC matches were invisible to live collection at kickoff.
+                _short = (fi.get("status") or {}).get("short", "NS")
+                if _short in ("NS", "TBD"):
+                    status = "scheduled"
+                elif _short in ("1H", "HT", "2H", "ET", "P", "BT", "LIVE", "INT", "SUSP"):
+                    status = "live"
+                elif _short in ("FT", "AET", "PEN"):
+                    status = "finished"
+                else:
+                    status = _short  # PST/CANC/ABD etc. — keep raw code visible
                 cur.execute("""
                     INSERT INTO fixtures (
                         match_id, league_id, league_name, season,

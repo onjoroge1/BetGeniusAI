@@ -35,19 +35,35 @@ class LiveDataCollector:
         with psycopg2.connect(self.db_url) as conn:
             cursor = conn.cursor()
             
-            # Get matches that kicked off in last 2 hours and aren't finished
-            # Join with matches table to get API-Football fixture IDs
+            # Get matches that kicked off recently and aren't finished.
+            # BUGFIX 2026-06-12 (live tables had 0 rows EVER — three blockers):
+            #   1. status='scheduled' only — but WC-seeded fixtures use API short codes
+            #      ('NS' pre-match, '1H'/'HT'/'2H' once live), so live matches were
+            #      excluded at exactly the moment they mattered. Accept all live codes.
+            #   2. m.api_football_fixture_id required a `matches` row, which often only
+            #      appears AFTER full time (fixtures_sync syncs finished fixtures). For
+            #      international fixtures, fixtures.match_id IS the API-Football fixture
+            #      id by construction (WC seeder) — use it directly via COALESCE.
+            #   3. Window widened 2h → 150 min to cover stoppage/extra time.
             cursor.execute("""
-                SELECT 
+                SELECT
                     f.match_id,
-                    m.api_football_fixture_id,
+                    COALESCE(
+                        m.api_football_fixture_id,
+                        CASE WHEN f.league_id IN (1,4,5,6,9,10,29,30,31,32,33,34)
+                             THEN f.match_id END
+                    ) AS api_football_id,
                     f.kickoff_at
                 FROM fixtures f
                 LEFT JOIN matches m ON f.match_id = m.match_id
                 WHERE f.kickoff_at <= NOW()
-                    AND f.kickoff_at > NOW() - INTERVAL '2 hours'
-                    AND f.status = 'scheduled'
-                    AND m.api_football_fixture_id IS NOT NULL
+                    AND f.kickoff_at > NOW() - INTERVAL '150 minutes'
+                    AND f.status IN ('scheduled','NS','live','1H','HT','2H','ET','P','BT','INT','SUSP')
+                    AND COALESCE(
+                        m.api_football_fixture_id,
+                        CASE WHEN f.league_id IN (1,4,5,6,9,10,29,30,31,32,33,34)
+                             THEN f.match_id END
+                    ) IS NOT NULL
                 ORDER BY f.kickoff_at DESC
             """)
             
