@@ -3680,6 +3680,23 @@ async def predict_match(
             "processing_time": round(processing_time, 3),
             "timestamp": datetime.now().isoformat()
         }
+
+        # ── Edge/value blocks (strategic pivot: accuracy → edge) ──────────────
+        # Additive + backward compatible: market (de-vigged line + best price),
+        # value (per-outcome edge, EV at best price, nullable value_bet, Kelly),
+        # clv (filled progressively: predict → close → settlement), and the
+        # model honesty registry. Never fatal to the prediction itself.
+        try:
+            from utils.edge import build_edge_blocks, get_model_track_record
+            response.update(build_edge_blocks(
+                request.match_id,
+                {"home": h_norm, "draw": d_norm, "away": a_norm},
+            ))
+            response["model_track_record"] = get_model_track_record(selected_model)
+        except Exception as _edge_err:
+            logger.warning(f"Edge blocks failed (non-fatal): {_edge_err}")
+            response.setdefault("market", None)
+            response.setdefault("value", None)
         
         # Add comprehensive_analysis structure for frontend compatibility
         comprehensive_analysis = {
