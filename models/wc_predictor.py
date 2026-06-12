@@ -103,9 +103,10 @@ def build_wc_response(match_id: int, home_team: str, away_team: str,
     """
     Shared WC/international response builder. Pure dict construction (no web deps)
     so it's importable by both the FastAPI handler and the test suite.
+    Includes the edge/value blocks (nullable when WC odds aren't collected yet).
     """
     probs = wc_result["probabilities"]
-    return {
+    response = {
         "match_info": {
             "match_id": match_id,
             "home_team": home_team,
@@ -140,6 +141,19 @@ def build_wc_response(match_id: int, home_team: str, away_team: str,
         },
         "provenance": wc_result["note"],
     }
+
+    # Edge/value blocks — WC odds flow into odds_consensus/odds_snapshots once
+    # the tournament markets are collected; until then these degrade to null.
+    try:
+        from utils.edge import build_edge_blocks, get_model_track_record
+        response.update(build_edge_blocks(match_id, probs))
+        response["model_track_record"] = get_model_track_record("wc_elo")
+    except Exception as e:  # never fatal to the prediction
+        logger.warning(f"WC edge blocks failed (non-fatal): {e}")
+        response.setdefault("market", None)
+        response.setdefault("value", None)
+
+    return response
 
 
 def route_wc_by_match_id(match_id: int, league_id: Optional[int] = None,
