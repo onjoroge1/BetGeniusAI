@@ -240,6 +240,9 @@ app.include_router(api_tester_router)
 from routes.multisport_market import router as multisport_market_router
 app.include_router(multisport_market_router)
 
+from routes.live_edge import router as live_edge_router
+app.include_router(live_edge_router)
+
 from routes.player_predictions import router as player_predictions_router
 app.include_router(player_predictions_router, tags=["Player Scorer Predictions (ML)"])
 
