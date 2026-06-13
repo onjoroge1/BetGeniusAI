@@ -1,0 +1,35 @@
+{
+  "validated_at": "2026-06-13T12:31:46.613808+00:00",
+  "min_n": 100,
+  "results": [
+    {
+      "sport": "basketball_nba",
+      "n_with_odds": 30,
+      "n_scored": 30,
+      "model_accuracy": 0.8,
+      "favorite_accuracy": 0.9,
+      "delta_pp": -10.0,
+      "model_brier": 0.1033,
+      "favorite_brier": 0.0908,
+      "verdict": "INSUFFICIENT_SAMPLE",
+      "edge_validated_recommendation": false
+    },
+    {
+      "sport": "icehockey_nhl",
+      "n_with_odds": 27,
+      "n_scored": 27,
+      "model_accuracy": 0.7037,
+      "favorite_accuracy": 0.8148,
+      "delta_pp": -11.11,
+      "model_brier": 0.1682,
+      "favorite_brier": 0.1312,
+      "verdict": "INSUFFICIENT_SAMPLE",
+      "edge_validated_recommendation": false
+    },
+    {
+      "sport": "basketball_ncaab",
+      "n_with_odds": 0,
+      "verdict": "NO_DATA"
+    }
+  ]
+}
