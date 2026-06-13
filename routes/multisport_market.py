@@ -305,6 +305,20 @@ async def get_multisport_market(
                     correct = (model["pick"] == result["result"])
                     match["model"]["correct"] = correct
 
+            # ── Edge/value blocks (strategic pivot: accuracy → edge; 2-way) ──
+            # market (de-vigged consensus + best price across books), value
+            # (per-outcome edge, EV at best price, nullable value_bet), clv,
+            # and the honesty registry. Additive; never fatal; upcoming only.
+            if not is_finished and model:
+                try:
+                    from utils.multisport_edge import build_multisport_edge_blocks
+                    _blocks = build_multisport_edge_blocks(
+                        cons if cons else None, books, model, sport)
+                    if _blocks:
+                        match.update(_blocks)
+                except Exception as _edge_err:
+                    logger.debug(f"Edge blocks failed for {eid}: {_edge_err}")
+
             matches.append(match)
 
         processing_time = round((datetime.now() - start_time).total_seconds(), 3)
@@ -538,6 +552,18 @@ async def get_multisport_results(
 
             odds = consensus_map.get(eid, {})
 
+            # ── Edge analysis (pivot): pick vs de-vigged market + realized 1u return ──
+            edge_analysis = None
+            if pred and odds and res.get("result") in ("H", "A"):
+                try:
+                    from utils.multisport_edge import edge_analysis_for_result
+                    edge_analysis = edge_analysis_for_result(
+                        {"pick": pred["pick"], "home_win": pred["home_prob"],
+                         "away_win": pred["away_prob"]},
+                        odds, res["result"])
+                except Exception as _ea_err:
+                    logger.debug(f"edge_analysis failed for {eid}: {_ea_err}")
+
             match_obj = {
                 "event_id": eid,
                 "home_team": home,
@@ -550,6 +576,7 @@ async def get_multisport_results(
                 "prediction": pred,
                 "odds": odds if odds else None,
                 "correct": correct,
+                "edge_analysis": edge_analysis,
             }
             matches.append(match_obj)
 
@@ -620,6 +647,19 @@ async def get_multisport_results(
             "high_confidence_total": len(high_conf),
             "current_streak": {"type": streak_type or "N/A", "count": streak_count},
         }
+
+        # ── Edge metrics (the pivot headline; accuracy fields above become
+        #    diagnostics in the frontend presentation — FRONTEND_EDGE_QA §8) ──
+        try:
+            from utils.multisport_edge import summarize_edge_metrics
+            from utils.edge import get_model_track_record, multisport_model_id
+            summary["edge_metrics"] = summarize_edge_metrics(
+                [m.get("edge_analysis") for m in matches])
+            summary["model_track_record"] = get_model_track_record(
+                multisport_model_id(sport))
+        except Exception as _em_err:
+            logger.debug(f"edge_metrics failed: {_em_err}")
+            summary.setdefault("edge_metrics", None)
 
         processing_time = round((datetime.now() - start_time).total_seconds(), 3)
 

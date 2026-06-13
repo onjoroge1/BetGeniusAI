@@ -58,6 +58,10 @@ async def get_best_player_parlays(
                 'combined_odds': float(p['combined_odds']),
                 'win_probability': float(p['raw_prob_pct']),
                 'edge_pct': float(p['edge_pct']),
+                # Phase C4 honest verdict: value_eligible = every leg priced + +EV
+                # + parlay +EV (poison-leg rule); parlay_ev_pct = compounded EV.
+                'value_eligible': bool(p.get('has_market_odds', False)),
+                'parlay_ev_pct': float(p['ev_pct']) if p.get('ev_pct') is not None else None,
                 'confidence': p['confidence_tier'],
                 'payout_100': float(p['payout_100']),
                 'legs': [
@@ -115,6 +119,10 @@ async def get_player_parlays_by_legs(
                 'combined_odds': float(p['combined_odds']),
                 'win_probability': float(p['raw_prob_pct']),
                 'edge_pct': float(p['edge_pct']),
+                # Phase C4 honest verdict: value_eligible = every leg priced + +EV
+                # + parlay +EV (poison-leg rule); parlay_ev_pct = compounded EV.
+                'value_eligible': bool(p.get('has_market_odds', False)),
+                'parlay_ev_pct': float(p['ev_pct']) if p.get('ev_pct') is not None else None,
                 'confidence': p['confidence_tier'],
                 'payout_100': float(p['payout_100']),
                 'legs': [
