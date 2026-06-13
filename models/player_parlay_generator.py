@@ -638,6 +638,23 @@ class PlayerParlayGenerator:
 
         edge_pct = round(total_ev / len(legs) * 100, 2) if has_any_market_odds else 0
 
+        # ── Edge verdict (Phase C4): the honest, compounded parlay EV ──────────
+        # The legacy edge_pct above averages per-leg EV — NOT the parlay EV, and
+        # it counts a ticket as "edge" if ANY single leg is priced. utils.edge
+        # gives the real verdict: a parlay is value-eligible only when EVERY leg
+        # is priced AND +EV (the poison-leg rule), with EV = ∏p × ∏odds − 1.
+        all_priced = all(l.get('has_market_odds') for l in legs)
+        value_block = None
+        value_eligible = False
+        if all_priced:
+            try:
+                from utils.edge import parlay_metrics
+                value_block = parlay_metrics(
+                    [{"p": l["model_prob"], "odds": l["decimal_odds"]} for l in legs])
+                value_eligible = value_block["eligible"] and value_block["ev"] > 0
+            except Exception as _pm_err:
+                logger.debug(f"parlay_metrics failed: {_pm_err}")
+
         return {
             'parlay_hash': parlay_hash,
             'leg_count': len(legs),
@@ -651,19 +668,27 @@ class PlayerParlayGenerator:
             'has_market_odds': has_any_market_odds,
             'edge_pct': edge_pct,
             'avg_ev': round(total_ev / len(legs), 4) if legs else 0,
+            # Phase C4 honest fields:
+            'all_legs_priced': all_priced,
+            'value_eligible': value_eligible,   # all legs priced + each +EV + parlay +EV
+            'parlay_ev': value_block["ev"] if value_block else None,
+            'parlay_value': value_block,        # full {leg_evs, fair_prob, fair_odds, rating...}
         }
 
     def _save_parlay(self, parlay: Dict) -> bool:
         session = self.Session()
         try:
+            # Phase C4: persist the honest verdict — has_market_odds now means
+            # ALL legs priced (not "any"); ev_pct carries the true compounded
+            # parlay EV from utils.edge.parlay_metrics (None → 0 until odds flow).
             result = session.execute(text("""
-                INSERT INTO player_parlays 
-                (parlay_hash, leg_count, match_ids, combined_odds, raw_prob_pct, 
+                INSERT INTO player_parlays
+                (parlay_hash, leg_count, match_ids, combined_odds, raw_prob_pct,
                  adjusted_prob_pct, edge_pct, confidence_tier, payout_100, expires_at,
                  has_market_odds, ev_pct, calibrated_prob_pct)
                 VALUES (:parlay_hash, :leg_count, :match_ids, :combined_odds, :raw_prob_pct,
                         :adjusted_prob_pct, :edge_pct, :confidence_tier, :payout_100, :expires_at,
-                        FALSE, 0, :calibrated_prob_pct)
+                        :all_priced, :parlay_ev_pct, :calibrated_prob_pct)
                 ON CONFLICT (parlay_hash) DO NOTHING
                 RETURNING id
             """), {
@@ -677,6 +702,8 @@ class PlayerParlayGenerator:
                 'confidence_tier': parlay['risk_tier'],
                 'payout_100': parlay['payout_100'],
                 'expires_at': parlay['expires_at'],
+                'all_priced': bool(parlay.get('value_eligible', False)),
+                'parlay_ev_pct': round((parlay.get('parlay_ev') or 0) * 100, 2),
                 'calibrated_prob_pct': parlay['combined_prob_pct']
             })
 
