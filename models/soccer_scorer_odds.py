@@ -25,6 +25,9 @@ SOCCER_LEAGUES = {
     'soccer_germany_bundesliga': {'league_id': 78, 'name': 'Bundesliga'},
     'soccer_france_ligue_one': {'league_id': 61, 'name': 'Ligue 1'},
     'soccer_usa_mls': {'league_id': 253, 'name': 'MLS'},
+    # Added 2026-06-13: World Cup scorer props — thin-market segment where the
+    # wc_elo lesson says our edge actually lives; tournament runs Jun 11-Jul 19.
+    'soccer_fifa_world_cup': {'league_id': 1, 'name': 'FIFA World Cup'},
 }
 
 LEAGUE_AVG_GOAL_RATE = 0.12
@@ -106,15 +109,19 @@ class SoccerScorerOddsCollector:
                 WHERE player_id IS NOT NULL
             """))
 
+            # BUGFIX 2026-06-13: this DDL had drifted from the LIVE table schema
+            # (live columns: matched_player_id / matched_player_name /
+            # match_confidence). The collector's lookups+inserts used the stale
+            # names, raised UndefinedColumn on every player, and the pipeline
+            # silently produced 0 rows forever. Aligned to the live schema.
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS player_name_aliases (
                     id SERIAL PRIMARY KEY,
                     odds_api_name VARCHAR(200) NOT NULL,
-                    player_id INTEGER NOT NULL,
-                    player_name VARCHAR(200),
-                    confidence NUMERIC(4,2) DEFAULT 1.0,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    UNIQUE(odds_api_name, player_id)
+                    matched_player_id INTEGER NOT NULL,
+                    matched_player_name VARCHAR(200),
+                    match_confidence NUMERIC(4,2) DEFAULT 1.0,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
                 )
             """))
 
@@ -237,7 +244,7 @@ class SoccerScorerOddsCollector:
     def _match_player_to_db(self, player_name: str, match_id: int) -> Optional[int]:
         with self.engine.connect() as conn:
             cached = conn.execute(text("""
-                SELECT player_id FROM player_name_aliases
+                SELECT matched_player_id AS player_id FROM player_name_aliases
                 WHERE odds_api_name = :name
                 LIMIT 1
             """), {'name': player_name}).fetchone()
@@ -302,9 +309,10 @@ class SoccerScorerOddsCollector:
             if best_score >= 0.5 and best_pid:
                 try:
                     conn.execute(text("""
-                        INSERT INTO player_name_aliases (odds_api_name, player_id, player_name, confidence)
+                        INSERT INTO player_name_aliases
+                            (odds_api_name, matched_player_id, matched_player_name, match_confidence)
                         VALUES (:odds_name, :player_id, :db_name, :conf)
-                        ON CONFLICT (odds_api_name, player_id) DO NOTHING
+                        ON CONFLICT DO NOTHING
                     """), {
                         'odds_name': player_name,
                         'player_id': best_pid,
@@ -324,7 +332,10 @@ class SoccerScorerOddsCollector:
             f"/sports/{sport_key}/events/{event_id}/odds",
             params={
                 'regions': 'us,uk,eu',
-                'markets': 'player_anytime_goalscorer',
+                # BUGFIX 2026-06-13: The Odds API's soccer market key is
+                # 'player_goal_scorer_anytime' — the old 'player_anytime_goalscorer'
+                # is INVALID (API returns an error), so 0 odds were ever collected.
+                'markets': 'player_goal_scorer_anytime',
                 'oddsFormat': 'american',
             }
         )
@@ -341,7 +352,7 @@ class SoccerScorerOddsCollector:
                 bookie_key = bookmaker['key']
 
                 for market in bookmaker.get('markets', []):
-                    if market['key'] != 'player_anytime_goalscorer':
+                    if market['key'] != 'player_goal_scorer_anytime':
                         continue
 
                     for outcome in market.get('outcomes', []):

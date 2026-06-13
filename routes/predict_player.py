@@ -44,6 +44,9 @@ class PlayerPredictionResponse(BaseModel):
     status: str
     prediction: PlayerPrediction
     model_version: Optional[str]
+    # Edge pivot: value vs real anytime-scorer prices (soccer_scorer_odds).
+    # Nullable — None means "unpriced", never a fabricated number.
+    value: Optional[Dict] = None
 
 
 def load_models():
@@ -177,10 +180,29 @@ async def predict_player_performance(request: PlayerPredictionRequest) -> Player
             key_factors=key_factors[:5]
         )
         
+        # ── Edge pivot: value vs real anytime-scorer prices (nullable) ────────
+        # P(scores anytime) from the route's own goals regression via Poisson:
+        # p = 1 - exp(-xG). Offers come from soccer_scorer_odds (real books).
+        value = None
+        try:
+            import math
+            from utils.edge import prop_value
+            from models.player_props_service import get_prop_offers
+            offers = get_prop_offers(request.player_id, request.match_id)
+            if offers:
+                p_score = 1.0 - math.exp(-max(float(predicted_goals), 1e-6))
+                value = prop_value(round(p_score, 4), offers, side='yes')
+                if value is not None:
+                    value['market'] = 'anytime_scorer'
+                    value['p_model'] = round(p_score, 4)
+        except Exception as _v_err:
+            logger.debug(f"prop value enrichment failed: {_v_err}")
+
         return PlayerPredictionResponse(
             status='success',
             prediction=prediction,
-            model_version=version
+            model_version=version,
+            value=value
         )
         
     except HTTPException:

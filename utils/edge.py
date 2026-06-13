@@ -34,7 +34,11 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-OUTCOMES = ("home", "draw", "away")
+# Outcome sets. Soccer/3-way is the default everywhere for back-compat;
+# US sports (NBA/NHL/MLB/NFL moneyline) pass OUTCOMES_2WAY — no draw key, ever.
+OUTCOMES_3WAY = ("home", "draw", "away")
+OUTCOMES_2WAY = ("home", "away")
+OUTCOMES = OUTCOMES_3WAY  # legacy alias
 
 # EV-at-best-price tiers. Tunable; documented in docs/FRONTEND_EDGE_MANUAL.md.
 RATING_TIERS = (
@@ -43,26 +47,31 @@ RATING_TIERS = (
     (0.0, "marginal"),
 )
 
-_CANONICAL_BET = {"home": "home_win", "draw": "draw", "away": "away_win"}
+_CANONICAL_BET = {
+    "home": "home_win", "draw": "draw", "away": "away_win",
+    "over": "over", "under": "under", "yes": "yes",  # prop markets
+}
 
 
 # ── Pure math core ─────────────────────────────────────────────────────────────
 
-def devig_proportional(raw_probs: Dict[str, float]) -> Dict[str, float]:
+def devig_proportional(raw_probs: Dict[str, float],
+                       outcomes: tuple = OUTCOMES_3WAY) -> Dict[str, float]:
     """
     Remove the bookmaker margin from raw implied probabilities (which sum to
     1 + vig) by proportional normalization. Returns fair probs summing to 1.
     """
-    total = sum(raw_probs.get(k, 0.0) or 0.0 for k in OUTCOMES)
+    total = sum(raw_probs.get(k, 0.0) or 0.0 for k in outcomes)
     if total <= 0:
         raise ValueError("raw probabilities must be positive")
-    return {k: (raw_probs.get(k, 0.0) or 0.0) / total for k in OUTCOMES}
+    return {k: (raw_probs.get(k, 0.0) or 0.0) / total for k in outcomes}
 
 
-def implied_probs_from_odds(odds: Dict[str, float]) -> Dict[str, float]:
+def implied_probs_from_odds(odds: Dict[str, float],
+                            outcomes: tuple = OUTCOMES_3WAY) -> Dict[str, float]:
     """Decimal odds -> raw implied probabilities (vig included)."""
     out = {}
-    for k in OUTCOMES:
+    for k in outcomes:
         o = odds.get(k)
         if not o or o <= 1.0:
             raise ValueError(f"invalid decimal odds for {k}: {o}")
@@ -70,9 +79,10 @@ def implied_probs_from_odds(odds: Dict[str, float]) -> Dict[str, float]:
     return out
 
 
-def compute_edge(model_probs: Dict[str, float], market_fair: Dict[str, float]) -> Dict[str, float]:
+def compute_edge(model_probs: Dict[str, float], market_fair: Dict[str, float],
+                 outcomes: tuple = OUTCOMES_3WAY) -> Dict[str, float]:
     """Per-outcome edge in probability points: p_model - p_market_fair."""
-    return {k: round(model_probs[k] - market_fair[k], 4) for k in OUTCOMES}
+    return {k: round(model_probs[k] - market_fair[k], 4) for k in outcomes}
 
 
 def ev_at_price(p: float, decimal_odds: float) -> float:
@@ -109,7 +119,8 @@ def value_rating(ev: Optional[float]) -> str:
 
 
 def select_value_bet(model_probs: Dict[str, float],
-                     best_prices: Dict[str, dict]) -> Optional[dict]:
+                     best_prices: Dict[str, dict],
+                     outcomes: tuple = OUTCOMES_3WAY) -> Optional[dict]:
     """
     Pick the outcome with the highest positive EV at its best available price.
     Returns None when nothing clears EV > 0 — "no bet" is the honest default.
@@ -117,7 +128,7 @@ def select_value_bet(model_probs: Dict[str, float],
     best_prices: {"home": {"odds": 2.10, "book": "bet365"}, ...} (entries optional)
     """
     best = None
-    for k in OUTCOMES:
+    for k in outcomes:
         entry = best_prices.get(k) or {}
         odds = entry.get("odds")
         if not odds or odds <= 1.0:
@@ -177,14 +188,91 @@ def parlay_metrics(legs: List[dict], joint_prob: Optional[float] = None) -> dict
     }
 
 
+def prop_value(p_model: float, offers: List[dict], side: str = "over") -> Optional[dict]:
+    """
+    Value math for a player-prop market (points O/U, anytime scorer, etc.).
+
+    offers: [{"book": str, "line": float|None, "side": "over"/"under"/"yes",
+              "odds": float}, ...]  — every offer collected for this prop.
+    p_model: the model's probability for `side` AT THE MODAL LINE (v1 rule:
+             we only make EV claims at the most-common line across books;
+             offers at other lines are listed as alt_lines with no EV claim,
+             because p_model doesn't transfer across lines).
+    side:    "over"/"yes" (or "under") — which side the model probability is for.
+
+    De-vig: only possible when the SAME book quotes both sides at the modal
+    line (a real O/U pair). Yes-only markets (anytime scorer) get no fair-prob
+    or edge field — EV at price needs no de-vig and is what value_bet runs on.
+
+    Returns None when there are no offers for `side` (no fake value claims).
+    """
+    if not (0.0 < p_model < 1.0):
+        raise ValueError(f"invalid model probability: {p_model}")
+
+    side_offers = [o for o in offers
+                   if o.get("side") == side and (o.get("odds") or 0) > 1.0]
+    if not side_offers:
+        return None
+
+    # Modal line: most common line among this side's offers (None groups together)
+    line_counts: Dict[Optional[float], int] = {}
+    for o in side_offers:
+        line_counts[o.get("line")] = line_counts.get(o.get("line"), 0) + 1
+    modal_line = max(line_counts, key=lambda l: line_counts[l])
+
+    at_line = [o for o in side_offers if o.get("line") == modal_line]
+    best = max(at_line, key=lambda o: o["odds"])
+    ev = ev_at_price(p_model, best["odds"])
+    kf = kelly_fraction(p_model, best["odds"])
+
+    # Fair prob via de-vig when any book quotes BOTH sides at the modal line
+    opposite = "under" if side in ("over", "yes") else "over"
+    fair_p = None
+    for o in at_line:
+        pair = next((u for u in offers
+                     if u.get("book") == o.get("book") and u.get("side") == opposite
+                     and u.get("line") == modal_line and (u.get("odds") or 0) > 1.0), None)
+        if pair:
+            raw = {"a": 1.0 / o["odds"], "b": 1.0 / pair["odds"]}
+            fair_p = raw["a"] / (raw["a"] + raw["b"])
+            break
+
+    alt_lines = sorted(
+        ({"line": l, "best_odds": max(o["odds"] for o in side_offers if o.get("line") == l),
+          "n_books": sum(1 for o in side_offers if o.get("line") == l)}
+         for l in line_counts if l != modal_line),
+        key=lambda d: (d["line"] is None, d["line"]),
+    )
+
+    return {
+        "side": side,
+        "modal_line": modal_line,
+        "n_offers": len(side_offers),
+        "n_books": len({o.get("book") for o in at_line}),
+        "best_price": {"odds": round(best["odds"], 3), "book": best.get("book"),
+                       "line": modal_line},
+        "ev_at_best": round(ev, 4),
+        "rating": value_rating(ev),
+        "min_acceptable_odds": min_acceptable_odds(p_model),
+        "kelly_full": kf,
+        "kelly_quarter": round(kf / 4.0, 4),
+        "market_implied_fair": round(fair_p, 4) if fair_p is not None else None,
+        "edge": round(p_model - fair_p, 4) if fair_p is not None else None,
+        "alt_lines": alt_lines or None,  # listed, never EV-claimed (v1 modal-line rule)
+    }
+
+
 def build_value_payload(model_probs: Dict[str, float],
                         market_raw_probs: Optional[Dict[str, float]] = None,
                         best_prices: Optional[Dict[str, dict]] = None,
-                        n_books: Optional[int] = None) -> dict:
+                        n_books: Optional[int] = None,
+                        outcomes: tuple = OUTCOMES_3WAY) -> dict:
     """
     Pure assembly of the `market` + `value` response blocks from already-fetched
     inputs. Fully testable without a DB. Any missing input degrades gracefully
     to nullable fields (the frontend contract allows it).
+    Pass outcomes=OUTCOMES_2WAY for US sports — the payload then carries no
+    draw key anywhere (frontend contract, FRONTEND_EDGE_QA §1).
     """
     market_block = None
     value_block = None
@@ -192,10 +280,10 @@ def build_value_payload(model_probs: Dict[str, float],
     fair = None
     if market_raw_probs:
         try:
-            fair = devig_proportional(market_raw_probs)
-            overround = sum(market_raw_probs.get(k, 0.0) or 0.0 for k in OUTCOMES)
+            fair = devig_proportional(market_raw_probs, outcomes)
+            overround = sum(market_raw_probs.get(k, 0.0) or 0.0 for k in outcomes)
             market_block = {
-                "implied": {k: round(fair[k], 4) for k in OUTCOMES},
+                "implied": {k: round(fair[k], 4) for k in outcomes},
                 "overround": round(overround, 4),
                 "n_books": n_books,
                 "best_price": best_prices or None,
@@ -204,21 +292,21 @@ def build_value_payload(model_probs: Dict[str, float],
             fair = None
 
     if fair:
-        edge = compute_edge(model_probs, fair)
+        edge = compute_edge(model_probs, fair, outcomes)
         ev_best = {}
         if best_prices:
-            for k in OUTCOMES:
+            for k in outcomes:
                 entry = best_prices.get(k) or {}
                 odds = entry.get("odds")
                 ev_best[k] = round(ev_at_price(model_probs[k], odds), 4) if odds and odds > 1.0 else None
-        vb = select_value_bet(model_probs, best_prices) if best_prices else None
+        vb = select_value_bet(model_probs, best_prices, outcomes) if best_prices else None
         top_ev = vb["ev"] if vb else (max((e for e in ev_best.values() if e is not None), default=None))
         value_block = {
             "edge": edge,
             "ev_at_best": ev_best or None,
             "value_bet": vb,
             "rating": value_rating(top_ev),
-            "min_acceptable_odds": {k: min_acceptable_odds(model_probs[k]) for k in OUTCOMES},
+            "min_acceptable_odds": {k: min_acceptable_odds(model_probs[k]) for k in outcomes},
         }
 
     clv_block = {
@@ -244,7 +332,38 @@ MODEL_REGISTRY = {
                      "validation": "is the market line (de-vigged consensus)"},
     "v0_form": {"segment": "efficient_market", "edge_validated": False,
                 "validation": "ELO fallback, not holdout-validated for clubs"},
+    # Multisport V3 (per sport): OOF-validated only — never tested against the
+    # consensus-favorite baseline (the same trap soccer v3_sharp fell into).
+    # Flip edge_validated ONLY after a per-sport temporal holdout passes
+    # (docs/MULTISPORT_EDGE_PLAN.md, Gate B). NBA/MLB mainlines are the most
+    # efficient markets in existence — expect these to stay false.
+    "v3_multisport_basketball": {"segment": "efficient_market", "edge_validated": False,
+                                 "validation": "OOF-only; no favorite-baseline holdout"},
+    "v3_multisport_hockey": {"segment": "efficient_market", "edge_validated": False,
+                             "validation": "OOF-only; no favorite-baseline holdout"},
+    "v3_multisport_baseball": {"segment": "efficient_market", "edge_validated": False,
+                               "validation": "OOF-only; no favorite-baseline holdout"},
+    "v3_multisport_football": {"segment": "efficient_market", "edge_validated": False,
+                               "validation": "OOF-only; no favorite-baseline holdout"},
+    # Player props: AUC 0.72 OOF for soccer involvement models; never validated
+    # against prop prices. Props are the thin/soft segment — validate then flip.
+    "player_props_soccer": {"segment": "thin_market", "edge_validated": False,
+                            "validation": "AUC-only; no price holdout yet"},
 }
+
+# sport_key prefix → registry id (multisport routes pass e.g. 'basketball_nba')
+_SPORT_PREFIX_MODEL = {
+    "basketball": "v3_multisport_basketball",
+    "icehockey": "v3_multisport_hockey",
+    "baseball": "v3_multisport_baseball",
+    "americanfootball": "v3_multisport_football",
+}
+
+
+def multisport_model_id(sport_key: str) -> str:
+    """Map a The-Odds-API sport_key ('basketball_nba') to its registry model id."""
+    prefix = (sport_key or "").split("_", 1)[0]
+    return _SPORT_PREFIX_MODEL.get(prefix, "v3_multisport_basketball")
 
 
 def get_model_track_record(model_id: str) -> dict:

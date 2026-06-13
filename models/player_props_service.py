@@ -14,6 +14,47 @@ from sqlalchemy import create_engine, text
 
 logger = logging.getLogger(__name__)
 
+
+def get_prop_offers(player_id: int, match_id: int = None,
+                    max_age_hours: int = 24, db_url: str = None) -> List[Dict]:
+    """
+    Latest anytime-scorer offer per bookmaker for a player, from the
+    soccer_scorer_odds table (real The Odds API prices keyed by internal ids).
+
+    Module-level + psycopg2-only on purpose: callers that just need prices
+    (routes, parlay gates) shouldn't pay the PlayerPropsService model-load cost.
+
+    Returns offers shaped for utils.edge.prop_value:
+        [{"book": str, "line": None, "side": "yes", "odds": float}, ...]
+    Empty list when the player is unpriced (the honest default).
+    """
+    import psycopg2
+    db_url = db_url or os.getenv("DATABASE_URL")
+    if not db_url:
+        return []
+    try:
+        with psycopg2.connect(db_url, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                q = """
+                    SELECT DISTINCT ON (bookmaker) bookmaker, decimal_odds
+                    FROM soccer_scorer_odds
+                    WHERE player_id = %(pid)s
+                      AND collected_at > NOW() - make_interval(hours => %(hrs)s)
+                """
+                params = {"pid": player_id, "hrs": max_age_hours}
+                if match_id:
+                    q += " AND match_id = %(mid)s"
+                    params["mid"] = match_id
+                q += " ORDER BY bookmaker, collected_at DESC"
+                cur.execute(q, params)
+                rows = cur.fetchall()
+        return [{"book": r[0], "line": None, "side": "yes", "odds": float(r[1])}
+                for r in rows if r[1] and float(r[1]) > 1.0]
+    except Exception as e:
+        logger.debug(f"get_prop_offers failed for player {player_id}: {e}")
+        return []
+
+
 MODEL_DIR = Path("artifacts/models/player_v2")
 ML_MODEL_DIR = Path("artifacts/models/player_soccer")
 
@@ -362,9 +403,17 @@ class PlayerPropsService:
             'confidence': min(1.0, form['games'] / 5)
         }
     
-    def get_top_scorer_picks(self, match_ids: List[int] = None, 
-                             limit: int = 10) -> List[Dict]:
-        """Get top scorer predictions across matches"""
+    def get_top_scorer_picks(self, match_ids: List[int] = None,
+                             limit: int = 10, rank: str = "probability") -> List[Dict]:
+        """
+        Get top scorer predictions across matches.
+
+        rank="probability" (default, legacy) ranks by model probability.
+        rank="ev" ranks by EV at the best available price — the edge-pivot
+        ordering (a 25% scorer at 5.50 beats a 40% scorer at 2.20). Picks
+        without prices sort last under "ev" and carry value=None.
+        Default flips to "ev" after frontend QA (docs/MULTISPORT_EDGE_PLAN.md C3).
+        """
         with self.engine.connect() as conn:
             if match_ids:
                 match_filter = "AND f.match_id = ANY(:match_ids)"
@@ -406,12 +455,33 @@ class PlayerPropsService:
                 if pred.get('probability', 0) > 0.15:
                     players.append({
                         **pred,
+                        'player_id': row.player_id,
                         'match_id': row.match_id,
                         'match': f"{row.home_team} vs {row.away_team}",
                         'kickoff_at': row.kickoff_at.isoformat() if row.kickoff_at else None
                     })
-        
-        players.sort(key=lambda x: x['probability'], reverse=True)
+
+        # ── Edge pivot: attach value vs real anytime-scorer prices (nullable) ──
+        try:
+            from utils.edge import prop_value
+            for pl in players:
+                offers = get_prop_offers(pl['player_id'], pl.get('match_id'))
+                pl['value'] = (prop_value(pl['probability'], offers, side='yes')
+                               if offers else None)
+        except Exception as e:
+            logger.debug(f"top-picks value enrichment failed: {e}")
+            for pl in players:
+                pl.setdefault('value', None)
+
+        if rank == "ev":
+            # priced picks by EV desc, then unpriced by probability
+            players.sort(key=lambda x: (
+                x.get('value') is not None,
+                (x.get('value') or {}).get('ev_at_best', float('-inf')),
+                x['probability'],
+            ), reverse=True)
+        else:
+            players.sort(key=lambda x: x['probability'], reverse=True)
         return players[:limit]
     
     def get_player_props_for_parlay(self, player_id: int, match_id: int) -> Dict:
@@ -422,6 +492,19 @@ class PlayerPropsService:
         if 'error' in scorer_pred:
             return {'error': scorer_pred['error']}
         
+        # ── Edge gate (poison-leg rule): when the market is priced, a parlay
+        # builder must only use legs with positive EV — one -EV leg compounds
+        # against the whole ticket. Unpriced legs carry value=None and
+        # ev_eligible=None (can't poison-check without a price).
+        anytime_value = None
+        offers = get_prop_offers(player_id, match_id)
+        if offers:
+            try:
+                from utils.edge import prop_value
+                anytime_value = prop_value(scorer_pred['probability'], offers, side='yes')
+            except Exception as e:
+                logger.debug(f"parlay prop value failed for player {player_id}: {e}")
+
         return {
             'player_id': player_id,
             'player_name': scorer_pred['player_name'],
@@ -430,7 +513,9 @@ class PlayerPropsService:
             'markets': {
                 'anytime_scorer': {
                     'probability': scorer_pred['probability'],
-                    'confidence': scorer_pred['confidence']
+                    'confidence': scorer_pred['confidence'],
+                    'value': anytime_value,
+                    'ev_eligible': (anytime_value['ev_at_best'] > 0) if anytime_value else None
                 },
                 '2_plus_goals': {
                     'probability': goals_pred['probabilities']['2_plus_goals'],
