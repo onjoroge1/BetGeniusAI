@@ -10,7 +10,7 @@ MODEL = {"home": 0.38, "draw": 0.28, "away": 0.34}
 RAW_MARKET = {"home": 0.52, "draw": 0.295, "away": 0.238}  # sums 1.053 (vig in)
 PRICES = {"home": {"odds": 2.02, "book": "betfair"},
           "draw": {"odds": 3.60, "book": "onexbet"},
-          "away": {"odds": 4.50, "book": "unibet"}}
+          "away": {"odds": 3.30, "book": "unibet"}}
 
 
 class TestContractShape:
@@ -96,7 +96,8 @@ class TestLiveIntegration:
         assert resp is not None
         assert "market" in resp and "value" in resp and "clv" in resp
         assert resp["model_track_record"]["model"] == "wc_elo"
-        assert resp["model_track_record"]["edge_validated"] is True
+        assert resp["model_track_record"]["edge_validated"] is False  # accuracy != value
+        assert resp["model_track_record"]["outcome_validated"] is True
 
 
 class TestLineShoppingGateRecord:

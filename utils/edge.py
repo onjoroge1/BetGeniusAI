@@ -126,34 +126,69 @@ def value_rating(ev: Optional[float]) -> str:
     return "no_value"
 
 
+# Plausibility guards (backend sanity layer). A genuine 1X2 edge is a few points;
+# anything beyond these is almost always model miscalibration or a stale/erroneous
+# single-book price — NOT real value. Surfacing those as "strong_value" is exactly
+# how an unvalidated model produces "+218% EV on a 26.0 longshot" (Spain-Cape Verde).
+MAX_PLAUSIBLE_EDGE = 0.12   # model prob may exceed de-vigged market by at most 12pp
+MAX_PLAUSIBLE_EV = 0.25     # 25% EV ceiling; above this = bad data, not edge
+
+
 def select_value_bet(model_probs: Dict[str, float],
                      best_prices: Dict[str, dict],
-                     outcomes: tuple = OUTCOMES_3WAY) -> Optional[dict]:
+                     outcomes: tuple = OUTCOMES_3WAY,
+                     market_fair: Optional[Dict[str, float]] = None) -> Optional[dict]:
     """
-    Pick the outcome with the highest positive EV at its best available price.
-    Returns None when nothing clears EV > 0 — "no bet" is the honest default.
+    Pick the highest-EV outcome that is ALSO a genuine, plausible edge. Returns
+    None when nothing qualifies — "no bet" is the honest default.
 
-    best_prices: {"home": {"odds": 2.10, "book": "bet365"}, ...} (entries optional)
+    Guards (all required), added 2026-06-14 after the frontend caught wc_elo
+    emitting absurd "validated" bets:
+      - EV > 0 at the best price (necessary, not sufficient)
+      - model_edge > 0 vs the DE-VIGGED market (consistency: a +EV bet driven only
+        by a longshot price while the model rates the outcome BELOW market is the
+        "negative edge but +252% EV" inconsistency — reject it)
+      - |model_edge| <= MAX_PLAUSIBLE_EDGE  (beyond = miscalibration, not value)
+      - EV <= MAX_PLAUSIBLE_EV              (beyond = stale/erroneous price)
+    `market_fair` (de-vigged market probs) is required to enforce consistency; if
+    absent, only the EV>0 + EV-cap guards apply.
     """
     best = None
+    suppressed = []
     for k in outcomes:
         entry = best_prices.get(k) or {}
         odds = entry.get("odds")
         if not odds or odds <= 1.0:
             continue
         ev = ev_at_price(model_probs[k], odds)
-        if ev > 0 and (best is None or ev > best["ev"]):
-            kf = kelly_fraction(model_probs[k], odds)  # compute once, derive quarter
+        if ev <= 0:
+            continue
+        model_edge = (model_probs[k] - market_fair[k]) if market_fair else None
+        # consistency + plausibility
+        if market_fair is not None and model_edge is not None and model_edge <= 0:
+            suppressed.append((k, "ev_positive_but_model_below_market"))
+            continue
+        if model_edge is not None and abs(model_edge) > MAX_PLAUSIBLE_EDGE:
+            suppressed.append((k, f"edge_{model_edge:.2f}_implausible"))
+            continue
+        if ev > MAX_PLAUSIBLE_EV:
+            suppressed.append((k, f"ev_{ev:.2f}_implausible"))
+            continue
+        if best is None or ev > best["ev"]:
+            kf = kelly_fraction(model_probs[k], odds)
             best = {
                 "outcome": k,
                 "bet": _CANONICAL_BET[k],
                 "ev": round(ev, 4),
+                "edge": round(model_edge, 4) if model_edge is not None else None,
                 "price": odds,
                 "book": entry.get("book"),
                 "min_acceptable_odds": min_acceptable_odds(model_probs[k]),
                 "kelly_full": kf,
                 "kelly_quarter": round(kf / 4.0, 4),
             }
+    if best is not None and suppressed:
+        best["suppressed_outcomes"] = suppressed
     return best
 
 
@@ -307,8 +342,11 @@ def build_value_payload(model_probs: Dict[str, float],
                 entry = best_prices.get(k) or {}
                 odds = entry.get("odds")
                 ev_best[k] = round(ev_at_price(model_probs[k], odds), 4) if odds and odds > 1.0 else None
-        vb = select_value_bet(model_probs, best_prices, outcomes) if best_prices else None
-        top_ev = vb["ev"] if vb else (max((e for e in ev_best.values() if e is not None), default=None))
+        # pass the de-vigged market so the bet must be a genuine, plausible edge
+        vb = select_value_bet(model_probs, best_prices, outcomes, market_fair=fair) if best_prices else None
+        # rating reflects ONLY a plausible value_bet — never the raw (possibly
+        # implausible/suppressed) max EV. No qualifying bet ⇒ no_value.
+        top_ev = vb["ev"] if vb else None
         value_block = {
             "edge": edge,
             "ev_at_best": ev_best or None,
@@ -328,10 +366,16 @@ def build_value_payload(model_probs: Dict[str, float],
 # ── Honesty registry: which models have demonstrated edge ─────────────────────
 
 MODEL_REGISTRY = {
-    # wc_elo: temporal holdout 61.2% vs majority baseline 45.9% (+15.3pp) —
-    # artifacts/models/wc_model/metadata.json. Thin-market segment.
-    "wc_elo": {"segment": "thin_market", "edge_validated": True,
-               "validation": "temporal holdout +15.3pp vs baseline (n=765)"},
+    # wc_elo: passed an ACCURACY holdout (61.2% vs 45.9% majority, +15.3pp, n=765)
+    # — but accuracy is NOT value. CORRECTION 2026-06-14 (frontend caught it):
+    # the model is miscalibrated on mismatches (rates Saudi≈Uruguay) and its raw
+    # probabilities produced absurd "+218% EV" longshot bets. edge_validated means
+    # "its +EV bets beat the market on CLV" — wc_elo has NOT shown that, so it is
+    # FALSE. outcome_validated records the accuracy result separately.
+    "wc_elo": {"segment": "thin_market", "edge_validated": False,
+               "outcome_validated": True,
+               "validation": "accuracy holdout +15.3pp (n=765); NO value/CLV holdout — "
+                             "miscalibrated on mismatches, do not surface as proven bets"},
     # v3_sharp: temporal holdout 45.3% vs favorite 50.9% — FAILED.
     # scripts/temporal_holdout_result.json. Serves calibrated probs only.
     "v3_sharp": {"segment": "efficient_market", "edge_validated": False,
@@ -384,7 +428,11 @@ def get_model_track_record(model_id: str) -> dict:
     return {
         "model": model_id,
         "segment": reg["segment"],
-        "edge_validated": reg["edge_validated"],
+        # edge_validated = "its +EV bets beat the market on CLV" (the ONLY flag the
+        # frontend should gate actionable bets on). outcome_validated = "beats a
+        # baseline on outcome ACCURACY" — necessary but NOT sufficient for betting.
+        "edge_validated": reg.get("edge_validated", False),
+        "outcome_validated": reg.get("outcome_validated", False),
         "validation": reg["validation"],
         "median_clv_90d": None,
         "n_settled": None,

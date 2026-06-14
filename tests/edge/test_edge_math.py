@@ -105,7 +105,7 @@ class TestSelectValueBet:
     def test_picks_highest_ev(self):
         prices = {"home": {"odds": 2.02, "book": "a"},
                   "draw": {"odds": 3.60, "book": "b"},
-                  "away": {"odds": 4.50, "book": "c"}}
+                  "away": {"odds": 3.30, "book": "c"}}
         vb = select_value_bet(self.MODEL, prices)
         assert vb["outcome"] == "away"
         assert vb["bet"] == "away_win"           # canonical string (frontend contract)
@@ -120,7 +120,7 @@ class TestSelectValueBet:
         assert select_value_bet(model, prices) is None  # "no bet" is first-class
 
     def test_missing_prices_skipped(self):
-        vb = select_value_bet(self.MODEL, {"away": {"odds": 4.50, "book": "c"}})
+        vb = select_value_bet(self.MODEL, {"away": {"odds": 3.30, "book": "c"}})
         assert vb["outcome"] == "away"
 
 
@@ -183,7 +183,9 @@ class TestModelRegistry:
 
     def test_wc_elo_validated(self):
         tr = get_model_track_record("wc_elo")
-        assert tr["edge_validated"] is True
+        # accuracy-validated, NOT value/edge-validated (the frontend-caught fix)
+        assert tr["edge_validated"] is False
+        assert tr["outcome_validated"] is True
         assert tr["segment"] == "thin_market"
 
     def test_unknown_model_defaults_unvalidated(self):
