@@ -1,0 +1,51 @@
+{
+  "strategy_id": "SB-LIVE-OVER05-001",
+  "version": "1.0",
+  "name": "Late Goal Pressure",
+  "market": "over_0.5_more_goals",
+  "status": "Registered",
+  "time_window": {"min_minute": 70, "max_minute": 84},
+  "league_scope": ["soccer_epl", "soccer_spain_la_liga", "soccer_italy_serie_a",
+                   "soccer_germany_bundesliga", "soccer_fifa_world_cup"],
+  "hypothesis": "When a match is tied or within one goal after the 70th minute and recent attacking pressure is materially above league baseline, live markets underprice the probability of at least one more goal before full time.",
+  "required_data": ["minute", "score", "live_over_0.5_odds", "prematch_1x2_odds",
+                    "shots_last_15", "shots_on_target_last_15", "corners_last_15",
+                    "red_cards", "final_score", "odds_timestamp"],
+  "optional_data": ["xg_last_15", "dangerous_attacks", "substitution_type", "added_time_est"],
+  "entry_rules": {
+    "minute_between": [70, 84],
+    "abs_goal_diff_max": 1,
+    "no_goal_in_last_minutes": 3,
+    "live_over_0.5_odds_min": 1.85,
+    "odds_age_seconds_max": 20,
+    "match_data_age_seconds_max": 30,
+    "shots_last_15_min": 4,
+    "shots_on_target_last_15_min": 1,
+    "corners_last_15_min": 2,
+    "pressure_percentile_min": 70,
+    "edge_min_pp": 6
+  },
+  "exclusion_rules": {
+    "match_suspended": true,
+    "red_card_in_last_seconds": 90,
+    "goal_in_last_minutes": 3,
+    "odds_moved_against_pct_30s": 8,
+    "league_reliability_below_threshold": true,
+    "below_min_price": true
+  },
+  "settlement": "Win if >=1 more goal is scored after the alert timestamp; lose otherwise.",
+  "baseline": "Bet Over 0.5 more in ALL matches 70'-84' with abs(goal_diff)<=1 and odds>=1.85.",
+  "success_gate": {
+    "min_historical_alerts": 500,
+    "min_forward_alerts": 100,
+    "min_leagues": 5,
+    "min_forward_months": 3,
+    "roi_after_vig_min_pct": 5,
+    "require_positive_clv": true,
+    "brier_better_than_market": true,
+    "max_single_league_profit_share": 0.40
+  },
+  "promotion_rule": "Promote to a paid live alert only after BOTH the historical and forward gates pass, including positive CLV.",
+  "retirement_rule": "Retire if rolling 200-alert ROI is negative AND CLV is negative.",
+  "notes": "First spec — embodies the original 77' insight. edge_validated stays false until the forward gate + CLV pass. Blocked on in-play odds collection (no live price = cannot compute edge/CLV)."
+}
