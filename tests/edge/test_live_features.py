@@ -2,10 +2,50 @@
 Unit tests for the live (in-game) feature + label builder — pure, no DB.
 Guards the leak-safety that makes an in-game backtest trustworthy.
 """
+from datetime import datetime, timezone, timedelta
+
 import pytest
 from features.live_feature_builder import (
-    build_live_features, label_from_goals, implied_more_goal_poisson,
+    build_live_features, label_from_goals, implied_more_goal_poisson, data_quality,
 )
+
+
+class TestStalenessGuard:
+    """The Haiti-Scotland feed-freeze guard (49' reported while match was ~73')."""
+    def _at(self, minute, elapsed_min):
+        now = datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc)
+        ko = now - timedelta(minutes=elapsed_min)
+        return data_quality(minute, ko, now=now)
+
+    def test_frozen_feed_flagged_stale(self):
+        q, _ = self._at(49, 73)   # the real bug
+        assert q == "stale"
+
+    def test_healthy_match_ok(self):
+        q, _ = self._at(70, 73)
+        assert q == "ok"
+
+    def test_halftime_tolerated(self):
+        q, _ = self._at(46, 62)   # 16m halftime, not stale
+        assert q == "ok"
+
+    def test_early_game_ok(self):
+        q, _ = self._at(5, 5)
+        assert q == "ok"
+
+    def test_second_half_freeze_caught(self):
+        q, _ = self._at(46, 70)
+        assert q == "stale"
+
+    def test_unknown_when_missing_inputs(self):
+        assert data_quality(None, datetime.now(timezone.utc))[0] == "unknown"
+        assert data_quality(60, None)[0] == "unknown"
+
+    def test_naive_kickoff_handled(self):
+        now = datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc)
+        naive_ko = datetime(2026, 6, 14, 10, 47)  # 73 min ago, no tzinfo
+        q, _ = data_quality(49, naive_ko, now=now)
+        assert q == "stale"
 
 SNAPS = [
     {"minute": 60, "home_score": 0, "away_score": 0, "home_shots_total": 4, "away_shots_total": 3,

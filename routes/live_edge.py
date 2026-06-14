@@ -139,25 +139,10 @@ def _latest_live_odds(cur, match_id: int, max_age_s: int = 180) -> dict:
     return out
 
 
-def _data_quality(minute, kickoff, snap_ts) -> tuple:
-    """
-    Detect stalled/lagging live stats (the Haiti-Scotland bug: feed froze at ~49'
-    while the match was ~73'). Compares the reported match minute to wall-clock
-    minutes since kickoff. Returns (quality, expected_minute|None).
-    quality in {'ok','stale','unknown'}.
-    """
-    if kickoff is None or minute is None:
-        return "unknown", None
-    now = datetime.now(timezone.utc)
-    ko = kickoff if kickoff.tzinfo else kickoff.replace(tzinfo=timezone.utc)
-    elapsed = (now - ko).total_seconds() / 60.0
-    # In-play minute should roughly track wall-clock minus ~13m halftime. If the
-    # reported minute lags TOTAL elapsed by >18m (halftime + slack), the stats
-    # feed has stalled (Haiti-Scotland: 49' reported at 73' elapsed).
-    expected = round(max(0.0, elapsed - 13.0), 1)
-    if minute + 18 < elapsed:
-        return "stale", expected
-    return "ok", expected
+def _data_quality(minute, kickoff, snap_ts=None) -> tuple:
+    """Thin shim → features.live_feature_builder.data_quality (pure + unit-tested)."""
+    from features.live_feature_builder import data_quality
+    return data_quality(minute, kickoff)
 
 
 def _build_card(match_id, home, away, league_id, snaps, prematch, live_odds=None,
