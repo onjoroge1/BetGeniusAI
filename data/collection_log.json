@@ -146,5 +146,13 @@
     "new_matches_collected": 0,
     "total_matches_in_db": 0,
     "errors": []
+  },
+  {
+    "timestamp": "2026-06-14T15:09:24.854486",
+    "days_back": 3,
+    "leagues_processed": [],
+    "new_matches_collected": 0,
+    "total_matches_in_db": 0,
+    "errors": []
   }
 ]
