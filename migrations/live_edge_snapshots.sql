@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS live_match_snapshots (
     home_corners        INTEGER, away_corners INTEGER,
     home_red            INTEGER, away_red INTEGER,
     home_possession     NUMERIC(5,2),
+    home_xg             NUMERIC(5,2),
+    away_xg             NUMERIC(5,2),
     -- pre-match anchor captured once (so training rows are self-contained)
     prematch_home_prob  NUMERIC(6,4),
     prematch_draw_prob  NUMERIC(6,4),

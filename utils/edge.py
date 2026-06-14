@@ -131,13 +131,22 @@ def value_rating(ev: Optional[float]) -> str:
 # single-book price — NOT real value. Surfacing those as "strong_value" is exactly
 # how an unvalidated model produces "+218% EV on a 26.0 longshot" (Spain-Cape Verde).
 MAX_PLAUSIBLE_EDGE = 0.12   # model prob may exceed de-vigged market by at most 12pp
-MAX_PLAUSIBLE_EV = 0.25     # 25% EV ceiling; above this = bad data, not edge
+MAX_PLAUSIBLE_EV = 0.25     # 25% EV ceiling for UNVALIDATED models
+# Backstop for CLV-validated models: a thin/inefficient market genuinely yields
+# big-EV longshots (that's the product thesis), so a validated model is allowed
+# real value — but still guarded against pure data errors (e.g. a fat-fingered
+# 200.0 price). Without this, the caps that (correctly) gag today's unvalidated
+# garbage would SILENTLY suppress a validated model's real edge — the cure
+# becoming the disease.
+VALIDATED_MAX_EV = 3.0
+VALIDATED_MAX_EDGE = 0.40
 
 
 def select_value_bet(model_probs: Dict[str, float],
                      best_prices: Dict[str, dict],
                      outcomes: tuple = OUTCOMES_3WAY,
-                     market_fair: Optional[Dict[str, float]] = None) -> Optional[dict]:
+                     market_fair: Optional[Dict[str, float]] = None,
+                     edge_validated: bool = False) -> Optional[dict]:
     """
     Pick the highest-EV outcome that is ALSO a genuine, plausible edge. Returns
     None when nothing qualifies — "no bet" is the honest default.
@@ -153,6 +162,10 @@ def select_value_bet(model_probs: Dict[str, float],
     `market_fair` (de-vigged market probs) is required to enforce consistency; if
     absent, only the EV>0 + EV-cap guards apply.
     """
+    # Caps are model-aware: an UNVALIDATED model gets the tight credibility caps;
+    # a CLV-validated one earns headroom (thin-market longshots are the product).
+    max_edge = VALIDATED_MAX_EDGE if edge_validated else MAX_PLAUSIBLE_EDGE
+    max_ev = VALIDATED_MAX_EV if edge_validated else MAX_PLAUSIBLE_EV
     best = None
     suppressed = []
     for k in outcomes:
@@ -168,10 +181,10 @@ def select_value_bet(model_probs: Dict[str, float],
         if market_fair is not None and model_edge is not None and model_edge <= 0:
             suppressed.append((k, "ev_positive_but_model_below_market"))
             continue
-        if model_edge is not None and abs(model_edge) > MAX_PLAUSIBLE_EDGE:
+        if model_edge is not None and abs(model_edge) > max_edge:
             suppressed.append((k, f"edge_{model_edge:.2f}_implausible"))
             continue
-        if ev > MAX_PLAUSIBLE_EV:
+        if ev > max_ev:
             suppressed.append((k, f"ev_{ev:.2f}_implausible"))
             continue
         if best is None or ev > best["ev"]:
@@ -309,7 +322,8 @@ def build_value_payload(model_probs: Dict[str, float],
                         market_raw_probs: Optional[Dict[str, float]] = None,
                         best_prices: Optional[Dict[str, dict]] = None,
                         n_books: Optional[int] = None,
-                        outcomes: tuple = OUTCOMES_3WAY) -> dict:
+                        outcomes: tuple = OUTCOMES_3WAY,
+                        edge_validated: bool = False) -> dict:
     """
     Pure assembly of the `market` + `value` response blocks from already-fetched
     inputs. Fully testable without a DB. Any missing input degrades gracefully
@@ -343,7 +357,8 @@ def build_value_payload(model_probs: Dict[str, float],
                 odds = entry.get("odds")
                 ev_best[k] = round(ev_at_price(model_probs[k], odds), 4) if odds and odds > 1.0 else None
         # pass the de-vigged market so the bet must be a genuine, plausible edge
-        vb = select_value_bet(model_probs, best_prices, outcomes, market_fair=fair) if best_prices else None
+        vb = select_value_bet(model_probs, best_prices, outcomes, market_fair=fair,
+                              edge_validated=edge_validated) if best_prices else None
         # rating reflects ONLY a plausible value_bet — never the raw (possibly
         # implausible/suppressed) max EV. No qualifying bet ⇒ no_value.
         top_ev = vb["ev"] if vb else None
@@ -503,14 +518,17 @@ def fetch_market_context(match_id: int, db_url: Optional[str] = None):
 
 
 def build_edge_blocks(match_id: int, model_probs: Dict[str, float],
-                      db_url: Optional[str] = None) -> dict:
+                      db_url: Optional[str] = None, model_id: Optional[str] = None) -> dict:
     """
     One-call helper for endpoint handlers: fetch market context and assemble
     the market/value/clv blocks. Never raises — degrades to nullable blocks.
+    `model_id` lets the cap relax for CLV-validated models (else tight caps apply).
     """
     try:
+        ev_ok = get_model_track_record(model_id)["edge_validated"] if model_id else False
         market_raw, best_prices, n_books = fetch_market_context(match_id, db_url)
-        return build_value_payload(model_probs, market_raw, best_prices, n_books)
+        return build_value_payload(model_probs, market_raw, best_prices, n_books,
+                                   edge_validated=ev_ok)
     except Exception as e:
         logger.warning(f"build_edge_blocks failed for match {match_id}: {e}")
         return {"market": None, "value": None,

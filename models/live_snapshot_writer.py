@@ -78,13 +78,13 @@ def persist_open_snapshots() -> int:
                         match_id, league_id, snapshot_ts, match_minute, period,
                         home_score, away_score, home_shots, away_shots,
                         home_sot, away_sot, home_corners, away_corners,
-                        home_red, away_red, home_possession,
+                        home_red, away_red, home_possession, home_xg, away_xg,
                         prematch_home_prob, prematch_draw_prob, prematch_away_prob)
                     SELECT lms.match_id, f.league_id, lms.timestamp, lms.minute, lms.period,
                            lms.home_score, lms.away_score, lms.home_shots_total, lms.away_shots_total,
                            lms.home_shots_on_target, lms.away_shots_on_target,
                            lms.home_corners, lms.away_corners,
-                           lms.home_red_cards, lms.away_red_cards, lms.home_possession,
+                           lms.home_red_cards, lms.away_red_cards, lms.home_possession, lms.home_xg, lms.away_xg,
                            oc.ph_cons, oc.pd_cons, oc.pa_cons
                     FROM live_match_stats lms
                     JOIN fixtures f ON f.match_id = lms.match_id

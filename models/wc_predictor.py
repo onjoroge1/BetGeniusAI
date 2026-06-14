@@ -146,7 +146,7 @@ def build_wc_response(match_id: int, home_team: str, away_team: str,
     # the tournament markets are collected; until then these degrade to null.
     try:
         from utils.edge import build_edge_blocks, get_model_track_record
-        response.update(build_edge_blocks(match_id, probs))
+        response.update(build_edge_blocks(match_id, probs, model_id="wc_elo"))
         response["model_track_record"] = get_model_track_record("wc_elo")
     except Exception as e:  # never fatal to the prediction
         logger.warning(f"WC edge blocks failed (non-fatal): {e}")

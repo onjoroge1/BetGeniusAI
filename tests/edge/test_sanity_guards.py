@@ -62,6 +62,22 @@ class TestPlausibilityGuards:
         assert 0 < vb["ev"] <= MAX_PLAUSIBLE_EV
         assert 0 < vb["edge"] <= MAX_PLAUSIBLE_EDGE
 
+    def test_caps_are_model_aware(self):
+        # The silent-product-killer fix: an UNVALIDATED model's big-EV longshot is
+        # suppressed, but a CLV-VALIDATED model earns the headroom (thin-market
+        # value IS the product). Same inputs, opposite outcome by validation status.
+        model = {"home": 0.30, "draw": 0.25, "away": 0.45}
+        fair = {"home": 0.28, "draw": 0.27, "away": 0.45}   # away edge ~0 → use home
+        prices = self._prices(home=4.6)                      # 0.30*4.6-1 = +0.38 EV
+        fair2 = {"home": 0.26, "draw": 0.30, "away": 0.44}   # home edge +4pp (plausible)
+        unvalidated = select_value_bet(model, prices, OUTCOMES_3WAY, market_fair=fair2,
+                                       edge_validated=False)
+        validated = select_value_bet(model, prices, OUTCOMES_3WAY, market_fair=fair2,
+                                     edge_validated=True)
+        assert unvalidated is None          # 38% EV > unvalidated cap (0.25) → suppressed
+        assert validated is not None        # validated model earns the headroom
+        assert validated["bet"] == "home_win"
+
     def test_rating_no_value_when_bet_suppressed(self):
         # the full payload rating must follow the (suppressed) bet, not raw max EV
         b = build_value_payload({"home": 0.80, "draw": 0.08, "away": 0.12},
