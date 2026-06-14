@@ -357,6 +357,11 @@ class BackgroundScheduler:
                     # Unblocks the Live Edge value layer (model_prob vs live price → edge/CLV).
                     if "live_odds" not in self.last_run or (now - self.last_run["live_odds"]).total_seconds() >= 55:
                         await self._spawn("live_odds", self._run_live_odds_collection, timeout=45)
+
+                    # 🗄️ Persist live snapshots to the permanent store (survives stale_cleanup)
+                    # + backfill labels at FT. The training data foundation for the live model.
+                    if "live_snapshot" not in self.last_run or (now - self.last_run["live_snapshot"]).total_seconds() >= 55:
+                        await self._spawn("live_snapshot", self._run_live_snapshot_persist, timeout=45)
                     
                     # ── DISABLED 2026-05-10: 30-day compute trial ──────────────────────
                     # ai_analysis, momentum_calc, live_markets are experimental features
@@ -1022,6 +1027,23 @@ class BackgroundScheduler:
         except Exception as e:
             logger.error(f"🔄 TBD Fixture Resolver error: {e}")
     
+    async def _run_live_snapshot_persist(self):
+        """
+        🗄️ Persist live snapshots to live_match_snapshots (permanent, survives the
+        4h stale_cleanup) + backfill targets at FT. The training-data foundation.
+        """
+        try:
+            from models.live_snapshot_writer import run_snapshot_cycle
+            import asyncio
+            stats = await asyncio.get_event_loop().run_in_executor(None, run_snapshot_cycle)
+            if stats.get("persisted") or stats.get("labeled"):
+                logger.info(f"🗄️ Live snapshots: +{stats['persisted']} persisted, "
+                            f"{stats['labeled']} matches labeled")
+        except ImportError:
+            logger.debug("live_snapshot_writer not available — skipping")
+        except Exception as e:
+            logger.warning(f"Live snapshot persist failed (non-fatal): {e}")
+
     async def _run_live_odds_collection(self):
         """
         📈 In-play odds collection (Snapbet Live Edge, Layer 2).

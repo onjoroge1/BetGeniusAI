@@ -61,10 +61,18 @@ def devig_proportional(raw_probs: Dict[str, float],
     Remove the bookmaker margin from raw implied probabilities (which sum to
     1 + vig) by proportional normalization. Returns fair probs summing to 1.
     """
-    total = sum(raw_probs.get(k, 0.0) or 0.0 for k in outcomes)
-    if total <= 0:
-        raise ValueError("raw probabilities must be positive")
-    return {k: (raw_probs.get(k, 0.0) or 0.0) / total for k in outcomes}
+    # Require EVERY outcome present and positive. A dropped selection (e.g. the
+    # live feed returns only home+draw) must NOT silently yield p=0 for the missing
+    # one — that would fabricate a fake edge on the present outcomes. Raise instead;
+    # callers (build_value_payload) catch it and degrade to value=None.
+    vals = {}
+    for k in outcomes:
+        v = raw_probs.get(k)
+        if v is None or v <= 0:
+            raise ValueError(f"missing/invalid raw probability for '{k}': {v}")
+        vals[k] = v
+    total = sum(vals.values())
+    return {k: vals[k] / total for k in outcomes}
 
 
 def implied_probs_from_odds(odds: Dict[str, float],

@@ -31,6 +31,13 @@ class TestDevig:
         with pytest.raises(ValueError):
             devig_proportional({"home": 0, "draw": 0, "away": 0})
 
+    def test_rejects_missing_selection(self):
+        # a dropped live selection must RAISE, not silently yield p=0 (fake edge)
+        with pytest.raises(ValueError):
+            devig_proportional({"home": 0.5, "draw": 0.3}, outcomes=("home", "draw", "away"))
+        with pytest.raises(ValueError):
+            devig_proportional({"home": 0.5, "away": None}, outcomes=("home", "away"))
+
     def test_real_consensus_shape(self):
         # actual odds_consensus rows sum to ~1.05 (vig in) — must normalize
         raw = {"home": 0.5988, "draw": 0.2667, "away": 0.1818}
