@@ -49,17 +49,32 @@ items below unblock on the **one deploy action** at the top.
       the market-key fix — confirm the 4-hourly scheduler task keeps it fresh
       across all 7 leagues once deployed.
 
-## 🔵 P3 — Snapbet Live Edge (new in-game model — see docs/LIVE_EDGE_PLAN.md)
+## 🔵 P3 — Snapbet Live Edge (in-game model — docs/LIVE_EDGE_PLAN.md, LIVE_BETTING_EDGE_SPEC.md)
 
-- [ ] **Phase 0:** ensure live collection logs densely from 55' for all live
-      matches (mostly already happening — verify).
-- [ ] **Phase 1:** `live_feature_builder.py` + label snapshots from match_events;
-      backtest the "77' Over-0.5-more" intuition by minute/score bucket.
-- [ ] **Phase 2:** rule-based Late Edge scanner + watchlist UI (no model/odds).
-- [ ] **Phase 3 (BLOCKER for value):** in-play odds collection → `live_odds_snapshots`.
-      Net-new compute — weigh against the bill.
-- [ ] **Phase 4:** LightGBM Over-0.5 / Next-Goal models + isotonic calibration.
-- [ ] **Phase 5:** wire `utils.edge` + alert engine (TTL, dedupe, "why"); CLV gate.
+- [x] **Live win-probability engine** (`models/live_win_probability.py`) — dynamic
+      1X2 + advanced markets (over0.5more/over2.5/btts/next-goal), wired into /live-edge.
+- [x] **/live-edge endpoints** (board + match detail + win_prob_history graph).
+- [x] **Live feature/label builder** (`features/live_feature_builder.py`) — leak-safe.
+- [x] **In-play odds collection** ✅ — `models/live_odds_collector.py` via API-Football
+      /odds/live (ONE call covers all live fixtures). Proven live: 25 rows for a
+      tracked match. Scheduler task `live_odds` every ~55s. **Layer 2 is unblocked.**
+- [x] **/live-edge value layer wired** — model_prob vs de-vigged live price →
+      edge/EV/BETTABLE, with the price-guard (BETTABLE needs +EV, odds ≤30s old,
+      price ≥1.85). Proven live: correctly returned `no_value` when the market
+      priced a goal higher than the model (prediction ≠ edge, working).
+- [ ] **Persistence to deploy:** `live_match_snapshots` + `live_odds_snapshots`
+      migrations applied to DB; ensure stale_cleanup does NOT purge them (training store).
+- [ ] **Phase 4:** nightly LightGBM Over-0.5 / Next-Goal multi-head (replaces the
+      Poisson prior) once enough labeled snapshots accumulate (~weeks). edge_validated
+      flips only past the CLV holdout.
+- [ ] **Spec validation:** backtest `SB-LIVE-OVER05-001` vs its baseline on
+      accumulated snapshots; promote only past the success gate (ROI+vig, +CLV).
+- [ ] **xG gap:** live feed has shots/SoT/corners but no xG — source it or proxy
+      from shots for the pressure/feature quality the specs assume.
+- [ ] **strategy_alerts + match-spec writer:** persist each fired alert (spec_hash,
+      features, odds, outcome, CLV) — the audit trail / label factory.
+- [ ] **Case-retrieval "why":** query over live_match_snapshots ("50 similar 77'
+      moments → goal X%") as the explainability layer.
 
 ## ✅ Done this session (for reference)
 

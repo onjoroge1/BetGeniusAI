@@ -16,9 +16,32 @@ after 4h by stale_cleanup, so it can't be the training store).
 
 import math
 import logging
-from typing import Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def data_quality(minute: Optional[int], kickoff, now: Optional[datetime] = None) -> Tuple[str, Optional[float]]:
+    """
+    Detect stalled/lagging live stats (the Haiti-Scotland bug: feed froze at ~49'
+    while the match was ~73'). Compares the reported match minute to wall-clock
+    minutes since kickoff. Returns (quality, expected_minute|None) where quality
+    is 'ok' | 'stale' | 'unknown'. `now` is injectable for deterministic tests.
+
+    In-play minute should roughly track wall-clock minus ~13m halftime. If the
+    reported minute lags TOTAL elapsed by >18m (halftime + slack), the stats feed
+    has stalled → 'stale' (caller must NOT offer a bet on a frozen feed).
+    """
+    if kickoff is None or minute is None:
+        return "unknown", None
+    now = now or datetime.now(timezone.utc)
+    ko = kickoff if getattr(kickoff, "tzinfo", None) else kickoff.replace(tzinfo=timezone.utc)
+    elapsed = (now - ko).total_seconds() / 60.0
+    expected = round(max(0.0, elapsed - 13.0), 1)
+    if minute + 18 < elapsed:
+        return "stale", expected
+    return "ok", expected
 
 # Pressure score weights (docs/LIVE_EDGE_PLAN.md §5). Tunable.
 PRESSURE_WEIGHTS = {

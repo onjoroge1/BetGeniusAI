@@ -159,7 +159,20 @@ class LiveDataCollector:
                             statistics['home_corners'] = value
                         else:
                             statistics['away_corners'] = value
-                    
+
+                    # xG is in the API-Football stats feed as 'expected_goals'
+                    # (verified available on our plan) — the spec's best pressure
+                    # signal. Capture it for the live model + win-prob anchor.
+                    elif 'expected_goals' in stat_type:
+                        try:
+                            xg = float(value) if value is not None else None
+                        except (TypeError, ValueError):
+                            xg = None
+                        if team_type == 'home':
+                            statistics['home_xg'] = xg
+                        else:
+                            statistics['away_xg'] = xg
+
                     elif 'yellow card' in stat_type:
                         if team_type == 'home':
                             statistics['home_yellow_cards'] = value
@@ -239,9 +252,10 @@ class LiveDataCollector:
                         home_yellow_cards, away_yellow_cards,
                         home_red_cards, away_red_cards,
                         home_fouls, away_fouls,
-                        home_offsides, away_offsides
+                        home_offsides, away_offsides,
+                        home_xg, away_xg
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                 """, (
                     match_id,
@@ -264,7 +278,9 @@ class LiveDataCollector:
                     statistics.get('home_fouls'),
                     statistics.get('away_fouls'),
                     statistics.get('home_offsides'),
-                    statistics.get('away_offsides')
+                    statistics.get('away_offsides'),
+                    statistics.get('home_xg'),
+                    statistics.get('away_xg')
                 ))
                 
                 conn.commit()
