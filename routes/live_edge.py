@@ -139,7 +139,29 @@ def _latest_live_odds(cur, match_id: int, max_age_s: int = 180) -> dict:
     return out
 
 
-def _build_card(match_id, home, away, league_id, snaps, prematch, live_odds=None) -> Optional[dict]:
+def _data_quality(minute, kickoff, snap_ts) -> tuple:
+    """
+    Detect stalled/lagging live stats (the Haiti-Scotland bug: feed froze at ~49'
+    while the match was ~73'). Compares the reported match minute to wall-clock
+    minutes since kickoff. Returns (quality, expected_minute|None).
+    quality in {'ok','stale','unknown'}.
+    """
+    if kickoff is None or minute is None:
+        return "unknown", None
+    now = datetime.now(timezone.utc)
+    ko = kickoff if kickoff.tzinfo else kickoff.replace(tzinfo=timezone.utc)
+    elapsed = (now - ko).total_seconds() / 60.0
+    # In-play minute should roughly track wall-clock minus ~13m halftime. If the
+    # reported minute lags TOTAL elapsed by >18m (halftime + slack), the stats
+    # feed has stalled (Haiti-Scotland: 49' reported at 73' elapsed).
+    expected = round(max(0.0, elapsed - 13.0), 1)
+    if minute + 18 < elapsed:
+        return "stale", expected
+    return "ok", expected
+
+
+def _build_card(match_id, home, away, league_id, snaps, prematch, live_odds=None,
+                kickoff=None) -> Optional[dict]:
     """
     Assemble one board card: full live state + live win-probability + advanced
     markets (Layer 1, always present) + value verdict (Layer 2, live when odds present).
@@ -153,6 +175,9 @@ def _build_card(match_id, home, away, league_id, snaps, prematch, live_odds=None
     feats = build_live_features(snaps, minute, prematch=prematch)
     if not feats:
         return None
+
+    # Stats-staleness guard: never bet on a stalled feed (spec exclusion rule).
+    data_quality, expected_minute = _data_quality(minute, kickoff, None)
 
     hs, as_ = int(cur_snap.get("home_score") or 0), int(cur_snap.get("away_score") or 0)
     wp = _win_prob_at(cur_snap, prematch)  # live win prob + markets
@@ -193,14 +218,19 @@ def _build_card(match_id, home, away, league_id, snaps, prematch, live_odds=None
                 "min_acceptable_odds": min_acceptable_odds(p),
                 "odds_age_s": round(live_odds.get("age") or 0, 1),
             }
-            # BETTABLE only on positive EV + fresh odds (price-guard contract)
-            if ev > 0 and (live_odds.get("age") or 999) <= 30 and odds >= 1.85:
+            # BETTABLE only on positive EV + fresh odds + non-stale stats
+            # (price-guard + stats-staleness contract)
+            if (ev > 0 and (live_odds.get("age") or 999) <= 30 and odds >= 1.85
+                    and data_quality == "ok"):
                 status = "BETTABLE"
                 confidence = "medium" if ev >= 0.05 else "low"
 
     pressure_total = feats.get("pressure_total", 0.0)
     rising = pressure_total >= _PRESSURE_HEAT
-    if status == "BETTABLE":
+    if data_quality == "stale":
+        status = "SUSPENDED"
+        reason = f"live stats stalled (~{minute}' vs expected ~{expected_minute}') — feed unreliable"
+    elif status == "BETTABLE":
         reason = f"+EV {value['ev']*100:.0f}% on another goal at live price"
     else:
         reason = ("pressure rising — watching for value" if rising else "low tempo — not a spot")
@@ -226,6 +256,8 @@ def _build_card(match_id, home, away, league_id, snaps, prematch, live_odds=None
         },
         "pressure": {"home": feats.get("pressure_home"), "away": feats.get("pressure_away"),
                      "total": round(pressure_total, 2)},
+        "data_quality": data_quality,         # 'ok'|'stale'|'unknown' — stale ⇒ SUSPENDED, never BETTABLE
+        "expected_minute": expected_minute,   # wall-clock estimate (for stale detection transparency)
         # ── primary featured market (the late-goal pick) ──
         "market": "over_0.5_more_goals",
         "pick": "over_0.5_more_goals",
@@ -260,7 +292,7 @@ async def live_edge_board(api_key: str = Depends(verify_api_key_dep)):
                     snaps = _snapshots(cur, match_id)
                     prematch = _prematch_anchor(cur, match_id)
                     live_odds = _latest_live_odds(cur, match_id)
-                    card = _build_card(match_id, home, away, league_id, snaps, prematch, live_odds)
+                    card = _build_card(match_id, home, away, league_id, snaps, prematch, live_odds, kickoff=_ko)
                     if card:
                         cards.append(card)
     except Exception as e:
@@ -285,17 +317,17 @@ async def live_edge_match(match_id: int, api_key: str = Depends(verify_api_key_d
     try:
         with _conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT home_team, away_team, league_id FROM fixtures WHERE match_id=%s", (match_id,))
+                cur.execute("SELECT home_team, away_team, league_id, kickoff_at FROM fixtures WHERE match_id=%s", (match_id,))
                 fx = cur.fetchone()
                 if not fx:
                     raise HTTPException(404, f"match {match_id} not found")
-                home, away, league_id = fx
+                home, away, league_id, _ko = fx
                 snaps = _snapshots(cur, match_id)
                 if not snaps:
                     raise HTTPException(404, f"no live snapshots for match {match_id}")
                 prematch = _prematch_anchor(cur, match_id)
                 live_odds = _latest_live_odds(cur, match_id)
-                card = _build_card(match_id, home, away, league_id, snaps, prematch, live_odds)
+                card = _build_card(match_id, home, away, league_id, snaps, prematch, live_odds, kickoff=_ko)
     except HTTPException:
         raise
     except Exception as e:
