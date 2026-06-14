@@ -352,6 +352,11 @@ class BackgroundScheduler:
                     
                     if "live_data" not in self.last_run or (now - self.last_run["live_data"]).total_seconds() >= 55:
                         await self._spawn("live_data", self._run_live_data_collection, timeout=60)
+
+                    # 📈 In-play odds — ONE /odds/live call returns all live fixtures.
+                    # Unblocks the Live Edge value layer (model_prob vs live price → edge/CLV).
+                    if "live_odds" not in self.last_run or (now - self.last_run["live_odds"]).total_seconds() >= 55:
+                        await self._spawn("live_odds", self._run_live_odds_collection, timeout=45)
                     
                     # ── DISABLED 2026-05-10: 30-day compute trial ──────────────────────
                     # ai_analysis, momentum_calc, live_markets are experimental features
@@ -1017,6 +1022,24 @@ class BackgroundScheduler:
         except Exception as e:
             logger.error(f"🔄 TBD Fixture Resolver error: {e}")
     
+    async def _run_live_odds_collection(self):
+        """
+        📈 In-play odds collection (Snapbet Live Edge, Layer 2).
+        One API-Football /odds/live call covers all in-play fixtures; stores the
+        markets the Live Edge product needs into live_odds_snapshots. No-ops
+        cheaply when nothing tracked is live.
+        """
+        try:
+            from models.live_odds_collector import collect_live_odds_job
+            import asyncio
+            stats = await asyncio.get_event_loop().run_in_executor(None, collect_live_odds_job)
+            if stats.get("rows"):
+                logger.info(f"📈 Live odds: {stats['rows']} rows for {stats['tracked']} tracked matches")
+        except ImportError:
+            logger.debug("live_odds_collector not available — skipping")
+        except Exception as e:
+            logger.warning(f"Live odds collection failed (non-fatal): {e}")
+
     async def _run_live_data_collection(self):
         """
         🔴 PHASE 1: Live match data collection
@@ -1025,10 +1048,10 @@ class BackgroundScheduler:
         """
         try:
             from models.live_data_collector import collect_live_data
-            
+
             logger.debug("🔴 Live data collection: Starting...")
             collect_live_data()  # Synchronous function
-            
+
         except Exception as e:
             logger.error(f"🔴 Live data collection error: {e}")
     

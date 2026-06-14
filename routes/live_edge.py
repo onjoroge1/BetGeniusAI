@@ -112,12 +112,40 @@ def _win_prob_at(snap, prematch) -> Optional[dict]:
     )
 
 
-def _build_card(match_id, home, away, league_id, snaps, prematch) -> Optional[dict]:
+def _latest_live_odds(cur, match_id: int, max_age_s: int = 180) -> dict:
+    """
+    Latest live 1X2 (market 59) + match-total Over/Under lines for a match,
+    only if fresh (≤ max_age_s old). Returns {} when no fresh live odds.
+    """
+    cur.execute("""
+        SELECT market_id, selection, line, odds_decimal,
+               EXTRACT(EPOCH FROM (NOW() - ts_snapshot)) AS age
+        FROM (
+            SELECT DISTINCT ON (market_id, selection, line)
+                   market_id, selection, line, odds_decimal, ts_snapshot
+            FROM live_odds_snapshots
+            WHERE match_id = %s AND market_id IN (59, 25, 36)
+            ORDER BY market_id, selection, line, ts_snapshot DESC
+        ) t
+        WHERE EXTRACT(EPOCH FROM (NOW() - ts_snapshot)) <= %s
+    """, (match_id, max_age_s))
+    out = {"x12": {}, "totals": {}, "age": None}
+    for mid, sel, line, odds, age in cur.fetchall():
+        out["age"] = min(out["age"], age) if out["age"] is not None else age
+        if mid == 59:
+            out["x12"][sel.lower()] = float(odds)
+        elif mid in (25, 36) and line is not None:
+            out["totals"].setdefault(float(line), {})[sel.lower()] = float(odds)
+    return out
+
+
+def _build_card(match_id, home, away, league_id, snaps, prematch, live_odds=None) -> Optional[dict]:
     """
     Assemble one board card: full live state + live win-probability + advanced
-    markets (Layer 1, always present) + value verdict (Layer 2, null until odds).
+    markets (Layer 1, always present) + value verdict (Layer 2, live when odds present).
     """
     from features.live_feature_builder import build_live_features
+    from utils.edge import devig_proportional, ev_at_price, min_acceptable_odds, value_rating
     if not snaps:
         return None
     cur_snap = snaps[-1]
@@ -130,11 +158,52 @@ def _build_card(match_id, home, away, league_id, snaps, prematch) -> Optional[di
     wp = _win_prob_at(cur_snap, prematch)  # live win prob + markets
     over05 = wp["markets"]["over_0.5_more_goals"] if wp else None
 
+    # ── Layer 2: value from live odds (when fresh odds exist) ──────────────────
+    value = None
+    win_prob_edge = None
+    status = "WATCHLIST"
+    confidence = "low"
+    if live_odds and wp:
+        # win-prob edge: model 1X2 vs de-vigged live 1X2 (market 59)
+        x12 = live_odds.get("x12") or {}
+        if {"home", "draw", "away"} <= set(x12):
+            try:
+                fair = devig_proportional({k: 1.0 / x12[k] for k in ("home", "draw", "away")})
+                win_prob_edge = {k: round(wp["win_probability"][k] - fair[k], 4)
+                                 for k in ("home", "draw", "away")}
+            except (ValueError, ZeroDivisionError):
+                pass
+        # featured market: "over 0.5 more goals" → live match-total Over line at (current_total + 0.5)
+        need_line = (hs + as_) + 0.5
+        tot = (live_odds.get("totals") or {}).get(need_line)
+        if tot and tot.get("over") and tot["over"] > 1.0:
+            odds = tot["over"]
+            p = over05
+            ev = ev_at_price(p, odds)
+            fair_imp = None
+            if tot.get("under") and tot["under"] > 1.0:
+                fair_imp = devig_proportional({"home": 1.0 / odds, "away": 1.0 / tot["under"]},
+                                              outcomes=("home", "away"))["home"]
+            value = {
+                "market": "over_0.5_more_goals", "line": need_line,
+                "model_prob": p, "best_price": {"odds": round(odds, 3), "book": "live_consensus"},
+                "market_implied": round(fair_imp, 4) if fair_imp is not None else None,
+                "edge": round(p - fair_imp, 4) if fair_imp is not None else None,
+                "ev": round(ev, 4), "rating": value_rating(ev),
+                "min_acceptable_odds": min_acceptable_odds(p),
+                "odds_age_s": round(live_odds.get("age") or 0, 1),
+            }
+            # BETTABLE only on positive EV + fresh odds (price-guard contract)
+            if ev > 0 and (live_odds.get("age") or 999) <= 30 and odds >= 1.85:
+                status = "BETTABLE"
+                confidence = "medium" if ev >= 0.05 else "low"
+
     pressure_total = feats.get("pressure_total", 0.0)
     rising = pressure_total >= _PRESSURE_HEAT
-    reason = ("pressure rising — watching for value" if rising else "low tempo — not a spot")
-    # No in-play odds yet → WATCHLIST always (price-guard contract: no odds, no bet)
-    status = "WATCHLIST"
+    if status == "BETTABLE":
+        reason = f"+EV {value['ev']*100:.0f}% on another goal at live price"
+    else:
+        reason = ("pressure rising — watching for value" if rising else "low tempo — not a spot")
 
     now = datetime.now(timezone.utc)
     return {
@@ -162,10 +231,15 @@ def _build_card(match_id, home, away, league_id, snaps, prematch) -> Optional[di
         "pick": "over_0.5_more_goals",
         "model_prob": over05,
         "model_prob_source": "live_poisson_prior",
-        # ── Layer 2: value verdict — null until in-play odds collection ──
-        "market_implied": None, "edge": None, "ev": None,
-        "best_price": None, "min_acceptable_odds": None,
-        "confidence": "low",                 # never higher than low pre-model/pre-odds
+        # ── Layer 2: value verdict — live when fresh in-play odds exist, else null ──
+        "value": value,
+        "win_prob_edge": win_prob_edge,      # model 1X2 minus de-vigged live 1X2
+        "market_implied": value["market_implied"] if value else None,
+        "edge": value["edge"] if value else None,
+        "ev": value["ev"] if value else None,
+        "best_price": value["best_price"] if value else None,
+        "min_acceptable_odds": value["min_acceptable_odds"] if value else None,
+        "confidence": confidence,
         "reason": reason,
         "expires_at": (now + timedelta(seconds=_BOARD_TTL_SECONDS)).isoformat(),
         "model_track_record": {"model": "live_edge_over05", "edge_validated": False,
@@ -185,7 +259,8 @@ async def live_edge_board(api_key: str = Depends(verify_api_key_dep)):
                 for match_id, home, away, league_id, _ko in live:
                     snaps = _snapshots(cur, match_id)
                     prematch = _prematch_anchor(cur, match_id)
-                    card = _build_card(match_id, home, away, league_id, snaps, prematch)
+                    live_odds = _latest_live_odds(cur, match_id)
+                    card = _build_card(match_id, home, away, league_id, snaps, prematch, live_odds)
                     if card:
                         cards.append(card)
     except Exception as e:
@@ -219,7 +294,8 @@ async def live_edge_match(match_id: int, api_key: str = Depends(verify_api_key_d
                 if not snaps:
                     raise HTTPException(404, f"no live snapshots for match {match_id}")
                 prematch = _prematch_anchor(cur, match_id)
-                card = _build_card(match_id, home, away, league_id, snaps, prematch)
+                live_odds = _latest_live_odds(cur, match_id)
+                card = _build_card(match_id, home, away, league_id, snaps, prematch, live_odds)
     except HTTPException:
         raise
     except Exception as e:
