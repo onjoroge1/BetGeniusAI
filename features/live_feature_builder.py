@@ -22,6 +22,30 @@ from typing import Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def xg_estimate(shots_on_target: Optional[float], shots_total: Optional[float],
+                real_xg: Optional[float] = None) -> Tuple[Optional[float], str]:
+    """
+    Expected goals for a side, preferring the real feed value, else a shots-based
+    PROXY. Returns (xg, source) where source ∈ {'feed','proxy','none'}.
+
+    Proxy: on-target shots convert ~30%, off-target ~3% (standard rough weights).
+    API-Football xG coverage is league-dependent (#3 audit) — the proxy keeps the
+    feature populated for leagues without an xG feed, flagged so the model can tell
+    real from proxy.
+    """
+    if real_xg is not None:
+        try:
+            return round(float(real_xg), 3), "feed"
+        except (TypeError, ValueError):
+            pass
+    sot = float(shots_on_target or 0)
+    tot = float(shots_total or 0)
+    off = max(0.0, tot - sot)
+    if tot <= 0:
+        return None, "none"
+    return round(sot * 0.30 + off * 0.03, 3), "proxy"
+
+
 def data_quality(minute: Optional[int], kickoff, now: Optional[datetime] = None) -> Tuple[str, Optional[float]]:
     """
     Detect stalled/lagging live stats (the Haiti-Scotland bug: feed froze at ~49'
@@ -103,6 +127,15 @@ def build_live_features(snapshots: List[dict], minute: int,
         "away_red": float(cur.get("away_red_cards") or 0),
         "home_possession": float(cur.get("home_possession") or 50),
     }
+    # xG: real feed value if present (home_xg/away_xg), else shots-based proxy.
+    # xg_source lets the model/UI distinguish real from proxy (#3 coverage gap).
+    h_xg, h_src = xg_estimate(cur.get("home_shots_on_target"), cur.get("home_shots_total"),
+                             cur.get("home_xg"))
+    a_xg, a_src = xg_estimate(cur.get("away_shots_on_target"), cur.get("away_shots_total"),
+                             cur.get("away_xg"))
+    f["home_xg"] = h_xg if h_xg is not None else 0.0
+    f["away_xg"] = a_xg if a_xg is not None else 0.0
+    f["xg_source"] = h_src  # 'feed' | 'proxy' | 'none'
     # momentum: deltas over last 10 minutes
     for side, field in (("home", "home_shots_total"), ("away", "away_shots_total")):
         f[f"{side}_shots_10"] = _delta_over_window(snaps, minute, 10, field)

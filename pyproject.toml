@@ -1155,3 +1155,10 @@ yta-general-utils = [{ index = "pytorch-cpu", marker = "platform_system == 'Linu
 zensvi = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
 zetascale = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
 zuko = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
+
+[tool.pytest.ini_options]
+# Maintained pytest suites only. The legacy tests/*.py are standalone scripts
+# (some sys.exit at import) that break collection — they are intentionally NOT
+# in testpaths. Run them directly with `python tests/<name>.py` if needed.
+testpaths = ["tests/edge", "tests/wc", "tests/api"]
+addopts = "-p no:cacheprovider"

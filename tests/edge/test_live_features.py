@@ -7,7 +7,27 @@ from datetime import datetime, timezone, timedelta
 import pytest
 from features.live_feature_builder import (
     build_live_features, label_from_goals, implied_more_goal_poisson, data_quality,
+    xg_estimate,
 )
+
+
+class TestXgEstimate:
+    def test_prefers_real_feed(self):
+        xg, src = xg_estimate(5, 12, real_xg=1.21)
+        assert xg == 1.21 and src == "feed"
+
+    def test_proxy_when_no_feed(self):
+        xg, src = xg_estimate(5, 12)   # 5 SoT*0.3 + 7 off*0.03 = 1.5+0.21
+        assert src == "proxy"
+        assert abs(xg - 1.71) < 1e-6
+
+    def test_none_when_no_shots(self):
+        assert xg_estimate(0, 0)[0] is None
+        assert xg_estimate(None, None)[1] == "none"
+
+    def test_bad_feed_value_falls_back_to_proxy(self):
+        xg, src = xg_estimate(3, 8, real_xg="n/a")
+        assert src == "proxy"
 
 
 class TestStalenessGuard:
